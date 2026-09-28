@@ -220,7 +220,7 @@
   },
   "Meta": {
     "title": "Foilio · Din kontrollpanel för Pokémon TCG-marknaden",
-    "description": "Bevaka priser, lagerstatus och värdet på din samling. Foilio samlar prisdata, lagerstatus och marknadstrender för Pokémon TCG i Sverige.",
+    "description": "Jämför priser och lagerstatus på Pokémon TCG från över 40 svenska butiker, få restock-larm och följ värdet på din samling.",
     "ogDescription": "Bevaka priser, lagerstatus och värdet på din samling. Håll koll på marknaden innan alla andra.",
     "ogLocale": "sv_SE"
   },
@@ -1396,7 +1396,7 @@
   },
   "About": {
     "metaTitle": "Om oss",
-    "metaDescription": "Foilio är Sveriges marknadsplattform för Pokémon TCG: prisbevakning, restock-alerts och samlingsverktyg.",
+    "metaDescription": "Foilio jämför priser och lagerstatus på Pokémon TCG från över 40 svenska butiker: prisjämförelse, restock-larm och samlingsverktyg.",
     "h1": "Om Foilio",
     "subtitle": "Sveriges Pokémon TCG-plattform",
     "whatTitle": "Vad är Foilio?",
@@ -1417,7 +1417,34 @@
     "contactTitle": "Kontakta oss",
     "contactBody": "Har du frågor, feedback eller vill rapportera ett problem? Skriv till <email>hej@foilio.se</email> eller besök vår <link>kontaktsida</link>.",
     "rankingTitle": "Så rankar vi",
-    "rankingBody": "Standardsorteringen Bäst matchning väger samman hur väl en produkt stämmer med din sökning och en kvalitetsbedömning: engagemang från andra användare, hur många som bevakar produkten, om den går att köpa just nu, hur många butiker som säljer den, om den har bild och pris, och hur nyligt setet släpptes. Är du inloggad kan produkter du redan bevakar eller äger, och produkter i set du valt som favoriter, få ett litet lyft. Formeln är satt av oss för hand, och du kan alltid byta sorteringsordning själv.\n\nIngen kan betala för att påverka rangordningen. Vi får i dag ingen ersättning från butiker för att du klickar dig vidare. Skulle vi i framtiden införa sponsrade placeringar kommer de att vara tydligt märkta och hållas åtskilda från den ordinarie rangordningen."
+    "rankingBody": "Standardsorteringen Bäst matchning väger samman hur väl en produkt stämmer med din sökning och en kvalitetsbedömning: engagemang från andra användare, hur många som bevakar produkten, om den går att köpa just nu, hur många butiker som säljer den, om den har bild och pris, och hur nyligt setet släpptes. Är du inloggad kan produkter du redan bevakar eller äger, och produkter i set du valt som favoriter, få ett litet lyft. Formeln är satt av oss för hand, och du kan alltid byta sorteringsordning själv.\n\nIngen kan betala för att påverka rangordningen. Vi får i dag ingen ersättning från butiker för att du klickar dig vidare. Skulle vi i framtiden införa sponsrade placeringar kommer de att vara tydligt märkta och hållas åtskilda från den ordinarie rangordningen.",
+    "faqTitle": "Vanliga frågor",
+    "faq": [
+      {
+        "q": "Var hittar jag billigaste Pokémon-korten i Sverige?",
+        "a": "På Foilio jämför du priser och lagerstatus från över 40 svenska webbutiker på ett ställe. Varje produkt visar det lägsta priset hos en butik som har varan i lager, med en direktlänk till butikens egen produktsida."
+      },
+      {
+        "q": "Vilka butiker jämför Foilio?",
+        "a": "Över 40 svenska webbutiker som säljer Pokémon TCG, från stora kedjor till specialiserade kortbutiker. Ingen butik kan betala för en bättre plats i listan; en sponsrad placering är alltid märkt och hålls skild från den ordinarie rangordningen."
+      },
+      {
+        "q": "Hur ofta uppdateras priserna?",
+        "a": "Butikernas lagerstatus bevakas dygnet runt, och priserna uppdateras varje dygn. Prishistoriken sparas dag för dag så att du kan se hur priset rört sig."
+      },
+      {
+        "q": "Varifrån kommer priserna på enskilda kort?",
+        "a": "Från Cardmarket: det lägsta priset för engelska kort i skick Near Mint, omräknat till kronor med dagens växelkurs. Saknas ett verifierat pris visas ”–”. Vi visar aldrig uppskattade priser."
+      },
+      {
+        "q": "Hur får jag larm när en produkt kommer i lager igen?",
+        "a": "Tryck på Bevaka på produkten. Foilio skickar då en push-notis eller ett mejl när varan kommer tillbaka i lager hos någon av butikerna. Påfyllningarna postas också live i Foilios Discord."
+      },
+      {
+        "q": "Kostar Foilio något?",
+        "a": "Prisjämförelsen, katalogen och samlingen är gratis. Foilio Pro (49 kr/mån) ger bland annat restock-larm direkt när varan kommer in, prislarm och obegränsad kortskanning."
+      }
+    ]
   },
   "Contact": {
     "metaTitle": "Kontakt",
@@ -1942,7 +1969,7 @@
   },
   "Products": {
     "metaTitle": "Utforska Pokémon-kort och sealed",
-    "metaDescription": "Sök och jämför priser på Pokémon TCG-produkter hos svenska butiker. Filtrera på kategori, set, pris och lagerstatus.",
+    "metaDescription": "Jämför priser på Pokémon-kort och sealed hos över 40 svenska butiker och se var det är billigast i lager just nu. Filtrera på kategori, set, pris och lagerstatus.",
     "h1": "Utforska produkter",
     "intro": "Jämför priser och lagerstatus hos svenska butiker, och bevaka det du inte vill missa.",
     "search": "Sök",

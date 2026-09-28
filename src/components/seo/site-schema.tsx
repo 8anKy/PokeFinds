@@ -46,6 +46,14 @@ export function SiteSchema({ locale }: { locale: string }) {
         name: "Foilio",
         url: root,
         logo: `${origin}/brand/foilio-logo.png`,
+        // VAD vi är, i en mening (2026-09-28, AI-synlighet): noden sa förut bara
+        // namn + logotyp, så en assistent fick gissa verksamheten ur sidinnehållet.
+        // Samma påstående som /om och /llms.txt — ändra dem tillsammans.
+        description:
+          locale === "en"
+            ? "Foilio compares Pokémon TCG prices and stock across more than 40 Swedish online stores, with restock alerts and collection tracking."
+            : "Foilio jämför priser och lagerstatus på Pokémon TCG från över 40 svenska webbutiker, med restock-larm och samlingsverktyg.",
+        areaServed: { "@type": "Country", name: "Sverige" },
         // ⛔ VAD `sameAs` FAKTISKT GÖR — och inte gör. Det är en IDENTITETSSIGNAL:
         // "profilerna nedan är samma enhet som den här domänen". Den används för
         // entitetsförståelse (kunskapspanel, varumärkeskluster), och det är hela

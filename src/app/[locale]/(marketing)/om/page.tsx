@@ -25,9 +25,27 @@ export default async function AboutPage({
   const t = await getTranslations("About");
   // 5:an är kortskannern + AI-graderingen — sidan beskrev länge bara halva produkten.
   const doItems = [1, 2, 3, 4, 5] as const;
+  // VANLIGA FRÅGOR (2026-09-28, AI-synlighet): frågorna är formulerade som folk frågar
+  // en assistent ("var hittar jag billigast …"), och svaren är sidans egna fakta.
+  // ⛔ FAQPage-noden byggs ur EXAKT samma strängar som renderas — Google underkänner
+  // strukturerad data som inte står synligt på sidan.
+  const faq = t.raw("faq") as { q: string; a: string }[];
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faq.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
 
   return (
     <article className="mx-auto max-w-3xl px-2.5 py-16 sm:px-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema).replace(/</g, "\\u003c") }}
+      />
       <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
       <p className="mt-2 text-sm text-ink-faint">{t("subtitle")}</p>
 
@@ -60,6 +78,18 @@ export default async function AboutPage({
                 {p}
               </p>
             ))}
+        </section>
+
+        <section id="faq">
+          <h2>{t("faqTitle")}</h2>
+          <dl className="mt-2 space-y-4">
+            {faq.map((f) => (
+              <div key={f.q}>
+                <dt className="font-semibold text-ink">{f.q}</dt>
+                <dd className="mt-1">{f.a}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
 
         <section>

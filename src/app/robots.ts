@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { AI_HUB_PATHS, AI_INDEXER_UAS, AI_USER_FETCHER_UAS } from "@/lib/ai-crawlers";
 
 // `||`, inte `??`: en saknad variabel expanderas till TOM STRÄNG (GitHub Actions,
 // och en tom Railway-variabel beter sig likadant), och `"" ?? x` ger `""` — reserven
@@ -90,14 +91,10 @@ export default function robots(): MetadataRoute.Robots {
           "Applebot",
           "Applebot-Extended",
           "GPTBot",
-          "OAI-SearchBot",
-          "ChatGPT-User",
           "ClaudeBot",
           "Claude-Web",
-          // Anthropics nyare crawler-UA:er — Claude-SearchBot svepte katalogen i
-          // 5,7 req/s (63 % av all trafik) 2026-08-09 och höll Neon vaken dygnet runt.
-          "Claude-SearchBot",
-          "Claude-User",
+          // ⛔ AI-assistenternas SÖKINDEXERARE och ANVÄNDARHÄMTARE står inte här sedan
+          // 2026-09-28 (ägarbeslut) — de har egna grupper nedan. Träningscrawlarna är kvar.
           "anthropic-ai",
           // Googles icke-sök-crawler (R&D/AI-hämtningar). Sökindexeringen görs av
           // Googlebot (egen UA) och påverkas inte av att den här blockas.
@@ -120,8 +117,6 @@ export default function robots(): MetadataRoute.Robots {
           // 78 % av all egress 2026-07-26. facebookexternalhit/meta-externalfetcher
           // (länkförhandsvisning, EN URL) lämnas kvar med flit.
           "Meta-WebIndexer",
-          "PerplexityBot",
-          "Perplexity-User",
           "YandexBot",
           "Baiduspider",
           "SeznamBot",
@@ -134,6 +129,23 @@ export default function robots(): MetadataRoute.Robots {
           "omgilibot",
         ],
         disallow: "/",
+      },
+      {
+        // AI-ASSISTENTERNAS SÖKINDEXERARE (2026-09-28, lib/ai-crawlers.ts): startsidan +
+        // navsidorna, aldrig katalogens ~63 000 produktsidor — det var svepet som höll Neon
+        // vaken (Claude-SearchBot 08-09). Längsta regel vinner (RFC 9309), så Allow "/sets"
+        // slår Disallow "/". Middleware ger 403 till den som inte lyder.
+        userAgent: [...AI_INDEXER_UAS],
+        allow: ["/$", "/en$", "/produkter$", "/en/produkter$", ...AI_HUB_PATHS, ...AI_HUB_PATHS.map((p) => `/en${p}`), "/llms.txt"],
+        disallow: "/",
+      },
+      {
+        // AI-ASSISTENTERNAS ANVÄNDARHÄMTARE: en människa frågade just nu och assistenten
+        // öppnar EN sida. Samma regler som en besökare — samma DISALLOW som `*`, som
+        // måste upprepas eftersom gruppen inte ärver något.
+        userAgent: [...AI_USER_FETCHER_UAS],
+        allow: "/",
+        disallow: DISALLOW,
       },
       {
         // Bingbot behåller vi (SEO) men bromsar: den sveper gärna hela katalogen i ett

@@ -1,0 +1,37 @@
+# Foilio
+
+> Foilio (https://foilio.se) is a Swedish price-comparison and collector platform for the Pokémon Trading Card Game. It collects prices and stock status from more than 40 Swedish online stores, so collectors in Sweden can find where a Pokémon TCG product is cheapest and in stock right now — without checking every store by hand.
+
+Foilio är Sveriges plattform för Pokémon TCG-samlare: prisjämförelse mellan svenska butiker, restock-larm, samlingsvärde och kortskanner. Sidan och priserna är på svenska, i svenska kronor.
+
+## What Foilio does
+
+- **Price comparison (sealed products):** booster boxes, Elite Trainer Boxes, booster bundles, tins, blisters and collection boxes, with the price and stock status at each Swedish store and a direct link to the store's product page. The lowest in-stock price is shown first.
+- **Single cards:** prices for single Pokémon cards (English and Japanese) based on Cardmarket's lowest Near Mint listing, converted to SEK at the daily exchange rate.
+- **Price history:** daily price history per product.
+- **Restock alerts:** Foilio monitors Swedish stores around the clock and notifies users by push, e-mail and Discord when a product comes back in stock.
+- **Collection tracking:** log cards and sealed products and follow the collection's total value over time.
+- **Card scanner and AI condition estimate:** scan a card with the phone camera; get an indicative (not official) condition estimate.
+- **Set pages and guides:** every set with its products, and guides such as the upcoming Pokémon TCG release calendar.
+
+Foilio is free to use. Foilio Pro (49 kr/month) adds more alerts and features. Foilio is independent — not affiliated with The Pokémon Company, Nintendo or any store.
+
+## Useful pages
+
+- [All sets](https://foilio.se/sets): every Pokémon TCG set with its products and prices
+- [Guides](https://foilio.se/guider): buying guides and set guides
+- [Upcoming Pokémon TCG sets](https://foilio.se/guider/kommande-pokemon-set): release calendar (English and Japanese sets)
+- [Product catalogue](https://foilio.se/produkter): Foilio's start page — search and filter all products, lowest in-stock price first
+- [Pricing](https://foilio.se/priser): Free vs Pro
+- [About Foilio](https://foilio.se/om): how prices are collected and how products are ranked
+- [Discord](https://foilio.se/discord): Swedish Pokémon TCG community with live restock alerts
+
+## How prices are collected
+
+- Store prices and stock status are read from each store's own public product pages and feeds; each price links directly to the product at the store.
+- Single-card prices come from Cardmarket (English, Near Mint, lowest listing) and are refreshed daily.
+- A price of "–" means Foilio does not have a verified price — Foilio never shows estimated or invented prices.
+
+## Contact
+
+hej@foilio.se · https://foilio.se/kontakt

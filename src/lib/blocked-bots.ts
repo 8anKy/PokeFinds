@@ -10,8 +10,12 @@
  * Se middleware.ts för policyn (varför 403 och inte bara robots.txt, och varför
  * Google/Bing/länkförhandsvisare medvetet står utanför).
  */
+// ⛔ AI-ASSISTENTERNAS SÖKINDEXERARE OCH ANVÄNDARHÄMTARE (OAI-SearchBot, ChatGPT-User,
+// Claude-SearchBot, Claude-User, PerplexityBot, Perplexity-User) STÅR INTE HÄR sedan
+// 2026-09-28 — ägarbeslut, se lib/ai-crawlers.ts. Indexerarna begränsas till navsidorna
+// av middleware; träningscrawlarna (GPTBot, ClaudeBot, CCBot …) är kvar nedan.
 export const BLOCKED_BOTS =
-  /Applebot|GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-Web|Claude-SearchBot|Claude-User|anthropic-ai|CCBot|Bytespider|AhrefsBot|SemrushBot|DataForSeoBot|MJ12bot|Amazonbot|Amzn-SearchBot|ShapBot|Meta-ExternalAgent|Meta-WebIndexer|GoogleOther|PerplexityBot|Perplexity-User|YandexBot|Baiduspider|SeznamBot|DotBot|BLEXBot|Barkrowler|ImagesiftBot|Timpibot|Diffbot|omgili|Screaming Frog|python-requests|Scrapy|node-fetch|Go-http-client|libwww-perl/i;
+  /Applebot|GPTBot|ClaudeBot|Claude-Web|anthropic-ai|CCBot|Bytespider|AhrefsBot|SemrushBot|DataForSeoBot|MJ12bot|Amazonbot|Amzn-SearchBot|ShapBot|Meta-ExternalAgent|Meta-WebIndexer|GoogleOther|YandexBot|Baiduspider|SeznamBot|DotBot|BLEXBot|Barkrowler|ImagesiftBot|Timpibot|Diffbot|omgili|Screaming Frog|python-requests|Scrapy|node-fetch|Go-http-client|libwww-perl/i;
 // Amzn-SearchBot: Amazons NYARE crawler-UA (2026-08-22). `Amazonbot` stod redan i
 // listan men matchar INTE strängen "Amzn-SearchBot" — det är ett annat namn, inte en
 // variant, och regexen är ren substrängsmatchning. Följden: den svepte /produkter/[slug]

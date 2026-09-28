@@ -793,6 +793,13 @@ Prishistorik: servern hämtar HELA serien en gång (`MAX_DAYS`), `product-price-
 klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 
 ## SEO & indexering
+- **AI-ASSISTENTERNA SLÄPPTES IN 2026-09-28 (ägarbeslut: "synas i ChatGPT")** — `src/lib/ai-crawlers.ts`. Sök-
+  INDEXERARNA (OAI-SearchBot, Claude-SearchBot, PerplexityBot) får startsidan, `/produkter` EXAKT och navsidorna
+  (`/sets`, `/guider`, `/om`, `/priser`, `/discord`, `/kontakt`) — ⛔ ALDRIG `/produkter/<slug>` (~63 000 sidor, svepet
+  som höll Neon vaken 08-09); spärren står i robots.txt OCH som 403 i middleware. ANVÄNDARHÄMTARNA (ChatGPT-User,
+  Claude-User, Perplexity-User) följer besökarreglerna. ⛔ TRÄNINGSCRAWLARNA (GPTBot, ClaudeBot, CCBot …) och Applebot är
+  KVAR i blocklistan. `/llms.txt` (public/) + FAQ med FAQPage på `/om` + `description` i Organization-noden bär samma
+  påstående ("över 40 svenska butiker") — ändra dem tillsammans. Vaktat av `tests/unit/ai-crawlers.test.ts`.
 - **`/discord` är Discord-serverns landningssida** (ägarbeslut 2026-08-17). Målet "ligg överst på *pokemon
   tcg sverige discord*" går INTE att nå med metadata: en `discord.gg`-inbjudan är en tunn sida vi varken äger
   eller kan optimera, och en UTGÅENDE länk hjälper aldrig mottagarens rankning — frågan vinns av en sida vars

@@ -39,9 +39,6 @@ describe("blocklistan för bulk-crawlers", () => {
     "Applebot/0.1 (+http://www.apple.com/go/applebot)",
     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.1; +https://openai.com/gptbot",
     "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
-    // Anthropics NYARE crawler-UA — matchades INTE av ClaudeBot/Claude-Web och svepte
-    // katalogen i 5,7 req/s (63 % av all trafik, Railway httpLogs 2026-08-09).
-    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-SearchBot/1.0; +searchbot@anthropic.com)",
     // Googles icke-sök-crawler (28 % av trafiken samma dygn). Sökindexeringen görs av
     // Googlebot (egen UA) och påverkas inte.
     "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.7871.186 Mobile Safari/537.36 (compatible; GoogleOther)",
@@ -51,7 +48,6 @@ describe("blocklistan för bulk-crawlers", () => {
     // mest servertid av alla UA:er (Railway httpLogs 2026-08-22), höll Neon vaken 65 h.
     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amzn-SearchBot/0.1) Chrome/119.0.6045.214 Safari/537.36",
     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ShapBot/0.1.0",
-    "Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
     "Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)",
     "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
     "Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)",
@@ -83,6 +79,12 @@ describe("blocklistan för bulk-crawlers", () => {
     ["WhatsApp", "WhatsApp/2.23.20.0"],
     // Uptime-monitorn får aldrig 403:as — då larmar den om nedtid som inte finns.
     ["UptimeRobot", "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)"],
+    // AI-assistenternas sökindexerare och användarhämtare (ägarbeslut 2026-09-28): ingen
+    // 403 här — indexerarna begränsas till navsidorna av middleware (ai-crawlers.test.ts).
+    ["Claude-SearchBot", "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-SearchBot/1.0; +searchbot@anthropic.com)"],
+    ["PerplexityBot", "Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)"],
+    ["OAI-SearchBot", "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; OAI-SearchBot/1.3; +https://openai.com/searchbot"],
+    ["ChatGPT-User", "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot"],
     // Riktiga besökare.
     ["Chrome på Windows", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"],
     ["Safari på iPhone", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"],

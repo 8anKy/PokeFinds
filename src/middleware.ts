@@ -3,6 +3,7 @@ import { encode, getToken, type JWT } from "next-auth/jwt";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "@/i18n/routing";
 import { isBlockedBot } from "@/lib/blocked-bots";
+import { AI_INDEXER, aiIndexerMayFetch } from "@/lib/ai-crawlers";
 import {
   CREATOR_REF_COOKIE,
   CREATOR_REF_MAX_AGE,
@@ -195,6 +196,11 @@ export async function middleware(req: NextRequest) {
   // 2026-08-26. Det största svepet den dagen bar inget crawler-namn alls utan en
   // förfalskad webbläsarsträng från 321 roterande IP-adresser; se blocked-bots.ts.
   if (isBlockedBot(ua)) {
+    return new NextResponse(null, { status: 403 });
+  }
+  // AI-assistenternas sökindexerare: navsidorna, aldrig katalogen (lib/ai-crawlers.ts).
+  // Står även i robots.txt — det här är spärren för den som inte lyder den.
+  if (AI_INDEXER.test(ua) && !aiIndexerMayFetch(req.nextUrl.pathname)) {
     return new NextResponse(null, { status: 403 });
   }
 

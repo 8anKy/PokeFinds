@@ -220,7 +220,7 @@
   },
   "Meta": {
     "title": "Foilio · Your control panel for the Pokémon TCG market",
-    "description": "Track prices, stock status and the value of your collection. Foilio brings together price data, stock status and market trends for Pokémon TCG in Sweden.",
+    "description": "Compare Pokémon TCG prices and stock across more than 40 Swedish stores, get restock alerts and track the value of your collection.",
     "ogDescription": "Track prices, stock status and the value of your collection. Stay ahead of the market.",
     "ogLocale": "en_US"
   },
@@ -1396,7 +1396,7 @@
   },
   "About": {
     "metaTitle": "About us",
-    "metaDescription": "Foilio is Sweden's marketplace platform for Pokémon TCG: price tracking, restock alerts and collection tools.",
+    "metaDescription": "Foilio compares Pokémon TCG prices and stock across more than 40 Swedish stores: price comparison, restock alerts and collection tools.",
     "h1": "About Foilio",
     "subtitle": "Sweden's Pokémon TCG platform",
     "whatTitle": "What is Foilio?",
@@ -1417,7 +1417,34 @@
     "contactTitle": "Contact us",
     "contactBody": "Have questions, feedback or want to report a problem? Write to <email>hej@foilio.se</email> or visit our <link>contact page</link>.",
     "rankingTitle": "How we rank",
-    "rankingBody": "The default sorting Best match combines how well a product matches your search with a quality assessment: engagement from other users, how many are watching the product, whether it can be bought right now, how many stores sell it, whether it has an image and a price, and how recently the set was released. If you are signed in, products you already watch or own, and products in sets you have picked as favorites, can get a small boost. The formula is set by us by hand, and you can always change the sort order yourself.\n\nNo one can pay to influence the ranking. We currently receive no compensation from stores when you click through. Should we introduce sponsored placements in the future, they will be clearly marked and kept separate from the organic ranking."
+    "rankingBody": "The default sorting Best match combines how well a product matches your search with a quality assessment: engagement from other users, how many are watching the product, whether it can be bought right now, how many stores sell it, whether it has an image and a price, and how recently the set was released. If you are signed in, products you already watch or own, and products in sets you have picked as favorites, can get a small boost. The formula is set by us by hand, and you can always change the sort order yourself.\n\nNo one can pay to influence the ranking. We currently receive no compensation from stores when you click through. Should we introduce sponsored placements in the future, they will be clearly marked and kept separate from the organic ranking.",
+    "faqTitle": "Frequently asked questions",
+    "faq": [
+      {
+        "q": "Where can I find the cheapest Pokémon cards in Sweden?",
+        "a": "On Foilio you compare prices and stock from more than 40 Swedish online stores in one place. Every product shows the lowest price at a store that has it in stock, with a direct link to the store’s own product page."
+      },
+      {
+        "q": "Which stores does Foilio compare?",
+        "a": "More than 40 Swedish online stores selling Pokémon TCG, from large chains to specialist card shops. No store can pay for a better position in the list; a sponsored placement is always labelled and kept separate from the regular ranking."
+      },
+      {
+        "q": "How often are prices updated?",
+        "a": "Store stock is monitored around the clock, and prices are updated every day. Price history is saved day by day so you can see how a price has moved."
+      },
+      {
+        "q": "Where do single-card prices come from?",
+        "a": "From Cardmarket: the lowest price for English cards in Near Mint condition, converted to Swedish kronor at the daily exchange rate. If there is no verified price we show “–”. We never show estimated prices."
+      },
+      {
+        "q": "How do I get an alert when a product is back in stock?",
+        "a": "Tap Watch on the product. Foilio then sends a push notification or an e-mail when the item is back in stock at any of the stores. Restocks are also posted live in Foilio’s Discord."
+      },
+      {
+        "q": "Does Foilio cost anything?",
+        "a": "Price comparison, the catalogue and your collection are free. Foilio Pro (49 kr/month) adds instant restock alerts, price alerts and unlimited card scanning, among other things."
+      }
+    ]
   },
   "Contact": {
     "metaTitle": "Contact",
@@ -1942,7 +1969,7 @@
   },
   "Products": {
     "metaTitle": "Explore Pokémon cards and sealed",
-    "metaDescription": "Search and compare prices on Pokémon TCG products at Swedish stores. Filter by category, set, price and stock status.",
+    "metaDescription": "Compare prices on Pokémon cards and sealed products across more than 40 Swedish stores and see where it is cheapest in stock right now. Filter by category, set, price and stock.",
     "h1": "Explore products",
     "intro": "Compare prices and stock status at Swedish stores, and watch what you don't want to miss.",
     "search": "Search",
