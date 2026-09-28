@@ -45,7 +45,7 @@
  *     då är det ingen nyhet. Utan den regeln stämplas dessutom cooldown på hundratals
  *     URL:er, vilket kan TYSTA en äkta påfyllning de närmaste två timmarna.
  */
-import { actionableChanges, mergeStateMap, type FeedStateMap } from "@/lib/feed-state-diff";
+import { actionableChanges, mergeStateMap, type FeedStateMap, type StockChange } from "@/lib/feed-state-diff";
 import { evaluateStockFlap, FLAP_WINDOW_HOURS, type FlapPolicy } from "@/lib/stock-flap";
 import {
   judgePriceDrop,
@@ -298,6 +298,8 @@ const ABSENT_MEMORY_HOURS = 48;
 const IN_STOCK = "IN_STOCK";
 const OUT_OF_STOCK = "OUT_OF_STOCK";
 const PREORDER = "PREORDER";
+/** Köpbart i appen — det en slutförsäljning kommer ifrån och en tyst påfyllning går till. */
+const SYNC_BUYABLE: ReadonlySet<string> = new Set(["IN_STOCK", "PREORDER", "LIMITED"]);
 
 export interface DeriveOptions {
   state: DiscordRestockState | null;
@@ -323,8 +325,32 @@ export interface DeriveOptions {
   priceDrops?: PriceDropPolicy | null;
 }
 
+/**
+ * TYST LAGERSYNK (2026-09-28, ägarbeslut "alternativ A"). En lagerändring på en ruttad
+ * URL som INTE blir ett larm: slutförsäljningar, och påfyllningar lanen dämpade bort
+ * (blink/cooldown). Förut såg bara nattkedjan dem, så "i lager" stod kvar upp till ett
+ * dygn efter att varan tagit slut. Blir en `STOCK_SYNC`-hit som köas i lanen och bara
+ * skickas i ett fönster där Neon ändå är vaken (`splitHitBatch` i restock-hits.ts).
+ *
+ * ⛔ BÅDA RIKTNINGARNA, INTE BARA "SLUT". Synkades bara slutförsäljningar skulle en vara
+ *    som sålde slut och sedan kom tillbaka under lanens cooldown stå som "Slut" i appen
+ *    tills natten — samma fel åt andra hållet.
+ * ⛔ `to` är FEEDENS status för annonsen som helhet (DB-vägens dom), aldrig lanens spår.
+ */
+export interface StockSync {
+  /** Huvudnyckeln (`källa\turl`) — aldrig butiksspårets syntetiska nyckel. */
+  key: string;
+  storeName: string;
+  storeUrl: string;
+  from: string;
+  to: "IN_STOCK" | "PREORDER" | "LIMITED" | "OUT_OF_STOCK";
+  priceOre: number | null;
+}
+
 export interface DeriveResult {
   posts: RestockPost[];
+  /** Tysta lagerändringar på ruttade URL:er — lagerläget till appen, aldrig ett inlägg. */
+  stockSyncs: StockSync[];
   nextState: DiscordRestockState;
   /** Diagnostik för körningsloggen — inte för användaren. */
   stats: {
@@ -446,6 +472,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
   if (seeded) {
     return {
       posts: [],
+      stockSyncs: [],
       nextState: {
         stock: nextStock,
         history: prev.history,
@@ -584,6 +611,38 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     for (const it of g.items) itemByKey.set(`${g.sourceName}\t${it.url}`, { item: it, sourceName: g.sourceName });
   }
 
+  // ---- TYST LAGERSYNK (2026-09-28), se `StockSync` ----
+  // Domen tas på FEEDENS status (samma som DB-vägens Offer.stockStatus), aldrig på lanens
+  // spår: Webhallens huvudnyckel blir "slut" när webblagret tar slut men butikerna har
+  // varan kvar — det är en butiksvara (IN_STOCK i appen), inte en slutförsäljning.
+  // Bara ruttade URL:er — utan rutt finns ingen offer att rätta.
+  const rawByKey = new Map<string, FeedItemFull>();
+  for (const g of groups) {
+    for (const it of g.items) rawByKey.set(`${g.sourceName}\t${it.url}`, it);
+  }
+  const stockSyncs: StockSync[] = [];
+  const addSync = (c: StockChange, want: "out" | "buyable") => {
+    const found = itemByKey.get(c.key);
+    if (!found) return;
+    const realUrl = found.item.storeTrackOf ?? found.item.url;
+    const mainKey = `${found.sourceName}\t${realUrl}`;
+    const raw = rawByKey.get(mainKey);
+    if (!raw || !routes[realUrl] || stockSyncs.some((s) => s.key === mainKey)) return;
+    const to = raw.stockStatus as string;
+    if (want === "out" ? to !== OUT_OF_STOCK : !SYNC_BUYABLE.has(to)) return;
+    stockSyncs.push({
+      key: mainKey,
+      storeName: found.sourceName,
+      storeUrl: realUrl,
+      from: c.from,
+      to: to as StockSync["to"],
+      priceOre: raw.price,
+    });
+  };
+  for (const c of changes) {
+    if (c.to === OUT_OF_STOCK && SYNC_BUYABLE.has(c.from)) addSync(c, "out");
+  }
+
   // ⛔ LÄSES här, SKRIVS aldrig här. Cooldown-stämpeln sätts av `markPosted` EFTER att
   // Discord kvitterat — stämplar man vid beslutet tystas produkten i två timmar när
   // utskicket misslyckades, dvs precis när larmet inte kom fram.
@@ -667,6 +726,8 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     );
     if (flap.blip) {
       stats.skippedFlap++;
+      // Inget inlägg — men varan ÄR tillbaka. Appen ska inte stå kvar på "Slut".
+      addSync(c, "buyable");
       continue;
     }
 
@@ -674,6 +735,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     const last = posted[c.key];
     if (last != null && now.getTime() - last < effectiveCooldownMs) {
       stats.skippedCooldown++;
+      addSync(c, "buyable");
       continue;
     }
 
@@ -761,6 +823,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
 
   return {
     posts,
+    stockSyncs,
     nextState: {
       stock: nextStock,
       history,

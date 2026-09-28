@@ -40,6 +40,25 @@ den postar om en produkt vi KÄNNER (`src/lib/restock-hits.ts` → `/api/cron/re
   4xx = permanent (slängs, körningen röd), 5xx/nätfel = ligger kvar. Sista flushen awaitas vid
   jobbslut; resten skrivs till kön och plockas upp av nästa jobb.
 
+## ✅ TYST LAGERSYNK — "SLUT" NÅR APPEN UTAN EN ENDA EXTRA VÄCKNING (ägarbeslut 2026-09-28)
+Hits bar bara IN_STOCK/PREORDER, så en slutförsäljning nådde appen först via nattkedjan: "i lager"
+stod kvar upp till ett dygn, och `lowestBuyableOffer` (prislarm, "Lägst") kunde välja en slutsåld
+butik. MÄTT 24 h: ~260 slutförsäljningar i ~100 av 288 femminutersfönster mot hitsens ~40 — egna
+leveranser hade kostat ~60 väckningar/dygn. Därför **`STOCK_SYNC`-hits som köas och bara skickas
+direkt EFTER ett levererat larmpaket** (`splitHitBatch`), dvs i ett fönster som redan är betalt.
+- **Båda riktningarna** (`StockSync`, `deriveRestockPosts`): slutförsäljning på ruttad URL ⇒ OUT;
+  påfyllning som lanen DÄMPADE (blink/cooldown) ⇒ tillbaka till köpbar — annars hade en vara som
+  sålde slut och kom tillbaka under cooldownen stått som "Slut" tills natten. En tyst "tillbaka" hos
+  en Shopify-butik passerar samma köpknappskoll som inläggen.
+- ⛔ `to` är FEEDENS status för annonsen som helhet, aldrig lanens spår: Webhallens huvudnyckel blir
+  "slut" när webblagret tar slut, men en butiksvara är IN_STOCK i appen (ägarbeslut 09-20).
+- ⛔ **Ingen RestockEvent, inget larm.** Push-dämpningen räknar RestockEvent (6/dygn ⇒ 24 h); att
+  skriva synkarna där hade gjort pushen strängare utan beslut. Appen skriver bara offern PÅ URL:en,
+  och bara om `Offer.updatedAt` ≤ synkens `at` (kön kan vara timmar gammal, TTL 12 h).
+- En synk per URL (senaste läget vinner); ett larm på samma URL, eller lanens senaste feedstatus som
+  motsäger synken, gör den inaktuell. Loggen: `Lagersynkar: N köade, M rättade i appen, K inaktuella`.
+- ⚠️ En tyst dag utan larm skickar inga synkar alls — då rättar nattkedjan, som förut.
+
 ## ⛔ KATALOGEN GRINDAR INTE LÄNGRE (2026-08-16) — ombygget som löste ägarens felrapport
 Symtomet: **mejl och push kom fram om påfyllningar Discord teg om, i de flesta butiker.**
 Roten var att lanen grindade på RUTTABELLEN — saknades butikens URL där postades ingenting.

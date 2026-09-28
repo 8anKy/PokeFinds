@@ -65,7 +65,11 @@ export async function POST(req: NextRequest) {
 
     const restockPaused = restockAlertsPaused();
     const pricePaused = priceAlertsPaused();
-    const live = hits.filter((h) => (hitKind(h) === "PRICE_DROP" ? !pricePaused : !restockPaused));
+    // LAGERSYNKAR är lagerläge, inget larm — ingen grind. De skickas dessutom bara
+    // efter ett levererat (opausat) paket, i ett fönster där Neon redan är vaken.
+    const live = hits.filter((h) =>
+      hitKind(h) === "STOCK_SYNC" ? true : hitKind(h) === "PRICE_DROP" ? !pricePaused : !restockPaused
+    );
     const pausedRestock = hits.filter((h) => hitKind(h) === "RESTOCK").length - live.filter((h) => hitKind(h) === "RESTOCK").length;
     const pausedPrice = hits.length - live.length - pausedRestock;
     if (live.length === 0) {
@@ -84,7 +88,7 @@ export async function POST(req: NextRequest) {
       .join(", ");
     console.log(
       `[restock-hit] ${applied.received} hits → ${applied.matched} matchade, ${applied.events} händelser, ` +
-        `${applied.alerts} larm; skickade ${dispatched.sent}, misslyckade ${dispatched.failed}` +
+        `${applied.alerts} larm, ${applied.synced} lagersynkar; skickade ${dispatched.sent}, misslyckade ${dispatched.failed}` +
         `${skipped ? ` (hoppade: ${skipped})` : ""}.`
     );
     return jsonOk({ ok: true, paused: false, ...applied, dispatched });

@@ -29,12 +29,17 @@
  */
 import { z } from "zod";
 import type { RestockPost } from "./discord-restock";
+import type { StockSync } from "./restock-feed-events";
 
 export const restockHitSchema = z.object({
   /** Lanens state-nyckel (butik + tab + url). Dedup-nyckel i kön tillsammans med `kind` + `to`. */
   key: z.string().min(1).max(2200),
-  /** Påfyllning (default — äldre köposter saknar fältet) eller prissänkning. */
-  kind: z.enum(["RESTOCK", "PRICE_DROP"]).default("RESTOCK"),
+  /**
+   * Påfyllning (default — äldre köposter saknar fältet), prissänkning eller TYST
+   * LAGERSYNK (2026-09-28, `StockSync`: åker bara med när Neon ändå är vaken, se
+   * `splitHitBatch`). En synk larmar aldrig och skriver ingen RestockEvent.
+   */
+  kind: z.enum(["RESTOCK", "PRICE_DROP", "STOCK_SYNC"]).default("RESTOCK"),
   storeName: z.string().min(1).max(120),
   storeUrl: z.string().url().max(2000),
   /** Lägg-i-korgen-länk (src/lib/cart-url.ts) — skrivs på offern så pushen/mejlet får den. */
@@ -54,7 +59,7 @@ export const restockHitSchema = z.object({
   previousPriceOre: z.number().int().nullable().default(null),
   /** Lanens "från"-status. Kan vara "ABSENT" (fanns inte i förra feeden) → appen tolkar det som okänt. */
   from: z.string().max(24).nullable(),
-  to: z.enum(["IN_STOCK", "PREORDER"]),
+  to: z.enum(["IN_STOCK", "PREORDER", "LIMITED", "OUT_OF_STOCK"]),
   /** När lanen såg övergången, ms. Styr TTL:en i kön. */
   at: z.number().int().nonnegative(),
 });
@@ -73,6 +78,18 @@ export const restockHitBatchSchema = z.object({
  */
 export const HIT_TTL_MS = 2 * 3600_000;
 
+/**
+ * En lagersynk är ett LÄGE, inte en nyhet — den får vänta längre på ett vaket fönster.
+ * Äldre än så rättar nattkedjan den ändå. Appen skriver den bara om offern inte ändrats
+ * efter `at` (`applyRestockHits`), så en sen leverans aldrig skriver över nyare läge.
+ */
+export const STOCK_SYNC_TTL_MS = 12 * 3600_000;
+/** Tak för köade synkar (kön skrivs om var 10:e sekund). Nyast vinner. */
+export const STOCK_SYNC_QUEUE_MAX = 400;
+
+const isSync = (h: Pick<RestockHit, "kind">) => hitKind(h) === "STOCK_SYNC";
+const isOut = (status: string) => status === "OUT_OF_STOCK";
+
 /** Appens svar på en hit-batch. Räknare, aldrig kronor (kostnadsdoktrinen). */
 export interface RestockHitApplyResult {
   received: number;
@@ -84,6 +101,8 @@ export interface RestockHitApplyResult {
   alerts: number;
   /** Varav gratiskontots FÖRDRÖJDA (notBefore satt) — rutten schemalägger en andra utskicksrunda. */
   delayedAlerts: number;
+  /** Offers vars lagerstatus rättats av en tyst STOCK_SYNC-hit (åt båda håll). */
+  synced: number;
   skipped: Record<string, number>;
 }
 
@@ -117,6 +136,8 @@ export function siblingOfferAction(
 }
 
 export function hitDedupKey(h: Pick<RestockHit, "key" | "to"> & { kind?: RestockHit["kind"] }): string {
+  // EN synk per URL oavsett riktning: bara det SENASTE läget är värt att skicka.
+  if (h.kind === "STOCK_SYNC") return `${h.key}\tSTOCK_SYNC`;
   return `${h.key}\t${h.kind ?? "RESTOCK"}\t${h.to}`;
 }
 
@@ -199,14 +220,71 @@ export function mergePendingHits(
   now: Date
 ): RestockHit[] {
   const cutoff = now.getTime() - HIT_TTL_MS;
+  const syncCutoff = now.getTime() - STOCK_SYNC_TTL_MS;
   const byKey = new Map<string, RestockHit>();
   for (const h of [...pending, ...incoming]) {
-    if (h.at < cutoff) continue;
+    if (h.at < (isSync(h) ? syncCutoff : cutoff)) continue;
     const k = hitDedupKey(h);
     const prev = byKey.get(k);
     if (!prev || h.at >= prev.at) byKey.set(k, h);
   }
-  return [...byKey.values()].sort((a, b) => a.at - b.at);
+  // Ett larm (påfyllning/prissänkning) på samma URL i samma eller ett senare varv gör en
+  // köad synk inaktuell — larmet bär redan läget, och appen skriver det.
+  const lastAlert = new Map<string, number>();
+  for (const h of byKey.values()) {
+    if (!isSync(h)) lastAlert.set(h.key, Math.max(lastAlert.get(h.key) ?? 0, h.at));
+  }
+  const all = [...byKey.values()].filter((h) => !isSync(h) || !((lastAlert.get(h.key) ?? -1) >= h.at));
+  const syncs = all.filter(isSync).sort((a, b) => b.at - a.at);
+  const dropped = new Set(syncs.slice(STOCK_SYNC_QUEUE_MAX));
+  return all.filter((h) => !dropped.has(h)).sort((a, b) => a.at - b.at);
+}
+
+/** Lanens tysta lagerändringar som hits. */
+export function hitsFromStockSyncs(syncs: readonly StockSync[], now: Date): RestockHit[] {
+  return syncs.map((s) => ({
+    key: s.key,
+    kind: "STOCK_SYNC" as const,
+    storeName: s.storeName,
+    storeUrl: s.storeUrl,
+    cartUrl: null,
+    productSlug: null,
+    title: null,
+    priceOre: s.priceOre,
+    previousPriceOre: null,
+    from: s.from,
+    to: s.to,
+    at: now.getTime(),
+  }));
+}
+
+/**
+ * VAD SOM SKICKAS NÄR (2026-09-28, ägarbeslut "alternativ A"). Påfyllningar och
+ * prissänkningar skickas direkt — de väcker Neon, det är deras jobb. Lagersynkar väcker
+ * ALDRIG: de åker med först efter att ett brådskande paket levererats, dvs i ett fönster
+ * som redan är betalt. Mätt 2026-09-28: ~260 slutförsäljningar/dygn i ~100
+ * femminutersfönster; egna leveranser hade kostat ~60 väckningar/dygn.
+ *
+ * `currentStatus` = lanens SENASTE feedstatus för URL:en (okänd = undefined). En synk som
+ * motsägs av det lanen ser nu (slut → tillbaka utan larm, eller tvärtom) skickas inte.
+ */
+export function splitHitBatch(
+  pending: readonly RestockHit[],
+  currentStatus: (storeUrl: string) => string | undefined
+): { urgent: RestockHit[]; syncs: RestockHit[]; stale: RestockHit[] } {
+  const urgent: RestockHit[] = [];
+  const syncs: RestockHit[] = [];
+  const stale: RestockHit[] = [];
+  for (const h of pending) {
+    if (!isSync(h)) {
+      urgent.push(h);
+      continue;
+    }
+    const now = currentStatus(h.storeUrl);
+    const agrees = now === undefined || now === "UNKNOWN" || isOut(now) === isOut(h.to);
+    (agrees ? syncs : stale).push(h);
+  }
+  return { urgent, syncs, stale };
 }
 
 /**
@@ -283,6 +361,7 @@ export async function sendRestockHits(
             events: body.events ?? 0,
             alerts: body.alerts ?? 0,
             delayedAlerts: body.delayedAlerts ?? 0,
+            synced: body.synced ?? 0,
             skipped: body.skipped ?? {},
           },
     };

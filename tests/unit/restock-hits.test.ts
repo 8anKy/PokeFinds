@@ -424,6 +424,54 @@ describe("applyRestockHits — appens skrivningar", () => {
     });
   });
 
+  describe("tyst lagersynk (STOCK_SYNC, 2026-09-28) — rättar lagret, larmar aldrig", () => {
+    const AT = NOW.getTime();
+    const syncHit = (to: RestockHit["to"], over: Partial<RestockHit> = {}) =>
+      hit({ kind: "STOCK_SYNC", productSlug: null, from: "IN_STOCK", to, priceOre: 69900, ...over });
+    const offerAt = (stockStatus: string, updatedAt: number) => ({ id: "o1", stockStatus, updatedAt: new Date(updatedAt) });
+
+    it("slutsåld ⇒ offern blir OUT; ingen RestockEvent, inget larm", async () => {
+      offerFindFirst.mockResolvedValue(offerAt("IN_STOCK", AT - 60_000));
+      const r = await applyRestockHits([syncHit("OUT_OF_STOCK")]);
+      expect(offerUpdate).toHaveBeenCalledWith({ where: { id: "o1" }, data: { stockStatus: "OUT_OF_STOCK" } });
+      expect(restockEventCreate).not.toHaveBeenCalled();
+      expect(checkRestockAlerts).not.toHaveBeenCalled();
+      expect(r).toMatchObject({ synced: 1, matched: 0, alerts: 0 });
+    });
+
+    it("tillbaka i lager (dämpad påfyllning) ⇒ IN med feedpriset, fortfarande inget larm", async () => {
+      offerFindFirst.mockResolvedValue(offerAt("OUT_OF_STOCK", AT - 60_000));
+      await applyRestockHits([syncHit("IN_STOCK")]);
+      expect(offerUpdate).toHaveBeenCalledWith({ where: { id: "o1" }, data: { stockStatus: "IN_STOCK", price: 69900 } });
+      expect(checkRestockAlerts).not.toHaveBeenCalled();
+    });
+
+    it("offern ändrad EFTER synken (påfyllning, nattkedjan) ⇒ det nyare läget vinner", async () => {
+      offerFindFirst.mockResolvedValue(offerAt("IN_STOCK", AT + 1));
+      const r = await applyRestockHits([syncHit("OUT_OF_STOCK")]);
+      expect(offerUpdate).not.toHaveBeenCalled();
+      expect(r.skipped).toEqual({ "synk: nyare läge": 1 });
+    });
+
+    it("ingen ändring i sak (redan slut / PREORDER är köpbart) ⇒ raden rörs inte", async () => {
+      offerFindFirst.mockResolvedValue(offerAt("OUT_OF_STOCK", AT - 60_000));
+      await applyRestockHits([syncHit("OUT_OF_STOCK")]);
+      offerFindFirst.mockResolvedValue(offerAt("PREORDER", AT - 60_000));
+      await applyRestockHits([syncHit("IN_STOCK")]);
+      expect(offerUpdate).not.toHaveBeenCalled();
+    });
+
+    it("bara offern PÅ URL:en — en syskonsida släcker aldrig offern som fortfarande säljer", async () => {
+      offerFindFirst.mockResolvedValue(null);
+      const r = await applyRestockHits([syncHit("OUT_OF_STOCK", { storeUrl: "https://rogerz.se/p/annan" })]);
+      expect(offerFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { url: "https://rogerz.se/p/annan", retailerId: "r1" } })
+      );
+      expect(offerUpdate).not.toHaveBeenCalled();
+      expect(r.skipped).toEqual({ "synk: okänd offer": 1 });
+    });
+  });
+
   it("laneStatus: bara riktiga StockStatus passerar", () => {
     expect(laneStatus("ABSENT")).toBeNull();
     expect(laneStatus(null)).toBeNull();

@@ -87,6 +87,47 @@ async function bindUnroutedHit(
   );
 }
 
+/** Det som stod köpbart i appen — bara det kan säljas slut. */
+const SELLABLE: ReadonlySet<StockStatus> = new Set([StockStatus.IN_STOCK, StockStatus.PREORDER, StockStatus.LIMITED]);
+
+/**
+ * TYST LAGERSYNK (2026-09-28, `StockSync` i restock-feed-events.ts): rättar
+ * Offer.stockStatus åt båda håll — inget larm och, med flit, ingen RestockEvent.
+ * Push-dämpningen (`checkRestockAlerts`) räknar RestockEvent, och dess tal
+ * (6 övergångar/dygn ⇒ 24 h tystnad) är satta på dagens historik; att skriva synkarna
+ * där hade gjort pushen strängare utan ägarbeslut.
+ *
+ * ⛔ Bara offern PÅ URL:en. En slutförsäljning på en syskonsida (samma vara, annan URL)
+ *    får inte släcka offern som pekar på sidan som fortfarande säljer.
+ * ⛔ Hiten kan vara timmar gammal (köad tills ett vaket fönster): har offern ändrats
+ *    efter `at` (påfyllning, nattkedjan, verifieringen) är den nyare sanningen.
+ */
+async function applyStockSync(
+  hit: RestockHit,
+  retailerId: string,
+  result: RestockHitApplyResult,
+  skip: (why: string) => void
+): Promise<void> {
+  const offer = await prisma.offer.findFirst({
+    where: { url: hit.storeUrl, retailerId },
+    select: { id: true, stockStatus: true, updatedAt: true },
+  });
+  if (!offer) return skip("synk: okänd offer");
+  const toOut = hit.to === StockStatus.OUT_OF_STOCK;
+  // Ingen ändring i sak (köpbar ↔ köpbar, slut ↔ slut) ⇒ rör inte raden.
+  if (SELLABLE.has(offer.stockStatus) !== toOut) return skip("synk: oförändrat");
+  if (offer.updatedAt.getTime() > hit.at) return skip("synk: nyare läge");
+  await prisma.offer.update({
+    where: { id: offer.id },
+    data: {
+      stockStatus: hit.to as StockStatus,
+      // Tillbaka i lager: feedpriset är en avläsning vi ändå har. 0 kr är inget pris.
+      ...(!toOut && hit.priceOre != null && hit.priceOre > 0 ? { price: hit.priceOre } : {}),
+    },
+  });
+  result.synced++;
+}
+
 const STATUSES = new Set<string>(Object.values(StockStatus));
 
 /** "ABSENT"/okänt → null; en riktig StockStatus passerar oförändrad. */
@@ -101,6 +142,7 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
     events: 0,
     alerts: 0,
     delayedAlerts: 0,
+    synced: 0,
     skipped: {},
   };
   const skip = (why: string, n = 1) => {
@@ -115,6 +157,10 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
     });
     if (!retailer) {
       skip("okänd butik");
+      continue;
+    }
+    if (hitKind(hit) === "STOCK_SYNC") {
+      await applyStockSync(hit, retailer.id, result, skip);
       continue;
     }
     const offerSelect = {

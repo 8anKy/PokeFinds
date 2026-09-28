@@ -71,10 +71,12 @@ import { pricePolicy } from "../src/lib/price-drop";
 import { pollBudget, pollIntervalMs } from "../src/lib/restock-poll-interval";
 import {
   hitsFromPosts,
+  hitsFromStockSyncs,
   mergePendingHits,
   parsePendingHits,
   removeDelivered,
   sendRestockHits,
+  splitHitBatch,
   type RestockHit,
 } from "../src/lib/restock-hits";
 
@@ -398,7 +400,10 @@ async function main() {
   let hitsDirty = false;
   let hitChain: Promise<void> = Promise.resolve();
   let hitsPausedLogged = false;
-  const hitTotals = { queued: 0, delivered: 0, alerts: 0, dropped: 0 };
+  const hitTotals = { queued: 0, delivered: 0, alerts: 0, dropped: 0, syncsQueued: 0, synced: 0, syncsStale: 0 };
+  // Senaste FEEDSTATUS per butiks-URL (rå, före lanens spår). En köad lagersynk som
+  // motsägs av det lanen ser nu skickas inte — se splitHitBatch.
+  const lastFeedStatus = new Map<string, string>();
   const hitsEnabled = !DRY_RUN && hitSecret.length > 0;
   if (!hitsEnabled) {
     console.log(
@@ -420,11 +425,44 @@ async function main() {
     }
   };
   const hitsTimer = setInterval(writeHits, 10_000);
+  /**
+   * LAGERSYNKAR åker bara här: direkt efter att ett brådskande paket levererats,
+   * alltså medan Neon ändå är vaken. De väcker aldrig databasen själva (ägarbeslut
+   * 2026-09-28, alternativ A). Egna anrop, så ett fel här aldrig kan fälla ett larm.
+   */
+  const sendSyncs = async (syncs: RestockHit[]) => {
+    for (let i = 0; i < syncs.length; i += 100) {
+      const chunk = syncs.slice(i, i + 100);
+      const res = await sendRestockHits(chunk, { baseUrl, secret: hitSecret });
+      if (res.ok || res.permanent) {
+        pendingHits = removeDelivered(pendingHits, chunk);
+        hitsDirty = true;
+      }
+      if (res.ok) {
+        hitTotals.synced += res.result?.synced ?? 0;
+        continue;
+      }
+      if (res.permanent) {
+        hitTotals.dropped += chunk.length;
+        console.warn(
+          `[discord-restock] Lagersynkar NEKADES av appen (HTTP ${res.status}${res.detail ? `: ${res.detail}` : ""}) — ` +
+            `${chunk.length} slängda. Larmen påverkas inte.`
+        );
+      }
+      return;
+    }
+  };
   const flushHits = () => {
     if (!hitsEnabled) return;
     hitChain = hitChain
       .then(async () => {
-        const batch = mergePendingHits(pendingHits, [], new Date());
+        const split = splitHitBatch(mergePendingHits(pendingHits, [], new Date()), (u) => lastFeedStatus.get(u));
+        if (split.stale.length) {
+          pendingHits = removeDelivered(pendingHits, split.stale);
+          hitsDirty = true;
+          hitTotals.syncsStale += split.stale.length;
+        }
+        const batch = split.urgent;
         if (!batch.length) return;
         const res = await sendRestockHits(batch, { baseUrl, secret: hitSecret });
         if (res.ok) {
@@ -450,6 +488,7 @@ async function main() {
             `[discord-restock]   larm: ${batch.length} hit(s) → ${res.result?.matched ?? 0} matchade, ` +
               `${res.result?.alerts ?? 0} larm skapade${skipped ? ` (hoppade: ${skipped})` : ""}.`
           );
+          await sendSyncs(split.syncs);
           return;
         }
         if (res.permanent) {
@@ -514,6 +553,7 @@ async function main() {
     }
 
     const requests = requestsForSource(before, requestCountSnapshot(), source, items[0]?.url);
+    for (const it of items) lastFeedStatus.set(it.url, it.stockStatus);
 
     if (items.length === 0) {
       // Tom feed = INGEN INFORMATION, inte "allt försvann". mergeStateMap äger
@@ -599,6 +639,29 @@ async function main() {
             `${s.rescuedByRoute ? `; ${s.rescuedByRoute} räddade av rutten` : ""}).`
       );
       for (const sample of s.filteredSamples) console.log(`[discord-restock]   vaktad: ${sample}`);
+    }
+
+    // Lagersynkar köas TYST — de skickas först när ett larm ändå väcker Neon.
+    if (derived.stockSyncs.length && (!config || hitsEnabled)) {
+      const syncs: typeof derived.stockSyncs = [];
+      for (const so of derived.stockSyncs) {
+        // "Tillbaka i lager" utan inlägg ska inte ljuga mer än inlägget hade gjort:
+        // samma köpknappskoll som före utskick (Shopifys `available` ≠ köpbar).
+        // null = vet inte ⇒ lita på feeden, samma regel som för inläggen.
+        if (so.to !== "OUT_OF_STOCK" && shopifyStores.has(so.storeName)) {
+          if ((await fetchShopifyPurchasable(so.storeUrl)) === false) continue;
+        }
+        syncs.push(so);
+      }
+      if (!config) {
+        for (const so of syncs) {
+          console.log(`[discord-restock][dry]   lagersynk (köas): ${so.storeName} → ${so.storeUrl} (${so.from} → ${so.to})`);
+        }
+      } else if (syncs.length) {
+        pendingHits = mergePendingHits(pendingHits, hitsFromStockSyncs(syncs, now), now);
+        hitsDirty = true;
+        hitTotals.syncsQueued += syncs.length;
+      }
     }
 
     if (!derived.posts.length) return requests;
@@ -773,7 +836,8 @@ async function main() {
       `${jobTotals.rescued ? `; ${jobTotals.rescued} räddade av rutten` : ""}.` +
       (hitsEnabled
         ? ` Larm-hits: ${hitTotals.queued} köade, ${hitTotals.delivered} levererade (${hitTotals.alerts} larm), ` +
-          `${hitTotals.dropped} slängda, ${pendingHits.length} väntar.`
+          `${hitTotals.dropped} slängda, ${pendingHits.length} väntar. Lagersynkar: ${hitTotals.syncsQueued} köade, ` +
+          `${hitTotals.synced} rättade i appen, ${hitTotals.syncsStale} inaktuella.`
         : "")
   );
 
