@@ -23,7 +23,7 @@ import { prisma } from "@/lib/db";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { checkPriceAlerts, checkRestockAlerts, lowestBuyableOffer, type BuyableOffer } from "@/services/alerts";
 import { HIDDEN_CATEGORIES } from "@/services/products";
-import { hitKind, type RestockHit, type RestockHitApplyResult } from "@/lib/restock-hits";
+import { hitKind, siblingOfferAction, type RestockHit, type RestockHitApplyResult } from "@/lib/restock-hits";
 import { guessListingCategory } from "@/scrapers/listing-category";
 import { loadMatchIndex, type MatchIndex } from "@/scrapers/matching";
 import { ensureListingProduct } from "@/scrapers/runner";
@@ -132,6 +132,7 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
     // ORUTTAD påfyllning (ingen offer, ingen slug): bind nu, med nattkedjans portvakt.
     // Portvakten skriver offern själv vid träff → läs om den så resten av varvet är
     // exakt som för en ruttad hit.
+    let boundProductId: string | null = null;
     if (!offer && !hit.productSlug && hitKind(hit) === "RESTOCK") {
       const boundId = await bindUnroutedHit(hit, retailer.id, hit.to as StockStatus);
       if (!boundId) {
@@ -142,21 +143,24 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
         where: { url: hit.storeUrl, retailerId: retailer.id },
         select: offerSelect,
       });
-      if (!offer) {
-        skip("oruttad: bunden utan offer");
-        continue;
+      if (offer) {
+        console.log(`[restock-hit] Oruttad hit bunden: ${hit.storeName} → ${hit.storeUrl} → ${boundId}`);
+        // Spårbart i admin → Kopplingar: en felbindning ska gå att hitta och ta bort
+        // på tio sekunder, inte dyka upp som en främmande butik på en produktsida.
+        await prisma.auditLog.create({
+          data: {
+            action: "restock-hit.bind",
+            entityType: "Offer",
+            entityId: offer.id,
+            metadata: { storeName: hit.storeName, url: hit.storeUrl, title: hit.title, productId: boundId, priceOre: hit.priceOre },
+          },
+        });
+      } else {
+        // Ingen offer på URL:en trots träff = butiken har redan en offer på produkten
+        // under en ANNAN sida (Offer är unik per produkt+butik). Produkten är ändå känd —
+        // syskonsteget nedan avgör om offern ska följa med till den nya sidan.
+        boundProductId = boundId;
       }
-      console.log(`[restock-hit] Oruttad hit bunden: ${hit.storeName} → ${hit.storeUrl} → ${boundId}`);
-      // Spårbart i admin → Kopplingar: en felbindning ska gå att hitta och ta bort
-      // på tio sekunder, inte dyka upp som en främmande butik på en produktsida.
-      await prisma.auditLog.create({
-        data: {
-          action: "restock-hit.bind",
-          entityType: "Offer",
-          entityId: offer.id,
-          metadata: { storeName: hit.storeName, url: hit.storeUrl, title: hit.title, productId: boundId, priceOre: hit.priceOre },
-        },
-      });
     }
 
     if (hitKind(hit) === "PRICE_DROP") {
@@ -199,25 +203,52 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
     }
     let productId: string;
     let product: { category: (typeof HIDDEN_CATEGORIES)[number]; hiddenAt: Date | null };
+    /** Offern flyttas till hitens URL (samma butik, ny sida) — skrivs SIST med flippen. */
+    let repoint = false;
     if (offer) {
       productId = offer.productId;
       product = offer.product;
     } else {
-      // Rutten kan komma ur en bunden StoreListing (feed-först) som ännu saknar Offer.
-      if (!hit.productSlug) {
+      // Rutten kan komma ur en bunden StoreListing (feed-först) som ännu saknar Offer,
+      // eller ur portvakten ovan (oruttad hit som träffade en produkt).
+      if (!hit.productSlug && !boundProductId) {
         skip("okänd produkt");
         continue;
       }
-      const bySlug = await prisma.product.findUnique({
-        where: { slug: hit.productSlug },
+      const known = await prisma.product.findUnique({
+        where: boundProductId ? { id: boundProductId } : { slug: hit.productSlug! },
         select: { id: true, category: true, hiddenAt: true },
       });
-      if (!bySlug) {
+      if (!known) {
         skip("okänd produkt");
         continue;
       }
-      productId = bySlug.id;
-      product = bySlug;
+      productId = known.id;
+      product = known;
+      // SAMMA BUTIK, ANNAN SIDA: se `siblingOfferAction`.
+      const sibling = await prisma.offer.findFirst({
+        where: { productId, retailerId: retailer.id },
+        orderBy: { updatedAt: "desc" },
+        select: offerSelect,
+      });
+      const action = siblingOfferAction(sibling?.stockStatus, hit.to);
+      if (action === "already-live") {
+        skip("i lager via annan URL");
+        continue;
+      }
+      if (action === "repoint" && sibling) {
+        offer = sibling;
+        repoint = true;
+        console.log(`[restock-hit] Offern följer med till ny sida: ${hit.storeName} ${sibling.url} → ${hit.storeUrl}`);
+        await prisma.auditLog.create({
+          data: {
+            action: "restock-hit.repoint",
+            entityType: "Offer",
+            entityId: sibling.id,
+            metadata: { storeName: hit.storeName, from: sibling.url, to: hit.storeUrl, title: hit.title, productId },
+          },
+        });
+      }
     }
     result.matched++;
 
@@ -258,6 +289,8 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
           // Korglänken följer med hiten så pushen/mejlet (dispatch EFTER loopen) får den
           // även för en offer nattkedjan inte hunnit skriva. null = rör inte.
           ...(hit.cartUrl ? { cartUrl: hit.cartUrl } : {}),
+          // Flyttad offer: den gamla sidans korglänk hör till den gamla sidan.
+          ...(repoint ? { url: hit.storeUrl, cartUrl: hit.cartUrl ?? null } : {}),
         },
       });
     }

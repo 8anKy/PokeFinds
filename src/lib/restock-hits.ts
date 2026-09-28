@@ -92,6 +92,30 @@ export function hitKind(h: Pick<RestockHit, "kind">): RestockHit["kind"] {
   return h.kind ?? "RESTOCK";
 }
 
+/**
+ * SAMMA BUTIK, ANNAN URL (2026-09-28). `Offer` är unik på (produkt, butik, skick, språk),
+ * så när en butik lägger upp en påfyllning under en NY sida (Speltrollet 09-25: 30th-ETB:n
+ * kom tillbaka som `/products/pokemon-30th-wave-2`) finns ingen offer på URL:en — bara en
+ * på den gamla, slutsålda sidan. Förut hoppades hiten då ("bunden utan offer"): Discord
+ * postade, ingen push gick ut och produktsidan stod kvar på "Slut".
+ *
+ * - `none`: butiken har ingen offer på produkten alls → larma utan statusflipp (som förr).
+ * - `already-live`: den andra sidan är redan köpbar → ingen påfyllning för produkten, och
+ *   ett andra larm vore en dubblett (Rogerz listar samma vara under två momsordningar).
+ * - `repoint`: offern flyttas till sidan som faktiskt går att köpa på — den gamla länken
+ *   är slutsåld/död, och en "i lager"-rad som pekar dit är värre än ingen.
+ */
+export type SiblingOfferAction = "none" | "repoint" | "already-live";
+export function siblingOfferAction(
+  siblingStatus: string | null | undefined,
+  to: RestockHit["to"]
+): SiblingOfferAction {
+  if (siblingStatus == null) return "none";
+  if (siblingStatus === "IN_STOCK") return "already-live";
+  if (siblingStatus === "PREORDER" && to === "PREORDER") return "already-live";
+  return "repoint";
+}
+
 export function hitDedupKey(h: Pick<RestockHit, "key" | "to"> & { kind?: RestockHit["kind"] }): string {
   return `${h.key}\t${h.kind ?? "RESTOCK"}\t${h.to}`;
 }

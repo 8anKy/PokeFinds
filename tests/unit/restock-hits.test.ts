@@ -20,6 +20,7 @@ import {
   hitsFromPosts,
   restockHitSchema,
   mergePendingHits,
+  siblingOfferAction,
   parsePendingHits,
   removeDelivered,
   sendRestockHits,
@@ -34,6 +35,9 @@ const restockEventCreate = vi.fn();
 const checkRestockAlerts = vi.fn();
 const checkPriceAlerts = vi.fn();
 const lowestBuyableOffer = vi.fn();
+const storeListingUpsert = vi.fn();
+const auditLogCreate = vi.fn();
+const ensureListingProduct = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -44,8 +48,14 @@ vi.mock("@/lib/db", () => ({
     },
     product: { findUnique: (...a: unknown[]) => productFindUnique(...a) },
     restockEvent: { create: (...a: unknown[]) => restockEventCreate(...a) },
+    storeListing: { upsert: (...a: unknown[]) => storeListingUpsert(...a) },
+    auditLog: { create: (...a: unknown[]) => auditLogCreate(...a) },
   },
 }));
+vi.mock("@/scrapers/runner", () => ({
+  ensureListingProduct: (...a: unknown[]) => ensureListingProduct(...a),
+}));
+vi.mock("@/scrapers/matching", () => ({ loadMatchIndex: async () => ({}) }));
 vi.mock("@/services/alerts", () => ({
   checkRestockAlerts: (...a: unknown[]) => checkRestockAlerts(...a),
   checkPriceAlerts: (...a: unknown[]) => checkPriceAlerts(...a),
@@ -334,6 +344,84 @@ describe("applyRestockHits — appens skrivningar", () => {
     expect(restockEventCreate).not.toHaveBeenCalled();
     expect(checkRestockAlerts).not.toHaveBeenCalled();
     expect(offerUpdate).not.toHaveBeenCalled();
+  });
+
+  describe("samma butik, ny sida (Speltrollet 30th-ETB 2026-09-25: Discord postade, ingen push)", () => {
+    const sibling = (stockStatus: string) => ({
+      id: "o-old",
+      productId: "p-etb",
+      url: "https://speltrollet.se/products/pokemon-30th-celebration-elite-trainer-box",
+      price: 89900,
+      stockStatus,
+      product: { category: "SEALED", hiddenAt: null },
+    });
+    const newUrl = "https://speltrollet.se/products/pokemon-30th-wave-2";
+    const unrouted = () =>
+      hit({
+        storeName: "Speltrollet",
+        storeUrl: newUrl,
+        productSlug: null,
+        title: "Pokemon 30th Celebration Elite Trainer Box",
+        priceOre: 99000,
+      });
+
+    beforeEach(() => {
+      storeListingUpsert.mockResolvedValue({});
+      auditLogCreate.mockResolvedValue({});
+      ensureListingProduct.mockResolvedValue("p-etb");
+      productFindUnique.mockResolvedValue({ id: "p-etb", category: "SEALED", hiddenAt: null });
+    });
+
+    it("oruttad hit som träffar en produkt med slutsåld offer på ANNAN URL ⇒ larm + offern flyttas och flippas", async () => {
+      // 1: offer på nya URL:en? nej. 2: efter bindningen? fortfarande nej. 3: syskonet.
+      offerFindFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(sibling("OUT_OF_STOCK"));
+      const r = await applyRestockHits([unrouted()]);
+      expect(productFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p-etb" } }));
+      expect(checkRestockAlerts).toHaveBeenCalledWith("p-etb", "r1", { from: "OUT_OF_STOCK", to: "IN_STOCK" });
+      expect(offerUpdate).toHaveBeenCalledWith({
+        where: { id: "o-old" },
+        data: expect.objectContaining({ stockStatus: "IN_STOCK", price: 99000, url: newUrl, cartUrl: null }),
+      });
+      expect(auditLogCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: "restock-hit.repoint", entityId: "o-old" }),
+      });
+      expect(r).toMatchObject({ matched: 1, events: 1, alerts: 2, skipped: {} });
+    });
+
+    it("den andra sidan står redan i lager ⇒ ingen påfyllning, inget dubbellarm, offern orörd", async () => {
+      offerFindFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(sibling("IN_STOCK"));
+      const r = await applyRestockHits([unrouted()]);
+      expect(checkRestockAlerts).not.toHaveBeenCalled();
+      expect(restockEventCreate).not.toHaveBeenCalled();
+      expect(offerUpdate).not.toHaveBeenCalled();
+      expect(r.skipped).toEqual({ "i lager via annan URL": 1 });
+    });
+
+    it("ruttad via huvudboken (slug, ingen offer på URL:en) flyttar också en slutsåld offer", async () => {
+      offerFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(sibling("UNKNOWN"));
+      await applyRestockHits([hit({ storeName: "Speltrollet", storeUrl: newUrl, productSlug: "30th-etb" })]);
+      expect(ensureListingProduct).not.toHaveBeenCalled();
+      expect(offerUpdate).toHaveBeenCalledWith({
+        where: { id: "o-old" },
+        data: expect.objectContaining({ url: newUrl, stockStatus: "IN_STOCK" }),
+      });
+    });
+
+    it("siblingOfferAction: köpbar syskonsida vinner, allt annat följer den nya sidan", () => {
+      expect(siblingOfferAction(null, "IN_STOCK")).toBe("none");
+      expect(siblingOfferAction("IN_STOCK", "IN_STOCK")).toBe("already-live");
+      expect(siblingOfferAction("IN_STOCK", "PREORDER")).toBe("already-live");
+      expect(siblingOfferAction("PREORDER", "PREORDER")).toBe("already-live");
+      expect(siblingOfferAction("PREORDER", "IN_STOCK")).toBe("repoint");
+      expect(siblingOfferAction("OUT_OF_STOCK", "IN_STOCK")).toBe("repoint");
+      expect(siblingOfferAction("UNKNOWN", "PREORDER")).toBe("repoint");
+    });
   });
 
   it("laneStatus: bara riktiga StockStatus passerar", () => {

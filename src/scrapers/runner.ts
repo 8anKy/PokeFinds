@@ -537,6 +537,10 @@ export async function ensureListingProduct(
       // samma tillverkar-SKU, oavsett hur olika butikerna formulerar titeln
       // ("Ascended Heroes Bundle" == "Mega Evolution - Ascended Heroes Booster Bundle").
       await upsertListingOffer(it, byGtin.id, stockStatus, gtin);
+      // Memot MÅSTE skrivas här också: utan det blir en andra URL för samma vara aldrig
+      // en rutt (ruttabellen läser huvudboken) och varje påfyllning på den kom fram
+      // oruttad (Speltrollet 30th-ETB, 2026-09-25).
+      await rememberListingProduct(it, byGtin.id);
       return byGtin.id;
     }
   }
