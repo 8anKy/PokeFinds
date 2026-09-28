@@ -1,7 +1,10 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
+import type { Role } from "@prisma/client";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { auth, hasRole } from "@/lib/auth";
+import { readSessionLite } from "@/lib/session-lite";
 import { previewAllowedFor } from "@/lib/feature-preview";
 import { prisma } from "@/lib/db";
 import { communityV2Request } from "@/lib/community-v2-server";
@@ -44,46 +47,27 @@ function Stat({ value, label, sub }: { value: string; label: string; sub?: strin
   );
 }
 
-export default async function MerPage() {
-  const session = await auth();
-  const t = await getTranslations("More");
-  // Gäst: ingen inloggningsvägg. Språk, om oss, villkor och Discord finns även
-  // utan konto — inloggningen är en av raderna, inte hela sidan (QA 2026-09-05).
-  if (!session?.user) return <GuestMore />;
-  const isAdmin = hasRole(session.user.role, "MODERATOR");
-  const isPremium = session.user.isPro;
-  const userId = session.user.id;
-
-  // Meddelanden (community v2) — grindat tills ägaren testat, se lib/community-v2-gate.ts.
-  // Läser bara headers + roll, ingen DB, så den får stå före rundturen.
-  const communityV2 = await communityV2Request(session.user.role);
-
-  // ⛔ EN rundtur, inte sex. Två sekventiella await är två tur-och-retur mot
-  // Frankfurt för en sida som redan är dynamisk; allt som kan gå parallellt gör
-  // det, inklusive invite-räkningen som tidigare låg som en egen andra resa.
-  const [watchCount, achievements, quota, account, hasEarnedInviteReward, unread, tA, tNav, locale] =
-    await Promise.all([
-      prisma.watchlistItem.count({ where: { userId } }),
-      listUserAchievements(userId),
-      getScannerQuota(userId, session.user.planTier, session.user.role),
-      prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }),
-      // Engångserbjudande: har användaren redan fått sin belöning (någon invite
-      // rewardedAt) försvinner inbjudningsraden ur kontot (ägarbeslut).
-      prisma.invite
-        .count({ where: { inviterId: userId, rewardedAt: { not: null } } })
-        .then((n) => n > 0),
-      communityV2 ? unreadConversationCount(userId) : Promise.resolve(0),
-      getTranslations("Achievements"),
-      getTranslations("Nav"),
-      getLocale(),
-    ]);
+/**
+ * KONTOKORTETS SIFFROR (medlem sedan, bevakningar, märken, skanningar kvar). Egen
+ * async-komponent bakom <Suspense> sedan 2026-09-28: sidan ritas direkt ur
+ * sessionscookien och bara siffrorna väntar på Neon — vid appstart sover databasen
+ * och Mer-fliken stod annars blank i 2–3 s (p99, Railway). `auth()` HÄR, inte ur
+ * cookien: skanningskvoten ska räknas på den färska planen.
+ */
+async function CardStats({ userId }: { userId: string }) {
+  const [session, t, locale] = await Promise.all([auth(), getTranslations("More"), getLocale()]);
+  const planTier = session?.user?.planTier ?? "FREE";
+  const role = session?.user?.role ?? "USER";
+  const [watchCount, achievements, quota, account] = await Promise.all([
+    prisma.watchlistItem.count({ where: { userId } }),
+    listUserAchievements(userId),
+    getScannerQuota(userId, planTier, role),
+    prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }),
+  ]);
 
   // ⛔ RÄKNA NIVÅER, INTE MÄRKEN. "Samlare" är tre nivåer (10/100/1000), så
   // nämnaren är 18 och inte 15 — annars kan täljaren passera nämnaren.
   const totalUnlockable = ACHIEVEMENTS.reduce((n, d) => n + d.tiers.length, 0);
-  const unlockedLevels = achievements.length;
-
-  const name = session.user.name ?? t("defaultName");
   const memberSince = new Intl.DateTimeFormat(locale, {
     month: "long",
     year: "numeric",
@@ -94,7 +78,76 @@ export default async function MerPage() {
   // kostnad, inte en produktgräns: villkoren säger "skäligt bruk" och skannerns
   // egen Pro-badge visar ∞. Skriver den här sidan ut "996 kvar" har vi plötsligt
   // publicerat en gräns kunden aldrig fått se. Se services/scanner/index.ts.
-  const scansLeft = isPremium || isAdmin ? "∞" : String(quota.remaining);
+  const unlimited = !!session?.user?.isPro || hasRole(role, "MODERATOR");
+
+  return (
+    <>
+      <span className="mt-1 block text-[13px] leading-[18px] text-ink-muted">
+        {t("memberSince", { since: memberSince })}
+      </span>
+      <span className="mt-[22px] grid grid-cols-3 gap-3 border-t border-ink/10 pt-4">
+        <Stat value={String(watchCount)} label={t("statWatching")} />
+        <Stat value={String(achievements.length)} sub={`/${totalUnlockable}`} label={t("statBadges")} />
+        <Stat value={unlimited ? "∞" : String(quota.remaining)} label={t("statScans")} />
+      </span>
+    </>
+  );
+}
+
+/** Samma rader och samma höjd, utan siffror — kortet hoppar inte när de kommer. */
+function CardStatsFallback({ labels }: { labels: [string, string, string] }) {
+  return (
+    <>
+      <span aria-hidden className="mt-1 block text-[13px] leading-[18px] text-ink-muted">
+        &nbsp;
+      </span>
+      <span className="mt-[22px] grid grid-cols-3 gap-3 border-t border-ink/10 pt-4">
+        {labels.map((label) => (
+          <Stat key={label} value="–" label={label} />
+        ))}
+      </span>
+    </>
+  );
+}
+
+/** Meddelanderaden; olästa-pricken kommer när räkningen är gjord. */
+async function MessagesRow({ link, userId }: { link: MenuLink; userId: string }) {
+  const unread = await unreadConversationCount(userId);
+  return <MenuRow link={{ ...link, dot: unread > 0 }} />;
+}
+
+/**
+ * Engångserbjudande: har användaren redan fått sin belöning (någon invite
+ * rewardedAt) försvinner inbjudningsraden ur kontot (ägarbeslut).
+ */
+async function InviteRow({ userId, label }: { userId: string; label: string }) {
+  const rewarded = await prisma.invite.count({ where: { inviterId: userId, rewardedAt: { not: null } } });
+  return rewarded > 0 ? null : <MenuRow link={{ href: "/mer/bjud-in", label }} />;
+}
+
+export default async function MerPage() {
+  // Cookien, inte auth() — se lib/session-lite.ts och CardStats ovan.
+  const session = await readSessionLite();
+  const t = await getTranslations("More");
+  // Gäst: ingen inloggningsvägg. Språk, om oss, villkor och Discord finns även
+  // utan konto — inloggningen är en av raderna, inte hela sidan (QA 2026-09-05).
+  if (!session) return <GuestMore />;
+  const role = session.role as Role;
+  const isAdmin = hasRole(role, "MODERATOR");
+  // Pro-märket ritas ur cookien (≤ 30 min gammalt) — en etikett, ingen behörighet.
+  const isPremium = session.isPro;
+  const userId = session.id;
+
+  // Meddelanden (community v2) — grindat tills ägaren testat, se lib/community-v2-gate.ts.
+  // Läser bara headers + roll, ingen DB.
+  const [communityV2, tA, tNav] = await Promise.all([
+    communityV2Request(role),
+    getTranslations("Achievements"),
+    getTranslations("Nav"),
+  ]);
+
+  const name = session.name ?? t("defaultName");
+  const messagesLink: MenuLink = { href: "/meddelanden", label: tNav("messages"), icon: IconMail };
 
   // ⛔ BEVAKNINGAR OCH MÄRKEN BÄR INGET TAL HÄR (ägarbeslut 2026-09-09): talen
   // står redan på kontokortet ovan, och samma siffra två gånger på en skärm gör
@@ -102,9 +155,6 @@ export default async function MerPage() {
   const activity: MenuLink[] = [
     { href: "/bevakningar", label: t("watches"), icon: IconBell, tour: "watches-row" },
     { href: "/mer/utmarkelser", label: tA("title"), icon: IconMedal },
-    ...(communityV2
-      ? [{ href: "/meddelanden", label: tNav("messages"), icon: IconMail, dot: unread > 0 }]
-      : []),
   ];
 
   const tools: MenuLink[] = [
@@ -112,7 +162,7 @@ export default async function MerPage() {
     { href: "/installningar", label: t("settings"), icon: IconSliders },
     ...(isAdmin ? [{ href: "/admin", label: t("admin"), icon: IconPanel }] : []),
     // Startar om appens guidade tur (lib/app-tour.ts) — bara där turen är öppen.
-    ...(previewAllowedFor("APP_TOUR", session?.user)
+    ...(previewAllowedFor("APP_TOUR", { role: session.role, email: session.email })
       ? [{ href: "/produkter?guide=1", label: t("tourAgain"), icon: IconInfo }]
       : []),
   ];
@@ -134,20 +184,22 @@ export default async function MerPage() {
         <span className="mt-[26px] block truncate font-display text-[27px] font-bold leading-8 tracking-[-0.03em] text-ink">
           {name}
         </span>
-        <span className="mt-1 block text-[13px] leading-[18px] text-ink-muted">
-          {t("memberSince", { since: memberSince })}
-        </span>
-        <span className="mt-[22px] grid grid-cols-3 gap-3 border-t border-ink/10 pt-4">
-          <Stat value={String(watchCount)} label={t("statWatching")} />
-          <Stat value={String(unlockedLevels)} sub={`/${totalUnlockable}`} label={t("statBadges")} />
-          <Stat value={scansLeft} label={t("statScans")} />
-        </span>
+        <Suspense
+          fallback={<CardStatsFallback labels={[t("statWatching"), t("statBadges"), t("statScans")]} />}
+        >
+          <CardStats userId={userId} />
+        </Suspense>
       </FoilPanel>
 
       <Section title={t("sectionActivity")}>
         {activity.map((l) => (
           <MenuRow key={l.href} link={l} />
         ))}
+        {communityV2 && (
+          <Suspense fallback={<MenuRow link={messagesLink} />}>
+            <MessagesRow link={messagesLink} userId={userId} />
+          </Suspense>
+        )}
       </Section>
 
       <Section title={t("sectionTools")}>
@@ -176,9 +228,9 @@ export default async function MerPage() {
           )}
           <IconChevronRight size={18} className="shrink-0 text-holo-cyan" />
         </Link>
-        {!hasEarnedInviteReward && (
-          <MenuRow link={{ href: "/mer/bjud-in", label: t("inviteRow") }} />
-        )}
+        <Suspense fallback={null}>
+          <InviteRow userId={userId} label={t("inviteRow")} />
+        </Suspense>
       </Section>
 
       <FollowTiles title={t("followTitle")} />

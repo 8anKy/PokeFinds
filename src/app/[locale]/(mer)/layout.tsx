@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import type { Role } from "@prisma/client";
 import { setRequestLocale } from "next-intl/server";
-import { auth, hasRole } from "@/lib/auth";
+import { hasRole } from "@/lib/auth";
+import { readSessionLite } from "@/lib/session-lite";
 import { AppShell } from "@/components/layout/app-shell";
 import { AuthHintGate } from "@/components/layout/auth-hint-gate";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -12,6 +14,10 @@ import { SiteFooter } from "@/components/layout/site-footer";
  * och Discord även utan konto (Android-QA 09-01 fynd 6). Inloggad ⇒ exakt samma
  * skal som (app); gäst ⇒ webbens chrome. Undersidorna (/mer/utmarkelser,
  * /mer/bjud-in) kräver fortfarande konto — de skickar själva till inloggningen.
+ *
+ * ⛔ Sessionen läses ur COOKIEN (`readSessionLite`), inte med `auth()`: vid appstart är
+ * token > 30 min gammal och `auth()` hade väntat på att Neon vaknade innan skalet
+ * ritades (Mer-fliken p99 2–3 s, 2026-09-28). Skalet behöver bara namn och roll.
  */
 export default async function MerLayout({
   children,
@@ -21,10 +27,10 @@ export default async function MerLayout({
   params: { locale: string };
 }) {
   setRequestLocale(params.locale);
-  const session = await auth();
-  if (session?.user) {
+  const session = await readSessionLite();
+  if (session) {
     return (
-      <AppShell userName={session.user.name} isAdmin={hasRole(session.user.role, "MODERATOR")}>
+      <AppShell userName={session.name ?? ""} isAdmin={hasRole(session.role as Role, "MODERATOR")}>
         <AuthHintGate>{children}</AuthHintGate>
       </AppShell>
     );
