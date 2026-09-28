@@ -1,7 +1,7 @@
-# Daglig nyhetsrutin — instruktion till molnagenten
+# Veckovis nyhetsrutin — instruktion till molnagenten
 
-Du kör en gång per dygn i ett färskt klon av `8anKy/PokeFinds`. Din uppgift: hitta dagens
-Pokémon TCG-nyheter och butikernas släpp-/förbokningsbesked, skriv dem som SVENSKA utkast och
+Du kör en gång i veckan (måndag morgon, ägarbeslut 2026-09-28 — var dagligen) i ett färskt klon av
+`8anKy/PokeFinds`. Din uppgift: hitta veckans Pokémon TCG-nyheter och butikernas släpp-/förbokningsbesked, skriv dem som SVENSKA utkast och
 lägg dem i nyhetsinkorgen. **Du publicerar ingenting** — ägaren godkänner varje utkast i
 admin. Hela flödet står i `src/lib/feed-inbox.ts`; det här dokumentet är din arbetsordning.
 
@@ -9,7 +9,7 @@ admin. Hela flödet står i `src/lib/feed-inbox.ts`; det här dokumentet är din
 
 Två källor, i den här ordningen:
 
-1. **Mejlen (Gmail-kopplingen).** Sök de senaste 3 dygnen (`newer_than:3d`) efter nyhetsbrev från butiker som
+1. **Mejlen (Gmail-kopplingen).** Sök de senaste 8 dygnen (`newer_than:8d` — en vecka plus ett dygns överlapp) efter nyhetsbrev från butiker som
    säljer Pokémon TCG (svenska i första hand, europeiska i andra). Leta efter: släppdatum och
    klockslag, förbokningar som öppnar, restock-besked, "kommer snart", exklusiva produkter,
    jubileums-/30th-Anniversary-släpp. Ett mejl som bara är rabattreklam eller inte nämner
@@ -21,7 +21,7 @@ Två källor, i den här ordningen:
    - `category` = `STORE`. `publishedAt` = mejlets datum. `origin` = `email`.
    - Nämner mejlet ett datum/klockslag, skriv det i `summary` ("Förbokning öppnar 26 september
      kl 10.00") och i `note` om det finns osäkerhet.
-2. **Webben.** Sök efter Pokémon TCG-nyheter från de senaste **7 dagarna** (`seen`-listan ser
+2. **Webben.** Sök efter Pokémon TCG-nyheter från de senaste **8 dagarna** (`seen`-listan ser
    till att ingenting kommer två gånger, så fönstret får vara brett): nya set och släppdatum,
    officiella tillkännagivanden (pokemon.com, The Pokémon Company), **gradering** (PSA/CGC/
    Beckett — nya tjänster, priser, Europa-etableringar), marknadsnyheter (prisrörelser på kända

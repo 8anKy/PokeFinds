@@ -399,7 +399,7 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   (`scripts/make-feed-cover.ts`, genereras lokalt och checkas in — aldrig `next/og` i drift, minnet är kapat). Filer i `.github/feed/`
   (utanför `watchPatterns` ⇒ ingen deploy, ingen DB): `news.json` (handskrivet, normalt tom), `events.json`
   (manuell reserv) och `inbox.json` (rutinen). ⛔ Ingen "påminn mig"; ⛔ ingen självpublicerande källa igen.
-  **+ NYHETSINKORG sedan 2026-09-11 (ägarbeslut, tredje lanen `curated`)**: en daglig Claude Code-MOLNRUTIN
+  **+ NYHETSINKORG sedan 2026-09-11 (ägarbeslut, tredje lanen `curated`)**: en VECKOVIS (måndagar 04:00 UTC sedan 2026-09-28, var daglig) Claude Code-MOLNRUTIN
   (instruktion i `.github/feed/ROUTINE.md`) söker webben + läser butikernas nyhetsbrev i Gmail och pushar
   svenska UTKAST till `.github/feed/inbox.json` (`scripts/feed-inbox-add.mjs`, beroendefritt); `news-feed.yml`
   levererar dem till `/api/cron/feed-inbox` ⇒ `drafts.json` på volymen; ägaren godkänner i admin → *Nyheter*

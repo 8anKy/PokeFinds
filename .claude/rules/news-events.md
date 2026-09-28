@@ -88,7 +88,7 @@ paths:
   utan kö (beslut 09-09) och båda är nedlagda av just det skälet. `news.json`/`events.json` är handskrivna
   av ägaren och räknas som godkända.
 - **NYHETSINKORGEN — TREDJE LANEN `curated`, GODKÄNNS FÖR HAND (ägarbeslut 2026-09-11)**
-  (`src/lib/feed-inbox.ts`, `feed-inbox-store.ts`, admin → *Nyheter*): en daglig MOLNRUTIN (Claude Code
+  (`src/lib/feed-inbox.ts`, `feed-inbox-store.ts`, admin → *Nyheter*): en VECKOVIS MOLNRUTIN (måndagar 04:00 UTC sedan 2026-09-28; Claude Code
   routine, instruktionen bor i `.github/feed/ROUTINE.md`) söker webben + läser butikernas nyhetsbrev i
   Gmail, skriver SVENSKA utkast (rubrik + ingress + BRÖDTEXT i 2–4 stycken med egna ord ⇒ egen sida
   `/nyheter/<slug>` med källänken längst ned; `slug` härleds ur den GODKÄNDA rubriken, aldrig ur utkastet) och
