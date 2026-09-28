@@ -33,14 +33,23 @@ interface IndexEntry {
 
 let indexCache: { at: number; promise: Promise<IndexEntry[]> } | null = null;
 
-function getIndex(): Promise<IndexEntry[]> {
-  if (indexCache && Date.now() - indexCache.at < INDEX_TTL_MS) return indexCache.promise;
-  const promise = prisma.product
-    .findMany({
+/**
+ * ⛔ SIDVIS (2026-09-28): en findMany över ~46 000 produkter lade +107 MB på processen
+ * (mätt mot prod), sidor om 2 000 +63 MB — resten är själva indexet. Minnet är den
+ * största posten på Railway-notan, och indexet laddas om efter varje omstart.
+ */
+const INDEX_PAGE = 2000;
+
+async function loadIndex(): Promise<IndexEntry[]> {
+  const out: IndexEntry[] = [];
+  let cursor: string | undefined;
+  for (;;) {
+    const rows = await prisma.product.findMany({
       // Samma synlighetsregler som katalogen (buildProductWhere): prissatt, ej gömd
       // kategori, och inte bortgömd av ägaren (NOT_HIDDEN).
       where: { lowestPriceOre: { not: null }, category: { notIn: HIDDEN_CATEGORIES }, ...NOT_HIDDEN },
       select: {
+        id: true,
         title: true,
         normalizedTitle: true,
         slug: true,
@@ -51,9 +60,12 @@ function getIndex(): Promise<IndexEntry[]> {
         // Singlar hänger på setet via kortet (Product.setId är ofta null där).
         card: { select: { set: { select: { name: true } } } },
       },
-    })
-    .then((rows) =>
-      rows.map((p) => ({
+      orderBy: { id: "asc" },
+      take: INDEX_PAGE,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    });
+    for (const p of rows) {
+      out.push({
         title: p.title,
         normalized: p.normalizedTitle.toLowerCase(),
         compact: p.normalizedTitle.toLowerCase().replace(/\s+/g, ""),
@@ -62,8 +74,17 @@ function getIndex(): Promise<IndexEntry[]> {
         setName: p.set?.name ?? p.card?.set?.name ?? null,
         category: p.category,
         viewCount: p.viewCount,
-      }))
-    );
+      });
+    }
+    if (rows.length < INDEX_PAGE) break;
+    cursor = rows[rows.length - 1].id;
+  }
+  return out;
+}
+
+function getIndex(): Promise<IndexEntry[]> {
+  if (indexCache && Date.now() - indexCache.at < INDEX_TTL_MS) return indexCache.promise;
+  const promise = loadIndex();
   indexCache = { at: Date.now(), promise };
   // Misslyckad hämtning får inte fastna i 24h — nästa request försöker igen.
   promise.catch(() => {
