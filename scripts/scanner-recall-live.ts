@@ -86,6 +86,9 @@ import { SHARP_AUTO_MIN } from "../src/lib/frame-sharpness";
 
 const prisma = new PrismaClient();
 const DAYS = Number(process.env.DAGAR ?? "30");
+/** Valfri slutpunkt (ISO-datum, exklusiv) — jämför ett fönster FÖRE en ändring: `TILL=2026-09-22 DAGAR=10`. */
+const UNTIL = process.env.TILL ? new Date(process.env.TILL) : null;
+if (UNTIL && Number.isNaN(UNTIL.getTime())) throw new Error(`TILL går inte att tolka som datum: ${process.env.TILL}`);
 
 /** Rangdjup som redovisas. 15 = `ART_CANDIDATES`, dvs hela bildens topplista. */
 const KS = [1, 3, 5, 15] as const;
@@ -531,10 +534,11 @@ function fordelning(namn: string, values: number[], tackning: string): void {
  * ------------------------------------------------------------------ */
 
 async function main() {
-  const since = new Date(Date.now() - DAYS * 24 * 60 * 60 * 1000);
+  const end = UNTIL ?? new Date();
+  const since = new Date(end.getTime() - DAYS * 24 * 60 * 60 * 1000);
   const jobs = await prisma.scannerJob.findMany({
     where: {
-      createdAt: { gte: since },
+      createdAt: { gte: since, ...(UNTIL ? { lt: UNTIL } : {}) },
       status: { not: "FAILED" },
       NOT: { result: { equals: Prisma.DbNull } },
     },
@@ -785,7 +789,7 @@ async function main() {
   const bulkAlla = merge(bulkCorrected, bulkConfirmed);
 
   /* --- Översikt -------------------------------------------------------- */
-  console.log(`\n=== KONST-RECALL, PRODUKTION (${DAYS} dygn) ===`);
+  console.log(`\n=== KONST-RECALL, PRODUKTION (${DAYS} dygn${UNTIL ? ` till ${process.env.TILL}` : ""}) ===`);
   console.log(`Skanningar med mätdata : ${withRecall}`);
   console.log(`  utan användardom     : ${withoutChoice}  (se överlevnadsbias i filhuvudet)`);
   if (tomArtLista > 0) {
