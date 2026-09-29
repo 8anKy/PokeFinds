@@ -69,6 +69,17 @@ jobs:
         name: Importera nya set (no-op om inget nytt)
         run: npx tsx scripts/import-tcg-data.ts
 
+      # PROMO- OCH ENERGISET VÄXER EFTER SLÄPPET (2026-09-30): importen ovan kör
+      # TCG_NEW_ONLY och rör aldrig ett befintligt set, så MEP-promona stod still på
+      # nr 81 i tre månader (ETB-promon Nidorina MEP 101, Greninja ex MEP 099 …
+      # osynliga i sök, skanner och bevakning). ADD-ONLY ur TCGdex: befintliga rader
+      # rörs aldrig, nya får Cardmarkets idProduct (priset kommer från cardmarket-
+      # refresh) och tcgExternalId NULL så pokemontcg.io adopterar dem senare.
+      # Ligger FÖRE bildlagningen och avtrycken så nya kort får båda samma körning.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Fyll på promo- och energiset (add-only, no-op om inget saknas)
+        run: npx tsx scripts/import-missing-cards-tcgdex.ts --apply
+
       # NÄMNARNA för set-komplettering: `totalCardsFull` (pokemontcg.io `total`,
       # hela setet inkl. secret rares) och `printingsTotal` (TCGdex, master
       # set-nämnaren). Måste ligga som ett EGET steg, inte bara i upserten ovan:
