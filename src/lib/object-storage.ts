@@ -95,6 +95,21 @@ export function isForumImageKey(key: string): boolean {
 }
 
 /**
+ * SKANNERFACIT (2026-09-29): kortfotot ur en ADMINS skanning, sparat så att en
+ * bildmatchare utan AI kan mätas mot RIKTIGA fångster offline (ScannerJob sparar
+ * annars bara ett 264-byte avtryck, och ett nytt avtryck går inte att räkna ur
+ * ett gammalt). `scanner-facit/<användar-id>/<job-id>.jpg` — nyckeln HÄRLEDS ur
+ * jobbet, så ingen DB-kolumn behövs och exporten hittar fotot själv.
+ * ⛔ Bara admin: policyn lovar vanliga användare att bilden inte sparas.
+ */
+export function buildScanPhotoKey(userId: string, jobId: string): string | null {
+  const safeUser = userId.replace(/[^A-Za-z0-9_-]/g, "");
+  const safeJob = jobId.replace(/[^A-Za-z0-9_-]/g, "");
+  if (!safeUser || !safeJob) return null;
+  return `scanner-facit/${safeUser}/${safeJob}.jpg`;
+}
+
+/**
  * Miniatyrens nyckel HÄRLEDS ur originalets (`…uuid.jpg` → `…uuid_t.jpg`) så
  * att servern kan verifiera den i stället för att lita på klienten: en klient
  * som hittar på en nyckel kan annars peka en tråds miniatyr på någon annans
@@ -192,8 +207,11 @@ export async function deleteUserImages(userId: string): Promise<number> {
   const cfg = storageConfig();
   if (!cfg) return 0;
   const { client, s3 } = await getClient(cfg);
-  const prefix = `forum/${userId.replace(/[^A-Za-z0-9_-]/g, "")}/`;
+  const safeUser = userId.replace(/[^A-Za-z0-9_-]/g, "");
+  if (!safeUser) return 0;
   let removed = 0;
+  // Forumbilder + skannerfacit (admins egna fångster) — samma användarprefix.
+  for (const prefix of [`forum/${safeUser}/`, `scanner-facit/${safeUser}/`]) {
   let token: string | undefined;
   do {
     const page = await client.send(
@@ -211,7 +229,34 @@ export async function deleteUserImages(userId: string): Promise<number> {
     }
     token = page.IsTruncated ? page.NextContinuationToken : undefined;
   } while (token);
+  }
   return removed;
+}
+
+/** Alla nycklar under ett prefix (skannerfacit-exporten). Bara skript, aldrig en webbrequest. */
+export async function listKeys(prefix: string): Promise<string[]> {
+  const cfg = storageConfig();
+  if (!cfg) return [];
+  const { client, s3 } = await getClient(cfg);
+  const out: string[] = [];
+  let token: string | undefined;
+  do {
+    const page = await client.send(
+      new s3.ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix, ContinuationToken: token })
+    );
+    for (const o of page.Contents ?? []) if (o.Key) out.push(o.Key);
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token);
+  return out;
+}
+
+/** Objektets bytes (skannerfacit-exporten). */
+export async function getObjectBytes(key: string): Promise<Uint8Array | null> {
+  const cfg = storageConfig();
+  if (!cfg) return null;
+  const { client, s3 } = await getClient(cfg);
+  const res = await client.send(new s3.GetObjectCommand({ Bucket: cfg.bucket, Key: key }));
+  return res.Body ? await res.Body.transformToByteArray() : null;
 }
 
 /**

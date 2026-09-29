@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildImageKey,
+  buildScanPhotoKey,
   buildThumbKey,
   extensionFor,
   isForumImageKey,
@@ -10,6 +11,13 @@ import {
 } from "@/lib/object-storage";
 
 describe("object-storage (rena delar)", () => {
+  it("skannerfacit: nyckeln härleds ur användare + jobb och kan inte fly prefixet", () => {
+    expect(buildScanPhotoKey("cm12abc", "cmjob9")).toBe("scanner-facit/cm12abc/cmjob9.jpg");
+    expect(buildScanPhotoKey("../x", "../../y")).toBe("scanner-facit/x/y.jpg");
+    expect(buildScanPhotoKey("", "job")).toBeNull();
+    expect(buildScanPhotoKey("u1", "/")).toBeNull();
+  });
+
   it("nyckeln bär användar-id:t och en giltig ändelse", () => {
     const key = buildImageKey("cm12abc_DEF-9", "image/jpeg");
     expect(key).toMatch(/^forum\/cm12abc_DEF-9\/[0-9a-f-]{36}\.jpg$/);

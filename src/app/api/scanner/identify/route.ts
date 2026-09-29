@@ -14,6 +14,7 @@ import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { getScannerQuota, identifyCard, isIntroScan, recordScanUsage } from "@/services/scanner";
 import { buildFoilDiagnostics } from "@/services/scanner/foil";
+import { buildScanPhotoKey, putImage, sniffImageType, storageEnabled } from "@/lib/object-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -323,6 +324,22 @@ export async function POST(req: Request) {
           }
         : null
     );
+
+    // SKANNERFACIT (2026-09-29) — BARA ADMIN: kortfotot sparas i bucketen så att
+    // en bildmatchare utan AI kan mätas mot riktiga fångster offline
+    // (scripts/scanner-photo-export.ts). Nyckeln härleds ur jobbet. Fire-and-
+    // forget: ett uppladdningsfel får aldrig fälla eller fördröja skanningen.
+    // ⛔ Aldrig för vanliga användare — policyn lovar att bilden inte sparas.
+    if (isAdmin && jobId && storageEnabled()) {
+      const key = buildScanPhotoKey(user!.id, jobId);
+      const bytes = Buffer.from(image.slice(image.indexOf(",") + 1), "base64");
+      const type = sniffImageType(bytes);
+      if (key && type === "image/jpeg") {
+        void putImage(key, bytes, type).catch((err) =>
+          console.warn("[scanner-facit] uppladdning misslyckades:", (err as Error).message)
+        );
+      }
+    }
 
     // ⛔ `artCandidateIds` och `artMargin` är MÄTDATA och går inte ut på tråden:
     // klienten läser dem aldrig, och 15 id:n per svar är ren vikt. Marginalen
