@@ -22,6 +22,8 @@
  * BILD: TCGdex `image` + "/high.png"; saknas den tas leverantörens bild via cardmarket_id om en
  *    episod finns för setet. Kort utan bild skapas ändå (sök + bevakning) och redovisas.
  */
+import { createHash } from "node:crypto";
+import sharp from "sharp";
 import { prisma } from "@/lib/db";
 import { normalizeTitle, slugify } from "@/lib/utils";
 import { TCGDEX_BASE, tcgdexJson } from "@/lib/tcgdex";
@@ -36,15 +38,15 @@ const KEY = process.env.CARDMARKET_RAPIDAPI_KEY ?? "";
  * "MEP 081", pokemontcg.io-seten bär localId utan inledande nollor.
  * `episode` = leverantörens episod, bara som BILDreserv.
  */
-const SETS: { tcgdex: string; numberFormat: (localId: string) => string; episode?: number }[] = [
-  { tcgdex: "mep", numberFormat: (l) => `MEP ${l.replace(/\D/g, "").padStart(3, "0")}`, episode: 412 },
-  { tcgdex: "svp", numberFormat: stripZeros, episode: 23 },
-  { tcgdex: "sve", numberFormat: stripZeros, episode: 20 },
-  { tcgdex: "mee", numberFormat: stripZeros },
-  { tcgdex: "swshp", numberFormat: (l) => l },
+const SETS: { tcgdex: string; numberFormat: (localId: string) => string; episode?: number; scrydex?: string }[] = [
+  { tcgdex: "mep", scrydex: "mep", numberFormat: (l) => `MEP ${l.replace(/\D/g, "").padStart(3, "0")}`, episode: 412 },
+  { tcgdex: "svp", scrydex: "svp", numberFormat: stripZeros, episode: 23 },
+  { tcgdex: "sve", scrydex: "sve", numberFormat: stripZeros, episode: 20 },
+  { tcgdex: "mee", scrydex: "mee", numberFormat: stripZeros },
+  { tcgdex: "swshp", scrydex: "swshp", numberFormat: (l) => l },
   // ⛔ ecard2 (Aquapolis) står INTE här: de saknade är a/b-varianter som delar ETT idProduct.
-  { tcgdex: "2023sv", numberFormat: stripZeros, episode: 639 },
-  { tcgdex: "2024sv", numberFormat: stripZeros, episode: 638 },
+  { tcgdex: "2023sv", scrydex: "mcd23", numberFormat: stripZeros, episode: 639 },
+  { tcgdex: "2024sv", scrydex: "mcd24", numberFormat: stripZeros, episode: 638 },
 ];
 
 /** Samma titelform som import-tcg-data / import-en-set-from-provider ("Namn · Set N/Total"). */
@@ -103,7 +105,41 @@ async function providerImages(episode: number): Promise<Map<number, string>> {
   return out;
 }
 
+/**
+ * BILDRESERV: Scrydex (äger pokemontcg.io) har bilder som TCGdex saknar — men svarar 200 med
+ * KORTETS BAKSIDA för okända id:n (samma fil för alla, se fix-card-images.ts). Därför: samma
+ * bytes för två kort = platshållare, och kortformat (~0,717) + bredd ≥ 400 krävs.
+ */
+const seenScrydex = new Map<string, string>();
+async function scrydexImage(id: string): Promise<string | null> {
+  const url = `https://images.scrydex.com/pokemon/${encodeURIComponent(id)}/large`;
+  try {
+    const res = await fetch(url, { headers: { "user-agent": "Foilio/1.0 (+https://foilio.se)" } });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    const md5 = createHash("md5").update(buf).digest("hex");
+    const owner = seenScrydex.get(md5);
+    if (owner && owner !== id) return null;
+    seenScrydex.set(md5, id);
+    const m = await sharp(buf).metadata();
+    const ratio = (m.width ?? 0) / (m.height ?? 1);
+    if ((m.width ?? 0) < 400 || ratio < 0.68 || ratio > 0.76) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+/** Scrydex-id:t för ett av våra kort: `<set>-<nummer>` ("mep-99", "swshp-SWSH299", "mcd24-1"). */
+function scrydexId(scrydexSet: string, number: string): string {
+  const n = scrydexSet === "swshp" ? number : number.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  return `${scrydexSet}-${n}`;
+}
+
 async function main() {
+  // Baksidans hash i förväg: ett id som inte finns ger platshållaren, och den får aldrig bli en bild.
+  await scrydexImage("mcd24-0-placeholder-probe");
+  await scrydexImage("2024sv-1");
   const args = process.argv.slice(2);
   const apply = args.includes("--apply");
   const only = args.includes("--set") ? args[args.indexOf("--set") + 1] : null;
@@ -196,6 +232,25 @@ async function main() {
       });
     }
   }
+  // BILDPASS: kort i seten ovan som saknar bild får Scrydex-bilden (verifierad) — både nya och äldre.
+  let filled = 0;
+  for (const cfg of SETS.filter((s) => (!only || s.tcgdex === only) && s.scrydex)) {
+    const bare = await prisma.card.findMany({
+      where: { set: { externalId: cfg.tcgdex }, imageUrl: null },
+      select: { id: true, number: true, name: true },
+    });
+    for (const c of bare) {
+      const url = await scrydexImage(scrydexId(cfg.scrydex!, c.number));
+      if (!url) continue;
+      filled++;
+      console.log(`  🖼 ${c.name} ${c.number} ← ${url}`);
+      if (!apply) continue;
+      await prisma.card.update({ where: { id: c.id }, data: { imageUrl: url } });
+      await prisma.product.updateMany({ where: { cardId: c.id, imageUrl: null }, data: { imageUrl: url } });
+    }
+  }
+  console.log(`Bilder ur Scrydex: ${filled}${apply ? " skrivna" : " (torrkörning)"}.`);
+
   console.log(`\n${apply ? "Skapade" : "Skulle skapa"}: ${total} kort.${apply ? "" : " (torrkörning — --apply skriver)"}`);
   if (apply && total > 0) console.log("Nästa: cardmarket-refresh prissätter via cardmarketId och bygger konstavtryck.");
 }
