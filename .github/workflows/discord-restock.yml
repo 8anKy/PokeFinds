@@ -139,11 +139,11 @@ jobs:
           h=$((10#$(date -u +%H)))
           # Cardmarket-priser 01:00 UTC: färdigt ~02:00, långt före morgonen och före
           # nattkedjan (scrape-all, som i praktiken startar ~07 UTC). Fönster till 12 UTC.
-          # "Sedan" = senaste 20 h, inte bara sedan 01:00: en manuell körning sent på
-          # kvällen (GitHubs schedule tappade 09-28 helt) ska inte följas av en andra full
-          # refresh en timme senare.
+          # "Sedan" = 00:00 UTC IDAG: pristabellens dygnsnyckel är UTC-datumet, så varje
+          # UTC-dygn behöver en egen körning. (Ett 20 h-fönster 09-29 lät en manuell körning
+          # 23:39 dagen innan äta upp dygnets körning ⇒ inget värde för den 29:e.)
           if [ "$h" -ge 1 ] && [ "$h" -lt 12 ]; then
-            kick cardmarket-refresh.yml "$(date -u -d '20 hours ago' +%FT%TZ)"
+            kick cardmarket-refresh.yml "$(date -u +%F)T00:00:00Z"
           fi
           # Morgonrundan för nattens prislarm (tysta timmar, lib/quiet-hours.ts): 07–10
           # svensk tid, sommar- och vintertid via TZ.
