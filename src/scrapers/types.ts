@@ -74,6 +74,13 @@ export interface RawProductData {
    * man inte får köpa är annars en bilresa i onödan.
    */
   minRankLevel?: number | null;
+  /**
+   * Statusen är bara sökindexets gissning och kunde inte bekräftas live den här
+   * hämtningen (Webhallen: produkt-API:t svarade inte). Discord-lanen behandlar raden
+   * som FRÅNVARANDE — "vet inte" — i stället för att posta på gissningen. DB-vägen
+   * läser inte fältet.
+   */
+  stockUnconfirmed?: boolean;
   /** Oförändrad rådata från källan — lagras i PriceObservation.rawData. */
   raw: unknown;
 }

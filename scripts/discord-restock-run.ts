@@ -532,7 +532,18 @@ async function main() {
   /** Ett varv för EN butik: hämta → diffa → posta. Returnerar hämtningens kostnad. */
   const runStore = async (source: RestockSourceInfo): Promise<number> => {
     const before = requestCountSnapshot();
-    const items: FeedItem[] = await fetchSourceFeed(source);
+    // ⛔ OBEKRÄFTADE RADER ÄR FRÅNVARANDE, INTE EN STATUS (2026-10-01): Webhallens sökindex
+    //    kallar en nivålåst vara (Delta Reign, nivå 26) för förhandsbokning. Kunde live-
+    //    svaret inte hämtas postar vi inte på gissningen — raden hoppas ett varv, och
+    //    frånvarominnet gör att en ÄKTA förhandsbokning ändå postas när svaret kommer.
+    const fetchedItems: FeedItem[] = await fetchSourceFeed(source);
+    const items = fetchedItems.filter((it) => !it.stockUnconfirmed);
+    if (items.length < fetchedItems.length) {
+      console.log(
+        `[discord-restock] ${source.name}: ${fetchedItems.length - items.length} obekräftad(e) ` +
+          `förhandsbokning(ar) hoppade detta varv (live-svaret saknades).`
+      );
+    }
 
     // ---- BEVAKADE LÄNKAR (2026-09-04) ----
     // Frågas EFTER feeden och splitsas in i SAMMA lista, så diffen, flappvakterna,

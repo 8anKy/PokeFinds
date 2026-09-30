@@ -410,6 +410,8 @@ export type FeedItem = {
   storeStatus?: StockStatus;
   /** Medlemsnivåkrav (se RawProductData.minRankLevel). */
   minRankLevel?: number | null;
+  /** Obekräftad status (se RawProductData.stockUnconfirmed). */
+  stockUnconfirmed?: boolean;
 };
 
 /**
@@ -945,6 +947,7 @@ export async function fetchSourceFeed(source: RestockSourceInfo): Promise<FeedIt
           storeStock: p.storeStock ?? null,
           ...(p.storeStatus ? { storeStatus: p.storeStatus } : {}),
           ...(p.minRankLevel != null ? { minRankLevel: p.minRankLevel } : {}),
+          ...(p.stockUnconfirmed ? { stockUnconfirmed: true } : {}),
         };
       });
   } catch (err) {

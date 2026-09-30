@@ -1185,6 +1185,24 @@ describe("deriveRestockPosts — ny URL i förhandsbokning", () => {
     expect(r.stats.skippedBlip).toBe(1);
   });
 
+  it("⛔ en OBEKRÄFTAD rad som hoppas ett varv tappar inte en äkta förhandsbokning (2026-10-01)", () => {
+    // Webhallens live-svar saknades ⇒ lanen hoppar raden (frånvarande). Varvet efter
+    // kommer bekräftelsen: sågs den SLUT innan är förhandsbokningen fortfarande en nyhet.
+    const t1 = derive({
+      state: state({ stock: { [KEY]: "IN_STOCK", [NEW_KEY]: "OUT_OF_STOCK" } }),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
+    });
+    expect(t1.posts).toHaveLength(0);
+    const t2 = derive({
+      state: t1.nextState,
+      groups: groups([
+        { url: URL_ETB, stockStatus: "IN_STOCK" },
+        { url: URL_NEW, stockStatus: "PREORDER" },
+      ]),
+    });
+    expect(t2.posts.find((p) => p.key === NEW_KEY)?.preorder).toBe(true);
+  });
+
   it("⛔ en ny källa seedas tyst — hela sortimentet ser ut som nya förhandsbokningar", () => {
     const r = derive({
       state: state({ stock: { [KEY]: "IN_STOCK" } }),

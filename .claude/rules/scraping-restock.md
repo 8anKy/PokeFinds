@@ -441,3 +441,8 @@ paths:
   indexets PREORDER ⇒ Delta Reign postades igen EN GÅNG PER JOBB hela natten. Okollade kandidater slås nu
   ALLTID upp (taket gäller bara omkollar); första ticket i ett jobb tar ~50 s. Vaktat av
   `webhallen-live-poll-fresh-job.test.ts`.
+  ⛔ **+ Svarar inte produkt-API:t** för en rad med indexets PREORDER märks den `stockUnconfirmed` och
+  Discord-lanen behandlar den som FRÅNVARANDE det varvet (loggas "obekräftad(e) förhandsbokning(ar)
+  hoppade"). Förlustfritt: frånvarominnet minns "slut", så en äkta förhandsbokning postas varvet live-svaret
+  kommer; en redan känd förhandsbokning blir tyst. DB-vägen läser inte fältet. Andra butiker och andra
+  statusar rörs inte.

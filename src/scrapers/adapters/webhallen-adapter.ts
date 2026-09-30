@@ -446,6 +446,16 @@ export class WebhallenAdapter implements SourceAdapter {
           /* best effort — sök-feedens status står kvar, precis som före live-kollen */
         }
       }
+      // ⛔ INDEXETS FÖRHANDSBOKNING RÄCKER ALDRIG ENSAM (2026-10-01): indexet saknar
+      //    nivåkravet, så dess PREORDER kan vara ett LÅS (Delta Reign, nivå 26). Svarade
+      //    inte produkt-API:t för en sådan rad märks den obekräftad, och Discord-lanen
+      //    behandlar den som frånvarande ett varv — en äkta förhandsbokning postas när
+      //    live-svaret kommer (frånvarominnet minns "slut" ⇒ den blir en nyhet då).
+      for (const p of products) {
+        if (p.stockStatus === StockStatus.PREORDER && !liveCache.has((p.raw as WebhallenRaw).id)) {
+          p.stockUnconfirmed = true;
+        }
+      }
       // Tysta tak är roten till täckningshål — samma regel som Shopifys kollektionstak.
       // console.warn och INTE `errors`: ett täckningshål är inget adapterfel och ska
       // inte dra igång butikshälso-larmen via errorCount i runScrapeJob.
