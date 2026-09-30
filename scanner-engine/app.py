@@ -8,7 +8,7 @@ HTTP-skal runt skannermotorn (engine.py). En endpoint, delad hemlighet, ingen da
 Motorn laddas EN gång vid start (indexet ~0,2–0,4 GB i RAM). Ett lås serialiserar anropen:
 OpenCV:s SIFT-objekt är inte trådsäkert, och skannervolymen är några hundra per dygn.
 """
-import json, os, threading
+import json, os, socket, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from bootstrap import ensure_data
@@ -54,7 +54,17 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+class DualStackServer(ThreadingHTTPServer):
+    """Lyssnar på IPv6 OCH IPv4: Railways privata nät kan vara IPv6-only (`*.railway.internal`)."""
+
+    address_family = socket.AF_INET6
+
+    def server_bind(self):
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
     print(f"scanner-engine på :{port}, {len(engine.ids)} kort", flush=True)
-    ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
+    DualStackServer(("::", port), Handler).serve_forever()
