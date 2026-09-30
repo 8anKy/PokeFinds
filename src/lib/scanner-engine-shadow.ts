@@ -72,17 +72,25 @@ export function runEngineShadow(jobId: string, imageDataUrl: string): void {
   if (!body) return;
   const url = `${process.env.SCANNER_ENGINE_URL!.trim().replace(/\/$/, "")}/identify`;
   void (async () => {
-    let record: ShadowRecord;
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "image/jpeg", "x-engine-secret": process.env.SCANNER_ENGINE_SECRET!.trim() },
-        body: new Uint8Array(body),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      record = res.ok ? shadowRecord((await res.json()) as EngineResponse) : shadowRecord(null, `http-${res.status}`);
-    } catch (e) {
-      record = shadowRecord(null, (e as Error).name === "TimeoutError" ? "timeout" : "unreachable");
+    let record: ShadowRecord = shadowRecord(null, "unreachable");
+    // ⛔ MOTORN SOVER MELLAN PASSEN (serverless): första anropet väcker den, men anslutningen
+    // nekas medan containern startar — mätt 2026-09-30 blev första skanningen i passet
+    // "unreachable". Nätverksfel försöks därför om efter 3 och 8 s; HTTP-fel och timeout aldrig.
+    for (const waitMs of [0, 3000, 8000]) {
+      if (waitMs) await new Promise((r) => setTimeout(r, waitMs));
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "image/jpeg", "x-engine-secret": process.env.SCANNER_ENGINE_SECRET!.trim() },
+          body: new Uint8Array(body),
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+        record = res.ok ? shadowRecord((await res.json()) as EngineResponse) : shadowRecord(null, `http-${res.status}`);
+        break;
+      } catch (e) {
+        record = shadowRecord(null, (e as Error).name === "TimeoutError" ? "timeout" : "unreachable");
+        if (record.err === "timeout") break;
+      }
     }
     await prisma.$executeRaw`
       UPDATE "ScannerJob"
