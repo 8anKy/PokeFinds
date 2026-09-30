@@ -116,6 +116,19 @@ jobs:
         name: Priser + historik (RapidAPI)
         run: npx tsx scripts/cardmarket-refresh-run.ts
 
+      # ── NYA ENGELSKA SEALED UR CARDMARKET, VARJE NATT (2026-09-30) ──────────────
+      # Var ett eget söndagsjobb. Butikerna skapar inga produkter längre (runner.ts,
+      # STORE_IMPORT_CREATES), så en ny CM-produkt ska finnas samma natt — annars står
+      # butikernas annonser okopplade i upp till en vecka. Körs även när refresh-steget
+      # blev rött (täckningsvakten): importen beror inte på dagens priser.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Nya engelska sealed ur Cardmarket (90 dygn)
+        continue-on-error: true
+        env:
+          APPLY: "1"
+          RECENT_DAYS: "90"
+        run: npx tsx scripts/import-sealed-from-cardmarket.ts
+
       # ── SLÄNG DEN CACHADE BILDEN AV PRISERNA ─────────────────────────────────
       # Publika sidor är ISR-cachade 1h OCH läser genom cachedRead. Utan det här
       # steget visar första besökaren efter varje jobb gårdagens graf (Next serverar

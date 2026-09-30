@@ -242,8 +242,15 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   sajterna kallar sina egna tal simulerade uppskattningar. `1/(antal kort med sällsyntheten)` ÄR INTE ODDS —
   paket sätts samman från tryckark. Vi visar `SetComposition` i stället, med en synlig rad om varför.
 - **Katalogflödet är hands-off**: nya set + singlar (`import-new-sets.yml`, sön 03:30 UTC), sealed
-  CM-pris/trend + set-etiketter (`runCardmarketRefresh`), auto-import av butiks-SKU:er (restock-skanningen).
+  CM-pris/trend + set-etiketter (`runCardmarketRefresh`), butiks-SKU:er KOPPLAS på befintliga produkter.
   Inget manuellt steg återstår — bevaka bara RapidAPI-kvoten vid stora släpp.
+  ⛔ **SEALED-KATALOGEN VÄXER BARA UR CARDMARKET (ägarbeslut 2026-09-30)**: butiker SKAPAR inga produkter
+  (`STORE_IMPORT_CREATES` i runner.ts, av) — en omatchad annons lämnas okopplad och prövas om när katalogen
+  växer (`StoreListing.unmatchedAt`). Nya produkter föds med ett exakt `idProduct`, NATTLIGEN som steg i
+  cardmarket-refresh: engelska `import-sealed-from-cardmarket.ts` (90 dygn, var veckovis), japanska
+  `src/jobs/cm-jp-sealed-import.ts` (leverantörens `/pokemon-jp/products`, id ur CM-katalogen på exakt namn,
+  utan id skapas inget). Dubblettskyddet är exakt (ägt idProduct / japanskt namn), ingen LLM. MÄTT: 204 av 218
+  butiksskapade produkter på 90 dygn hade gömts av ägaren. Regler: `matching-import.md`.
   ⛔ **RAPIDAPI GER `cardmarket_id: null` FÖR ETT HELT NYTT SET** (mätt 2026-09-05 på Delta Reign: CM hade
   alla 18 `idProduct` sedan 08-20, RapidAPI noll av dem 16 dygn senare). Utan ett id är setet OSYNLIGT för
   HELA flödet på en gång: importens huvudloop skapar en produkt utan CM-offer (ingen länk, inget pris),

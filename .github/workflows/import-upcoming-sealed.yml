@@ -1,13 +1,13 @@
-name: Auto-import kommande sealed (veckovis)
+name: Auto-import kommande sealed (manuell)
 
 # Lägger automatiskt till NYA/kommande engelska sealed-produkter (t.ex. 30th Celebration,
 # Delta Reign) ur Cardmarket-katalogen INNAN de släpps — med transparent CM-bild + CM-pris.
 # RECENT_DAYS=90 begränsar till det CM lagt till senaste 90 dagarna (nya set), aldrig hela
 # bakåtkatalogen. Dedup + språk/region/skräp-vakt + form-klassning skyddar katalogen.
 # Priser/bilder underhålls därefter av den dagliga cardmarket-refresh.
+# ⛔ SCHEMAT BORTTAGET 2026-09-30: importen är nu ett NATTLIGT steg i cardmarket-refresh.yml
+# (butikerna skapar inga produkter längre). Kvar som manuell knapp för torrkörning.
 on:
-  schedule:
-    - cron: "0 4 * * 0" # söndagar 04:00 UTC — lugn tid, krockar inte med dagliga refreshen (13:00)
   workflow_dispatch:
     inputs:
       apply:

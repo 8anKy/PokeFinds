@@ -2767,6 +2767,18 @@ export async function runCardmarketRefresh(
     }
   }
 
+  // Japanska sealed SKAPAS ur Cardmarket (2026-09-30) — butikerna skapar inga produkter
+  // längre. EFTER JP-refreshen så befintliga produkter hinner göra anspråk på sina id:n.
+  if (opts.sealed !== false) {
+    try {
+      const { runJapaneseSealedImport } = await import("@/jobs/cm-jp-sealed-import");
+      const imp = await runJapaneseSealedImport();
+      res.apiCalls += imp.apiCalls;
+    } catch (err) {
+      console.error("[cm-refresh] JP-sealed-importen misslyckades:", err instanceof Error ? err.message : err);
+    }
+  }
+
   // Japanska SINGLAR (2026-08-29): RapidAPI:s /pokemon-jp, ~280 anrop/dygn ur samma
   // kvot (1197 + 280 + hot-card 400 = ~1 880 av 3 000). Egen modul; ett fel här får
   // inte tysta resten av dagens priser.

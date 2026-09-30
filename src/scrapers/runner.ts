@@ -346,6 +346,31 @@ const RESTOCK_BUY_CHECK_MAX = Math.max(0, Number(process.env.RESTOCK_BUY_CHECK_M
 const SECOND_CHANCE_MIN_SCORE = 0.75;
 
 /**
+ * ⛔ BUTIKER SKAPAR INGA KATALOGPRODUKTER (ägarbeslut 2026-09-30). Katalogen växer BARA
+ * ur Cardmarket (engelska: import-sealed-from-cardmarket.ts, japanska: cm-jp-sealed-import.ts,
+ * båda nattliga steg i cardmarket-refresh) där varje produkt föds med ett exakt
+ * `idProduct`. En butiksannons KOPPLAS på en befintlig produkt eller lämnas okopplad —
+ * den blir aldrig en ny rad, och kan därför aldrig bli en dubblett.
+ * MÄTT samma dag: av 218 butiksskapade produkter på 90 dygn hade ägaren gömt 204 (94 %),
+ * och 1 897 av 1 911 synliga sealed hade redan en Cardmarket-länk.
+ * `STORE_IMPORT_CREATES=1` återställer det gamla beteendet (nödventil, inte ett läge).
+ */
+const STORE_IMPORT_CREATES = process.env.STORE_IMPORT_CREATES === "1";
+
+/** Senast skapade sealed-produkt — det negativa memots giltighetsgräns. Cachad 10 min per process. */
+let latestSealedCache: { at: Date; fetched: number } | null = null;
+async function latestSealedCreatedAt(): Promise<Date> {
+  if (latestSealedCache && Date.now() - latestSealedCache.fetched < 10 * 60_000) return latestSealedCache.at;
+  const p = await prisma.product.findFirst({
+    where: { cardId: null, category: { notIn: ["SINGLE_CARD", "GRADED_CARD"] } },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  latestSealedCache = { at: p?.createdAt ?? new Date(0), fetched: Date.now() };
+  return latestSealedCache.at;
+}
+
+/**
  * ⛔ DOMAREN MÅSTE FÅ VETA ATT KATALOGPRODUKTEN ÄR JAPANSK (2026-09-30). Cardmarkets
  * japanska namn saknar språkmarkör ("Shiny Star V Booster Box"), butikens titel säger
  * "JAPANSK" — och domarens regel "japansk ≠ engelsk" läste frånvaron som engelska och
@@ -470,11 +495,22 @@ export async function ensureListingProduct(
   //    skapa. Misslyckades offer-skrivningen en gång ska nästa körning försöka igen.
   const ledger = await prisma.storeListing.findUnique({
     where: { retailerId_url: { retailerId: it.retailerId, url: it.url } },
-    select: { productId: true, productMatchTitle: true, gtin: true },
+    select: { productId: true, productMatchTitle: true, gtin: true, unmatchedAt: true },
   });
   if (ledger?.productId && ledger.productMatchTitle === it.title) {
     await upsertListingOffer(it, ledger.productId, stockStatus, ledger.gtin);
     return ledger.productId;
+  }
+  // NEGATIVT MEMO: samma titel prövades redan utan träff, och katalogen har inte fått
+  // någon ny sealed-produkt sedan dess ⇒ svaret kan inte ha ändrats. Spar butikens
+  // produktsida (HTTP) och domaren. En ny Cardmarket-produkt öppnar prövningen igen.
+  if (
+    !ledger?.productId &&
+    ledger?.unmatchedAt &&
+    ledger.productMatchTitle === it.title &&
+    ledger.unmatchedAt > (await latestSealedCreatedAt())
+  ) {
+    return null;
   }
   // Cross-produkt-vakt: ägs URL:en redan av en produkt (t.ex. länkad av scrape-all-
   // matcharen) → använd DEN länken. Skapa aldrig en andra produkt/offer för samma
@@ -652,8 +688,14 @@ export async function ensureListingProduct(
     }
   }
 
-  if (!productId && opts?.existingOnly) {
-    console.log(`[import] Ingen säker befintlig match (existingOnly) — skapar inget: "${cleanTitle}"`);
+  if (!productId && (opts?.existingOnly || !STORE_IMPORT_CREATES)) {
+    console.log(`[import] Ingen befintlig produkt — skapar inget (katalogen växer bara ur Cardmarket): "${cleanTitle}"`);
+    // Skrivs bara om huvudboksraden redan finns (updateMany); en helt ny URL prövas en
+    // gång till nästa natt och memoreras då.
+    await prisma.storeListing.updateMany({
+      where: { retailerId: it.retailerId, url: it.url },
+      data: { productId: null, productMatchTitle: it.title, unmatchedAt: new Date() },
+    });
     return null;
   }
   if (!productId) {

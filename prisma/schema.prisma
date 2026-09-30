@@ -724,6 +724,10 @@ model StoreListing {
   /// återuppstå ur cachen.
   productId         String?
   productMatchTitle String?
+  /// "Prövad, ingen befintlig produkt" (2026-09-30). Butiker SKAPAR inte produkter längre —
+  /// en omatchad annons prövas om först när titeln ändrats eller en ny sealed-produkt
+  /// skapats efter den här tidpunkten. Utan den: HTTP-uppslag + ev. LLM-dom varje natt.
+  unmatchedAt       DateTime?
   firstSeenAt       DateTime    @default(now())
   lastSeenAt        DateTime    @default(now())
 

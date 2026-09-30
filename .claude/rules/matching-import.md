@@ -312,3 +312,18 @@ den befintliga produkten, 1 skapas inte alls.** 7 synliga dubbletter mergades me
   boxarna, Gengar Enhanced 2-Pack), en singel (Wooloo/Boltund Box Promo) och "25th Anniversary
   Celebrations ETB" (rätt tvilling "Celebrations ETB" låg på 0,699, under golvet 0,75).
   Vaktat av `tests/unit/listing-variant-pick.test.ts`.
+
+## ⛔ BUTIKER SKAPAR INGA PRODUKTER LÄNGRE (ägarbeslut 2026-09-30)
+
+Ägaren trodde att det redan var så — det var det inte: `ensureListingProduct` skapade en produkt för
+varje omatchad sealed-annons sedan 07-05 (och igen sedan 09-04), och japanska sealed hade INGEN
+Cardmarket-väg alls. Nu: `STORE_IMPORT_CREATES` (runner.ts) är AV ⇒ samma gren som `existingOnly`.
+Katalogen föds ur Cardmarket med exakt `idProduct` (engelska nattligt i cardmarket-refresh.yml,
+japanska `cm-jp-sealed-import.ts` i `runCardmarketRefresh` efter JP-refreshen). Första körningen:
+52 japanska (mest SM/XY-boxar vi aldrig haft), andra körningen 0 (idempotent).
+- **Negativt memo**: `StoreListing.unmatchedAt` + `productMatchTitle`. En omatchad annons prövas om först
+  när titeln ändrats ELLER en sealed-produkt skapats efter `unmatchedAt` (`latestSealedCreatedAt`). Utan det:
+  butikens produktsida + ev. Haiku-dom varje natt för samma annons (samma fälla som 08-14).
+- ⚠️ Följd: en butiksannons för en vara CM ännu inte listar ger inget app-larm ("ny produkt") förrän CM-
+  produkten finns; Discord-lanen påverkas inte (den postar på URL:en).
+- Vakterna under skapandet (Pokémon-signal, karaktärslös, "välj en") ligger kvar för nödventilen.

@@ -1,0 +1,1 @@
+ALTER TABLE "StoreListing" ADD COLUMN IF NOT EXISTS "unmatchedAt" TIMESTAMP(3);
