@@ -8,9 +8,36 @@
 //   railway config plan   # läser bara
 //   railway config apply  # skriver till tjänstens inställningar efter bekräftelse
 // Filen är sanningen för tjänstens inställningar; dashboard-ändringar syns som drift i plan.
-import { defineRailway, github, preserve, project, service, volume } from "railway/iac";
+import { bucket, defineRailway, github, preserve, project, service, volume } from "railway/iac";
 
-export default defineRailway(() => {
+export default defineRailway((ctx) => {
+  // Forumbilder + skannerfacit + skannermotorns data. ⛔ MÅSTE stå här: en bucket som saknas i
+  // filen blir "Delete bucket" i nästa plan (upptäckt 2026-09-30 — filen var från 09-02).
+  const uploads = bucket("foilio-uploads", { region: "ams" });
+
+  // SKANNERMOTORN UTAN AI (2026-09-30, scanner-engine/README.md): SIFT + faiss + RANSAC, ingen
+  // modell. SOVER mellan skanningspassen (serverless: ~3 h vaken/dygn ⇒ ~10 kr/mån i stället för
+  // ~35–40 alltid på). Hämtar sin data ur bucketen vid start (DATA_VERSION) till egen volym.
+  const engineVolume = volume("scanner-engine-volume", { region: "europe-west4-drams3a", sizeMB: 5000 });
+  const engine = service("scanner-engine", {
+    source: github("8anKy/PokeFinds", { checkSuites: false, rootDirectory: "scanner-engine" }),
+    replicas: { "europe-west4-drams3a": 1 },
+    build: { builder: "DOCKERFILE", watchPatterns: ["/scanner-engine/**"] },
+    deploy: { sleepApplication: true, restartPolicyType: "ON_FAILURE" },
+    volumeMounts: { "/data": engineVolume },
+    env: {
+      PORT: "8080",
+      DATA_DIR: "/data",
+      DATA_VERSION: "v2",
+      ENGINE_SECRET: ctx.randomString("engine-secret", 32),
+      S3_BUCKET: "${{foilio-uploads.BUCKET}}",
+      S3_ENDPOINT: "${{foilio-uploads.ENDPOINT}}",
+      S3_REGION: "${{foilio-uploads.REGION}}",
+      S3_ACCESS_KEY_ID: "${{foilio-uploads.ACCESS_KEY_ID}}",
+      S3_SECRET_ACCESS_KEY: "${{foilio-uploads.SECRET_ACCESS_KEY}}",
+    },
+  });
+
   const pokefindsVolume = volume("pokefinds-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "europe-west4-drams3a", sizeMB: 5000 });
   const PokeFinds = service("PokeFinds", {
     source: github("8anKy/PokeFinds", { checkSuites: false }),
@@ -26,15 +53,17 @@ export default defineRailway(() => {
     // kostar kalla Neon-läsningar (9 deployer/dygn mätt 2026-09-01). gitignore-syntax:
     // en inkluderande regel MÅSTE stå före !-reglerna, annars deployar inget alls.
     build: {
-      watchPatterns: ["**", "!/.github/**", "!/.claude/**", "!/docs/**", "!/tests/**", "!/ios/**", "!/android/**", "!/**/*.md"],
+      watchPatterns: ["**", "!/.github/**", "!/.claude/**", "!/docs/**", "!/tests/**", "!/ios/**", "!/android/**", "!/scanner-engine/**", "!/**/*.md"],
     },
     domains: ["foilio.se"],
     networking: { privateNetworkEndpoint: "pokefinds" },
     volumeMounts: { "/data": pokefindsVolume },
-    env: { ANTHROPIC_API_KEY: preserve(), APNS_BUNDLE_ID: preserve(), APNS_KEY: preserve(), APNS_KEY_ID: preserve(), APNS_PRODUCTION: preserve(), APNS_TEAM_ID: preserve(), APPLE_CLIENT_ID: preserve(), APPLE_KEY_ID: preserve(), APPLE_PRIVATE_KEY: preserve(), APPLE_TEAM_ID: preserve(), CARDMARKET_RAPIDAPI_HOST: preserve(), CARDMARKET_RAPIDAPI_KEY: preserve(), CRON_SECRET: preserve(), DATABASE_URL: preserve(), DISCORD_BOT_TOKEN: preserve(), DISCORD_CLIENT_ID: preserve(), DISCORD_CLIENT_SECRET: preserve(), DISCORD_ENABLED: preserve(), DISCORD_GUILD_ID: preserve(), DISCORD_ROLE_PRO: preserve(), DISCORD_ROLE_VERIFIED: preserve(), EMAIL_FROM: preserve(), EMAIL_MODE: preserve(), GEMINI_API_KEY: preserve(), GOOGLE_CLIENT_ID: preserve(), GOOGLE_CLIENT_SECRET: preserve(), GOOGLE_IOS_CLIENT_ID: preserve(), GRADING_PROVIDER: preserve(), LEGAL_ENTITY_ADDRESS: preserve(), LEGAL_ENTITY_EMAIL: preserve(), LEGAL_ENTITY_NAME: preserve(), LEGAL_ENTITY_VAT: preserve(), MEMORY_RECYCLE_EMERGENCY_MB: preserve(), NEON_DATABASE_URL: preserve(), NEXTAUTH_SECRET: preserve(), NEXTAUTH_URL: preserve(), NEXT_PUBLIC_APP_NAME: preserve(), NEXT_PUBLIC_APP_URL: preserve(), NEXT_PUBLIC_RC_IOS_KEY: preserve(), NEXT_PUBLIC_SIGNUP_BONUS_MONTHS: preserve(), NEXT_PUBLIC_SIGNUP_BONUS_UNTIL: preserve(), NIXPACKS_INSTALL_CMD: preserve(), NPM_CONFIG_LEGACY_PEER_DEPS: preserve(), OCR_API_KEY: preserve(), OCR_PROVIDER: preserve(), RESEND_API_KEY: preserve(), RESTOCK_WATCH_MINUTES: preserve(), REVENUECAT_WEBHOOK_AUTH: preserve(), SCRAPE_INTERVAL_MINUTES: preserve(), SENTRY_DSN: preserve(), SMTP_HOST: preserve(), SMTP_PASS: preserve(), SMTP_PORT: preserve(), SMTP_SECURE: preserve(), SMTP_USER: preserve(), STRIPE_ENABLED: preserve(), STRIPE_PRICE_ID_PRO_MONTHLY: preserve(), STRIPE_SECRET_KEY: preserve(), STRIPE_WEBHOOK_SECRET: preserve(), TRADERA_APP_ID: preserve(), TRADERA_APP_KEY: preserve(), TRADERA_PUBLIC_KEY: preserve(), UNSUBSCRIBE_SECRET: preserve(), UNSUBSCRIBE_SECRET_PREVIOUS: preserve(), VAPID_PRIVATE_KEY: preserve(), VAPID_PUBLIC_KEY: preserve() },
+    env: { ANTHROPIC_API_KEY: preserve(), APNS_BUNDLE_ID: preserve(), APNS_KEY: preserve(), APNS_KEY_ID: preserve(), APNS_PRODUCTION: preserve(), APNS_TEAM_ID: preserve(), APPLE_CLIENT_ID: preserve(), APPLE_KEY_ID: preserve(), APPLE_PRIVATE_KEY: preserve(), APPLE_TEAM_ID: preserve(), CARDMARKET_RAPIDAPI_HOST: preserve(), CARDMARKET_RAPIDAPI_KEY: preserve(), CRON_SECRET: preserve(), DATABASE_URL: preserve(), DISCORD_BOT_TOKEN: preserve(), DISCORD_CLIENT_ID: preserve(), DISCORD_CLIENT_SECRET: preserve(), DISCORD_ENABLED: preserve(), DISCORD_GUILD_ID: preserve(), DISCORD_ROLE_PRO: preserve(), DISCORD_ROLE_VERIFIED: preserve(), EMAIL_FROM: preserve(), EMAIL_MODE: preserve(), GEMINI_API_KEY: preserve(), GOOGLE_CLIENT_ID: preserve(), GOOGLE_CLIENT_SECRET: preserve(), GOOGLE_IOS_CLIENT_ID: preserve(), GRADING_PROVIDER: preserve(), LEGAL_ENTITY_ADDRESS: preserve(), LEGAL_ENTITY_EMAIL: preserve(), LEGAL_ENTITY_NAME: preserve(), LEGAL_ENTITY_VAT: preserve(), MEMORY_RECYCLE_EMERGENCY_MB: preserve(), NEON_DATABASE_URL: preserve(), NEXTAUTH_SECRET: preserve(), NEXTAUTH_URL: preserve(), NEXT_PUBLIC_APP_NAME: preserve(), NEXT_PUBLIC_APP_URL: preserve(), NEXT_PUBLIC_RC_IOS_KEY: preserve(), NEXT_PUBLIC_SIGNUP_BONUS_MONTHS: preserve(), NEXT_PUBLIC_SIGNUP_BONUS_UNTIL: preserve(), NIXPACKS_INSTALL_CMD: preserve(), NPM_CONFIG_LEGACY_PEER_DEPS: preserve(), OCR_API_KEY: preserve(), OCR_PROVIDER: preserve(), RESEND_API_KEY: preserve(), RESTOCK_WATCH_MINUTES: preserve(), REVENUECAT_WEBHOOK_AUTH: preserve(), SCRAPE_INTERVAL_MINUTES: preserve(), SENTRY_DSN: preserve(), SMTP_HOST: preserve(), SMTP_PASS: preserve(), SMTP_PORT: preserve(), SMTP_SECURE: preserve(), SMTP_USER: preserve(), STRIPE_ENABLED: preserve(), STRIPE_PRICE_ID_PRO_MONTHLY: preserve(), STRIPE_SECRET_KEY: preserve(), STRIPE_WEBHOOK_SECRET: preserve(), TRADERA_APP_ID: preserve(), TRADERA_APP_KEY: preserve(), TRADERA_PUBLIC_KEY: preserve(), UNSUBSCRIBE_SECRET: preserve(), UNSUBSCRIBE_SECRET_PREVIOUS: preserve(), VAPID_PRIVATE_KEY: preserve(), VAPID_PUBLIC_KEY: preserve(), COMMUNITY_V2_PUBLIC: preserve(), FEATURE_APP_TOUR_PUBLIC: preserve(), FEATURE_PREVIEW_EMAILS: preserve(), FEATURE_PUSH_TO_STORE_PUBLIC: preserve(), FEATURE_SCAN_COUNTER_PUBLIC: preserve(), NEWS_FEED_PUBLIC: preserve(), NEXT_PUBLIC_RC_ANDROID_KEY: preserve(), PRICE_ALERTS_PAUSED: preserve(), RESTOCK_ALERTS_PAUSED: preserve(), S3_ACCESS_KEY_ID: preserve(), S3_BUCKET: preserve(), S3_ENDPOINT: preserve(), S3_REGION: preserve(), S3_SECRET_ACCESS_KEY: preserve(),
+      // Skannermotorns skuggläge (src/lib/scanner-engine-shadow.ts) — privat nät, delad hemlighet.
+      SCANNER_ENGINE_URL: "http://${{scanner-engine.RAILWAY_PRIVATE_DOMAIN}}:8080", SCANNER_ENGINE_SECRET: engine.env.ENGINE_SECRET },
   });
 
   return project("divine-reflection", {
-    resources: [PokeFinds, pokefindsVolume],
+    resources: [PokeFinds, pokefindsVolume, uploads, engine, engineVolume],
   });
 });
