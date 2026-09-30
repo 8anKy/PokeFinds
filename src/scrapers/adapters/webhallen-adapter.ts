@@ -404,14 +404,23 @@ export class WebhallenAdapter implements SourceAdapter {
       //    indexet saknar nivågränsen — Delta Reign stod som PREORDER i indexet och kunde
       //    postas innan rotationen hann fram till den. Det okollade svaret är det som
       //    riskerar ett falskt inlägg; det kollade har redan ett färskt live-svar ovanpå.
-      const unchecked = (p: RawProductData) => !liveCache.has((p.raw as WebhallenRaw).id);
+      //
+      // ⛔ OKOLLADE TAS ALLTID, TAKET GÄLLER BARA OMKOLLAR (2026-10-01): varje nytt loop-jobb
+      //    (~var 20:e min) startar med tom cache, taket (16) tog 16 av 63 och de andra 47
+      //    fick indexets PREORDER ⇒ Delta Reign postades som "går nu att förhandsboka" en
+      //    gång per jobb, hela natten. Första ticket i ett jobb blir ~50 s i stället för
+      //    ~13 s; därefter är alla kollade och taket styr rotationen som förut.
+      const uncheckedIds = new Set(
+        candidates.map((p) => (p.raw as WebhallenRaw).id).filter((id) => !liveCache.has(id))
+      );
+      const unchecked = (p: RawProductData) => uncheckedIds.has((p.raw as WebhallenRaw).id);
       const ordered = [...rotated.filter(unchecked), ...rotated.filter((p) => !unchecked(p))];
       livePollCursor = start + Math.min(LIVE_POLL_MAX, candidates.length);
 
       let polled = 0;
       let skippedByCap = 0;
       for (const p of ordered) {
-        if (polled >= LIVE_POLL_MAX) {
+        if (polled >= LIVE_POLL_MAX && !unchecked(p)) {
           skippedByCap++;
           continue;
         }

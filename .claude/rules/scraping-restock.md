@@ -436,3 +436,8 @@ paths:
   sänkningen blir nu en äkta OUT → PREORDER. `webhallenRankLocked` ⇒ OUT_OF_STOCK i både webb- och
   butiksspåret. Fältet finns bara i produkt-API:t, så live-kollen tar ALDRIG LIVE-KOLLADE kandidater först
   (en ny URL har bara indexets dom). Vaktat av `webhallen-preorder.test.ts`.
+  ⛔ **+ 2026-10-01: TAKET FICK INTE LÄMNA OKOLLADE VAROR ÅT INDEXET.** Varje nytt loop-jobb i Discord-lanen
+  (~var 20:e min) startar med tom live-cache; `WEBHALLEN_LIVE_POLL_MAX=16` tog 16 av 63 och de 47 andra fick
+  indexets PREORDER ⇒ Delta Reign postades igen EN GÅNG PER JOBB hela natten. Okollade kandidater slås nu
+  ALLTID upp (taket gäller bara omkollar); första ticket i ett jobb tar ~50 s. Vaktat av
+  `webhallen-live-poll-fresh-job.test.ts`.
