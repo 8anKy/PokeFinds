@@ -32,20 +32,34 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _authed(self):
+        return bool(SECRET) and self.headers.get("x-engine-secret") == SECRET
+
     def do_GET(self):
         if self.path == "/health":
             return self._json(200, {"ok": True, "cards": len(engine.ids)})
+        if self.path == "/cards":  # vilka kort motorn känner — webbens påfyllning diffar mot katalogen
+            if not self._authed():
+                return self._json(401, {"error": "unauthorized"})
+            return self._json(200, {"ids": engine.ids})
         self._json(404, {"error": "not-found"})
 
     def do_POST(self):
-        if self.path != "/identify":
+        if self.path not in ("/identify", "/add-cards"):
             return self._json(404, {"error": "not-found"})
-        if not SECRET or self.headers.get("x-engine-secret") != SECRET:
+        if not self._authed():
             return self._json(401, {"error": "unauthorized"})
         n = int(self.headers.get("content-length") or 0)
         if n <= 0 or n > MAX_BYTES:
             return self._json(413, {"error": "size"})
         data = self.rfile.read(n)
+        if self.path == "/add-cards":
+            try:
+                cards = json.loads(data)["cards"]
+            except Exception:
+                return self._json(400, {"error": "bad-json"})
+            with lock:
+                return self._json(200, engine.add_cards(cards[:300]))
         with lock:
             res = engine.identify(data)
         self._json(200 if "error" not in res else 400, res)

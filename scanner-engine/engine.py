@@ -60,13 +60,21 @@ class Engine:
     def __init__(self, data_dir):
         self.dir = data_dir
         nn = os.path.join(data_dir, os.environ.get("NN_SUB", "nn"))
+        self.nn_dir = nn
         self.index = faiss.read_index(os.path.join(nn, "ivfpq.faiss"))
         self.index.nprobe = NPROBE
-        self.owners = np.load(os.path.join(nn, "owners.npy"), mmap_mode="r")
+        # I minnet (44 MB), inte memmap: add_cards() förlänger den.
+        self.owners = np.load(os.path.join(nn, "owners.npy"))
         self.ids = json.load(open(os.path.join(nn, "cards.json")))
         rk = os.path.join(data_dir, "refkp")
+        self.rk_dir = rk
         meta = json.load(open(os.path.join(rk, "meta.json")))
         self.offsets, self.shapes = meta["offsets"], meta["shapes"]
+        # Rader bortom basfilen ligger i tilläggsfilerna (add_cards) — rad a ≥ n_base läses därifrån.
+        self.n_base = meta["n"]
+        self.n_add = meta.get("n_add", 0)
+        self._add_d = os.path.join(rk, "desc-add.bin")
+        self._add_p = os.path.join(rk, "pts-add.bin")
         # ⛔ INTE memmap på Linux: Railway räknar kärnans sidcache som minne (cgroup), och en memmap
         # över 2,8 GB hade vuxit med varje skanning tills hela filen låg i "minnet". Raderna läses med
         # pread och sidorna släpps direkt (POSIX_FADV_DONTNEED). Windows (lokal mätning) kör memmap.
@@ -106,6 +114,14 @@ class Engine:
         if not off:
             return None
         a, n = off
+        if a >= self.n_base:  # tillagt av add_cards — tilläggsfilerna är små, läs rakt av
+            r = a - self.n_base
+            with open(self._add_p, "rb") as fp, open(self._add_d, "rb") as fd:
+                fp.seek(r * 8)
+                pts = np.frombuffer(fp.read(n * 8), dtype=np.float32).reshape(n, 2)
+                fd.seek(r * 128)
+                des = np.frombuffer(fd.read(n * 128), dtype=np.uint8).reshape(n, 128)
+            return pts, des.astype(np.float32) / 255.0
         if self._pread:
             pts = self._read_rows(self._fd_p, self._off_p, 8, a, n, np.float32, 2)
             des = self._read_rows(self._fd_d, self._off_d, 128, a, n, np.uint8, 128)
@@ -295,3 +311,70 @@ class Engine:
             "msA": int((t_a - t0) * 1000),
             "ms": int((time.time() - t0) * 1000),
         }
+
+    # ---------- påfyllning ----------
+    def add_cards(self, cards):
+        """
+        NYA KORT UTAN OMBYGGE (2026-09-30): kort som tillkommit i katalogen läggs till av motorn själv —
+        referensbilden hämtas, SIFT räknas (300 punkter till indexet, 600 till refkp) och allt skrivs
+        till volymen. IVF-PQ behöver ingen omträning för nya vektorer. Anropas av webbens cron-rutt
+        (/api/cron/engine-sync) med de kort motorn saknar. `cards` = [{id, imageUrl, language}].
+        """
+        added, failed = [], []
+        vecs, owners_add = [], []
+        with open(self._add_d, "ab") as fd, open(self._add_p, "ab") as fp:
+            for c in cards:
+                cid, url = c.get("id"), c.get("imageUrl")
+                if not cid or not url or cid in self.offsets:
+                    continue
+                try:
+                    req = urllib.request.Request(url, headers={"User-Agent": "Foilio/1.0 (+https://foilio.se)"})
+                    buf = urllib.request.urlopen(req, timeout=20).read()
+                    img = cv2.imdecode(np.frombuffer(buf, np.uint8), cv2.IMREAD_GRAYSCALE)
+                    if img is None:
+                        raise ValueError("bild")
+                    h, w = img.shape
+                    img = cv2.resize(img, (int(w * 480 / h), 480), interpolation=cv2.INTER_AREA)
+                    _, d_nn = cv2.SIFT_create(nfeatures=300).detectAndCompute(img, None)
+                    kp, d_rk = cv2.SIFT_create(nfeatures=600).detectAndCompute(img, None)
+                    if d_nn is None or len(d_nn) < 10 or d_rk is None or len(d_rk) < 8:
+                        raise ValueError("för få punkter")
+                except Exception as e:
+                    failed.append({"id": cid, "error": str(e)[:80]})
+                    continue
+                card_idx = len(self.ids)
+                self.ids.append(cid)
+                v = (_root_sift(d_nn)[:300] * 255).astype(np.uint8)
+                vecs.append(v)
+                owners_add.append(np.full(len(v), card_idx, np.int32))
+                r = (_root_sift(d_rk)[:600] * 255).astype(np.uint8)
+                pts = np.float32([k.pt for k in kp])[:600]
+                fd.write(r.tobytes())
+                fp.write(pts.tobytes())
+                self.offsets[cid] = [self.n_base + self.n_add, len(r)]
+                self.shapes[cid] = [480, int(w * 480 / h)]
+                self.n_add += len(r)
+                self.image_urls[cid] = url
+                if c.get("language"):
+                    self.langs[cid] = c["language"]
+                added.append(cid)
+        if added:
+            self.index.add(np.vstack(vecs).astype(np.float32))
+            self.owners = np.concatenate([self.owners] + owners_add)
+            self._persist()
+        return {"added": len(added), "failed": failed[:20], "failedCount": len(failed), "cards": len(self.ids)}
+
+    def _persist(self):
+        """Skriv allt atomiskt (tmp + replace) så en omstart mitt i aldrig lämnar halva filer."""
+        def dump_json(path, obj):
+            with open(path + ".tmp", "w") as f:
+                json.dump(obj, f)
+            os.replace(path + ".tmp", path)
+        faiss.write_index(self.index, os.path.join(self.nn_dir, "ivfpq.faiss.tmp"))
+        os.replace(os.path.join(self.nn_dir, "ivfpq.faiss.tmp"), os.path.join(self.nn_dir, "ivfpq.faiss"))
+        np.save(os.path.join(self.nn_dir, "owners.tmp.npy"), self.owners)
+        os.replace(os.path.join(self.nn_dir, "owners.tmp.npy"), os.path.join(self.nn_dir, "owners.npy"))
+        dump_json(os.path.join(self.nn_dir, "cards.json"), self.ids)
+        dump_json(os.path.join(self.rk_dir, "meta.json"), {"offsets": self.offsets, "shapes": self.shapes, "n": self.n_base, "n_add": self.n_add, "ref_kp": 600})
+        dump_json(os.path.join(self.dir, "cards-meta.json"), self.image_urls)
+        dump_json(os.path.join(self.dir, "cards-lang.json"), self.langs)

@@ -134,3 +134,19 @@ jobs:
       - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         name: Bygg konstavtryck för nya kort (no-op om inga saknas)
         run: npx tsx scripts/build-art-fingerprints.ts
+
+      # SKANNERMOTORN IKAPP KATALOGEN (2026-09-30): kort med bild som motorn saknar (nya set, promos,
+      # dagens JP-singlar) läggs till av motorn själv via /api/cron/engine-sync — ingen ombyggnad.
+      # continue-on-error: en sovande/nere motor får aldrig göra ett skrivet dygn rött; nästa natt tar resten.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Skannermotorn ikapp katalogen (no-op om inget saknas)
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          if [ -z "${CRON_SECRET}" ]; then echo "::notice::CRON_SECRET saknas — hoppar över."; exit 0; fi
+          code=$(curl -sS -o sync.json -w '%{http_code}' --max-time 1100 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://foilio.se}/api/cron/engine-sync")
+          echo "engine-sync → HTTP $code $(cat sync.json)"
+          test "$code" = "200"
