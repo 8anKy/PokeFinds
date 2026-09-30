@@ -357,6 +357,15 @@ const SECOND_CHANCE_MIN_SCORE = 0.75;
  */
 const STORE_IMPORT_CREATES = process.env.STORE_IMPORT_CREATES === "1";
 
+/**
+ * ⛔ INGEN AI I BUTIKSKOPPLINGEN (ägarbeslut 2026-09-30). Butiksannonser kopplas bara på
+ * DETERMINISTISKA bevis: streckkod, matchProduct ≥ 0,85, identisk identitet, omslagskonst.
+ * Gränsfallen (0,55–0,85 och "andra chansen") lämnas okopplade i stället för att en LLM
+ * avgör dem — de kan inte bli dubbletter (butiker skapar inga produkter) och prövas om
+ * när katalogen växer. `STORE_MATCH_AI=1` slår på domaren igen.
+ */
+const STORE_MATCH_AI = process.env.STORE_MATCH_AI === "1";
+
 /** Senast skapade sealed-produkt — det negativa memots giltighetsgräns. Cachad 10 min per process. */
 let latestSealedCache: { at: Date; fetched: number } | null = null;
 async function latestSealedCreatedAt(): Promise<Date> {
@@ -636,7 +645,7 @@ export async function ensureListingProduct(
         wrapperArtSameProduct(facts.name ?? it.title, candidate.title)
       ) {
         productId = match.productId;
-      } else {
+      } else if (STORE_MATCH_AI) {
         // 2) Annars: låt LLM-domen avgöra (samma som veckodedupen).
         //    ⛔ null = domaren OTILLGÄNGLIG (nyckel/kvot/fel) — inte "olika produkter".
         //    Då skapas INGENTING: en kandidat finns men kan inte prövas, och att gissa
@@ -663,7 +672,7 @@ export async function ensureListingProduct(
   //    en katalogbred Dice-svepning per annons mot databasen vore orimlig.
   // ⛔ Domaren avgör, inte poängen. Golvet finns bara för att slippa fråga om
   //    orelaterade varor; att 0,86 är "nästan" betyder ingenting i sig.
-  if (!productId && !match && index) {
+  if (!productId && !match && index && STORE_MATCH_AI) {
     const near = nearestCatalogCandidate(normalized, cleanTitle, index, SECOND_CHANCE_MIN_SCORE);
     if (near) {
       const candidate = await prisma.product.findUnique({

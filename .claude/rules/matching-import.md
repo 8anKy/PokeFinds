@@ -346,3 +346,7 @@ japanska `cm-jp-sealed-import.ts` i `runCardmarketRefresh` efter JP-refreshen). 
   "A / B"-val rörs aldrig — deras pris får aldrig bli produktens. Första körningen: 58 hopslagna.
   Kvar okopplat (~760, mätt med work-simuleringen): mest Rogerz vintage per omslag (öppen ägarfråga) och
   Aquitaz japanska paket, plus en svans som domaren tar i den riktiga importen.
+
+- **⛔ INGEN AI I BUTIKSKOPPLINGEN (ägarbeslut 2026-09-30)**: `STORE_MATCH_AI` (runner.ts) är AV — bara streckkod,
+  matchProduct ≥ 0,85, identisk identitet och omslagskonst kopplar. Gränsfallen lämnas okopplade (kan inte bli
+  dubbletter) och prövas om när katalogen växer. Mätt före: ~150 av de okopplade hade avgjorts av domaren.
