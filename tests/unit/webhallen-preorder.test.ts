@@ -4,6 +4,7 @@ import {
   webhallenStoreOnly,
   webhallenStoreStock,
   webhallenStoreBreakdown,
+  webhallenStorePickupStatus,
 } from "@/scrapers/adapters/webhallen-adapter";
 import { parseWebhallenStores, storeLabel } from "@/scrapers/adapters/webhallen-stores";
 
@@ -35,6 +36,20 @@ describe("webhallenStockStatus", () => {
   });
   it("web=0 + butikssaldo men FRAMTIDA release = fortfarande förhandsbokning", () => {
     expect(webhallenStockStatus(item(0, future, { "2": 48 }))).toBe("PREORDER");
+  });
+  // Delta Reign 2026-09-30: katalogiserad med nivåkrav 26 (taket är 24) ⇒ ingen kan boka.
+  it("nivåkrav över Webhallens högsta nivå = låst, aldrig förhandsbokning", () => {
+    const locked = { ...(item(0, future) as object), minimumRankLevel: 26 } as never;
+    expect(webhallenStockStatus(locked)).toBe("OUT_OF_STOCK");
+    expect(webhallenStorePickupStatus(locked)).toBe("OUT_OF_STOCK");
+    const lockedWithStock = { ...(item(3, past) as object), minimumRankLevel: 26 } as never;
+    expect(webhallenStockStatus(lockedWithStock)).toBe("OUT_OF_STOCK");
+  });
+  it("nivåkrav inom taket (30th: 9) är fortfarande en förhandsbokning", () => {
+    const gated = { ...(item(0, future) as object), minimumRankLevel: 9 } as never;
+    expect(webhallenStockStatus(gated)).toBe("PREORDER");
+    const top = { ...(item(0, future) as object), minimumRankLevel: 24 } as never;
+    expect(webhallenStockStatus(top)).toBe("PREORDER");
   });
   it("räknar bara numeriska butiksnycklar — displayCap/webStock/isSentFromStore är inga saldon", () => {
     expect(webhallenStoreStock({ web: 0, displayCap: 50, isSentFromStore: 0, isTrue: true, webStock: { "992": 3 } })).toBe(0);

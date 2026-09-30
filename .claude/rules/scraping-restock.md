@@ -428,3 +428,11 @@ paths:
   ⛔ **UNDRE gränsen gäller BÅDA** — ett pris långt under ett pålitligt facit är ett öppnat exemplar
   eller en felmatchning oavsett var det står. Rör den aldrig.
   Vaktat av `tests/unit/store-price-ceiling.test.ts`.
+
+- **⛔ WEBHALLEN: NIVÅKRAV ÖVER TAKET = LÅST, INTE FÖRHANDSBOKNING (2026-09-30)**: Delta Reign lades upp
+  med `minimumRankLevel: 26` + release 2026-11-06 ⇒ vi sa PREORDER och Discord postade "går att förhandsboka"
+  för sex varor, men knappen sa "Ej tillgänglig för din medlemsnivå" för ALLA (högsta nivån är 24: sex klasser
+  × fyra). Webhallen katalogiserar först och SÄNKER kravet när bokningen öppnar (30th: 9, sedan 5) — den
+  sänkningen blir nu en äkta OUT → PREORDER. `webhallenRankLocked` ⇒ OUT_OF_STOCK i både webb- och
+  butiksspåret. Fältet finns bara i produkt-API:t, så live-kollen tar ALDRIG LIVE-KOLLADE kandidater först
+  (en ny URL har bara indexets dom). Vaktat av `webhallen-preorder.test.ts`.

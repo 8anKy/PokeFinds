@@ -1073,7 +1073,13 @@ const LISTING_TITLE_JUNK: RegExp[] = [
   // (2026-09-17); utan den blev resten ". Per Kund)" kvar i titeln.
   /\(?\bmax\.? ?\d+\.?(?: ?st\.?)?\s*(?:\/|per\b)? ?(?:kund|hushåll|person|customer)?!?\)?/gi,
   /\(?\bförhandsbok\w*\)?/gi,
+  // "(Förbeställning)" (Card Haven 2026-09-29) och "(Förboka)" — samma brus, annat ord.
+  /\(?\bförbeställ\w*\)?/gi,
+  /\(?\bförbok(?:a|as|ning)\b\)?/gi,
   /\(?\bpre-?order\w*\)?/gi,
+  // "(med plast)" / "(utan plast)" = med/utan krympplast (Mystery Shack 2026-09-23):
+  // samma SKU i två skick, inte två produkter.
+  /\(\s*(?:med|utan)\s+(?:krymp)?plast\s*\)/gi,
   /\((?:copy|kopia)(?: \d+)?\)/gi,
   /[-–—]\s*(?:copy|kopia)(?: \d+)?\s*$/gi,
   /\(\d+ ?(?:pcs|st)\.?\)/gi,
@@ -1117,16 +1123,96 @@ export function stripTcgPrefix(title: string): string {
   return stripped.length >= 4 ? stripped : title;
 }
 
+/**
+ * HTML-entiteter ur feeds. Quickbutik skickar "&amp;", WooCommerce NUMERISKA
+ * ("&#8211;" = –, Fantasia North 2026-09-30) — den senare formen blev ordagrant en
+ * katalogtitel och matchade ingenting.
+ */
+export function decodeTitleEntities(title: string): string {
+  return title
+    .replace(/&#x([0-9a-f]{1,6});/gi, (_, h: string) => safeCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d{1,7});/g, (_, d: string) => safeCodePoint(parseInt(d, 10)))
+    .replace(/&amp;/gi, "&")
+    .replace(/&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&ndash;/gi, "–")
+    .replace(/&mdash;/gi, "—")
+    .replace(/&hellip;/gi, "…");
+}
+function safeCodePoint(n: number): string {
+  return Number.isFinite(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : " ";
+}
+
+/** Nyckel för att jämföra en karaktär mellan listan och valet: utan "ex"/"Mega"/skiljetecken. */
+function variantKey(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\b(?:ex|mega)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+const ALTERNATIVE_SPLIT = /\s*\/\s*|\s*,\s*|\s+(?:or|eller)\s+/i;
+
+/**
+ * VARIANTVAL I BUTIKSTITELN (2026-09-30). WooCommerce-butiker (RahTech m.fl.) listar en
+ * produkt "välj en av tre" som EN förälder med varianter, och variantens titel blir
+ * "Förälder (A / B / C) - B" eller "Förälder – A / B - A":
+ *   "Ascended Heroes ex Box (Mega Meganium / Emboar / Feraligatr) - Meganium"
+ *   "30th Celebration ex Tin – Greninja ex / Sylveon ex - Greninja ex"
+ * Katalogen har EN produkt per karaktär, och titeln nämnde alla tre ⇒ matcharen såg
+ * tre lika bra kandidater, sa "tvetydig" och auto-importen skapade en dubblett per
+ * variant (7 st i september). Valet står sist — ersätt listan med det valda.
+ * Ändrar ingenting om valet inte är EXAKT ett av alternativen.
+ */
+export function resolveVariantPick(title: string): string {
+  const m = title.match(/^(.*\S)\s+[-–—]\s+([^\-–—/()]{2,40})$/);
+  if (!m) return title;
+  const [, head, pick] = m;
+  const pk = variantKey(pick);
+  if (!pk) return title;
+  const lists: { full: string; inner: string; paren: boolean }[] = [];
+  for (const x of head.matchAll(/\(([^()]*\/[^()]*)\)/g)) lists.push({ full: x[0], inner: x[1], paren: true });
+  const dashSeg = head.match(/[-–—]\s+([^\-–—()]*\/[^\-–—()]*)$/);
+  if (dashSeg) lists.push({ full: dashSeg[1], inner: dashSeg[1], paren: false });
+  for (const l of lists) {
+    const alts = l.inner.split(ALTERNATIVE_SPLIT).map((a) => a.trim()).filter(Boolean);
+    if (alts.length < 2) continue;
+    const hits = alts.filter((a) => variantKey(a) === pk);
+    if (hits.length === 1) return head.replace(l.full, l.paren ? `(${hits[0]})` : hits[0]).trim();
+  }
+  return title;
+}
+
+/**
+ * "VÄLJ EN"-ANNONS UTAN VAL (2026-09-30): "EX Box Mega Meganium, Feraligtr or Emboar".
+ * Annonsen säljer EN av flera katalogprodukter men säger inte vilken — samma sak som en
+ * karaktärslös blister. Länkas den (ägd URL, GTIN, domare) är det bra; en NY produkt får
+ * den aldrig bli, för den vore en dubblett av alla alternativen samtidigt.
+ * ⛔ BARA "or"/"eller", ALDRIG snedstreck. Mätt mot huvudboken 2026-09-30: "Display /
+ *    Booster Box" (synonymer), "Tag Team Tin Pikachu/Zekrom" och "Cyrus / Klara …
+ *    Display" (EN produkt med båda) skrivs med snedstreck — en snedstrecksregel hade
+ *    stoppat riktiga SKU:er.
+ * ⛔ "Trick or Trade" är en produktlinje, inget val.
+ */
+export function isUnselectedVariantListing(title: string): boolean {
+  const t = decodeTitleEntities(title).replace(/\btrick\s+or\s+(?:treat|trade)\b/gi, " ");
+  return /[A-Za-zÀ-ÿ]{3,}\s(?:or|eller)\s+[A-Za-zÀ-ÿ]{3,}/i.test(t);
+}
+
 /** Rensar butiks-skräp ur en annonstitel (identitet + språkmarkörer lämnas orörda). */
 export function cleanListingTitle(title: string): string {
   // HTML-entiteter från feeds (Quickbutik skickar "&amp;") — avkoda innan
   // matchning/namnsättning, annars blir "&amp;" en del av katalogtiteln.
-  let s = title
-    .replace(/&amp;/gi, "&")
-    .replace(/&#0?39;|&apos;/gi, "'")
-    .replace(/&quot;/gi, '"')
-    .replace(/&nbsp;/gi, " ");
+  let s = decodeTitleEntities(title);
   for (const re of LISTING_TITLE_JUNK) s = s.replace(re, " ");
+  s = s.replace(/\s{2,}/g, " ").trim();
+  s = resolveVariantPick(s);
+  // "30th ETB" (Mystery Shack) = 30th Celebration — den enda produktlinjen som heter så.
+  // Bara FÖRST i titeln: "Celebrations - 30th, Display" och stavfelet "30th Aniversary" rörs inte.
+  s = s.replace(/^((?:pok[eé]mon\s+)?)30th\b(?!\s+(?:celebration|ann?iv))/i, "$130th Celebration");
   const cleaned = s
     .replace(/[[(]\s*[\])]/g, " ") // tomma parentes-/hakparentespar efter junk-strip
     .replace(/\s{2,}/g, " ")

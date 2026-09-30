@@ -153,3 +153,9 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   ⚠️ Läge 2026-08-07: 100 av 100 JP-produkter har set, 50 set, alla med logotyp. Serier: Scarlet & Violet 25,
   Sword & Shield 14, Mega Evolution 7, Sun & Moon 3, Other 1. Enda datumlösa: **Storm Emeralda (M6)** —
   TCGdex slutar på M5, så eran och datumet fylls i av sig själva när de publicerar M6.
+
+- ✅ **KVÄLLENS LUCKFYLLNAD (2026-09-30)**: leverantören prissätter nyligen tillagda JP-kort EFTER vår
+  nattkörning — Greninja S1H 339 (SWSH-promos, tillagda hos leverantören 09-26) stod "–" fyra nätter medan
+  leverantörens egen sida visade 18 €. `runJapaneseSinglesGapFill` (steg i hot-card-refresh, Neon redan vaken,
+  ~780 listanrop) skriver BARA null → pris. Första körningen: 212 av 1 630 prislösa fick pris; resten saknar
+  pris hos leverantören.

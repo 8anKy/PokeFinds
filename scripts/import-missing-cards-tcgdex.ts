@@ -171,7 +171,9 @@ async function main() {
           language: "EN",
           externalId: cfg.tcgdex,
           releaseDate: ts.releaseDate ? new Date(ts.releaseDate) : new Date(),
-          logoUrl: ts.logo ? `${ts.logo}.png` : null,
+          // TCGdex saknar logotyp för promo-/McDonald's-/energiset (2026-09-30: mee,
+          // 2023sv, 2024sv skapades utan ⇒ tom ruta i set-filtret); Scrydex har dem.
+          logoUrl: ts.logo ? `${ts.logo}.png` : `https://images.scrydex.com/pokemon/${cfg.scrydex}-logo/logo`,
           totalCards: ts.cardCount?.official ?? 0,
           totalCardsFull: ts.cardCount?.total ?? 0,
         },

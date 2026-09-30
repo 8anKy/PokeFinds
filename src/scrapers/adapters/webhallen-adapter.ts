@@ -247,12 +247,32 @@ function applyLiveDetail(
  * inte att hämta, hur mycket som än står på lagret ⇒ OUT_OF_STOCK.
  */
 export function webhallenStorePickupStatus(item: WebhallenProduct): StockStatus {
+  if (webhallenRankLocked(item)) return StockStatus.OUT_OF_STOCK;
   const releaseTs = item.release?.timestamp;
   if (typeof releaseTs === "number" && releaseTs * 1000 > Date.now()) return StockStatus.OUT_OF_STOCK;
   return webhallenStoreStock(item.stock) > 0 ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK;
 }
 
+/**
+ * Webhallens högsta medlemsnivå: sex nivåklasser (Brons … Void) × fyra nivåer = 24.
+ *
+ * ⛔ EN NIVÅGRÄNS ÖVER TAKET ÄR ETT LÅS, INTE EN FÖRHANDSBOKNING (2026-09-30): Delta Reign
+ *    lades upp med `minimumRankLevel: 26` och framtida release ⇒ vi sa PREORDER och Discord
+ *    postade "går nu att förhandsboka" för sex varor — knappen på sidan sa "Ej tillgänglig
+ *    för din medlemsnivå" för ALLA. Webhallen katalogiserar varan först och sänker gränsen
+ *    (30th Celebration: 9, sedan 5) när bokningen öppnar; DEN sänkningen är nyheten, och
+ *    den blir nu en äkta OUT → PREORDER-flipp. Fältet finns bara i produkt-API:t.
+ */
+export const WEBHALLEN_MAX_RANK_LEVEL = 24;
+
+/** Ingen medlem kan köpa varan än (nivåkravet ligger över Webhallens högsta nivå). */
+export function webhallenRankLocked(item: WebhallenProduct): boolean {
+  const lvl = item.minimumRankLevel;
+  return typeof lvl === "number" && Number.isFinite(lvl) && lvl > WEBHALLEN_MAX_RANK_LEVEL;
+}
+
 export function webhallenStockStatus(item: WebhallenProduct): StockStatus {
+  if (webhallenRankLocked(item)) return StockStatus.OUT_OF_STOCK;
   if ((item.stock?.web ?? 0) > 0) return StockStatus.IN_STOCK;
   const releaseTs = item.release?.timestamp;
   if (typeof releaseTs === "number" && releaseTs * 1000 > Date.now()) {
@@ -379,7 +399,13 @@ export class WebhallenAdapter implements SourceAdapter {
       for (const [id, e] of liveCache) if (now - e.at >= LIVE_CACHE_TTL_MS) liveCache.delete(id);
       const candidates = products.filter((p) => candidateSet.has(p));
       const start = candidates.length ? livePollCursor % candidates.length : 0;
-      const ordered = [...candidates.slice(start), ...candidates.slice(0, start)];
+      const rotated = [...candidates.slice(start), ...candidates.slice(0, start)];
+      // ⛔ ALDRIG LIVE-KOLLADE FÖRST (2026-09-30): en ny vara har bara indexets dom, och
+      //    indexet saknar nivågränsen — Delta Reign stod som PREORDER i indexet och kunde
+      //    postas innan rotationen hann fram till den. Det okollade svaret är det som
+      //    riskerar ett falskt inlägg; det kollade har redan ett färskt live-svar ovanpå.
+      const unchecked = (p: RawProductData) => !liveCache.has((p.raw as WebhallenRaw).id);
+      const ordered = [...rotated.filter(unchecked), ...rotated.filter((p) => !unchecked(p))];
       livePollCursor = start + Math.min(LIVE_POLL_MAX, candidates.length);
 
       let polled = 0;

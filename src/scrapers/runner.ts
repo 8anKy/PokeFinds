@@ -88,6 +88,7 @@ import {
   isSingleCardListing,
   isUnspecifiedCharacterListing,
   nearestCatalogCandidate,
+  isUnselectedVariantListing,
   isPlausiblePriceFor,
   loadMatchIndex,
   matchProduct,
@@ -344,6 +345,19 @@ const RESTOCK_BUY_CHECK_MAX = Math.max(0, Number(process.env.RESTOCK_BUY_CHECK_M
  */
 const SECOND_CHANCE_MIN_SCORE = 0.75;
 
+/**
+ * ⛔ DOMAREN MÅSTE FÅ VETA ATT KATALOGPRODUKTEN ÄR JAPANSK (2026-09-30). Cardmarkets
+ * japanska namn saknar språkmarkör ("Shiny Star V Booster Box"), butikens titel säger
+ * "JAPANSK" — och domarens regel "japansk ≠ engelsk" läste frånvaron som engelska och
+ * svarade nej. Tre JP-stubbar i september (Shiny Star V, VMAX Climax, Storm Emeralda).
+ * Samma fel som `languageMismatch` hade före 2026-09-08, nu i domarens prompt.
+ */
+function catalogLanguageContext(language: string | null | undefined): string | undefined {
+  return language === "JP"
+    ? "Katalogprodukten B är den JAPANSKA utgåvan (språket står i vår databas; Cardmarkets japanska namn saknar språkmarkör)."
+    : undefined;
+}
+
 /** En normaliserad annons från en butiksfeed, med det som ett feed-först-larm behöver. */
 export type FeedItem = {
   url: string;
@@ -569,7 +583,7 @@ export async function ensureListingProduct(
   if (!productId && match && !blockedByGtin) {
     const candidate = await prisma.product.findUnique({
       where: { id: match.productId },
-      select: { title: true, normalizedTitle: true },
+      select: { title: true, normalizedTitle: true, language: true },
     });
     if (candidate) {
       // 1) DETERMINISTISKT FÖRST, GRATIS: är identitets-ordmängderna identiska i BÅDA
@@ -592,7 +606,7 @@ export async function ensureListingProduct(
         //    Då skapas INGENTING: en kandidat finns men kan inte prövas, och att gissa
         //    "ny produkt" var exakt så Wave 4 fyllde katalogen med dubbletter (75 st,
         //    ägarens genomgång 2026-08-08). Annonsen prövas om nästa körning.
-        const verdict = await judgeSameProduct(cleanTitle, candidate.title);
+        const verdict = await judgeSameProduct(cleanTitle, candidate.title, catalogLanguageContext(candidate.language));
         if (!verdict) {
           console.log(`[dedup] Domare otillgänglig — skjuter upp "${cleanTitle}" (kandidat: "${candidate.title}")`);
           return null;
@@ -618,12 +632,12 @@ export async function ensureListingProduct(
     if (near) {
       const candidate = await prisma.product.findUnique({
         where: { id: near.id },
-        select: { title: true, gtin: true },
+        select: { title: true, gtin: true, language: true },
       });
       // Streckkoden svarar före domaren, precis som ovan: två olika tillverkarkoder är
       // bevisat olika SKU:er och då ska annonsen bli en egen produkt.
       if (candidate && !gtinConflict(gtin, candidate.gtin ?? null)) {
-        const verdict = await judgeSameProduct(cleanTitle, candidate.title);
+        const verdict = await judgeSameProduct(cleanTitle, candidate.title, catalogLanguageContext(candidate.language));
         // Samma regel som i 0.55–0.85-bandet: otillgänglig domare + närliggande
         // kandidat = skapa inget, pröva om nästa körning.
         if (!verdict) {
@@ -674,6 +688,12 @@ export async function ensureListingProduct(
     // länkas som vanligt — bara skapandet stoppas.
     if (isUnspecifiedCharacterListing(cleanTitle)) {
       console.log(`[import] Karaktärslös blister/mini tin — skapar ingen produkt: "${cleanTitle}"`);
+      return null;
+    }
+    // "VÄLJ EN" UTAN VAL ("Mega Meganium, Feraligtr or Emboar"): annonsen är en av flera
+    // katalogprodukter och säger inte vilken — en ny produkt vore en dubblett av alla.
+    if (isUnselectedVariantListing(cleanTitle)) {
+      console.log(`[import] Val utan valt alternativ — skapar ingen produkt: "${cleanTitle}"`);
       return null;
     }
     let slug = slugify(cleanTitle) || `produkt-${Date.now().toString(36)}`;

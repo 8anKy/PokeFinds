@@ -358,3 +358,89 @@ export async function runJapaneseSinglesRefresh(
   );
   return res;
 }
+
+/**
+ * KVÄLLENS LUCKFYLLNAD (2026-09-30): bara de JP-singlar som står på "–".
+ *
+ * ⛔ LEVERANTÖREN PRISSÄTTER NYA KORT EFTER VÅR NATTKÖRNING. Mätt 2026-09-30: 14 av 93
+ *    prissatta kort på stickprovssidorna (SWSH-promos tillagda hos leverantören 09-26,
+ *    t.ex. Greninja S1H 339 à 18 €, Kanazawa Pikachu à 420 €) hade pris i listan kl 21
+ *    men `null` hos oss — nattkörningen 01:46 hade läst listan innan priset fanns, fyra
+ *    nätter i rad. Sidan visade "–" medan leverantörens egen sida visade priset.
+ *
+ * Samma lista som nattjobbet (~780 anrop, ryms i Ultra-kvoten), men skrivningarna är
+ * BARA null → pris: ett kort som redan har ett pris rörs inte (nattens värde är dygnets
+ * sanning, och två skrivningar per dygn hade gett två historikpunkter). Körs som steg i
+ * hot-card-refresh, där Neon redan är vaken ⇒ ingen extra väckning.
+ */
+export async function runJapaneseSinglesGapFill(
+  opts: { log?: (s: string) => void } = {}
+): Promise<{ apiCalls: number; remaining: number; gaps: number; filled: number }> {
+  const log = opts.log ?? ((s: string) => console.log(s));
+  const out = { apiCalls: 0, remaining: Infinity, gaps: 0, filled: 0 };
+  const HOST = process.env.CARDMARKET_RAPIDAPI_HOST || "cardmarket-api-tcg.p.rapidapi.com";
+  const KEY = process.env.CARDMARKET_RAPIDAPI_KEY || "";
+  if (!KEY) return out;
+  const cm = await prisma.retailer.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
+  const cmSource = await prisma.scrapeSource.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
+  if (!cm) return out;
+
+  // EN läsning: luckorna, nycklade på leverantörens kort-id.
+  const gaps = await prisma.offer.findMany({
+    where: {
+      retailerId: cm.id,
+      price: null,
+      product: { language: "JP", category: "SINGLE_CARD", variantLabel: null, card: { tcgExternalId: { startsWith: JP_EXTERNAL_PREFIX } } },
+    },
+    select: { id: true, productId: true, product: { select: { card: { select: { tcgExternalId: true } } } } },
+  });
+  const byExt = new Map(gaps.map((g) => [g.product.card!.tcgExternalId!, g]));
+  out.gaps = byExt.size;
+  if (byExt.size === 0) return out;
+
+  const rates = await getRatesOre();
+  const filled: { offerId: string; productId: string; priceOre: number; from: boolean }[] = [];
+  let page = 1;
+  let total = 1;
+  do {
+    let d: { data: JpApiCard[]; paging: { total: number } } | null = null;
+    for (let attempt = 0; attempt < 3 && !d; attempt++) {
+      const r = await fetch(`https://${HOST}/pokemon-jp/cards?page=${page}`, { headers: { "x-rapidapi-key": KEY, "x-rapidapi-host": HOST } });
+      out.apiCalls++;
+      const rem = r.headers.get("x-ratelimit-requests-remaining");
+      if (rem != null) out.remaining = parseInt(rem, 10);
+      // Kvoten slut ⇒ sluta och skriv det som hann. Luckfyllnaden är en bonus, inte dygnets pris.
+      if (r.status === 429) { page = total + 1; break; }
+      if (r.ok) d = (await r.json()) as { data: JpApiCard[]; paging: { total: number } };
+      else await sleep(1000 * (attempt + 1));
+    }
+    if (!d) break;
+    total = d.paging?.total ?? 1;
+    for (const c of d.data ?? []) {
+      const g = byExt.get(`${JP_EXTERNAL_PREFIX}${c.id}`);
+      if (!g) continue;
+      const from = priceOreFromEur(c.prices?.cardmarket?.lowest_near_mint_JP, rates);
+      const priceOre = from ?? priceOreFromEur(c.prices?.cardmarket?.["30d_average"], rates);
+      if (priceOre) filled.push({ offerId: g.id, productId: g.productId, priceOre, from: from != null });
+    }
+    page++;
+    await sleep(THROTTLE_MS);
+  } while (page <= total);
+
+  await mapPool(filled, DB_CONCURRENCY, async (f) => {
+    // `price: null` i where: nattjobbet kan ha hunnit skriva under tiden — skriv aldrig över det.
+    await prisma.offer.updateMany({
+      where: { id: f.offerId, price: null },
+      data: { price: f.priceOre, stockStatus: f.from ? "IN_STOCK" : "OUT_OF_STOCK", lastSeenAt: new Date() },
+    });
+  });
+  if (cmSource && filled.length > 0) {
+    await prisma.priceObservation.createMany({
+      data: filled.map((f) => ({ productId: f.productId, sourceId: cmSource.id, price: f.priceOre, currency: "SEK" })),
+    });
+    await upsertTodaySnapshots(filled.map((f) => ({ productId: f.productId, priceOre: f.priceOre })), utcToday());
+  }
+  out.filled = filled.length;
+  log(`[cm-jp-gapfill] ${out.filled} av ${out.gaps} JP-singlar utan pris fick ett pris. ${out.apiCalls} API-anrop, kvot kvar ${out.remaining}.`);
+  return out;
+}

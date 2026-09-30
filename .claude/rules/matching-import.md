@@ -288,3 +288,27 @@ Abyss Eye Booster Box gav riktig produkt 0,678 (konflikt=true) mot stub 0,857 (k
   Den domen kräver ett mänskligt öga — `mergeEquivalent`-räcket som höll dem som FÖRSLAG i
   stället för merge gjorde sitt jobb och ska inte vidgas.
 - Vaktat av `tests/unit/language-mismatch.test.ts`.
+
+## ⛔ SEPTEMBERS 29 AUTO-STUBBAR: FEM KLASSER, EN FIX VAR (2026-09-30)
+
+Ägaren fick städa dubbletter för hand varje vecka. Diagnos av alla 29 icke-singlar som skapats på
+21 dygn (stubbarna uteslutna ur indexet, samma logik som `ensureListingProduct`): **16 binds nu till
+den befintliga produkten, 1 skapas inte alls.** 7 synliga dubbletter mergades med `mergeStubInto`.
+- **Domaren visste inte att katalogprodukten var japansk** (Shiny Star V, VMAX Climax, Storm Emeralda):
+  `catalogLanguageContext` (runner.ts) skickar `Product.language` som kontext till `judgeSameProduct`
+  i BÅDA domarvägarna. Samma fel som `languageMismatch` hade före 09-08, nu i prompten.
+- **Variantval i titeln** (Woo-varianter: "Box (A / B / C) - B", "Tin – A / B - A"): `resolveVariantPick`
+  ersätter listan med det valda. Mätt mot huvudboken: 17 omskrivningar, alla rätt. Ändrar inget om
+  valet inte är EXAKT ett av alternativen.
+- **"Välj en" utan val** ("Meganium, Feraligtr or Emboar"): `isUnselectedVariantListing` stoppar
+  SKAPANDET (länkning opåverkad). ⛔ BARA or/eller — snedstreck mätt: "Display / Booster Box",
+  "Tag Team Tin Pikachu/Zekrom" och "Cyrus / Klara … Display" är EN produkt. 0 katalogträffar.
+- **Butiksbrus**: numeriska HTML-entiteter (`&#8211;`, `decodeTitleEntities`), "(Förbeställning)",
+  "(Förboka)", "(med/utan plast)", och "30th" FÖRST i titeln = 30th Celebration.
+- ⛔ **PRÖVAT OCH FÖRKASTAT: andra chansen mot topp-3 i stället för topp-1.** Gav två FELAKTIGA länkar
+  ("30th ex box Sylveon/Greninja" → Sylveon-boxen, generisk "Battle Deck" → Zeraora) och ingen rätt.
+  Domaren är generös på kandidat 2–3; topp-1 står kvar.
+- Kvar som stubbar med flit: nya riktiga SKU:er (Binder Collection, Mini Tin Pikachu Day, Poncho-
+  boxarna, Gengar Enhanced 2-Pack), en singel (Wooloo/Boltund Box Promo) och "25th Anniversary
+  Celebrations ETB" (rätt tvilling "Celebrations ETB" låg på 0,699, under golvet 0,75).
+  Vaktat av `tests/unit/listing-variant-pick.test.ts`.

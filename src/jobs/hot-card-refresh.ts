@@ -30,6 +30,7 @@ import { recomputeProductPriceCache } from "../services/products";
 import { rearmPriceAlerts } from "../services/alerts";
 import { dispatchPendingAlerts } from "../services/notifications";
 import { formatSweep, snapshotWatchedPrices, sweepWatchedPriceAlerts } from "../services/price-alert-sweep";
+import { runJapaneseSinglesGapFill } from "./jp-singles-refresh";
 import { fetchCmGuide, fetchCmSingleNames, guideNameMatches, guideRowIsSingle, singlesHeadlineEur } from "./cardmarket-refresh";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -257,7 +258,16 @@ export async function runHotCardRefresh(
     res.updated++;
   });
 
-  if (res.updated > 0) {
+  // JP-singlar som fortfarande står på "–" (leverantören prissätter nya kort efter
+  // nattkörningen). Fel sväljs: kvällens EN-priser är redan skrivna.
+  let jpFilled = 0;
+  try {
+    jpFilled = (await runJapaneseSinglesGapFill()).filled;
+  } catch (err) {
+    console.error("[hot-refresh] JP-luckfyllnaden misslyckades (ignoreras):", err instanceof Error ? err.message : err);
+  }
+
+  if (res.updated > 0 || jpFilled > 0) {
     await recomputeProductPriceCache();
     // Prislarmssvepet (se cardmarket-refresh): fel sväljs, kvällens priser är redan skrivna.
     try {
