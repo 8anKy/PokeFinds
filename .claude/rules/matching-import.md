@@ -327,3 +327,22 @@ japanska `cm-jp-sealed-import.ts` i `runCardmarketRefresh` efter JP-refreshen). 
 - ⚠️ Följd: en butiksannons för en vara CM ännu inte listar ger inget app-larm ("ny produkt") förrän CM-
   produkten finns; Discord-lanen påverkas inte (den postar på URL:en).
 - Vakterna under skapandet (Pokémon-signal, karaktärslös, "välj en") ligger kvar för nödventilen.
+
+- **⛔ "BUTIKER SKAPAR INTE" KRÄVER ATT MÅLET FINNS — CM-IMPORTEN KÄNDE BARA SJU FORMER (2026-09-30)**:
+  simulering av alla butiksannonser som inte satt på en CM-produkt visade att rätt produkt för de flesta
+  INTE FANNS: `import-sealed-from-cardmarket.ts` tog bara display/booster/ETB/collection/tin/blister/bundle,
+  så Battle/League/Deluxe/Rival Decks, Trainer's Toolkit, Build & Battle, Collector Chests och Theme Decks
+  fanns bara som butiksstubbar. Nu: `cmCategory` (deck/buildbattle/chest/surprisebox + formlösa linjer →
+  COLLECTION_BOX, tillbehör ute), gratis-katalog-fallbacken i FULLT läge men bara för just de linjerna
+  (`FULL_FALLBACK_LINES`; CM:s diverse-expansioner blandar EN/JP — utan begränsningen kom Pokémon Center
+  Tokyo DX Box och bulklotter med), gömda rader blockerar inte längre, och en synlig butikstvilling med
+  identisk identitet ADOPTERAS (får CM-offern + CM-namnet) i stället för att hoppas över.
+  Körd 2026-09-30: 243 + 69 nya EN-produkter, 5 adopterade.
+- **Butiksstubbar → CM-produkt, NATTLIGEN** (`scripts/merge-store-stubs-into-cm.ts`, steg i cardmarket-refresh):
+  butiksskapade produkter utan CM-länk matchas deterministiskt (`matchProduct` ≥ 0,85 / identisk identitet,
+  samma språk + kategori) mot synliga CM-produkter. Gömd ⇒ `mergeStubInto` (butikspriserna flyttas — de satt
+  osynliga på den gömda raden). Synlig ⇒ stubben överlever och tar CM-identiteten om CM-raden är tom
+  (historiken byggs bara framåt). ⛔ Skadade exemplar ("Ej samlarskick", B-grade), "(4 pack)" och olösta
+  "A / B"-val rörs aldrig — deras pris får aldrig bli produktens. Första körningen: 58 hopslagna.
+  Kvar okopplat (~760, mätt med work-simuleringen): mest Rogerz vintage per omslag (öppen ägarfråga) och
+  Aquitaz japanska paket, plus en svans som domaren tar i den riktiga importen.

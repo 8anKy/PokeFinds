@@ -129,6 +129,14 @@ jobs:
           RECENT_DAYS: "90"
         run: npx tsx scripts/import-sealed-from-cardmarket.ts
 
+      # Butiksskapade (ofta gömda) produkter vars Cardmarket-produkt nu finns slås ihop in i den —
+      # annars sitter butikernas priser kvar på en gömd rad, osynliga. Deterministiskt (ingen LLM),
+      # skadade exemplar/flerpack/olösta "A / B"-val rörs aldrig. Se skriptets huvudkommentar.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Butiksstubbar in i sin Cardmarket-produkt
+        continue-on-error: true
+        run: npx tsx scripts/merge-store-stubs-into-cm.ts --apply
+
       # ── SLÄNG DEN CACHADE BILDEN AV PRISERNA ─────────────────────────────────
       # Publika sidor är ISR-cachade 1h OCH läser genom cachedRead. Utan det här
       # steget visar första besökaren efter varje jobb gårdagens graf (Next serverar

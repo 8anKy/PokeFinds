@@ -33,6 +33,7 @@ import {
 } from "../src/scrapers/matching";
 import { normalizeTitle } from "../src/lib/utils";
 import { backfillCardmarketIds, buildCmIdByName } from "../src/lib/cm-catalog-names";
+import { adoptCmName } from "../src/jobs/adopt-cm-name";
 
 const prisma = new PrismaClient();
 const HOST = process.env.CARDMARKET_RAPIDAPI_HOST ?? "cardmarket-api-tcg.p.rapidapi.com";
@@ -61,6 +62,8 @@ const REJECT_RE =
 // vars namn inte säger språket) — RapidAPI-listan är redan kuraterat engelsk. Uppenbara
 // region-/butikspromos och turneringspriser avvisas billigt här; resten grindas av
 // syskon-expansionsregeln (se main).
+const FULL_FALLBACK_LINES = /\b(?:league |deluxe |rival |mega |v )?battle deck\b|\btrainer'?s toolkit\b|\bbuild & battle (?:box|kit)\b|\bcollector'?s? chest\b|\btheme deck\b/i;
+const JP_ONLY_LINES = /\bdeck kit\b|\bexpert deck\b|\bspecial (?:box|deck)\b|pok[eé]mon center|\bjapan\b|\bdisplay\b/i;
 const FALLBACK_REJECT_RE =
   /\btaiwan\b|family\s*mart|\bgym\s+promo\b|dragon\s+boat|prize\s+pack/i;
 
@@ -93,7 +96,26 @@ const slugify = (s: string) =>
 const FORM_TO_CAT: Record<string, ProductCategory> = {
   display: "BOOSTER_BOX", booster: "BOOSTER_PACK", etb: "ETB",
   collection: "COLLECTION_BOX", tin: "TIN", blister: "BLISTER", bundle: "BUNDLE",
+  // ⛔ DE HÄR SAKNADES FRAM TILL 2026-09-30. Battle/League/Theme Decks, Build & Battle,
+  //    Chests och Surprise Box importerades ALDRIG ur Cardmarket — de fanns i katalogen
+  //    bara för att BUTIKER skapade dem (vidgningen 2026-08-15, +320 produkter). När
+  //    butikerna slutade skapa produkter hade deras annonser inget att kopplas till:
+  //    MÄTT 578 oägda CM-produkter utanför de sju formerna, ~250 av dem riktiga
+  //    konsumentvaror (179 theme decks, 36 Build & Battle …). Samma kategori som
+  //    butiksklassificeraren ger dem (COLLECTION_BOX), så båda sidor är överens.
+  buildbattle: "COLLECTION_BOX", deck: "COLLECTION_BOX", chest: "COLLECTION_BOX", surprisebox: "COLLECTION_BOX",
 };
+/** Formlösa CM-namn som ändå är konsumentvaror (klassificeraren känner inga formord i dem). */
+const EXTRA_COLLECTION_RE = /\btrainer'?s toolkit\b|\bstarter (?:set|deck)\b|\bbattle academy\b|\bworld championships? deck\b|\bpremium deck set\b|\bspecial deck set\b/i;
+/** Tillbehör som klassificeraren kallar "deck"/"collection" — ägarbeslut: inga tillbehör i katalogen. */
+const ACCESSORY_NAME_RE = /\bdeck holder\b|\bplaymat\b|\bdice\b|\bcoins?\b|\bsleeves?\b|\bportfolio\b|\bbinder\b(?! collection)/i;
+function cmCategory(name: string): { form: string | null; cat: ProductCategory | undefined } {
+  const form = classifyForm(name);
+  if (ACCESSORY_NAME_RE.test(name)) return { form, cat: undefined };
+  const cat = form ? FORM_TO_CAT[form] : undefined;
+  if (cat) return { form, cat };
+  return { form: form ?? "collection", cat: EXTRA_COLLECTION_RE.test(name) ? "COLLECTION_BOX" : undefined };
+}
 
 interface ApiProduct {
   name: string; slug?: string; cardmarket_id: number | null; image?: string;
@@ -128,6 +150,8 @@ async function loadCatalog(): Promise<ApiProduct[]> {
 // expansioner behövs för gratis-katalog-fallbacken (se main).
 async function loadRecentProducts(days: number | null): Promise<{
   recent: Map<number, string>;
+  /** Hela gratis-katalogen (bara i fullt läge, RECENT_DAYS osatt). */
+  all: Map<number, string>;
   expansionOf: Map<number, number>;
   idByName: Map<string, number>;
 }> {
@@ -138,14 +162,15 @@ async function loadRecentProducts(days: number | null): Promise<{
   };
   const cutoff = days != null ? Date.now() - days * 86_400_000 : null;
   const recent = new Map<number, string>();
+  const all = new Map<number, string>();
   const expansionOf = new Map<number, number>();
   for (const p of j.products) {
     expansionOf.set(p.idProduct, p.idExpansion);
-    if (cutoff == null) continue;
+    if (cutoff == null) { all.set(p.idProduct, p.name); continue; }
     const t = Date.parse(p.dateAdded.replace(" ", "T") + "Z");
     if (!Number.isNaN(t) && t >= cutoff) recent.set(p.idProduct, p.name);
   }
-  return { recent, expansionOf, idByName: buildCmIdByName(j.products) };
+  return { recent, all, expansionOf, idByName: buildCmIdByName(j.products) };
 }
 
 // CM:s officiella prisguide (idProduct → low/trend/avg) — samma publika export som
@@ -191,7 +216,9 @@ async function main() {
     if (o.product) productByCmId.set(id, o.product);
   }
   const existingTitles = new Set(
-    (await prisma.product.findMany({ select: { normalizedTitle: true, category: true } }))
+    // Gömda rader blockerar inte: en gömd butiksstubb med samma namn ska ERSÄTTAS av
+    // CM-produkten (merge-store-stubs-into-cm.ts slår sedan ihop den), inte stoppa den.
+    (await prisma.product.findMany({ where: { hiddenAt: null }, select: { normalizedTitle: true, category: true } }))
       .map((p) => `${p.category}|${p.normalizedTitle}`)
   );
   const usedSlugs = new Set((await prisma.product.findMany({ select: { slug: true } })).map((p) => p.slug));
@@ -206,6 +233,11 @@ async function main() {
   const freeCatalog = await loadRecentProducts(RECENT_DAYS);
   const recent = RECENT_DAYS != null ? freeCatalog.recent : null;
   const recentIds = recent ? new Set(recent.keys()) : null;
+  // FULLT LÄGE (2026-09-30): gratis-katalog-fallbacken körs över HELA katalogen. Leverantörens
+  // lista saknar t.ex. 14 av CM:s 15 League Battle Decks och hälften av Trainer's Toolkits — utan
+  // dem hade butikernas annonser inget att kopplas till när butiker slutade skapa produkter.
+  // Syskon-expansionsregeln (bara expansioner där vi redan äger en EN-produkt) gäller oförändrad.
+  const fallbackPool = recent ?? freeCatalog.all;
 
   const catalog = await loadCatalog();
   // ── NYTT SET: RapidAPI SAKNAR ÄNNU cardmarket_id (2026-09-05) ────────────────
@@ -233,11 +265,14 @@ async function main() {
   /** Skapade men LIKNAR en befintlig — rapporteras för granskning, tigs aldrig ihjäl. */
   const nearDupes: string[] = [];
   // Katalogindexet EN gång: dubblettvakten nedan körs per kandidat.
-  const matchIndex = await loadMatchIndex();
+  const hiddenIds = new Set((await prisma.product.findMany({ where: { hiddenAt: { not: null } }, select: { id: true } })).map((p) => p.id));
+  const matchIndex = (await loadMatchIndex()).filter((c) => !hiddenIds.has(c.id));
+  // Produkter som redan bär en Cardmarket-länk — bara de UTAN får adopteras.
+  const twinHasCm = new Set(cmOffers.map((o) => o.product?.id).filter((id): id is string => !!id));
+  let adopted = 0;
 
   for (const p of catalog) {
-    const form = classifyForm(p.name ?? "");
-    const cat = form ? FORM_TO_CAT[form] : undefined;
+    const { form, cat } = cmCategory(p.name ?? "");
     if (!cat) { skippedForm++; continue; }
     if (ONLY && !ONLY.includes(cat)) continue;
     const cmid = p.cardmarket_id;
@@ -282,7 +317,29 @@ async function main() {
         identicalIdentity(normForMatch, c.normalizedTitle) &&
         !productsConflict(p.name, c.normalizedTitle, c.language)
     );
-    if (twin) { skippedFuzzy++; continue; }
+    if (twin) {
+      // ADOPTERA en butiksskapad tvilling (2026-09-30): samma identitet, men utan
+      // Cardmarket-länk ⇒ ge den CM-identiteten i stället för att hoppa över. Så blir
+      // gamla butiksstubbar riktiga CM-produkter och ingen andra rad skapas.
+      if (cmid != null && !twinHasCm.has(twin.id)) {
+        adopted++;
+        twinHasCm.add(twin.id);
+        existingCmIds.add(cmid);
+        console.log(`  [adopterar] "${p.name}" (idProduct=${cmid}) → befintlig "${twin.normalizedTitle}"`);
+        if (APPLY) {
+          await prisma.offer.create({
+            data: {
+              productId: twin.id, retailerId: cm.id, condition: "SEALED", language: "EN",
+              price: null, currency: "SEK", stockStatus: "OUT_OF_STOCK", url: cardmarketProductUrl(cmid),
+            },
+          }).catch((e: unknown) => console.log(`    ⚠️ kunde inte adoptera: ${e instanceof Error ? e.message : e}`));
+          await adoptCmName(twin.id, p.name);
+        }
+        continue;
+      }
+      skippedFuzzy++;
+      continue;
+    }
     const near = nearestCatalogCandidate(normForMatch, p.name, matchIndex, 0.85);
     if (near) nearDupes.push(`${near.score.toFixed(2)}  "${p.name}"  ≈  "${near.normalizedTitle}"`);
 
@@ -384,7 +441,7 @@ async function main() {
   // fel-skapa": helt nya expansioner kommer in via RapidAPI-huvudloopen i stället.
   // Ingen CM-bild — gratis-katalogen saknar bildfält; refresh/butiksfoto fyller senare.
   let createdGuide = 0;
-  if (recent && freeCatalog) {
+  if (fallbackPool.size > 0) {
     const { expansionOf } = freeCatalog;
     const enExpansions = new Set<number>();
     for (const id of existingEnCmIds) {
@@ -394,13 +451,19 @@ async function main() {
     const rapidIds = new Set(catalog.map((p) => p.cardmarket_id).filter((id): id is number => id != null));
     const guide = await loadGuide();
     let skippedNoSibling = 0;
-    for (const [cmid, name] of recent) {
+    for (const [cmid, name] of fallbackPool) {
       if (rapidIds.has(cmid)) continue; // täcks av huvudloopen ovan
-      const form = classifyForm(name);
-      const cat = form ? FORM_TO_CAT[form] : undefined;
+      const { cat } = cmCategory(name);
       if (!cat) { skippedForm++; continue; }
       if (ONLY && !ONLY.includes(cat)) continue;
       if (REJECT_RE.test(name) || FALLBACK_REJECT_RE.test(name)) { skippedReject++; continue; }
+      if (WHOLESALE_RE.test(name)) { skippedWholesale++; continue; }
+      // ⛔ I FULLT LÄGE BARA DE PRODUKTLINJER BUTIKERNA SKAPADE (2026-09-30). CM:s
+      //    "diverse"-expansioner blandar engelska och japanska varor, så syskonregeln
+      //    släppte igenom Pokémon Center Tokyo DX Box, Poncho-Pikachu Special Box, Deck
+      //    Kits och bulklotter ("Maxi Collection (Up to 1000 cards)"). Resten väntar på
+      //    leverantörens lista, som är kuraterat engelsk.
+      if (!recent && (!FULL_FALLBACK_LINES.test(name) || JP_ONLY_LINES.test(name))) { skippedNoSibling++; continue; }
       const normTitle = norm(name);
       if (existingCmIds.has(cmid) || existingTitles.has(`${cat}|${normTitle}`)) { skippedHave++; continue; }
       const exp = expansionOf.get(cmid);
@@ -447,7 +510,7 @@ async function main() {
   for (const [c, n] of Object.entries(stat).sort((a, b) => b[1] - a[1])) console.log(`  ${c}: ${n}`);
   console.log(`\nTotalt nya: ${created}` + (createdGuide ? ` (varav ${createdGuide} via gratis-katalogen)` : ""));
   console.log(
-    `Skippade — har redan: ${skippedHave} · ingen data: ${skippedNoData} · ej målform: ${skippedForm}` +
+    `Adopterade butikstvillingar: ${adopted} · Skippade — har redan: ${skippedHave} · ingen data: ${skippedNoData} · ej målform: ${skippedForm}` +
       (recentIds ? ` · ej nyliga: ${skippedOld}` : "") +
       ` · språk/region/skräp: ${skippedReject}` +
       ` · grossist (case/display/fun pack): ${skippedWholesale}` +
