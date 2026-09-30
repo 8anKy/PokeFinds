@@ -704,13 +704,53 @@ interface BulkCell {
   structFingerprints: string[];
 }
 
-function captureBulkCells(
+/**
+ * SKARPASTE RUTAN AV FLERA (2026-09-30): bulk tog EN videoruta i slutarögonblicket, och på
+ * bulkavstånd är den ofta mitt i en fokusjakt eller lätt skakad — ägarens fältfångster var suddiga
+ * (skannermotorn fick 7 inliers på en Kangaskhan). Fem rutor ~70 ms isär, skärpan mätt på en
+ * nedskalad kopia (samma mått som enkelskanningen, lib/frame-sharpness.ts), och bara den skarpaste
+ * kopieras i full upplösning. ~0,35 s extra vid slutaren; en 4K-kopia ≈ 33 MB, bara en hålls.
+ */
+async function pickSharpestFrame(
   video: HTMLVideoElement,
+  frames = 5,
+  gapMs = 70
+): Promise<{ el: CanvasImageSource; w: number; h: number } | null> {
+  if (video.readyState < 2 || !video.videoWidth) return null;
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  const probe = document.createElement("canvas");
+  const pScale = Math.min(1, 480 / Math.max(w, h));
+  probe.width = Math.max(1, Math.round(w * pScale));
+  probe.height = Math.max(1, Math.round(h * pScale));
+  const pctx = probe.getContext("2d", { willReadFrequently: true });
+  const best = document.createElement("canvas");
+  best.width = w;
+  best.height = h;
+  const bctx = best.getContext("2d");
+  if (!pctx || !bctx) return { el: video, w, h };
+  let bestSharp = -1;
+  for (let i = 0; i < frames; i++) {
+    if (i > 0) await new Promise((r) => window.setTimeout(r, gapMs));
+    pctx.drawImage(video, 0, 0, probe.width, probe.height);
+    const sharp = frameSharpness(pctx.getImageData(0, 0, probe.width, probe.height).data, probe.width, probe.height, 4) ?? 0;
+    if (sharp > bestSharp) {
+      bestSharp = sharp;
+      bctx.drawImage(video, 0, 0, w, h);
+    }
+  }
+  return { el: best, w, h };
+}
+
+function captureBulkCells(
+  /** Rutan att skära ur — videon själv eller den SKARPASTE rutan (se pickSharpestFrame). */
+  frame: { el: CanvasImageSource; w: number; h: number },
   canvas: HTMLCanvasElement
 ): { cells: BulkCell[]; debugImage: string; video: string; busySurface: boolean } | null {
-  if (video.readyState < 2 || !video.videoWidth) return null;
-  const vW = video.videoWidth;
-  const vH = video.videoHeight;
+  if (!frame.w || !frame.h) return null;
+  const video = frame.el;
+  const vW = frame.w;
+  const vH = frame.h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
@@ -2012,11 +2052,20 @@ function Scanner() {
    * som en enkelskanning. Kvoten dras alltså PER VISION-ANROP (ägarbeslut
    * 2026-08-01): en sida med bara säkra bildträffar kostar 0.
    */
-  const captureBulk = useCallback(() => {
+  const bulkBusy = useRef(false);
+  const captureBulk = useCallback(async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
-    const shot = captureBulkCells(video, canvas);
+    if (!video || !canvas || cameraState !== "live" || shutterCooling || bulkBusy.current) return;
+    bulkBusy.current = true;
+    let frame: Awaited<ReturnType<typeof pickSharpestFrame>>;
+    try {
+      frame = await pickSharpestFrame(video);
+    } finally {
+      bulkBusy.current = false;
+    }
+    if (!frame) return;
+    const shot = captureBulkCells(frame, canvas);
     if (!shot) return;
     const { cells, debugImage, video: videoSize, busySurface } = shot;
     // Admin: detekteringsbilden + funna regioner sparas server-sida så en
