@@ -7,8 +7,9 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".spike")
 which = sys.argv[1] if len(sys.argv) > 1 else "app"
 eng = Engine(os.environ.get("DATA_DIR", ROOT))
 if which == "app":
-    facit = json.load(open(os.path.join(ROOT, "facit", "facit.json"), encoding="utf-8"))
-    items = [(os.path.join(ROOT, "facit", f["file"]), f["truthCardId"]) for f in facit if f["truthCardId"]]
+    FD = os.environ.get("FACIT_DIR", "facit")
+    facit = json.load(open(os.path.join(ROOT, FD, "facit.json"), encoding="utf-8"))
+    items = [(os.path.join(ROOT, FD, f["file"]), f["truthCardId"]) for f in facit if f["truthCardId"]]
 else:
     lab = json.load(open(os.path.join(ROOT, "tradera-facit", os.environ.get("LABELS", "labels-600.json")), encoding="utf-8"))
     items = [(os.path.join(ROOT, "tradera-facit", l["file"]), l["truthCardId"]) for l in lab]

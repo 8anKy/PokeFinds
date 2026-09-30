@@ -6,7 +6,7 @@ import os, sys
 import boto3
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scanner-engine"))
-from bootstrap import FILES
+from bootstrap import FILES, OPTIONAL
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".spike", "engine-data")
 version = os.environ["DATA_VERSION"]
@@ -17,7 +17,7 @@ s3 = boto3.client(
     aws_secret_access_key=os.environ["S3_SECRET_ACCESS_KEY"],
     region_name=os.environ.get("S3_REGION", "auto"),
 )
-for f in FILES:
+for f in FILES + OPTIONAL if not os.environ.get("ONLY") else os.environ["ONLY"].split(","):
     path = os.path.join(ROOT, f)
     print(f"laddar upp {f} ({os.path.getsize(path) / 1e6:.0f} MB) …", flush=True)
     s3.upload_file(path, os.environ["S3_BUCKET"], f"scanner-engine/{version}/{f}")

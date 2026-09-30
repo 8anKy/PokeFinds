@@ -79,6 +79,9 @@ class Engine:
             self.P = np.load(os.path.join(rk, "pts.npy"), mmap_mode="r")
         cm = os.path.join(data_dir, "cards-meta.json")
         self.image_urls = json.load(open(cm)) if os.path.exists(cm) else {}
+        # Kortets språk (EN/JP) — SPRÅKTVILLINGAR avgörs alltid på textytan, se identify().
+        cl = os.path.join(data_dir, "cards-lang.json")
+        self.langs = json.load(open(cl)) if os.path.exists(cl) else {}
         self.sift = cv2.SIFT_create(nfeatures=QUERY_KP)
         self.matcher = cv2.BFMatcher(cv2.NORM_L2)
         self._grays = OrderedDict()  # regionkontrollens referensbilder, LRU
@@ -265,11 +268,30 @@ class Engine:
                     if rc and rc[1] < rc[0] * REGION_WIN:
                         swapped, best = best, rival
                         break
+        # SPRÅKTVILLINGEN (2026-09-30, ägarens JP-batch): samma konst på engelska och japanska ger
+        # få DISTINKTA punkter åt båda (konsten delas), så tvillingen klarade inte grinden ovan och
+        # motorn valde engelska i 12 av 20 fel. Japansk och latinsk skrift ser helt olika ut i
+        # textrutan ⇒ jämför ALLTID mot den bästa tvillingen på det andra språket, oavsett poäng.
+        # (Samma-språk-omtryck går fortfarande bara via grinden — ogrindat gjorde Tradera sämre.)
+        lang_swap = None
+        if best and not swapped and self.langs.get(best):
+            H = self._full_h(kq, dq, best)
+            if H is not None:
+                pool = [c for c, _ in ranked] + [c for c in cands if c not in scores]
+                for rival in pool[:TOP_K]:
+                    if rival == best or not self.langs.get(rival) or self.langs[rival] == self.langs[best]:
+                        continue
+                    rc = self._region(photo, H, best, rival)
+                    if rc is None:
+                        continue  # inte samma konst — inte en tvilling
+                    if rc[1] < rc[0] * REGION_WIN:
+                        lang_swap, best = best, rival
+                    break
         order = [best] + [c for c, _ in ranked if c != best] + [c for c in cands if c != best and c not in scores]
         return {
             "best": best,
             "candidates": [{"cardId": c, "inliers": scores.get(c, 0)} for c in order[:TOP_K]],
-            "regionSwapFrom": swapped,
+            "regionSwapFrom": swapped or lang_swap,
             "msA": int((t_a - t0) * 1000),
             "ms": int((time.time() - t0) * 1000),
         }

@@ -19,5 +19,6 @@ for f in ("desc.npy", "pts.npy", "meta.json"):
     shutil.copy2(os.path.join(ROOT, "refkp", f), os.path.join(OUT, "refkp", f))
 cards = json.load(open(os.path.join(ROOT, "refs", "index.json"), encoding="utf-8"))
 json.dump({c["id"]: c["imageUrl"] for c in cards if c.get("imageUrl")}, open(os.path.join(OUT, "cards-meta.json"), "w"))
+json.dump({c["id"]: c["language"] for c in cards}, open(os.path.join(OUT, "cards-lang.json"), "w"))
 total = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(OUT) for f in fs)
 print(f"{OUT}: {total / 1e9:.2f} GB")

@@ -92,6 +92,10 @@ def main():
     cm = json.load(open(cm_path)) if os.path.exists(cm_path) else {}
     cm.update({c["id"]: c["imageUrl"] for c in new if c.get("imageUrl")})
     json.dump(cm, open(cm_path, "w"))
+    cl_path = os.path.join(DATA, "cards-lang.json")
+    cl = json.load(open(cl_path)) if os.path.exists(cl_path) else {}
+    cl.update({c["id"]: c["language"] for c in new})
+    json.dump(cl, open(cl_path, "w"))
     print(f"lade till {len(add_nn)} kort ({index.ntotal} vektorer, {n_rows} refkp-rader)")
 
 

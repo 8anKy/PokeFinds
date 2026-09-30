@@ -11,24 +11,44 @@ FILES = [
     "refkp/desc.npy", "refkp/pts.npy", "refkp/meta.json",
     "cards-meta.json",
 ]
+# Små filer som kan läggas till en BEFINTLIG version utan att hela datan hämtas om: hämtas om de saknas
+# på volymen, oavsett VERSION. cards-lang.json (EN/JP per kort) kom till 2026-09-30 för språktvillingarna.
+OPTIONAL = ["cards-lang.json"]
 
 
-def ensure_data(data_dir):
-    version = os.environ.get("DATA_VERSION", "").strip()
-    marker = os.path.join(data_dir, "VERSION")
-    have = open(marker).read().strip() if os.path.exists(marker) else ""
-    if not version or have == version:
-        return
+def _client():
     import boto3
-    s3 = boto3.client(
+    return boto3.client(
         "s3",
         endpoint_url=os.environ["S3_ENDPOINT"],
         aws_access_key_id=os.environ["S3_ACCESS_KEY_ID"],
         aws_secret_access_key=os.environ["S3_SECRET_ACCESS_KEY"],
         region_name=os.environ.get("S3_REGION", "auto"),
     )
+
+
+def ensure_data(data_dir):
+    version = os.environ.get("DATA_VERSION", "").strip()
+    if not version:
+        return
+    marker = os.path.join(data_dir, "VERSION")
+    have = open(marker).read().strip() if os.path.exists(marker) else ""
     bucket = os.environ["S3_BUCKET"]
-    for f in FILES:
+    s3 = None
+    for f in OPTIONAL:
+        dest = os.path.join(data_dir, f)
+        if have == version and not os.path.exists(dest):
+            s3 = s3 or _client()
+            try:
+                s3.download_file(bucket, f"scanner-engine/{version}/{f}", dest + ".part")
+                os.replace(dest + ".part", dest)
+                print(f"hämtade {f}", flush=True)
+            except Exception as e:  # valfri fil — motorn fungerar utan, bara sämre på språktvillingar
+                print(f"kunde inte hämta {f}: {e}", flush=True)
+    if have == version:
+        return
+    s3 = s3 or _client()
+    for f in FILES + OPTIONAL:
         dest = os.path.join(data_dir, f)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         print(f"hämtar {f} …", flush=True)
