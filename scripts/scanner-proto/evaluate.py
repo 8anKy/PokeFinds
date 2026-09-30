@@ -28,7 +28,7 @@ K = int(os.environ.get("K", "50"))
 _state = {}
 
 
-NN = os.path.join(ROOT, "nn")
+NN = os.path.join(ROOT, os.environ.get("NN_DIR", "nn"))
 STAGE = os.environ.get("STAGE", "nn")
 
 
@@ -220,7 +220,7 @@ def main():
     if STAGE == "nn":
         # ⛔ I BITAR om 200 och kandidaterna till disk: alla 2 000 fotons deskriptorer samtidigt
         # (~1,5 GB) + obegränsad referenscache dödade körningen på en 16 GB-dator.
-        cache = os.path.join(ROOT, f"candsA-{which}-K{K}.json")
+        cache = os.path.join(ROOT, f"candsA-{which}-K{K}-{os.environ.get('NN_DIR', 'nn')}-{os.environ.get('LABELS', 'all')}.json")
         done = json.load(open(cache)) if os.path.exists(cache) else {}
         todo = [(p, t) for p, t in items if p not in done]
         if todo:

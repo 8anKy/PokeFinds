@@ -15,6 +15,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { getScannerQuota, identifyCard, isIntroScan, recordScanUsage } from "@/services/scanner";
 import { buildFoilDiagnostics } from "@/services/scanner/foil";
 import { buildScanPhotoKey, putImage, sniffImageType, storageEnabled } from "@/lib/object-storage";
+import { runEngineShadow } from "@/lib/scanner-engine-shadow";
 
 export const dynamic = "force-dynamic";
 
@@ -340,6 +341,10 @@ export async function POST(req: Request) {
         );
       }
     }
+
+    // SKANNERMOTORN UTAN AI, SKUGGLÄGE (2026-09-30): samma fångst till motorn, svaret bokförs
+    // som result.shadow. Påverkar inget i svaret; no-op tills SCANNER_ENGINE_URL är satt.
+    if (jobId) runEngineShadow(jobId, image);
 
     // ⛔ `artCandidateIds` och `artMargin` är MÄTDATA och går inte ut på tråden:
     // klienten läser dem aldrig, och 15 id:n per svar är ren vikt. Marginalen

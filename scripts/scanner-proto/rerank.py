@@ -48,8 +48,50 @@ _ref_cache = OrderedDict()
 REF_CACHE_MAX = int(os.environ.get("REF_CACHE_MAX", "200"))
 
 
+class _Pt:
+    __slots__ = ("pt",)
+
+    def __init__(self, xy):
+        self.pt = (float(xy[0]), float(xy[1]))
+
+
+class PtArr:
+    """Förberäknade punktkoordinater med samma gränssnitt som en lista cv2.KeyPoint (`[i].pt`)."""
+
+    def __init__(self, arr):
+        self.arr = arr
+
+    def __len__(self):
+        return len(self.arr)
+
+    def __getitem__(self, i):
+        return _Pt(self.arr[i])
+
+
+_stored = {}
+
+
+def stored_features(cid):
+    """Steg B ur .spike/refkp (build_refkp.py) i stället för SIFT på bilden vid varje skanning."""
+    if not _stored:
+        d = os.path.join(ROOT, os.environ.get("REFKP_DIR", "refkp"))
+        meta = json.load(open(os.path.join(d, "meta.json")))
+        _stored["meta"] = meta
+        _stored["D"] = np.load(os.path.join(d, "desc.npy"), mmap_mode="r")
+        _stored["P"] = np.load(os.path.join(d, "pts.npy"), mmap_mode="r")
+    off = _stored["meta"]["offsets"].get(cid)
+    if not off:
+        return None
+    a, n = off
+    des = np.asarray(_stored["D"][a : a + n], dtype=np.float32) / 255.0
+    pts = np.asarray(_stored["P"][a : a + n])
+    return (PtArr(pts), des, tuple(_stored["meta"]["shapes"][cid]))
+
+
 def ref_features(card):
     cid = card["id"]
+    if os.environ.get("STORED") == "1":
+        return stored_features(cid)
     if cid in _ref_cache:
         _ref_cache.move_to_end(cid)
         return _ref_cache[cid]

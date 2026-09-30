@@ -21,7 +21,9 @@ import faiss
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".spike")
 REFS = os.path.join(ROOT, "refs")
-OUT = os.path.join(ROOT, "nn")
+OUT = os.path.join(ROOT, os.environ.get("NN_DIR", "nn"))
+PQ_M = int(os.environ.get("PQ_M", "32"))
+NLIST = int(os.environ.get("NLIST", "8192"))
 PER_REF = int(os.environ.get("PER_REF", "300"))
 CHUNK = 250_000
 
@@ -66,7 +68,7 @@ def main():
     rng = np.random.default_rng(0)
     pick = np.sort(rng.choice(n, size=min(n, 500_000), replace=False))
     train = D[pick].astype(np.float32)
-    index = faiss.IndexIVFPQ(faiss.IndexFlatL2(128), 128, 8192, 32, 8)
+    index = faiss.IndexIVFPQ(faiss.IndexFlatL2(128), 128, NLIST, PQ_M, 8)
     index.train(train)
     del train
     print(f"tränat ({time.time() - t0:.0f} s)", flush=True)
