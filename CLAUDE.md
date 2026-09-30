@@ -55,6 +55,13 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   retry. Slås på med `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` som GitHub-secrets (ägaren väntar på eBays
   verifiering); `scripts/ebay-graded-probe.ts` provar en sökning utan DB. Sålt-baserat per betyg för ALLA
   kort finns bara att köpa (PriceCharting Legendary 49 $/mån, daglig CSV) — memory `graded-price-sources`.
+- **SKANNERMOTOR UTAN AI I SKUGGLÄGE SEDAN 2026-09-30** (`scanner-engine/`, egen Railway-tjänst som SOVER mellan
+  passen): SIFT + faiss + RANSAC, ingen modell. Varje inloggad skanning skickas även dit och svaret bokförs som
+  `ScannerJob.result.shadow` — påverkar INGET i svaret. Offline: ägarens app-foton 99/99 (dagens skanner 92/99),
+  Tradera-säljarfoton ~91,5 %, ~0,35 s. Data i bucketen `scanner-engine/<DATA_VERSION>/`. Mät med
+  `scripts/scanner-shadow-report.ts`; Gemini stängs av först när skuggan vinner i fält. Drift/kostnad:
+  `scanner-engine/README.md`. ⛔ Allt som läggs till i Railway-dashboarden MÅSTE in i `.railway/railway.ts` — filen
+  från 09-02 hade annars raderat bucketen + 14 variabler vid nästa apply; läs ALLTID "to destroy" i plan.
 - **Google-/Apple-inloggning (kod klar 2026-08-29, AKTIVERAS AV ENV)**: webb = NextAuth-providers
   (`lib/auth.ts`), app = NATIVT SDK via `@capgo/capacitor-social-login` → id_token → provider
   `native-token` (verifieras mot JWKS i `lib/oauth-id-token.ts`). Google blockar sitt WEBBFLÖDE i
