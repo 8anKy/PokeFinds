@@ -502,6 +502,13 @@ export const COVERAGE_ALLOWED_EMPTY_SETS: string[] = [
   "tk1b",  // EX Trainer Kit Latios (10)
   "tk2a",  // EX Trainer Kit 2 Plusle (12)
   "tk2b",  // EX Trainer Kit 2 Minun (12)
+  // 2026-09-30: tillagda add-only ur TCGdex (import-missing-cards-tcgdex.ts) med Cardmarkets
+  // idProduct, men LEVERANTÖREN saknar dem: episod 638/639 (McDonald's 2024/2023) svarar tomt och
+  // Mega Evolution Energy finns inte alls (verifierat 2026-09-30). Korten visas med "–" i stället
+  // för ett pris; tas bort härifrån när leverantören fyller episoderna.
+  "mee",    // Mega Evolution Energy (16)
+  "2023sv", // McDonald's Collection 2023 (15)
+  "2024sv", // McDonald's Collection 2024 (15)
 ];
 
 /**
