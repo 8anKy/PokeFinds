@@ -24,7 +24,10 @@ async function main() {
   });
   const rows = jobs
     .map((j) => j.result as { shadow?: Shadow; userChosen?: Chosen; recall?: { shown?: string[] } } | null)
-    .filter((r): r is NonNullable<typeof r> => !!r?.shadow);
+    .filter((r): r is NonNullable<typeof r> => !!r?.shadow)
+    // ⛔ MOTORLÄGE (shadow.primary): där VAR motorns svar det visade — `recall.shown` är då motorns
+    // lista, inte dagens skanners. Sådana rader kan inte jämföra de två och räknas bort här.
+    .filter((r) => !(r.shadow as Shadow & { primary?: boolean }).primary);
   const errors: Record<string, number> = {};
   for (const r of rows) if (r.shadow!.err) errors[r.shadow!.err] = (errors[r.shadow!.err] ?? 0) + 1;
   const ms = rows.map((r) => r.shadow!.ms).filter((x): x is number => typeof x === "number").sort((a, b) => a - b);

@@ -15,7 +15,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { getScannerQuota, identifyCard, isIntroScan, recordScanUsage } from "@/services/scanner";
 import { buildFoilDiagnostics } from "@/services/scanner/foil";
 import { buildScanPhotoKey, putImage, sniffImageType, storageEnabled } from "@/lib/object-storage";
-import { runEngineShadow } from "@/lib/scanner-engine-shadow";
+import { callEngine, engineModeFor, recordShadow, runEngineShadow, shadowRecord } from "@/lib/scanner-engine-shadow";
 
 export const dynamic = "force-dynamic";
 
@@ -161,7 +161,13 @@ export async function POST(req: Request) {
     // (b) klienten uttryckligen ber om det ("försök igen, skarpare") OCH är Pro.
     // Gäster får aldrig den dyra vägen — de har inte betalat med ett konto ens.
     const intro = user ? await isIntroScan(user.id) : false;
+    // MOTORLÄGE (2026-09-30, bara admin tills skuggrapporten avgjort): skannermotorn utan AI
+    // svarar och Gemini anropas aldrig. Faller motorn bort används dagens väg som reserv.
+    const engineMode = engineModeFor(user?.role);
+    const engine = engineMode ? await callEngine(image) : undefined;
+    if (engine?.error) console.warn("[engine] motorläge föll tillbaka:", engine.error);
     const result = await identifyCard(image, {
+      engine,
       precise: intro || (precise && !!user && isPro(user)),
       detailDataUrl: detail,
       fingerprints,
@@ -278,7 +284,11 @@ export async function POST(req: Request) {
         // ⛔ Härled den ALDRIG ur `result.model` — det är ett KOSTNADSFÄLT och
         // blir null även när adaptern svarade utan tokental. `artDecided` är
         // mätbegreppet och sätts där beslutet faktiskt fattas.
-        ...(result.artDecided ? { src: "art" as const } : {}),
+        ...(result.engineDecided
+          ? { src: "engine" as const }
+          : result.artDecided
+            ? { src: "art" as const }
+            : {}),
         top: result.artTop,
         margin: result.artMargin,
         // En bit: fyrade osäkerhetsregeln? Styr det gula "?" och (sedan
@@ -344,7 +354,10 @@ export async function POST(req: Request) {
 
     // SKANNERMOTORN UTAN AI, SKUGGLÄGE (2026-09-30): samma fångst till motorn, svaret bokförs
     // som result.shadow. Påverkar inget i svaret; no-op tills SCANNER_ENGINE_URL är satt.
-    if (jobId) runEngineShadow(jobId, image);
+    if (jobId) {
+      if (engine && !engine.error) void recordShadow(jobId, { ...shadowRecord(engine), primary: true });
+      else runEngineShadow(jobId, image);
+    }
 
     // ⛔ `artCandidateIds` och `artMargin` är MÄTDATA och går inte ut på tråden:
     // klienten läser dem aldrig, och 15 id:n per svar är ren vikt. Marginalen

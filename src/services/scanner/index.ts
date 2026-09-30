@@ -7,6 +7,7 @@
  */
 import type { PlanTier, Prisma, ScannerJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import type { EngineResponse } from "@/lib/scanner-engine-shadow";
 import { ServiceError } from "@/lib/errors";
 import { FINGERPRINT_BYTES, STRUCT_BYTES } from "@/lib/art-fingerprint";
 import { subsetAliasExternalIds } from "@/lib/subset-number-alias";
@@ -301,7 +302,8 @@ export async function recordScanUsage(
   recall?: {
     art: string[];
     shown: string[];
-    src?: "bulk" | "art";
+    /** "engine" = skannermotorn utan AI avgjorde (motorläge) — eget stratum, aldrig avtryckets. */
+    src?: "bulk" | "art" | "engine";
     /** Bildens topp-1-poäng (blandad likhet 0..1). */
     top?: number | null;
     /** topp-1 − topp-2. Null när tvåa saknas — INTE 0, se `pos()`-doktrinen. */
@@ -2117,6 +2119,12 @@ export interface IdentifyResult {
    */
   artDecided: boolean;
   /**
+   * Svaret kom ur SKANNERMOTORN UTAN AI (motorläge, `src/lib/scanner-engine-shadow.ts`) — varken
+   * avtrycket eller vision. Bokförs som `recall.src: "engine"` så raden aldrig blandas in i
+   * avtryckets strata.
+   */
+  engineDecided?: boolean;
+  /**
    * Träffen går INTE att motivera — flera olika kort ligger praktiskt taget lika.
    *
    * MÄTT fall: användaren skannade en Gyarados. Modellen läste namnet HELT RÄTT,
@@ -2257,7 +2265,12 @@ export async function identifyCellsArt(
    */
   owner?: { userId: string; isAdmin: boolean },
   /** Språket användaren senast valde i sessionen — se `preferTwinLanguage`. */
-  langHint?: string | null
+  langHint?: string | null,
+  /**
+   * MOTORLÄGE: ingen cell räknas som säker här ⇒ klienten skickar VARJE cell till /identify, där
+   * skannermotorn svarar (se identifyFromEngine). Avtrycket ensamt får inte avgöra.
+   */
+  forceUncertain = false
 ): Promise<BulkCellResult[]> {
   const out: BulkCellResult[] = [];
   for (const [i, cell] of cells.entries()) {
@@ -2270,7 +2283,11 @@ export async function identifyCellsArt(
     const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
     const twins = await languageTwinsOfTop(artMatches, langHint);
     const confidentRaw = artConfidentFrom(artMatches, [], twins.isTwinOfTop);
-    const confidentId = confidentRaw !== null && twins.preferred !== null ? twins.preferred : confidentRaw;
+    const confidentId = forceUncertain
+      ? null
+      : confidentRaw !== null && twins.preferred !== null
+        ? twins.preferred
+        : confidentRaw;
     const candidates = await matchCards(
       // Samma tomma OCR som när vision hoppas över: bilden bär hela bedömningen.
       { rawText: "", confidence: confidentId ? 0.95 : 0 },
@@ -2352,6 +2369,58 @@ export async function identifyCellsArt(
 }
 
 /**
+ * Motorns svar räknas som SÄKERT först över så här många DISTINKTA inliers. Mätt 2026-09-30 på
+ * ägarens JP-batch: motorns helt felaktiga svar (bleka, blänkande foton) låg på 0–22, rätta svar i
+ * regel långt över. Under gränsen visas VALSTEGET ("välj kortet") i stället för en säker gissning.
+ */
+const ENGINE_CONFIDENT_INLIERS = 25;
+
+/**
+ * MOTORLÄGE: skannermotorns rangordning (SIFT + faiss + RANSAC, ingen AI) blir kandidatlistan.
+ * Samma matchCards-väg som bildsökningen — varianter, värde, samma-konst-syskon och språktvilling
+ * fylls i precis som förut — men utan OCR: motorns ordning ÄR domen. Gemini anropas aldrig.
+ * Sessionens språkhint skickas INTE vidare: motorn avgör språket på textytan, och hinten fällde
+ * dagens skanner på de engelska korten i ägarens blandade hög (2026-09-30).
+ */
+async function identifyFromEngine(engine: EngineResponse): Promise<IdentifyResult> {
+  const ranked = (engine.candidates ?? []).filter((c) => c.cardId);
+  // Poäng ur PLATSEN, inte ur inlier-talet: matchCards ska återge motorns ordning, och inliers
+  // är inte en likhet 0..1 (ett annat kort kan ha fler råa punkter och ändå vara fel).
+  const artScores = new Map(ranked.map((c, i) => [c.cardId, Math.max(0.3, 0.95 - i * 0.02)]));
+  const bestInliers = ranked[0]?.inliers ?? 0;
+  const confident = bestInliers >= ENGINE_CONFIDENT_INLIERS ? (engine.best ?? ranked[0].cardId) : null;
+  const ocr: OcrResult = { rawText: "", confidence: confident ? 0.95 : 0.4 };
+  const artMatches: ArtMatch[] = ranked.map((c) => ({ cardId: c.cardId, score: artScores.get(c.cardId)! }));
+  const [candidates, artTopLabel] = await Promise.all([
+    matchCards(ocr, artScores, confident, null),
+    describeArtMatches(artMatches.slice(0, 3)),
+  ]);
+  const distinctCards = new Set(candidates.map((c) => c.cardId)).size;
+  return {
+    provider: "motor",
+    model: null,
+    guessedName: null,
+    guessedNumber: null,
+    guessedEra: null,
+    guessedHp: null,
+    confidence: ocr.confidence,
+    usage: null,
+    candidates,
+    ambiguous: !confident,
+    // Osäker motor ⇒ valsteget (samma villkor som klienten redan läser: tied + ≥ 2 olika kort).
+    tied: !confident && distinctCards >= 2,
+    artTop: null,
+    artMargin: null,
+    artGateMargin: null,
+    artAgree: false,
+    artDecided: true,
+    engineDecided: true,
+    artTopLabel,
+    artCandidateIds: ranked.map((c) => c.cardId),
+  };
+}
+
+/**
  * Live-identifiering: kör OCR-/vision-adaptern + matchar mot katalogen UTAN att
  * skapa ett ScannerJob (billigt nog att polla med nedskalade videorutor).
  * Returnerar bästa katalogträffar + aktuellt marknadsvärde. Sätt `precise` för
@@ -2371,8 +2440,13 @@ export async function identifyCard(
     structFrames?: string[][];
     /** Språket användaren senast valde i sessionen — se `preferTwinLanguage`. */
     langHint?: string | null;
+    /** Motorläge: skannermotorns svar ersätter bildsökningen OCH vision — se identifyFromEngine. */
+    engine?: EngineResponse;
   } = {}
 ): Promise<IdentifyResult> {
+  if (opts.engine && !opts.engine.error && (opts.engine.candidates?.length ?? 0) > 0) {
+    return identifyFromEngine(opts.engine);
+  }
   const adapter = getOcrAdapter(opts.precise);
   // BILDEN FÖRST, MODELLEN VID BEHOV (2026-07-31): sökningen är ~40 ms CPU mot
   // ett index i minnet; vision-anropet är 1–2 s och kostar per anrop. Är

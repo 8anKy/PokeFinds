@@ -20,6 +20,7 @@ import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { isPro } from "@/lib/plan";
 import { identifyCellsArt } from "@/services/scanner";
+import { engineModeFor } from "@/lib/scanner-engine-shadow";
 
 export const dynamic = "force-dynamic";
 
@@ -90,7 +91,10 @@ export async function POST(req: Request) {
     if (cells.length === 0) return jsonOk({ cells: [] });
     // Bokför säkra celler på användaren: de identifierar ett kort (= kvot) och
     // en korrigering behöver ett jobb-id att fästa vid. Se identifyCellsArt.
-    return jsonOk({ cells: await identifyCellsArt(cells, { userId: user.id, isAdmin }, langHint) });
+    // Motorläge: varje cell går vidare till /identify ⇒ skannermotorn avgör, inte avtrycket.
+    return jsonOk({
+      cells: await identifyCellsArt(cells, { userId: user.id, isAdmin }, langHint, engineModeFor(user.role)),
+    });
   } catch (e) {
     return apiError(e);
   }

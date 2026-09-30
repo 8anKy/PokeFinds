@@ -7,6 +7,7 @@ import { apiError, jsonOk } from "@/lib/api";
 import { previewAllowedFor } from "@/lib/feature-preview";
 import { effectivePlanTier, isPro } from "@/lib/plan";
 import { resolveScanActor } from "@/lib/scan-actor";
+import { engineModeFor, wakeEngine } from "@/lib/scanner-engine-shadow";
 import { getScannerQuota } from "@/services/scanner";
 import { getGuestQuota, linkDeviceToUser } from "@/services/scanner/guest-device";
 
@@ -20,6 +21,9 @@ export async function GET(req: Request) {
       return jsonOk({ remaining, limit, isPremium: false, guest: true, counter: false });
     }
     const { user, deviceId } = actor;
+    // Kvoten hämtas när skannern ÖPPNAS — väck motorn nu (den sover mellan passen) så att första
+    // kortet inte väntar på kallstarten. Bara i motorläge; fire-and-forget.
+    if (engineModeFor(user.role)) wakeEngine();
     // Enheten länkas till kontot redan här: den som skapade konto efter tio
     // gästskanningar ska se den sammanslagna kvoten direkt, inte efter nästa scan.
     if (deviceId) await linkDeviceToUser(deviceId, user.id, actor.ip);

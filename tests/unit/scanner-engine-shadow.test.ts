@@ -1,10 +1,25 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { engineShadowEnabled, shadowRecord } from "@/lib/scanner-engine-shadow";
+import { engineModeFor, engineShadowEnabled, shadowRecord } from "@/lib/scanner-engine-shadow";
 
 describe("skannermotorns skuggläge", () => {
   afterEach(() => {
     delete process.env.SCANNER_ENGINE_URL;
     delete process.env.SCANNER_ENGINE_SECRET;
+    delete process.env.SCANNER_ENGINE_PRIMARY;
+  });
+
+  it("motorläget: bara admin med spaken på admin, alla med all, ingen utan motor", () => {
+    expect(engineModeFor("SUPERADMIN")).toBe(false); // ingen motor konfigurerad
+    process.env.SCANNER_ENGINE_URL = "http://engine:8080";
+    process.env.SCANNER_ENGINE_SECRET = "s";
+    expect(engineModeFor("SUPERADMIN")).toBe(false); // spaken av
+    process.env.SCANNER_ENGINE_PRIMARY = "admin";
+    expect(engineModeFor("SUPERADMIN")).toBe(true);
+    expect(engineModeFor("ADMIN")).toBe(true);
+    expect(engineModeFor("USER")).toBe(false);
+    expect(engineModeFor(undefined)).toBe(false);
+    process.env.SCANNER_ENGINE_PRIMARY = "all";
+    expect(engineModeFor("USER")).toBe(true);
   });
 
   it("är av utan både URL och hemlighet", () => {

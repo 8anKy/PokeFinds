@@ -1,13 +1,14 @@
 /**
- * SKANNERMOTORN UTAN AI — SKUGGLÄGE (2026-09-30).
+ * SKANNERMOTORN UTAN AI — skuggläge + motorläge (2026-09-30).
  *
- * Varje inloggad skanning skickas OCKSÅ till skannermotorn (`scanner-engine/`, egen Railway-tjänst:
- * SIFT + faiss + RANSAC, ingen AI) och motorns svar bokförs som `ScannerJob.result.shadow`.
- * ⛔ PÅVERKAR INGET I SVARET — användaren ser dagens skanner. Syftet är att mäta motorn mot
- * användarnas egna domar (`userChosen`) i 1–2 veckor innan Gemini stängs av.
+ * SKUGGLÄGE: varje inloggad skanning skickas OCKSÅ till skannermotorn (`scanner-engine/`, egen
+ * Railway-tjänst: SIFT + faiss + RANSAC, ingen AI) och motorns svar bokförs som
+ * `ScannerJob.result.shadow`. ⛔ PÅVERKAR INGET I SVARET — användaren ser dagens skanner.
  *
- * Av tills `SCANNER_ENGINE_URL` + `SCANNER_ENGINE_SECRET` är satta (då är det här en no-op).
- * Fire-and-forget: ett långsamt eller nere motoranrop får aldrig fördröja eller fälla skanningen.
+ * MOTORLÄGE (`SCANNER_ENGINE_PRIMARY=admin`): för ADMIN är det motorns svar som visas och Gemini
+ * anropas aldrig. Steget före att slå på det för alla; samma kod, bara en bredare grind.
+ *
+ * Av tills `SCANNER_ENGINE_URL` + `SCANNER_ENGINE_SECRET` är satta (då är allt här en no-op).
  * Bilden går bara till VÅR egen tjänst och sparas inte där.
  *
  * ⛔ SKRIVS SOM ATOMISK JSONB-SAMMANSLAGNING (`result || {shadow}`), aldrig läs-ändra-skriv:
@@ -36,10 +37,20 @@ export interface ShadowRecord {
   ms: number | null;
   swap?: string;
   err?: string;
+  /** Motorns svar VAR det som visades (motorläge) — inte bara en skugga. */
+  primary?: true;
 }
 
 export function engineShadowEnabled(): boolean {
   return !!process.env.SCANNER_ENGINE_URL?.trim() && !!process.env.SCANNER_ENGINE_SECRET?.trim();
+}
+
+/** Visas motorns svar för den här användaren? Bara admin, bara när spaken står på. */
+export function engineModeFor(role: string | null | undefined): boolean {
+  if (!engineShadowEnabled()) return false;
+  const mode = (process.env.SCANNER_ENGINE_PRIMARY ?? "").trim();
+  if (mode === "all") return true;
+  return mode === "admin" && (role === "ADMIN" || role === "SUPERADMIN");
 }
 
 /** Motorns svar → det vi bokför (ren, testad). Topp-5 räcker för "låg rätt kort nära toppen?". */
@@ -59,42 +70,65 @@ export function shadowRecord(res: EngineResponse | null, err?: string): ShadowRe
   };
 }
 
+function engineUrl(path: string): string {
+  return `${process.env.SCANNER_ENGINE_URL!.trim().replace(/\/$/, "")}${path}`;
+}
+
 function jpegBytes(dataUrl: string): Buffer | null {
   const comma = dataUrl.indexOf(",");
   if (comma < 0) return null;
   return Buffer.from(dataUrl.slice(comma + 1), "base64");
 }
 
+/**
+ * Fråga motorn om en fångst. Returnerar svaret, eller `{ error }` vid fel — aldrig ett kast.
+ *
+ * ⛔ MOTORN SOVER MELLAN PASSEN (serverless): första anropet väcker den, men anslutningen nekas
+ * medan containern startar — mätt 2026-09-30 blev första skanningen i passet "unreachable".
+ * Nätverksfel försöks därför om efter 3 och 8 s; HTTP-fel och timeout aldrig.
+ */
+export async function callEngine(imageDataUrl: string): Promise<EngineResponse> {
+  if (!engineShadowEnabled()) return { error: "disabled" };
+  const body = jpegBytes(imageDataUrl);
+  if (!body) return { error: "bad-image" };
+  let last: EngineResponse = { error: "unreachable" };
+  for (const waitMs of [0, 3000, 8000]) {
+    if (waitMs) await new Promise((r) => setTimeout(r, waitMs));
+    try {
+      const res = await fetch(engineUrl("/identify"), {
+        method: "POST",
+        headers: { "content-type": "image/jpeg", "x-engine-secret": process.env.SCANNER_ENGINE_SECRET!.trim() },
+        body: new Uint8Array(body),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      return res.ok ? ((await res.json()) as EngineResponse) : { error: `http-${res.status}` };
+    } catch (e) {
+      last = { error: (e as Error).name === "TimeoutError" ? "timeout" : "unreachable" };
+      if (last.error === "timeout") return last;
+    }
+  }
+  return last;
+}
+
+/** Väck motorn i förväg (skannern öppnades) så första kortet slipper kallstarten. Returnerar direkt. */
+export function wakeEngine(): void {
+  if (!engineShadowEnabled()) return;
+  void fetch(engineUrl("/health"), { signal: AbortSignal.timeout(20_000) }).catch(() => undefined);
+}
+
+/** Bokför motorns svar på jobbet (atomisk jsonb-merge, se filhuvudet). */
+export async function recordShadow(jobId: string, record: ShadowRecord): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE "ScannerJob"
+    SET result = COALESCE(result, '{}'::jsonb) || jsonb_build_object('shadow', ${JSON.stringify(record)}::jsonb)
+    WHERE id = ${jobId}`.catch((e) => console.warn("[engine-shadow] kunde inte bokföra:", (e as Error).message));
+}
+
 /** Skicka fångsten till motorn och bokför svaret på jobbet. Returnerar direkt. */
 export function runEngineShadow(jobId: string, imageDataUrl: string): void {
   if (!engineShadowEnabled()) return;
-  const body = jpegBytes(imageDataUrl);
-  if (!body) return;
-  const url = `${process.env.SCANNER_ENGINE_URL!.trim().replace(/\/$/, "")}/identify`;
   void (async () => {
-    let record: ShadowRecord = shadowRecord(null, "unreachable");
-    // ⛔ MOTORN SOVER MELLAN PASSEN (serverless): första anropet väcker den, men anslutningen
-    // nekas medan containern startar — mätt 2026-09-30 blev första skanningen i passet
-    // "unreachable". Nätverksfel försöks därför om efter 3 och 8 s; HTTP-fel och timeout aldrig.
-    for (const waitMs of [0, 3000, 8000]) {
-      if (waitMs) await new Promise((r) => setTimeout(r, waitMs));
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "content-type": "image/jpeg", "x-engine-secret": process.env.SCANNER_ENGINE_SECRET!.trim() },
-          body: new Uint8Array(body),
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-        });
-        record = res.ok ? shadowRecord((await res.json()) as EngineResponse) : shadowRecord(null, `http-${res.status}`);
-        break;
-      } catch (e) {
-        record = shadowRecord(null, (e as Error).name === "TimeoutError" ? "timeout" : "unreachable");
-        if (record.err === "timeout") break;
-      }
-    }
-    await prisma.$executeRaw`
-      UPDATE "ScannerJob"
-      SET result = COALESCE(result, '{}'::jsonb) || jsonb_build_object('shadow', ${JSON.stringify(record)}::jsonb)
-      WHERE id = ${jobId}`.catch((e) => console.warn("[engine-shadow] kunde inte bokföra:", (e as Error).message));
+    const res = await callEngine(imageDataUrl);
+    await recordShadow(jobId, res.error ? shadowRecord(null, res.error) : shadowRecord(res));
   })();
 }
