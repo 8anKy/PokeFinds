@@ -59,7 +59,7 @@ def _norm(img):
 class Engine:
     def __init__(self, data_dir):
         self.dir = data_dir
-        nn = os.path.join(data_dir, "nn")
+        nn = os.path.join(data_dir, os.environ.get("NN_SUB", "nn"))
         self.index = faiss.read_index(os.path.join(nn, "ivfpq.faiss"))
         self.index.nprobe = NPROBE
         self.owners = np.load(os.path.join(nn, "owners.npy"), mmap_mode="r")
@@ -67,8 +67,16 @@ class Engine:
         rk = os.path.join(data_dir, "refkp")
         meta = json.load(open(os.path.join(rk, "meta.json")))
         self.offsets, self.shapes = meta["offsets"], meta["shapes"]
-        self.D = np.load(os.path.join(rk, "desc.npy"), mmap_mode="r")
-        self.P = np.load(os.path.join(rk, "pts.npy"), mmap_mode="r")
+        # ⛔ INTE memmap på Linux: Railway räknar kärnans sidcache som minne (cgroup), och en memmap
+        # över 2,8 GB hade vuxit med varje skanning tills hela filen låg i "minnet". Raderna läses med
+        # pread och sidorna släpps direkt (POSIX_FADV_DONTNEED). Windows (lokal mätning) kör memmap.
+        self._pread = hasattr(os, "pread") and hasattr(os, "posix_fadvise")
+        if self._pread:
+            self._fd_d, self._off_d = self._open_npy(os.path.join(rk, "desc.npy"))
+            self._fd_p, self._off_p = self._open_npy(os.path.join(rk, "pts.npy"))
+        else:
+            self.D = np.load(os.path.join(rk, "desc.npy"), mmap_mode="r")
+            self.P = np.load(os.path.join(rk, "pts.npy"), mmap_mode="r")
         cm = os.path.join(data_dir, "cards-meta.json")
         self.image_urls = json.load(open(cm)) if os.path.exists(cm) else {}
         self.sift = cv2.SIFT_create(nfeatures=QUERY_KP)
@@ -76,11 +84,29 @@ class Engine:
         self._grays = OrderedDict()  # regionkontrollens referensbilder, LRU
 
     # ---------- referenser ----------
+    @staticmethod
+    def _open_npy(path):
+        with open(path, "rb") as f:
+            ver = np.lib.format.read_magic(f)
+            (np.lib.format.read_array_header_1_0 if ver == (1, 0) else np.lib.format.read_array_header_2_0)(f)
+            data_off = f.tell()
+        return os.open(path, os.O_RDONLY), data_off
+
+    def _read_rows(self, fd, data_off, row_bytes, a, n, dtype, cols):
+        start = data_off + a * row_bytes
+        buf = os.pread(fd, n * row_bytes, start)
+        os.posix_fadvise(fd, start, n * row_bytes, os.POSIX_FADV_DONTNEED)
+        return np.frombuffer(buf, dtype=dtype).reshape(n, cols)
+
     def _ref(self, cid):
         off = self.offsets.get(cid)
         if not off:
             return None
         a, n = off
+        if self._pread:
+            pts = self._read_rows(self._fd_p, self._off_p, 8, a, n, np.float32, 2)
+            des = self._read_rows(self._fd_d, self._off_d, 128, a, n, np.uint8, 128)
+            return pts, des.astype(np.float32) / 255.0
         return np.asarray(self.P[a : a + n]), np.asarray(self.D[a : a + n], dtype=np.float32) / 255.0
 
     def _ref_gray(self, cid):
