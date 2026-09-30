@@ -41,13 +41,20 @@ def root_sift(des):
     return np.sqrt(des).astype(np.float32)
 
 
-_ref_cache = {}
+from collections import OrderedDict
+
+# LRU, inte en växande dict: 2 000 foton × 20 kandidater fyllde flera GB per arbetare (dödades av RAM-brist).
+_ref_cache = OrderedDict()
+REF_CACHE_MAX = int(os.environ.get("REF_CACHE_MAX", "200"))
 
 
 def ref_features(card):
     cid = card["id"]
     if cid in _ref_cache:
+        _ref_cache.move_to_end(cid)
         return _ref_cache[cid]
+    while len(_ref_cache) >= REF_CACHE_MAX:
+        _ref_cache.popitem(last=False)
     path = os.path.join(REFS, f"{cid}.jpg")
     if not os.path.exists(path) and card.get("imageUrl"):
         try:
