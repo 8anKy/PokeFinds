@@ -81,7 +81,9 @@ def main():
         out[n_old:n_rows] = np.vstack(add)
         out.flush()
         del out
-    del old_d, old_p
+    # ⛔ Släpp VARJE referens till de gamla memmapparna (även loopvariabeln) — annars vägrar
+    # Windows ersätta filen och påfyllningen blir halvgjord.
+    del old, old_d, old_p
     for name in ("desc.npy", "pts.npy"):
         os.replace(os.path.join(rk, name + ".new"), os.path.join(rk, name))
     meta["n"] = n_rows
