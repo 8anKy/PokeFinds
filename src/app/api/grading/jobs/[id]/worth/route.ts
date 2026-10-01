@@ -24,6 +24,8 @@ interface StoredResult {
   cardId?: string | null;
   cardSlug?: string | null;
   cardImageUrl?: string | null;
+  /** Användaren valde kortet själv (../card/route.ts) — koppla aldrig om det. */
+  cardPicked?: boolean;
 }
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -43,7 +45,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       cardLabel: string;
       cardSetName: string;
     } | null = null;
-    if (!r.cardImageUrl) {
+    if (!r.cardImageUrl && !r.cardPicked) {
       const linked = await resolveGradedCard(r.cardName).catch(() => null);
       if (linked) {
         card = {

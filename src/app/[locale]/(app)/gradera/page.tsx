@@ -20,6 +20,7 @@ import { ProCta } from "@/components/features/pro-cta";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { CenteringTool, type CenteringOutcome } from "@/components/features/centering-tool";
 import { ShareCardPanel } from "@/components/features/share-card-panel";
+import { CardSearch, type CardSearchCandidate } from "@/components/features/card-search";
 import { Link } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
 import { takeGradePrefill } from "@/lib/grade-prefill";
@@ -375,6 +376,9 @@ export default function GraderaPage() {
   });
   const [toolSide, setToolSide] = useState<CenteringSide | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  /** "Fel kort? Välj rätt" — användaren väljer kortet ur katalogen (api/grading/jobs/[id]/card). */
+  const [pickOpen, setPickOpen] = useState(false);
+  const [picking, setPicking] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
   const tc = useTranslations("Centering");
   const ts = useTranslations("ShareCard");
@@ -551,6 +555,40 @@ export default function GraderaPage() {
     }
   }
 
+  async function pickCard(jobId: string, c: CardSearchCandidate) {
+    if (picking) return;
+    setPicking(true);
+    try {
+      const res = await fetch(`/api/grading/jobs/${jobId}/card`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId: c.cardId, slug: c.slug ?? undefined }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        card?: Pick<GradeResultDto, "cardId" | "cardImageUrl" | "cardSlug" | "cardLabel" | "cardSetName">;
+        worth?: GradingWorthDto | null;
+        error?: string;
+      } | null;
+      if (!res.ok || !data?.card) throw new Error(data?.error ?? t("pickCardFail"));
+      const card = data.card;
+      setResult((prev) =>
+        prev?.jobId === jobId ? { ...prev, worth: data.worth ?? null, result: { ...prev.result, ...card } } : prev
+      );
+      setJobs((prev) =>
+        prev?.map((j) => (j.id === jobId ? { ...j, result: { ...(j.result ?? {}), ...card } } : j)) ?? prev
+      );
+      setPickOpen(false);
+    } catch (err) {
+      toast({
+        title: t("pickCardFail"),
+        description: err instanceof Error ? err.message : t("unknownError"),
+        variant: "error",
+      });
+    } finally {
+      setPicking(false);
+    }
+  }
+
   const limitReached =
     quota != null && quota.remaining !== null && quota.remaining <= 0;
 
@@ -685,6 +723,15 @@ export default function GraderaPage() {
                 <p className="text-sm font-semibold text-ink">
                   {result.result.cardLabel ?? result.result.cardName ?? t("overallGrade")}
                 </p>
+                {/* Modellen kan läsa fel kort, och utan styrkt nummer kopplas inget —
+                    användaren väljer då själv ur katalogen. Poängen rörs inte. */}
+                <button
+                  type="button"
+                  onClick={() => setPickOpen(true)}
+                  className="mt-0.5 text-xs font-medium text-holo-cyan underline-offset-2 hover:underline"
+                >
+                  {result.result.cardId ? t("pickCardWrong") : t("pickCardMissing")}
+                </button>
                 <p className="mt-1 text-sm text-ink-muted">{result.result.rationale}</p>
               </div>
             </div>
@@ -730,6 +777,36 @@ export default function GraderaPage() {
               name={splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ?? t("shareUnknownCard")}
               render={(domain) => renderGradeShareCard(gradeShareInput(result, domain))}
             />
+          )}
+        </BottomSheet>
+      )}
+
+      {result && (
+        <BottomSheet
+          open={pickOpen}
+          title={t("pickCardTitle")}
+          closeLabel={ts("back")}
+          onClose={() => setPickOpen(false)}
+          panelClassName="sm:mx-auto sm:max-w-md"
+        >
+          {pickOpen && (
+            <div
+              className={cn(
+                "flex h-[65dvh] flex-col pb-[max(1rem,env(safe-area-inset-bottom))]",
+                picking && "pointer-events-none opacity-60"
+              )}
+            >
+              <CardSearch
+                captured={result.historyAt ? null : centering.front?.cropDataUrl ?? front}
+                initialQuery={
+                  splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ??
+                  cardHint ??
+                  ""
+                }
+                selectedCardId={result.result.cardId ?? null}
+                onPick={(c) => void pickCard(result.jobId, c)}
+              />
+            </div>
           )}
         </BottomSheet>
       )}

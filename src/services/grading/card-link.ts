@@ -195,7 +195,7 @@ export async function resolveGradedCard(
 }
 
 /** Katalogkortet för ett känt kort-id, i samma form som matchningens träffar. */
-async function linkByCardId(cardId: string): Promise<GradedCardLink | null> {
+export async function linkByCardId(cardId: string): Promise<GradedCardLink | null> {
   const card = await prisma.card.findUnique({
     where: { id: cardId },
     select: { name: true, number: true },
