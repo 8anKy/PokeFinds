@@ -4,6 +4,8 @@ import { sendMail } from "@/lib/mailer";
 import { welcomeEmail } from "@/emails/templates";
 import { CREATOR_REF_COOKIE } from "@/lib/creator-ref";
 import { resolveCreatorCode } from "@/services/creator-codes";
+import { redeemInviteForNewAccount } from "@/services/invites";
+import { INVITE_COOKIE } from "@/lib/invite-link";
 import { signupBonusUntil, signupCampaignFromEnv } from "@/lib/signup-campaign";
 import type { OAuthProvider } from "@/lib/oauth-id-token";
 import { baseDisplayName, uniqueDisplayName } from "@/lib/display-name";
@@ -99,9 +101,11 @@ export async function findOrCreateOAuthUser(input: OAuthIdentityInput): Promise<
   // klientens body (se api/auth/register). `cookies()` finns i route-handler-
   // kontexten NextAuth kör i; saknas den (skript, test) ⇒ organiskt konto.
   let creatorCodeId: string | null = null;
+  let inviteCode: string | undefined;
   try {
-    const raw = (await cookies()).get(CREATOR_REF_COOKIE)?.value;
-    creatorCodeId = (await resolveCreatorCode(raw))?.id ?? null;
+    const jar = await cookies();
+    inviteCode = jar.get(INVITE_COOKIE)?.value;
+    creatorCodeId = (await resolveCreatorCode(jar.get(CREATOR_REF_COOKIE)?.value))?.id ?? null;
   } catch {
     creatorCodeId = null;
   }
@@ -121,6 +125,9 @@ export async function findOrCreateOAuthUser(input: OAuthIdentityInput): Promise<
     },
     select: USER_SELECT,
   });
+
+  // Personlig inbjudningslänk (/i/<kod>) — samma inlösen som formuläret.
+  await redeemInviteForNewAccount(user.id, [inviteCode]);
 
   try {
     await sendMail({ to: user.email, ...welcomeEmail(user.name) });

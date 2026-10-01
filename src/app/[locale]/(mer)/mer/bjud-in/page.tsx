@@ -42,6 +42,8 @@ export default function InvitePage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  // Personlig, återanvändbar länk (lib/invite-link.ts) — samma som på delningsbilderna.
+  const [personal, setPersonal] = useState<{ label: string; url: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -55,6 +57,10 @@ export default function InvitePage() {
 
   useEffect(() => {
     void load();
+    void fetch("/api/invites/link")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { label: string; url: string } | null) => d && setPersonal(d))
+      .catch(() => undefined);
   }, [load]);
 
   async function createAndShare() {
@@ -74,8 +80,7 @@ export default function InvitePage() {
     }
   }
 
-  async function shareOrCopy(code: string) {
-    const url = inviteUrl(code);
+  async function shareOrCopy(code: string, url = inviteUrl(code)) {
     // Native delnings-ark BARA på touch-enheter: på desktop öppnar navigator.share
     // OS-dialogen och promiset hänger tills den stängs (knappen snurrade för evigt,
     // upptäckt vid verifiering). Desktop = kopiera direkt.
@@ -161,6 +166,23 @@ export default function InvitePage() {
           </p>
         )}
       </div>
+
+      {personal && (
+        <section>
+          <h2 className="text-sm font-semibold text-ink">{t("personalTitle")}</h2>
+          <p className="mt-1 text-xs text-ink-muted">{t("personalHint")}</p>
+          <div className="card-surface mt-2 flex items-center justify-between gap-3 px-4 py-3">
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{personal.label}</span>
+            <button
+              type="button"
+              onClick={() => shareOrCopy("personal", personal.url)}
+              className="shrink-0 rounded-full border border-surface-border px-3 py-1 text-xs font-medium text-ink transition hover:border-holo-cyan/40 hover:text-holo-cyan"
+            >
+              {copiedCode === "personal" ? t("copied") : t("shareAgain")}
+            </button>
+          </div>
+        </section>
+      )}
 
       <Button onClick={createAndShare} loading={creating} className="w-full" size="lg">
         <IconShare size={18} className="mr-2" />

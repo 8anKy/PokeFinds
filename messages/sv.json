@@ -1817,6 +1817,8 @@
     "progressHint": "3 vänner som bekräftat e-posten och varit inne igen en senare dag ger dig 1 månad Pro. Erbjudandet gäller en gång.",
     "bonusActive": "Din Pro-bonus är aktiv till {date}.",
     "createButton": "Skapa och dela inbjudningslänk",
+    "personalTitle": "Din personliga länk",
+    "personalHint": "Står också på bilderna du delar från skannern och graderingen. Den kan användas av hur många som helst.",
     "openTitle": "Oanvända länkar",
     "usedTitle": "Dina inbjudna",
     "shareAgain": "Dela",
@@ -1832,7 +1834,7 @@
     "loadError": "Kunde inte hämta dina inbjudningar. Försök igen.",
     "createError": "Kunde inte skapa inbjudan. Försök igen.",
     "copyError": "Kunde inte kopiera länken.",
-    "terms": "Gäller nya konton som bekräftar sin e-postadress och använder Foilio igen en senare dag. Varje länk kan användas en gång. Pro-bonusen läggs på din befintliga Pro-tid.",
+    "terms": "Gäller nya konton som bekräftar sin e-postadress och använder Foilio igen en senare dag. Din personliga länk kan användas av flera, engångslänkarna en gång var. Pro-bonusen läggs på din befintliga Pro-tid.",
     "termsLink": "Fullständiga villkor för inbjudningsprogrammet"
   },
   "Watch": {
@@ -2819,6 +2821,10 @@
     "rendering": "Skapar bilden …",
     "error": "Bilden gick inte att skapa.",
     "retry": "Försök igen",
+    "hintInvite": "Din personliga inbjudningslänk står på bilden. Lägg upp i din story, på Discord eller skicka till en vän.",
+    "copyLink": "Kopiera din inbjudningslänk",
+    "copyLinkShort": "Länk",
+    "linkCopied": "Kopierad",
     "previewAlt": "Delningsbild för {name}"
   },
   "Centering": {

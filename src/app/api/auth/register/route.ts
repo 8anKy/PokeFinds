@@ -8,7 +8,8 @@ import { rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/client-ip";
 import { sendMail } from "@/lib/mailer";
 import { welcomeEmail } from "@/emails/templates";
-import { redeemInviteAtRegistration, creditInviteOnVerify } from "@/services/invites";
+import { redeemInviteForNewAccount } from "@/services/invites";
+import { INVITE_COOKIE } from "@/lib/invite-link";
 import { evaluateSignupCode, type SignupCodeVerdict } from "@/lib/signup-code";
 import { authError, type AuthErrorCode } from "@/lib/auth-errors";
 import { CREATOR_REF_COOKIE } from "@/lib/creator-ref";
@@ -130,14 +131,9 @@ export async function POST(req: NextRequest) {
     // inlösningsvägen). Engångs + atomär i redeemInviteAtRegistration. Kontot
     // föds bekräftat, så vännens belöning krediteras direkt — nya konton når
     // aldrig /api/auth/verify, som var den gamla krediteringspunkten.
-    if (invite) {
-      await redeemInviteAtRegistration(invite, user.id);
-      try {
-        await creditInviteOnVerify(user.id);
-      } catch (e) {
-        console.error("creditInviteOnVerify misslyckades:", e);
-      }
-    }
+    // Personlig länk (/i/<kod>) ligger i en cookie som middleware satte; en
+    // explicit engångskod ur formuläret går före.
+    await redeemInviteForNewAccount(user.id, [invite, req.cookies.get(INVITE_COOKIE)?.value]);
 
     // Välkomstmejlet är trevligt, inte funktionellt: eget try, påverkar inte svaret.
     try {

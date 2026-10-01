@@ -479,7 +479,7 @@ export default function GraderaPage() {
   const centeringCap = combinedPsaCap([centering.front?.result, centering.back?.result]);
 
   /** Delningsbildens indata ur resultatet + mätningen. */
-  function gradeShareInput(r: GradeResponse) {
+  function gradeShareInput(r: GradeResponse, domain: string) {
     const label = r.result.cardLabel
       ? splitLabel(r.result.cardLabel, true)
       : splitLabel(r.result.cardName);
@@ -504,7 +504,7 @@ export default function GraderaPage() {
       outOf: t("outOf10"),
       centeringLine: parts.length ? `${t("shareCenteringLead")} · ${parts.join(" · ")}` : null,
       disclaimer: t("shareDisclaimer"),
-      footer: { lead: t("shareFooterLead"), domain: "foilio.se" },
+      footer: { lead: t("shareFooterLead"), domain },
     };
   }
 
@@ -728,7 +728,7 @@ export default function GraderaPage() {
               previewMax="50dvh"
               safeBottom
               name={splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ?? t("shareUnknownCard")}
-              render={() => renderGradeShareCard(gradeShareInput(result))}
+              render={(domain) => renderGradeShareCard(gradeShareInput(result, domain))}
             />
           )}
         </BottomSheet>

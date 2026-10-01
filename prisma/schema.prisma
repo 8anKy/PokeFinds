@@ -159,6 +159,10 @@ model User {
   // (EXPIRATION sätter FREE) och får aldrig kunna nolla en intjänad bonus.
   // isPro()/proUserWhere() räknar båda. Se src/services/invites.ts.
   bonusProUntil        DateTime?
+  // Personlig, ÅTERANVÄNDBAR inbjudningskod (2026-10-01) — tryckt på delningsbilderna
+  // som foilio.se/i/<kod>. Skapas lat första gången den behövs. Varje inlösen blir en
+  // vanlig Invite-rad (personal = true), så belöningen och återbesöksgrinden är orörda.
+  inviteCode           String?   @unique
   // Stripe (webbens Pro). SEPARAT från planTier av EXAKT samma skäl som
   // bonusProUntil: planTier ägs av RevenueCat-webhooken, vars EXPIRATION sätter
   // FREE ovillkorligt — en utgången Apple-sandbox hade annars kunnat säga upp en
@@ -1562,6 +1566,8 @@ model Invite {
   usedAt     DateTime?
   verifiedAt DateTime?
   rewardedAt DateTime?
+  // true = skapad vid inlösen av inviterns personliga länk (User.inviteCode), inte en engångskod.
+  personal   Boolean   @default(false)
 
   inviter User  @relation("InviteInviter", fields: [inviterId], references: [id], onDelete: Cascade)
   usedBy  User? @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)

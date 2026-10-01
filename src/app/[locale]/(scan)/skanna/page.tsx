@@ -4199,7 +4199,7 @@ function ScanDetailsSheet(props: {
           source="scan"
           name={shareMatch.name}
           onBack={() => setShareOpen(false)}
-          render={() => renderShareCard({
+          render={(domain) => renderShareCard({
             imageUrl: shareMatch.imageUrl,
             // Katalogbilden kan vägra CORS (~65 kort) — då blir det användarens foto.
             fallbackImageUrl: item.captured,
@@ -4211,7 +4211,7 @@ function ScanDetailsSheet(props: {
               shareMatch.estimatedValue != null
                 ? { label: tShare("valueLabel"), text: formatPrice(shareMatch.estimatedValue) }
                 : null,
-            footer: { lead: tShare("footerLead"), domain: "foilio.se" },
+            footer: { lead: tShare("footerLead"), domain },
           })}
         />
       ) : searchOpen ? (

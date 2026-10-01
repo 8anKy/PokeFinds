@@ -1,0 +1,3 @@
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "inviteCode" TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS "User_inviteCode_key" ON "User"("inviteCode");
+ALTER TABLE "Invite" ADD COLUMN IF NOT EXISTS "personal" BOOLEAN NOT NULL DEFAULT false;

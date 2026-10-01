@@ -7,20 +7,50 @@
  * att anropet sker i användarens tryck, och en ritning som laddar kortkonst
  * hinner annars förbruka den tillfälliga aktiveringen (Safari nekar då tyst).
  * Förhandsvisningen är dessutom själva poängen — man delar det man ser.
+ *
+ * Inloggade får sin PERSONLIGA inbjudningslänk tryckt i sidfoten (foilio.se/i/<kod>,
+ * lib/invite-link.ts) och en "Kopiera länk"-knapp. Länken skickas INTE med i
+ * delningen: en bild + text/URL i samma ark kan få Instagram-storyn att falla bort
+ * ur iOS-arket, och storyn är huvudfallet. Gäster får bara foilio.se.
  */
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { IconCheck, IconShare } from "@/components/ui/icons";
+import { IconCheck, IconLink, IconShare } from "@/components/ui/icons";
 import { detectShareMode, shareFilename, shareImage, type ShareMode } from "@/lib/share-image";
 import { track } from "@/lib/track";
 import { cn } from "@/lib/utils";
 
+interface InviteLink {
+  label: string;
+  url: string;
+}
+
+/** En hämtning per sidladdning; null = gäst eller fel (bilden får då "foilio.se"). */
+let inviteLinkPromise: Promise<InviteLink | null> | null = null;
+function loadInviteLink(): Promise<InviteLink | null> {
+  inviteLinkPromise ??= fetch("/api/invites/link")
+    .then((r) => (r.ok ? (r.json() as Promise<InviteLink>) : null))
+    .catch(() => null);
+  return inviteLinkPromise;
+}
+
+/** Länken får aldrig hålla bilden som gisslan: efter 3 s ritas den med foilio.se. */
+function inviteLinkWithin(ms: number): Promise<InviteLink | null> {
+  return Promise.race([
+    loadInviteLink(),
+    new Promise<null>((resolve) => window.setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
 export function ShareCardPanel(props: {
-  /** Ritar bilden — `renderShareCard` (skanning) eller `renderGradeShareCard`. */
-  render: () => Promise<Blob>;
+  /**
+   * Ritar bilden — `renderShareCard` (skanning) eller `renderGradeShareCard`.
+   * `domain` är sidfotens adress: den personliga länken, eller "foilio.se".
+   */
+  render: (domain: string) => Promise<Blob>;
   /** Kortets namn: filnamnet och förhandsvisningens alt-text. */
   name: string;
   /** Var delningen kom ifrån, t.ex. "scan" — spåras som `share_card`. */
@@ -44,6 +74,8 @@ export function ShareCardPanel(props: {
   const [mode, setMode] = useState<ShareMode | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [link, setLink] = useState<InviteLink | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -59,8 +91,11 @@ export function ShareCardPanel(props: {
     setFailed(false);
     setBlob(null);
     setPreview(null);
-    props
-      .render()
+    inviteLinkWithin(3000)
+      .then((l) => {
+        if (alive) setLink(l);
+        return props.render(l?.label ?? "foilio.se");
+      })
       .then((b) => {
         if (!alive) return;
         url = URL.createObjectURL(b);
@@ -94,6 +129,18 @@ export function ShareCardPanel(props: {
       setFailed(true);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onCopyLink() {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link.url);
+      track("share_card", `${source}:copy_link`);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      /* urklipp nekat — länken står ändå på bilden */
     }
   }
 
@@ -134,7 +181,7 @@ export function ShareCardPanel(props: {
         )}
       </div>
 
-      <p className="shrink-0 text-center text-xs text-ink-muted">{t("hint")}</p>
+      <p className="shrink-0 text-center text-xs text-ink-muted">{link ? t("hintInvite") : t("hint")}</p>
 
       <div className="flex shrink-0 gap-2">
         {props.onBack && (
@@ -151,6 +198,12 @@ export function ShareCardPanel(props: {
           >
             {saved ? <IconCheck size={16} /> : <IconShare size={16} />}
             {saved ? t("saved") : mode === "download" ? t("saveImage") : t("shareImage")}
+          </Button>
+        )}
+        {link && (
+          <Button variant="outline" onClick={() => void onCopyLink()} aria-label={t("copyLink")}>
+            {copied ? <IconCheck size={16} /> : <IconLink size={16} />}
+            {copied ? t("linkCopied") : t("copyLinkShort")}
           </Button>
         )}
       </div>

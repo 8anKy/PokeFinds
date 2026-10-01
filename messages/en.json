@@ -1817,6 +1817,8 @@
     "progressHint": "3 friends who confirmed their email and used Foilio again on a later day give you 1 month of Pro. One-time offer.",
     "bonusActive": "Your Pro bonus is active until {date}.",
     "createButton": "Create and share invite link",
+    "personalTitle": "Your personal link",
+    "personalHint": "It's also printed on the images you share from the scanner and grading. Any number of friends can use it.",
     "openTitle": "Unused links",
     "usedTitle": "Your invitees",
     "shareAgain": "Share",
@@ -1832,7 +1834,7 @@
     "loadError": "Could not load your invites. Please try again.",
     "createError": "Could not create the invite. Please try again.",
     "copyError": "Could not copy the link.",
-    "terms": "Applies to new accounts that confirm their email address and use Foilio again on a later day. Each link can be used once. The Pro bonus is added on top of your existing Pro time.",
+    "terms": "Applies to new accounts that confirm their email address and use Foilio again on a later day. Your personal link can be used by many people, the one-time links once each. The Pro bonus is added on top of your existing Pro time.",
     "termsLink": "Full terms for the invite programme"
   },
   "Watch": {
@@ -2819,6 +2821,10 @@
     "rendering": "Creating the image …",
     "error": "Couldn't create the image.",
     "retry": "Try again",
+    "hintInvite": "Your personal invite link is on the image. Post it to your story, on Discord or send it to a friend.",
+    "copyLink": "Copy your invite link",
+    "copyLinkShort": "Link",
+    "linkCopied": "Copied",
     "previewAlt": "Share image for {name}"
   },
   "Centering": {

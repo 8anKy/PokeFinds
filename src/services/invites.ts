@@ -5,6 +5,9 @@
  *
  * Koden är ENGÅNGS: den förbrukas (usedById sätts) vid registrering, som är den
  * ENDA inlösningsvägen — befintliga konton kan inte lösa in en inbjudan.
+ * Undantaget är den PERSONLIGA länken (User.inviteCode, sedan 2026-10-01) som
+ * trycks på delningsbilderna: återanvändbar, och varje inlösen skapar en egen
+ * Invite-rad (personal = true) — så allt nedan gäller den oförändrat.
  * Belöningen delas ut i verify-flödet: varje gång en inbjuden användare
  * bekräftar sin mejl grupperas inviterns verifierade-men-obetalda inbjudningar;
  * fulla 3-grupper markeras rewardedAt (dubbelutbetalningsspärr, atomär via
@@ -14,6 +17,7 @@ import { prisma } from "@/lib/db";
 import { sendMail } from "@/lib/mailer";
 import { proRewardEmail } from "@/emails/templates";
 import { syncDiscordRoles } from "@/services/discord-sync";
+import { generateInviteCode, normalizeInviteCode } from "@/lib/invite-link";
 
 export const INVITES_REQUIRED = 3;
 
@@ -82,7 +86,74 @@ export async function redeemInviteAtRegistration(
     where: { id: code, usedById: null },
     data: { usedById: newUserId, usedAt: new Date() },
   });
-  return res.count === 1;
+  if (res.count === 1) return true;
+  return redeemPersonalInvite(code, newUserId);
+}
+
+/**
+ * Inlösen av en PERSONLIG länk (User.inviteCode, lib/invite-link.ts): skapa en
+ * Invite-rad åt invitern, så att allt nedströms (verifiering, återbesöksgrinden,
+ * belöningen) är exakt samma väg som för engångskoderna.
+ * ⛔ Kastar aldrig — en dålig kod får inte stoppa ett kontoskapande.
+ */
+export async function redeemPersonalInvite(rawCode: string, newUserId: string): Promise<boolean> {
+  const code = normalizeInviteCode(rawCode);
+  if (!code) return false;
+  try {
+    const inviter = await prisma.user.findUnique({ where: { inviteCode: code }, select: { id: true } });
+    if (!inviter || inviter.id === newUserId) return false;
+    await prisma.invite.create({
+      data: { inviterId: inviter.id, usedById: newUserId, usedAt: new Date(), personal: true },
+    });
+    return true;
+  } catch (e) {
+    // P2002 på usedById = kontot har redan en inbjudan — förväntat, inget fel.
+    if ((e as { code?: string })?.code !== "P2002") {
+      console.error("[invites] personlig inlösen misslyckades:", e);
+    }
+    return false;
+  }
+}
+
+/**
+ * Lös in vid registrering, med explicit kod (?invite= i formuläret) före cookien
+ * från /i/<kod>. Krediterar direkt — nya konton föds med bekräftad e-post.
+ * Används av både formuläret och Google/Apple. Kastar aldrig.
+ */
+export async function redeemInviteForNewAccount(
+  newUserId: string,
+  codes: Array<string | null | undefined>
+): Promise<void> {
+  try {
+    for (const code of codes) {
+      if (code && (await redeemInviteAtRegistration(code, newUserId))) {
+        await creditInviteOnVerify(newUserId);
+        return;
+      }
+    }
+  } catch (e) {
+    console.error("[invites] inlösen vid registrering misslyckades:", e);
+  }
+}
+
+/** Användarens personliga kod; skapas första gången den efterfrågas. */
+export async function getOrCreateInviteCode(userId: string): Promise<string> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { inviteCode: true } });
+  if (user?.inviteCode) return user.inviteCode;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateInviteCode();
+    // Villkorad skrivning: två parallella anrop får inte skriva över varandras kod.
+    const res = await prisma.user
+      .updateMany({ where: { id: userId, inviteCode: null }, data: { inviteCode: code } })
+      .catch((e: unknown) => {
+        if ((e as { code?: string })?.code === "P2002") return null; // krock med annans kod
+        throw e;
+      });
+    if (res === null) continue;
+    const now = await prisma.user.findUnique({ where: { id: userId }, select: { inviteCode: true } });
+    if (now?.inviteCode) return now.inviteCode;
+  }
+  throw new Error("Kunde inte skapa en inbjudningskod.");
 }
 
 /**

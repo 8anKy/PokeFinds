@@ -10,6 +10,7 @@ import {
   CREATOR_REF_PARAM,
   creatorRefAction,
 } from "@/lib/creator-ref";
+import { INVITE_COOKIE, INVITE_COOKIE_MAX_AGE, inviteCodeFromPath } from "@/lib/invite-link";
 import { LOCALE_COOKIE_NAME, dropSetCookie, shouldDropLocaleCookie } from "@/lib/locale-cookie";
 import { collectionImportPublic } from "@/lib/collection-import-gate";
 import {
@@ -206,6 +207,23 @@ export async function middleware(req: NextRequest) {
 
   const { pathname, search } = req.nextUrl;
   const [path, prefix] = splitLocale(pathname);
+
+  // Personlig inbjudningslänk (lib/invite-link.ts): kom ihåg koden i 30 dygn och
+  // landa på startsidan. Noll DB — koden prövas först vid registreringen. En
+  // trasig kod får samma startsida, bara utan cookie.
+  if (path.startsWith("/i/")) {
+    const code = inviteCodeFromPath(path);
+    const res = NextResponse.redirect(new URL(`${prefix}/`, req.url));
+    if (code) {
+      res.cookies.set(INVITE_COOKIE, code, {
+        path: "/",
+        maxAge: INVITE_COOKIE_MAX_AGE,
+        sameSite: "lax",
+        httpOnly: true,
+      });
+    }
+    return res;
+  }
 
   // ⛔ Lanseringsgrinden ligger FÖRE auth. En dold import ska ge 404 även för
   // utloggade som gissar URL:en, inte avslöjas genom en redirect till inloggning.
