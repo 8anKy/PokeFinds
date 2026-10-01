@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitGradedCardName } from "../../src/services/grading/card-link";
+import { pickGradedCandidate, splitGradedCardName } from "../../src/services/grading/card-link";
 
 /**
  * Graderingen sparar aldrig användarens foton, så historikens enda möjliga bild är
@@ -51,5 +51,40 @@ describe("splitGradedCardName", () => {
   it("tål tomt och saknat värde", () => {
     expect(splitGradedCardName(null)).toEqual({ name: "", number: null });
     expect(splitGradedCardName("  ")).toEqual({ name: "", number: null });
+  });
+});
+
+/**
+ * KANDIDATVALET (2026-10-01). Kandidatlistorna nedan är skannerns riktiga utdata ur
+ * prod för graderingar som aldrig fick någon bild.
+ */
+describe("pickGradedCandidate", () => {
+  const dt = [
+    { name: "Dark Tyranitar", setName: "Team Rocket Returns", number: "19" },
+    { name: "Dark Tyranitar", setName: "30th Celebration: Classic Collection", number: "19" },
+    { name: "Dark Tyranitar", setName: "Team Rocket Returns", number: "20" },
+  ];
+
+  it("Classic Collection-nytrycket: setordet avgör mellan samma namn + nummer", () => {
+    expect(pickGradedCandidate(dt, "Dark Tyranitar", "19", "Celebrations Classic Collection")).toBe(1);
+  });
+
+  it("utan setord förblir ett äkta oavgjort olöst — ingen bild", () => {
+    expect(pickGradedCandidate(dt, "Dark Tyranitar", "19", null)).toBe(-1);
+    expect(pickGradedCandidate(dt, "Dark Tyranitar", "19", "Base Set")).toBe(-1);
+  });
+
+  it("exakt namn slår ett nästan-namn med samma nummer (GX ≠ G)", () => {
+    const c = [
+      { name: "Charizard G", setName: "Supreme Victors", number: "20" },
+      { name: "Charizard-GX", setName: "Burning Shadows", number: "20" },
+      { name: "Charizard", setName: "Boundaries Crossed", number: "20" },
+    ];
+    expect(pickGradedCandidate(c, "Charizard GX", "20", "Burning Shadows")).toBe(1);
+  });
+
+  it("setgissningen räcker aldrig ensam — numret måste stämma", () => {
+    const c = [{ name: "Dragonair", setName: "151", number: "148" }];
+    expect(pickGradedCandidate(c, "Dragonair", "122", "151")).toBe(-1);
   });
 });

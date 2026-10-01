@@ -27,6 +27,7 @@
  *    "ett annat Camerupt" är ett påstående om något vi inte vet. Ingen bild läses som
  *    "vi vet inte" — precis som "–" mot "0 kr" i pristabellen.
  */
+import { prisma } from "@/lib/db";
 import { matchCards, parseGuessedNumber } from "@/services/scanner";
 
 export interface GradedCardLink {
@@ -70,14 +71,101 @@ function stripSeparators(s: string): string {
   return s.replace(/[\s·:,\-–—]+$/u, "").trim();
 }
 
+/** Gemener, bara bokstäver/siffror: "Charizard-GX" och "Charizard GX" blir samma. */
+function normName(s: string): string {
+  return s
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+/** Setnamnets ord, utan plural-s och utfyllnadsord ("Celebrations" ≈ "Celebration"). */
+const SET_STOP = new Set(["pokemon", "the", "of", "and", "tcg", "set", "series", "promo", "promos"]);
+function setWords(s: string): Set<string> {
+  return new Set(
+    s
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length > 1 && !SET_STOP.has(w))
+      .map((w) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w))
+  );
+}
+
+export interface GradedCandidate {
+  name: string;
+  number: string;
+  setName: string;
+}
+
+/**
+ * VILKEN KANDIDAT — ren och testad (2026-10-01, ägarens fältrapport: graderingar av
+ * Classic Collection-kort fick aldrig någon bild).
+ *
+ *  1. Bara kort med EXAKT det lästa numret (numret är identiteten, se filhuvudet).
+ *  2. Bland dem: exakt namn vinner ("Charizard GX" ska aldrig bli "Charizard G").
+ *  3. Är det fortfarande oavgjort får modellens SETTEXT avgöra — men bara mellan kort
+ *     som redan delar namn OCH nummer, och bara om ETT set tydligt vinner. Fallet som
+ *     väckte frågan: "Dark Tyranitar 19/109 · Celebrations Classic Collection" gav
+ *     Team Rocket Returns #19 och Classic Collection #19 lika — samma konst (Classic
+ *     Collection är en nytryckning), men setordet pekar ut rätt kort.
+ *     ⛔ Setgissningen används ALDRIG ensam: utan namn+nummer-träff blir det ingen bild.
+ *
+ * Returnerar index i `candidates`, eller -1 = vi vet inte.
+ */
+export function pickGradedCandidate(
+  candidates: GradedCandidate[],
+  modelName: string,
+  printedNumber: string,
+  setHint: string | null
+): number {
+  const same = (a: string, b: string) =>
+    a.replace(/^0+/, "").toLowerCase() === b.replace(/^0+/, "").toLowerCase();
+  let pool = candidates.map((c, i) => ({ c, i })).filter(({ c }) => same(c.number, printedNumber));
+  if (pool.length === 0) return -1;
+  const exact = pool.filter(({ c }) => normName(c.name) === normName(modelName));
+  if (exact.length > 0) pool = exact;
+  if (pool.length === 1) return pool[0].i;
+
+  if (!setHint) return -1;
+  const hint = setWords(setHint);
+  if (hint.size === 0) return -1;
+  const scored = pool
+    .map((p) => {
+      const words = setWords(p.c.setName);
+      let overlap = 0;
+      for (const w of hint) if (words.has(w)) overlap++;
+      return { ...p, overlap };
+    })
+    .sort((a, b) => b.overlap - a.overlap);
+  if (scored[0].overlap === 0) return -1;
+  if (scored[1] && scored[1].overlap === scored[0].overlap) return -1;
+  return scored[0].i;
+}
+
 /**
  * Slår modellens sträng mot katalogen. `null` = vi vet inte vilket kort det var,
  * och då ska ingen bild visas.
+ *
+ * `hintCardId` (2026-10-01): kortet SKANNERN redan identifierade när graderingen
+ * startades därifrån. Det är användarens eget val ur skannern, så det vinner — så
+ * länge modellen inte läser ett ANNAT kortnamn (då har användaren bytt kort).
  */
 export async function resolveGradedCard(
-  cardName: string | null | undefined
+  cardName: string | null | undefined,
+  hintCardId?: string | null
 ): Promise<GradedCardLink | null> {
   const { name, number } = splitGradedCardName(cardName);
+
+  if (hintCardId) {
+    const hinted = await linkByCardId(hintCardId);
+    if (hinted && (!name || normName(hinted.name).includes(normName(name)) || normName(name).includes(normName(hinted.name)))) {
+      return hinted;
+    }
+  }
+
   // Numret ÄR identiteten här — se filhuvudet. Inget nummer, ingen bild.
   if (!name || !number) return null;
   const parsed = parseGuessedNumber(number);
@@ -92,18 +180,10 @@ export async function resolveGradedCard(
     // avgörs av nummerkravet nedan.
     confidence: 0,
   });
-  const top = candidates[0];
-  if (!top) return null;
-
-  // Träffen måste bära PRECIS det numret. `matchCards` returnerar även rena
-  // namnträffar (fyra Camerupt på 1,03 i mätningen) och de får aldrig bli en bild.
-  const same = (a: string, b: string) =>
-    a.replace(/^0+/, "").toLowerCase() === b.replace(/^0+/, "").toLowerCase();
-  if (!same(top.number, parsed.printed)) return null;
-  // …och den måste vara ENSAM om numret. Två kort med samma namn OCH samma nummer
-  // (olika set) är ett äkta oavgjort, och ett oavgjort är inte ett svar.
-  if (candidates[1] && same(candidates[1].number, parsed.printed)) return null;
-
+  const setHint = (cardName ?? "").split(" · ").slice(1).join(" ") || null;
+  const i = pickGradedCandidate(candidates, name, parsed.printed, setHint);
+  if (i < 0) return null;
+  const top = candidates[i];
   return {
     cardId: top.cardId,
     imageUrl: top.imageUrl,
@@ -111,5 +191,30 @@ export async function resolveGradedCard(
     setName: top.setName,
     number: top.number,
     slug: top.slug,
+  };
+}
+
+/** Katalogkortet för ett känt kort-id, i samma form som matchningens träffar. */
+async function linkByCardId(cardId: string): Promise<GradedCardLink | null> {
+  const card = await prisma.card.findUnique({
+    where: { id: cardId },
+    select: { name: true, number: true },
+  });
+  if (!card) return null;
+  const candidates = await matchCards({
+    rawText: `${card.name} ${card.number}`,
+    guessedName: card.name,
+    guessedNumber: card.number,
+    confidence: 0,
+  });
+  const hit = candidates.find((c) => c.cardId === cardId);
+  if (!hit) return null;
+  return {
+    cardId: hit.cardId,
+    imageUrl: hit.imageUrl,
+    name: hit.name,
+    setName: hit.setName,
+    number: hit.number,
+    slug: hit.slug,
   };
 }

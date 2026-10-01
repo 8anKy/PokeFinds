@@ -179,7 +179,7 @@ export async function runGradingJob(
     // `null` när numret saknas eller är tvetydigt; se card-link.ts för varför ett
     // namn ensamt inte duger.
     const cardName = result.cardName ?? context?.cardName ?? null;
-    const linked = await resolveGradedCard(cardName).catch(() => null);
+    const linked = await resolveGradedCard(cardName, context?.cardId).catch(() => null);
 
     const updated = await prisma.gradingJob.update({
       where: { id: job.id },

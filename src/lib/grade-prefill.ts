@@ -14,6 +14,8 @@ export interface GradePrefill {
   cardName: string | null;
   /** Katalogens setnamn — avgör e-Reader-läget i centreringsmätaren. */
   setName: string | null;
+  /** Katalogkortet skannern identifierade — graderingen kopplas till det (bilden). */
+  cardId: string | null;
 }
 
 export function writeGradePrefill(p: GradePrefill): boolean {
@@ -36,6 +38,7 @@ export function takeGradePrefill(): GradePrefill | null {
       front: p.front,
       cardName: typeof p.cardName === "string" ? p.cardName : null,
       setName: typeof p.setName === "string" ? p.setName : null,
+      cardId: typeof p.cardId === "string" ? p.cardId : null,
     };
   } catch {
     return null;

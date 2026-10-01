@@ -61,6 +61,11 @@ export interface GradingContext {
   /** Kortnamn om känt (t.ex. från en tidigare skanning). */
   cardName?: string;
   /**
+   * Katalogkortet skannern redan identifierade (graderingen startad ur skannern).
+   * Används BARA för kopplingen till katalogen (card-link.ts), aldrig av modellen.
+   */
+  cardId?: string;
+  /**
    * Användarens UPPMÄTTA centrering i klartext, t.ex. "framsida V/H 54/46, Ö/N 51/49;
    * baksida V/H 60/40, Ö/N 55/45" (lib/centering.ts). Saknas när ingen mätning gjorts.
    */

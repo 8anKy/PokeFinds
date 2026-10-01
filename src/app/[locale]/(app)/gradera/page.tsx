@@ -67,6 +67,7 @@ interface GradeResultDto {
   /** Katalogens egen skrivning ("Camerupt · Ascended Heroes 28"). */
   cardLabel?: string | null;
   cardSetName?: string | null;
+  cardId?: string | null;
   /** Användarens uppmätta centrering, sparad på jobbet (services/grading/extras.ts). */
   centering?: {
     front: StoredSide | null;
@@ -367,6 +368,7 @@ export default function GraderaPage() {
   /** Från skannern: kortets namn + set (lib/grade-prefill.ts). */
   const [cardHint, setCardHint] = useState<string | null>(null);
   const [setHint, setSetHint] = useState<string | null>(null);
+  const [cardIdHint, setCardIdHint] = useState<string | null>(null);
   const [centering, setCentering] = useState<Record<CenteringSide, CenteringOutcome | null>>({
     front: null,
     back: null,
@@ -384,6 +386,7 @@ export default function GraderaPage() {
     setFront(p.front);
     setCardHint(p.cardName);
     setSetHint(p.setName);
+    setCardIdHint(p.cardId);
   }, []);
 
   const loadJobs = useCallback(async () => {
@@ -450,6 +453,7 @@ export default function GraderaPage() {
           back,
           locale,
           cardName: cardHint ?? undefined,
+          cardId: cardIdHint ?? undefined,
           centering:
             centering.front || centering.back
               ? { front: centeringPayload(centering.front), back: centeringPayload(centering.back) }
@@ -527,8 +531,21 @@ export default function GraderaPage() {
     try {
       const res = await fetch(`/api/grading/jobs/${job.id}/worth`);
       if (!res.ok) return;
-      const data = (await res.json()) as { worth: GradingWorthDto | null };
-      setResult((prev) => (prev?.jobId === job.id ? { ...prev, worth: data.worth } : prev));
+      const data = (await res.json()) as {
+        worth: GradingWorthDto | null;
+        card?: Pick<GradeResultDto, "cardId" | "cardImageUrl" | "cardSlug" | "cardLabel" | "cardSetName"> | null;
+      };
+      setResult((prev) =>
+        prev?.jobId === job.id
+          ? { ...prev, worth: data.worth, result: data.card ? { ...prev.result, ...data.card } : prev.result }
+          : prev
+      );
+      // Kopplades kortet nu (äldre gradering) får listraden sin bild direkt.
+      if (data.card) {
+        setJobs((prev) =>
+          prev?.map((j) => (j.id === job.id ? { ...j, result: { ...(j.result ?? {}), ...data.card } } : j)) ?? prev
+        );
+      }
     } catch {
       // rutan är ett tillägg — utan den visas bedömningen ändå
     }

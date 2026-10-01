@@ -4115,6 +4115,7 @@ function ScanDetailsSheet(props: {
       front: props.item.captured,
       cardName: m ? `${m.name} ${m.number}` : null,
       setName: m?.setName ?? null,
+      cardId: m?.cardId ?? null,
     });
     router.push("/gradera");
   }, [props.item.captured, props.item.match, router]);

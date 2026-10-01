@@ -510,7 +510,10 @@ function formatGrade(v: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
-/** Etiketten: pärlemo, turkos list, folieremsa, märket, kortet och graden. */
+/**
+ * Etiketten: SVART med turkos kant (ägarens val 2026-10-01 — den ljusa pärlemo-
+ * etiketten byttes tillbaka), en tunn folieremsa, märket, kortet och graden.
+ */
 function drawLabelTexture(
   ctx: CanvasRenderingContext2D,
   input: GradeShareInput,
@@ -521,43 +524,43 @@ function drawLabelTexture(
   ctx.save();
   roundedRect(ctx, x, y, w, h, r);
   const paper = ctx.createLinearGradient(x, y, x + w, y + h);
-  paper.addColorStop(0, "#f7f9f8");
-  paper.addColorStop(0.55, "#e9efed");
-  paper.addColorStop(1, "#dde5e2");
+  paper.addColorStop(0, "#111a19");
+  paper.addColorStop(0.6, "#0a0d0d");
+  paper.addColorStop(1, "#060707");
   ctx.fillStyle = paper;
   ctx.fill();
   ctx.clip();
 
-  // Folieremsan längs vänsterkanten — skiftar som en hologramdekal.
-  const foil = ctx.createLinearGradient(x, y, x + 18, y + h);
+  // Folieremsa längs vänsterkanten — skiftar som en hologramdekal.
+  const foil = ctx.createLinearGradient(x, y, x + 14, y + h);
   foil.addColorStop(0, "#7dd3fc");
   foil.addColorStop(0.25, "#a78bfa");
   foil.addColorStop(0.5, "#f472b6");
   foil.addColorStop(0.75, "#fcd34d");
   foil.addColorStop(1, "#2dd4bf");
   ctx.fillStyle = foil;
-  ctx.fillRect(x, y, 16, h);
-  ctx.fillStyle = "rgba(255,255,255,0.35)";
-  ctx.fillRect(x + 16, y, 2, h);
+  ctx.fillRect(x, y, 12, h);
 
-  // Turkos list nertill.
-  ctx.fillStyle = CYAN;
-  ctx.fillRect(x, y + h - 8, w, 8);
+  // Svag glans över etiketten.
+  const gloss = ctx.createLinearGradient(x, y, x, y + h);
+  gloss.addColorStop(0, "rgba(255,255,255,0.07)");
+  gloss.addColorStop(0.5, "rgba(255,255,255,0)");
+  ctx.fillStyle = gloss;
+  ctx.fillRect(x, y, w, h);
   ctx.restore();
 
   ctx.save();
-  roundedRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, r);
-  ctx.strokeStyle = "rgba(0,0,0,0.18)";
-  ctx.lineWidth = 1.5;
+  roundedRect(ctx, x + 1, y + 1, w - 2, h - 2, r - 1);
+  ctx.strokeStyle = "rgba(45,212,191,0.65)";
+  ctx.lineWidth = 2.5;
   ctx.stroke();
   ctx.restore();
 
-  const left = x + 44;
+  const left = x + 40;
   const gradeW = 200;
   const divX = x + w - gradeW;
   const textMax = divX - left - 24;
 
-  // Märke + ordmärke + "AI-GRAD".
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   let eyebrowX = left;
@@ -569,34 +572,37 @@ function drawLabelTexture(
   }
   ctx.font = `800 22px ${family}`;
   setTracking(ctx, 3);
-  ctx.fillStyle = "#0f3d38";
+  ctx.fillStyle = CYAN;
   ctx.fillText(input.labelEyebrow.toUpperCase(), eyebrowX, y + 54);
   setTracking(ctx, 0);
 
   fitFont(ctx, input.name, 800, family, 44, 30, textMax);
   setTracking(ctx, -0.5);
-  ctx.fillStyle = "#0b0b0d";
+  ctx.fillStyle = INK;
   ctx.fillText(ellipsize(ctx, input.name, textMax), left, y + 118);
   setTracking(ctx, 0);
 
-  ctx.font = `600 25px ${family}`;
-  ctx.fillStyle = "#4b5560";
+  ctx.font = `500 25px ${family}`;
+  ctx.fillStyle = INK_MUTED;
   ctx.fillText(ellipsize(ctx, input.subtitle, textMax), left, y + 160);
 
-  // Avdelare + graden.
-  ctx.fillStyle = "rgba(15,61,56,0.25)";
-  ctx.fillRect(divX, y + 28, 2, h - 64);
+  ctx.fillStyle = "rgba(45,212,191,0.35)";
+  ctx.fillRect(divX, y + 28, 2, h - 56);
   const gx = divX + gradeW / 2;
   const gradeText = formatGrade(input.overall);
   ctx.textAlign = "center";
   fitFont(ctx, gradeText, 900, family, 104, 64, gradeW - 30);
   setTracking(ctx, -4);
-  ctx.fillStyle = "#0b0b0d";
+  ctx.save();
+  ctx.shadowColor = "rgba(45,212,191,0.5)";
+  ctx.shadowBlur = 28;
+  ctx.fillStyle = CYAN;
   ctx.fillText(gradeText, gx, y + 128);
+  ctx.restore();
   setTracking(ctx, 0);
   ctx.font = `800 20px ${family}`;
   setTracking(ctx, 4);
-  ctx.fillStyle = "#0f766e";
+  ctx.fillStyle = INK_FAINT;
   ctx.fillText(input.outOf.toUpperCase(), gx, y + 164);
   setTracking(ctx, 0);
 }
@@ -650,7 +656,7 @@ function slabTexture(
   ctx.shadowBlur = 10;
   ctx.shadowOffsetY = 3;
   roundedRect(ctx, LABEL.x, LABEL.y, LABEL.w, LABEL.h, LABEL.r);
-  ctx.fillStyle = "#e9efed";
+  ctx.fillStyle = "#0a0d0d";
   ctx.fill();
   ctx.restore();
   drawLabelTexture(ctx, input, family, mark);
@@ -694,8 +700,27 @@ function slabTexture(
     ctx.imageSmoothingQuality = "high";
     drawCover(ctx, art, TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h);
   } else {
-    ctx.fillStyle = "#1d1d21";
+    // Ingen bild gick att få fram: en tom brunn såg trasig ut (ägarens skärmdump
+    // 2026-10-01). Märket i stället — aldrig ett påhittat kort.
+    ctx.fillStyle = "#15191a";
     ctx.fillRect(TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h);
+    if (mark) {
+      ctx.globalAlpha = 0.35;
+      const mh = 240;
+      const mw = (mh * MARK_CROP.w) / MARK_CROP.h;
+      ctx.drawImage(
+        mark,
+        MARK_CROP.x,
+        MARK_CROP.y,
+        MARK_CROP.w,
+        MARK_CROP.h,
+        TEX_CARD.x + (TEX_CARD.w - mw) / 2,
+        TEX_CARD.y + (TEX_CARD.h - mh) / 2,
+        mw,
+        mh
+      );
+      ctx.globalAlpha = 1;
+    }
   }
   ctx.restore();
 

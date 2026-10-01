@@ -29,6 +29,9 @@ const gradeSchema = z.object({
   front: imageData,
   back: imageData,
   cardName: z.string().trim().max(120).optional(),
+  // Kortet skannern identifierade (graderingen startad ur skannern) — bara för
+  // kopplingen till katalogbilden, se services/grading/card-link.ts.
+  cardId: z.string().trim().min(1).max(64).optional(),
   // Motiveringen skrivs AV MODELLEN och kan inte översättas i efterhand — därför
   // måste klientens språk följa med hit. Utan det svarade graderingen på svenska
   // för engelska användare (rapporterat 2026-08-05).
@@ -49,7 +52,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { front, back, cardName, locale, centering: centeringInput } = gradeSchema.parse(
+    const { front, back, cardName, cardId, locale, centering: centeringInput } = gradeSchema.parse(
       await readJsonCapped(req, MAX_BODY_BYTES)
     );
 
@@ -67,7 +70,7 @@ export async function POST(req: Request) {
       tier,
       front,
       back,
-      { cardName, locale, centeringNote: centering?.note },
+      { cardName, cardId, locale, centeringNote: centering?.note },
       centering
     );
     const quota = await getGradingQuota(user.id, tier);
