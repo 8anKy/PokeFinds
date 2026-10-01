@@ -1077,7 +1077,8 @@
     "billingNoLink": "Stripe returned no payment link.",
     "traderaConnectFirst": "Connect your Tradera account first (Settings).",
     "traderaExpired": "The Tradera connection has expired. Connect the account again.",
-    "discordUnavailable": "Discord linking isn't available right now."
+    "discordUnavailable": "Discord linking isn't available right now.",
+    "gradingNotFound": "Grading not found."
   },
   "Cookies": {
     "bannerAria": "Cookie information",
@@ -1689,7 +1690,8 @@
     "worthNoSales": "No sold PSA copies of this card around that grade yet.",
     "worthUnlock": "See graded prices with Pro",
     "worthNote": "Median of copies sold in the last year. Allow for grading fees and shipping.",
-    "worthAll": "All graded prices"
+    "worthAll": "All graded prices",
+    "historyResultTitle": "Earlier grading"
   },
   "PostCategory": {
     "PULLS": "Pulls",
@@ -2840,7 +2842,6 @@
     "nudgeLess": "Move the line one pixel back",
     "nudgeMore": "Move the line one pixel forward",
     "ereader": "e-Reader card",
-    "straighten": "Straighten",
     "legendOuter": "White = card edge",
     "legendInner": "Turquoise = inner frame edge",
     "hint": "Drag the handles until the lines sit exactly on the edges. The magnifier shows while you drag; the arrows move one pixel.",
@@ -2855,6 +2856,15 @@
     "remeasure": "Measure again",
     "summaryTitle": "Measured centering",
     "capNote": "Ceiling per PSA's published limits (front 55/45 for a 10, back 75/25). A ceiling, not a grade.",
-    "capShort": "Allows up to"
+    "capShort": "Allows up to",
+    "stepCorners": "Step 1 of 2 · corners",
+    "stepLines": "Step 2 of 2 · lines",
+    "next": "Next",
+    "editCorners": "Corners",
+    "hintCorners": "Drag the four corners so the turquoise outline follows the card's straight edges (follow the edge past the rounded corners). We then straighten the photo so the lines can be placed exactly.",
+    "corner0": "Top left corner",
+    "corner1": "Top right corner",
+    "corner2": "Bottom right corner",
+    "corner3": "Bottom left corner"
   }
 }

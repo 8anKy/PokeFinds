@@ -20,6 +20,8 @@
  * bär information ligger därför mellan y ≈ 200 och 1750 och centrerat.
  */
 
+import { convexHull, homography, makeProjector, projectBox, warpPerspective } from "@/lib/perspective";
+
 export const SHARE_CARD_WIDTH = 1080;
 export const SHARE_CARD_HEIGHT = 1920;
 
@@ -458,125 +460,359 @@ export interface GradeShareInput {
   footer: { lead: string; domain: string };
 }
 
-const SLAB = { x: 150, y: 318, w: 780, h: 1072, radius: 38 };
-const LABEL_H = 196;
-const SLAB_CARD_W = 560;
-const SLAB_CARD_H = Math.round((SLAB_CARD_W * 7) / 5); // 784
+/**
+ * SLABBEN I 3D (ägarens önskan 2026-10-01: "ser inte ut som en riktig slab").
+ *
+ * Ytan ritas PLATT i hög upplösning (texturen nedan): genomskinlig hållare med
+ * fasad kant, en ljus pärlemoetikett i en egen kammare, en upphöjd ribba och kortet
+ * i en nedsänkt brunn. Den lutas sedan in i bilden med en homografi
+ * (lib/perspective.ts) och får synlig TJOCKLEK (bak- och sidoytor ur samma kamera)
+ * och en skugga mot golvet — det är tjockleken och glaset som får den att läsas
+ * som ett föremål i stället för en ram.
+ *
+ * ⛔ Etiketten är Foilios egen (pärlemo + turkos list + folie-remsa), aldrig PSA:s
+ *    röda ram eller logga.
+ */
+const TEX_W = 760;
+const TEX_H = 1214;
+const TEX_RADIUS = 36;
+const LABEL = { x: 34, y: 34, w: TEX_W - 68, h: 214, r: 14 };
+const WELL = { x: 60, y: 296, w: 640, h: 876, r: 18 };
+const TEX_CARD = { x: 80, y: 316, w: 600, h: 836 };
+/** Slabbens tjocklek i texturens enheter (~7 % av bredden, som en riktig hållare). */
+const SLAB_DEPTH = 52;
+/** Lutningen: högerkanten bort från betraktaren, toppen lite bakåt. */
+const TILT_X = 6;
+const TILT_Y = 17;
+const FOCAL = 2600;
+/** Hur stor slabben blir i bilden. */
+const SLAB_SCALE = 0.9;
+const SLAB_CENTER = { x: SHARE_CARD_WIDTH / 2 + 6, y: 866 };
 
-function drawSlab(ctx: CanvasRenderingContext2D) {
-  const { x, y, w, h, radius } = SLAB;
-  // Skugga + glasets kropp.
-  ctx.save();
-  roundedRect(ctx, x, y, w, h, radius);
-  ctx.shadowColor = "rgba(0,0,0,0.75)";
-  ctx.shadowBlur = 80;
-  ctx.shadowOffsetY = 30;
-  const body = ctx.createLinearGradient(x, y, x + w, y + h);
-  body.addColorStop(0, "rgba(255,255,255,0.10)");
-  body.addColorStop(0.5, "rgba(255,255,255,0.04)");
-  body.addColorStop(1, "rgba(255,255,255,0.08)");
-  ctx.fillStyle = body;
-  ctx.fill();
-  ctx.restore();
-
-  // Ytterkant + en inre fas, som på en riktig hållare.
-  ctx.save();
-  roundedRect(ctx, x + 1.5, y + 1.5, w - 3, h - 3, radius - 1);
-  ctx.strokeStyle = "rgba(255,255,255,0.30)";
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  roundedRect(ctx, x + 14, y + 14, w - 28, h - 28, radius - 12);
-  ctx.strokeStyle = "rgba(255,255,255,0.10)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.restore();
-}
-
-/** Glasreflexen över HELA slabben — ritas sist, ovanpå kortet. */
-function drawSlabGlare(ctx: CanvasRenderingContext2D) {
-  const { x, y, w, h, radius } = SLAB;
-  ctx.save();
-  roundedRect(ctx, x, y, w, h, radius);
-  ctx.clip();
-  const glare = ctx.createLinearGradient(x, y, x + w * 0.9, y + h);
-  glare.addColorStop(0, "rgba(255,255,255,0)");
-  glare.addColorStop(0.18, "rgba(255,255,255,0.10)");
-  glare.addColorStop(0.26, "rgba(255,255,255,0)");
-  glare.addColorStop(0.62, "rgba(255,255,255,0)");
-  glare.addColorStop(0.68, "rgba(255,255,255,0.05)");
-  glare.addColorStop(0.74, "rgba(255,255,255,0)");
-  ctx.fillStyle = glare;
-  ctx.fillRect(x, y, w, h);
-  ctx.restore();
-}
-
-function drawSlabLabel(ctx: CanvasRenderingContext2D, input: GradeShareInput, family: string) {
-  const lx = SLAB.x + 26;
-  const ly = SLAB.y + 26;
-  const lw = SLAB.w - 52;
-  const lh = LABEL_H - 26;
-
-  ctx.save();
-  roundedRect(ctx, lx, ly, lw, lh, 20);
-  const bg = ctx.createLinearGradient(lx, ly, lx + lw, ly + lh);
-  bg.addColorStop(0, "#0d1514");
-  bg.addColorStop(1, "#070909");
-  ctx.fillStyle = bg;
-  ctx.fill();
-  ctx.strokeStyle = "rgba(45,212,191,0.55)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.restore();
-
-  // Höger: graden. Vänster: kortet. En tunn turkos avdelare emellan.
-  const gradeW = 210;
-  const divX = lx + lw - gradeW;
-  ctx.fillStyle = "rgba(45,212,191,0.35)";
-  ctx.fillRect(divX, ly + 26, 2, lh - 52);
-
-  const pad = 30;
-  const textMax = divX - lx - pad * 2;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-
-  ctx.font = `800 22px ${family}`;
-  setTracking(ctx, 4);
-  ctx.fillStyle = CYAN;
-  ctx.fillText(input.labelEyebrow.toUpperCase(), lx + pad, ly + 50);
-  setTracking(ctx, 0);
-
-  fitFont(ctx, input.name, 800, family, 42, 30, textMax);
-  setTracking(ctx, -0.5);
-  ctx.fillStyle = INK;
-  ctx.fillText(ellipsize(ctx, input.name, textMax), lx + pad, ly + 104);
-  setTracking(ctx, 0);
-
-  ctx.font = `500 26px ${family}`;
-  ctx.fillStyle = INK_MUTED;
-  ctx.fillText(ellipsize(ctx, input.subtitle, textMax), lx + pad, ly + 144);
-
-  // Graden: en decimal bara när den behövs (9 i stället för 9.0).
-  const gradeText = formatGrade(input.overall);
-  const gx = divX + gradeW / 2;
-  ctx.textAlign = "center";
-  fitFont(ctx, gradeText, 800, family, 96, 64, gradeW - 30);
-  setTracking(ctx, -3);
-  ctx.save();
-  ctx.shadowColor = "rgba(45,212,191,0.45)";
-  ctx.shadowBlur = 30;
-  ctx.fillStyle = CYAN;
-  ctx.fillText(gradeText, gx, ly + 112);
-  ctx.restore();
-  setTracking(ctx, 0);
-  ctx.font = `700 20px ${family}`;
-  setTracking(ctx, 4);
-  ctx.fillStyle = INK_FAINT;
-  ctx.fillText(input.outOf.toUpperCase(), gx, ly + 146);
-  setTracking(ctx, 0);
+function roundedRectPoints(w: number, h: number, r: number, perCorner = 8): { x: number; y: number }[] {
+  const pts: { x: number; y: number }[] = [];
+  const corners = [
+    { cx: w / 2 - r, cy: -h / 2 + r, a0: -Math.PI / 2 },
+    { cx: w / 2 - r, cy: h / 2 - r, a0: 0 },
+    { cx: -w / 2 + r, cy: h / 2 - r, a0: Math.PI / 2 },
+    { cx: -w / 2 + r, cy: -h / 2 + r, a0: Math.PI },
+  ];
+  for (const c of corners) {
+    for (let i = 0; i <= perCorner; i++) {
+      const a = c.a0 + (i / perCorner) * (Math.PI / 2);
+      pts.push({ x: c.cx + r * Math.cos(a), y: c.cy + r * Math.sin(a) });
+    }
+  }
+  return pts;
 }
 
 function formatGrade(v: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
+}
+
+/** Etiketten: pärlemo, turkos list, folieremsa, märket, kortet och graden. */
+function drawLabelTexture(
+  ctx: CanvasRenderingContext2D,
+  input: GradeShareInput,
+  family: string,
+  mark: HTMLImageElement | null
+) {
+  const { x, y, w, h, r } = LABEL;
+  ctx.save();
+  roundedRect(ctx, x, y, w, h, r);
+  const paper = ctx.createLinearGradient(x, y, x + w, y + h);
+  paper.addColorStop(0, "#f7f9f8");
+  paper.addColorStop(0.55, "#e9efed");
+  paper.addColorStop(1, "#dde5e2");
+  ctx.fillStyle = paper;
+  ctx.fill();
+  ctx.clip();
+
+  // Folieremsan längs vänsterkanten — skiftar som en hologramdekal.
+  const foil = ctx.createLinearGradient(x, y, x + 18, y + h);
+  foil.addColorStop(0, "#7dd3fc");
+  foil.addColorStop(0.25, "#a78bfa");
+  foil.addColorStop(0.5, "#f472b6");
+  foil.addColorStop(0.75, "#fcd34d");
+  foil.addColorStop(1, "#2dd4bf");
+  ctx.fillStyle = foil;
+  ctx.fillRect(x, y, 16, h);
+  ctx.fillStyle = "rgba(255,255,255,0.35)";
+  ctx.fillRect(x + 16, y, 2, h);
+
+  // Turkos list nertill.
+  ctx.fillStyle = CYAN;
+  ctx.fillRect(x, y + h - 8, w, 8);
+  ctx.restore();
+
+  ctx.save();
+  roundedRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, r);
+  ctx.strokeStyle = "rgba(0,0,0,0.18)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  const left = x + 44;
+  const gradeW = 200;
+  const divX = x + w - gradeW;
+  const textMax = divX - left - 24;
+
+  // Märke + ordmärke + "AI-GRAD".
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  let eyebrowX = left;
+  if (mark) {
+    const mh = 30;
+    const mw = (mh * MARK_CROP.w) / MARK_CROP.h;
+    ctx.drawImage(mark, MARK_CROP.x, MARK_CROP.y, MARK_CROP.w, MARK_CROP.h, left, y + 30, mw, mh);
+    eyebrowX = left + mw + 10;
+  }
+  ctx.font = `800 22px ${family}`;
+  setTracking(ctx, 3);
+  ctx.fillStyle = "#0f3d38";
+  ctx.fillText(input.labelEyebrow.toUpperCase(), eyebrowX, y + 54);
+  setTracking(ctx, 0);
+
+  fitFont(ctx, input.name, 800, family, 44, 30, textMax);
+  setTracking(ctx, -0.5);
+  ctx.fillStyle = "#0b0b0d";
+  ctx.fillText(ellipsize(ctx, input.name, textMax), left, y + 118);
+  setTracking(ctx, 0);
+
+  ctx.font = `600 25px ${family}`;
+  ctx.fillStyle = "#4b5560";
+  ctx.fillText(ellipsize(ctx, input.subtitle, textMax), left, y + 160);
+
+  // Avdelare + graden.
+  ctx.fillStyle = "rgba(15,61,56,0.25)";
+  ctx.fillRect(divX, y + 28, 2, h - 64);
+  const gx = divX + gradeW / 2;
+  const gradeText = formatGrade(input.overall);
+  ctx.textAlign = "center";
+  fitFont(ctx, gradeText, 900, family, 104, 64, gradeW - 30);
+  setTracking(ctx, -4);
+  ctx.fillStyle = "#0b0b0d";
+  ctx.fillText(gradeText, gx, y + 128);
+  setTracking(ctx, 0);
+  ctx.font = `800 20px ${family}`;
+  setTracking(ctx, 4);
+  ctx.fillStyle = "#0f766e";
+  ctx.fillText(input.outOf.toUpperCase(), gx, y + 164);
+  setTracking(ctx, 0);
+}
+
+/** Den platta slabbytan med kortet i. Genomskinlig utanför de rundade hörnen. */
+function slabTexture(
+  input: GradeShareInput,
+  family: string,
+  art: HTMLImageElement | null,
+  mark: HTMLImageElement | null
+): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = TEX_W;
+  c.height = TEX_H;
+  const ctx = c.getContext("2d")!;
+
+  // Hållarens kropp: klar plast med en svag kall ton.
+  roundedRect(ctx, 0, 0, TEX_W, TEX_H, TEX_RADIUS);
+  const body = ctx.createLinearGradient(0, 0, TEX_W, TEX_H);
+  body.addColorStop(0, "rgba(225,240,245,0.17)");
+  body.addColorStop(0.5, "rgba(200,220,228,0.07)");
+  body.addColorStop(1, "rgba(225,240,245,0.14)");
+  ctx.fillStyle = body;
+  ctx.fill();
+
+  // Fasad kant: ljus ytterkant, mörk fas, ljus innerlinje.
+  ctx.save();
+  roundedRect(ctx, 1.5, 1.5, TEX_W - 3, TEX_H - 3, TEX_RADIUS - 1);
+  ctx.strokeStyle = "rgba(255,255,255,0.75)";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  roundedRect(ctx, 9, 9, TEX_W - 18, TEX_H - 18, TEX_RADIUS - 8);
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  roundedRect(ctx, 14, 14, TEX_W - 28, TEX_H - 28, TEX_RADIUS - 12);
+  ctx.strokeStyle = "rgba(255,255,255,0.30)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  // Etikettkammaren: en skugglinje runt etiketten (den ligger infälld).
+  ctx.save();
+  roundedRect(ctx, LABEL.x - 6, LABEL.y - 6, LABEL.w + 12, LABEL.h + 12, LABEL.r + 5);
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 3;
+  roundedRect(ctx, LABEL.x, LABEL.y, LABEL.w, LABEL.h, LABEL.r);
+  ctx.fillStyle = "#e9efed";
+  ctx.fill();
+  ctx.restore();
+  drawLabelTexture(ctx, input, family, mark);
+
+  // Ribban mellan etikett och kort.
+  const ridgeY = LABEL.y + LABEL.h + 22;
+  ctx.fillStyle = "rgba(255,255,255,0.28)";
+  ctx.fillRect(30, ridgeY, TEX_W - 60, 2);
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fillRect(30, ridgeY + 2, TEX_W - 60, 2);
+
+  // Brunnen: lite mörkare plast, ljus överkant och mörk underkant = nedsänkt.
+  ctx.save();
+  roundedRect(ctx, WELL.x, WELL.y, WELL.w, WELL.h, WELL.r);
+  ctx.fillStyle = "rgba(0,0,0,0.28)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  roundedRect(ctx, WELL.x + 5, WELL.y + 5, WELL.w - 10, WELL.h - 10, WELL.r - 4);
+  ctx.strokeStyle = "rgba(0,0,0,0.45)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  // Kortet i brunnen, med en tunn skugga under.
+  const radius = Math.round(TEX_CARD.w * 0.045);
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.6)";
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 6;
+  roundedRect(ctx, TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h, radius);
+  ctx.fillStyle = "#111";
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  roundedRect(ctx, TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h, radius);
+  ctx.clip();
+  if (art) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    drawCover(ctx, art, TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h);
+  } else {
+    ctx.fillStyle = "#1d1d21";
+    ctx.fillRect(TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h);
+  }
+  ctx.restore();
+
+  // Glaset: en bred mjuk reflex + en skarp strimma, och ljus längs överkanten.
+  ctx.save();
+  roundedRect(ctx, 0, 0, TEX_W, TEX_H, TEX_RADIUS);
+  ctx.clip();
+  const sweep = ctx.createLinearGradient(0, 0, TEX_W, TEX_H * 0.9);
+  sweep.addColorStop(0, "rgba(255,255,255,0)");
+  sweep.addColorStop(0.2, "rgba(255,255,255,0.16)");
+  sweep.addColorStop(0.3, "rgba(255,255,255,0.02)");
+  sweep.addColorStop(0.33, "rgba(255,255,255,0.10)");
+  sweep.addColorStop(0.36, "rgba(255,255,255,0)");
+  sweep.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = sweep;
+  ctx.fillRect(0, 0, TEX_W, TEX_H);
+  const top = ctx.createLinearGradient(0, 0, 0, 60);
+  top.addColorStop(0, "rgba(255,255,255,0.22)");
+  top.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = top;
+  ctx.fillRect(0, 0, TEX_W, 60);
+  ctx.restore();
+  return c;
+}
+
+/**
+ * Ritar slabben lutad i 3D. Returnerar dess nedersta y i bilden (för texten under).
+ */
+function drawSlab3D(ctx: CanvasRenderingContext2D, texture: HTMLCanvasElement): number {
+  const project = makeProjector(TILT_X, TILT_Y, FOCAL, SLAB_CENTER);
+  const sw = TEX_W * SLAB_SCALE;
+  const sh = TEX_H * SLAB_SCALE;
+  const depth = SLAB_DEPTH * SLAB_SCALE;
+  const outline = roundedRectPoints(sw, sh, TEX_RADIUS * SLAB_SCALE);
+  const front = outline.map((p) => project(p.x, p.y, 0));
+  const back = outline.map((p) => project(p.x, p.y, depth));
+
+  // Skugga mot "golvet": en mjuk oval under och till höger.
+  const bottom = Math.max(...front.map((p) => p.y), ...back.map((p) => p.y));
+  ctx.save();
+  ctx.translate(SLAB_CENTER.x + 40, bottom + 6);
+  ctx.scale(1, 0.12);
+  const shadow = ctx.createRadialGradient(0, 0, 10, 0, 0, sw * 0.62);
+  shadow.addColorStop(0, "rgba(0,0,0,0.75)");
+  shadow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = shadow;
+  ctx.beginPath();
+  ctx.arc(0, 0, sw * 0.62, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Tjockleken: silhuetten av fram + bak, fylld som klar plast i skugga.
+  const hull = convexHull([...front, ...back]);
+  ctx.save();
+  ctx.beginPath();
+  hull.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+  ctx.closePath();
+  const side = ctx.createLinearGradient(SLAB_CENTER.x - sw / 2, 0, SLAB_CENTER.x + sw / 2 + depth, 0);
+  side.addColorStop(0, "rgba(190,215,222,0.22)");
+  side.addColorStop(1, "rgba(120,150,160,0.38)");
+  ctx.fillStyle = side;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.30)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  // Baksidans kontur — syns genom plasten och ger djup.
+  ctx.save();
+  ctx.beginPath();
+  back.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+  ctx.closePath();
+  ctx.strokeStyle = "rgba(255,255,255,0.14)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  // Framsidan: texturen varpad in i det lutade fyrhörnet.
+  const corners = projectBox(sw, sh, depth, TILT_X, TILT_Y, FOCAL, SLAB_CENTER).front;
+  const minX = Math.floor(Math.min(...corners.map((p) => p.x))) - 2;
+  const minY = Math.floor(Math.min(...corners.map((p) => p.y))) - 2;
+  const maxX = Math.ceil(Math.max(...corners.map((p) => p.x))) + 2;
+  const maxY = Math.ceil(Math.max(...corners.map((p) => p.y))) + 2;
+  const outW = maxX - minX;
+  const outH = maxY - minY;
+  const dst = corners.map((p) => ({ x: p.x - minX, y: p.y - minY }));
+  const H = homography(dst, [
+    { x: 0, y: 0 },
+    { x: TEX_W, y: 0 },
+    { x: TEX_W, y: TEX_H },
+    { x: 0, y: TEX_H },
+  ]);
+  const tctx = texture.getContext("2d", { willReadFrequently: true });
+  if (H && tctx) {
+    const src = tctx.getImageData(0, 0, TEX_W, TEX_H);
+    const out = warpPerspective({ data: src.data, width: TEX_W, height: TEX_H }, H, outW, outH);
+    const tmp = document.createElement("canvas");
+    tmp.width = outW;
+    tmp.height = outH;
+    const t2 = tmp.getContext("2d")!;
+    const id = t2.createImageData(outW, outH);
+    id.data.set(out);
+    t2.putImageData(id, 0, 0);
+    ctx.drawImage(tmp, minX, minY);
+  }
+
+  // Ljus kant där framsidan möter tjockleken (vänster/över = mot ljuset).
+  ctx.save();
+  ctx.beginPath();
+  front.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+  ctx.closePath();
+  ctx.strokeStyle = "rgba(255,255,255,0.45)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  return bottom;
 }
 
 function drawFooter(ctx: CanvasRenderingContext2D, footer: { lead: string; domain: string }, family: string, y: number) {
@@ -643,21 +879,11 @@ export async function renderGradeShareCard(input: GradeShareInput): Promise<Blob
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("canvas");
 
-  const cardRect = {
-    x: (SHARE_CARD_WIDTH - SLAB_CARD_W) / 2,
-    y: SLAB.y + LABEL_H + 34,
-    w: SLAB_CARD_W,
-    h: SLAB_CARD_H,
-  };
-
-  drawAmbient(ctx, art, cardRect.y + cardRect.h / 2, SLAB.y + SLAB.h - 60);
+  drawAmbient(ctx, art, SLAB_CENTER.y + 60, SLAB_CENTER.y + 420);
   drawBrand(ctx, mark, family);
-  drawSlab(ctx);
-  drawSlabLabel(ctx, input, family);
-  drawCard(ctx, art, mark, cardRect, false);
-  drawSlabGlare(ctx);
+  const bottom = drawSlab3D(ctx, slabTexture(input, family, art, mark));
 
-  let y = SLAB.y + SLAB.h + 104;
+  let y = Math.max(bottom + 110, 1500);
   drawSubScores(ctx, input.subScores, family, y);
   y += 108;
   ctx.textAlign = "center";
@@ -671,7 +897,7 @@ export async function renderGradeShareCard(input: GradeShareInput): Promise<Blob
   ctx.fillStyle = INK_FAINT;
   ctx.fillText(ellipsize(ctx, input.disclaimer, TEXT_MAX_W), SHARE_CARD_WIDTH / 2, y);
 
-  drawFooter(ctx, input.footer, family, Math.max(y + 74, 1730));
+  drawFooter(ctx, input.footer, family, Math.max(y + 70, 1740));
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("toBlob"))), "image/jpeg", 0.92);

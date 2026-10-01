@@ -1077,7 +1077,8 @@
     "billingNoLink": "Stripe gav ingen betalningslänk.",
     "traderaConnectFirst": "Anslut ditt Tradera-konto först (Inställningar).",
     "traderaExpired": "Tradera-kopplingen har gått ut. Anslut kontot igen.",
-    "discordUnavailable": "Discord-koppling är inte tillgänglig just nu."
+    "discordUnavailable": "Discord-koppling är inte tillgänglig just nu.",
+    "gradingNotFound": "Graderingen hittades inte."
   },
   "Cookies": {
     "bannerAria": "Information om cookies",
@@ -1689,7 +1690,8 @@
     "worthNoSales": "Inga sålda PSA-exemplar av kortet runt den graden ännu.",
     "worthUnlock": "Se graderade priser med Pro",
     "worthNote": "Median av sålda exemplar det senaste året. Räkna med graderingsavgift och frakt.",
-    "worthAll": "Alla graderade priser"
+    "worthAll": "Alla graderade priser",
+    "historyResultTitle": "Tidigare gradering"
   },
   "PostCategory": {
     "PULLS": "Pulls",
@@ -2840,7 +2842,6 @@
     "nudgeLess": "Flytta linjen en pixel bakåt",
     "nudgeMore": "Flytta linjen en pixel framåt",
     "ereader": "e-Reader-kort",
-    "straighten": "Räta upp",
     "legendOuter": "Vit = kortets kant",
     "legendInner": "Turkos = ramens innerkant",
     "hint": "Dra handtagen tills linjerna ligger exakt på kanterna. Förstoringsglaset visas medan du drar, pilarna flyttar en pixel.",
@@ -2855,6 +2856,15 @@
     "remeasure": "Mät om",
     "summaryTitle": "Uppmätt centrering",
     "capNote": "Taket enligt PSA:s publicerade gränser (fram 55/45 för en 10:a, bak 75/25). Ett tak, inte en grad.",
-    "capShort": "Räcker till"
+    "capShort": "Räcker till",
+    "stepCorners": "Steg 1 av 2 · hörnen",
+    "stepLines": "Steg 2 av 2 · linjerna",
+    "next": "Nästa",
+    "editCorners": "Hörnen",
+    "hintCorners": "Dra de fyra hörnen så att den turkosa konturen ligger längs kortets raka kanter (följ kanten förbi de rundade hörnen). Sedan rätar vi upp fotot så att linjerna går att lägga exakt.",
+    "corner0": "Övre vänstra hörnet",
+    "corner1": "Övre högra hörnet",
+    "corner2": "Nedre högra hörnet",
+    "corner3": "Nedre vänstra hörnet"
   }
 }

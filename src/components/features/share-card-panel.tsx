@@ -16,6 +16,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { IconCheck, IconShare } from "@/components/ui/icons";
 import { detectShareMode, shareFilename, shareImage, type ShareMode } from "@/lib/share-image";
 import { track } from "@/lib/track";
+import { cn } from "@/lib/utils";
 
 export function ShareCardPanel(props: {
   /** Ritar bilden — `renderShareCard` (skanning) eller `renderGradeShareCard`. */
@@ -28,6 +29,11 @@ export function ShareCardPanel(props: {
   onBack?: () => void;
   /** Förhandsvisningens tak när föräldern inte har fast höjd (t.ex. "60dvh"). */
   previewMax?: string;
+  /**
+   * I ett BottomSheet utan fot: arkets kropp lägger ingen luft för hemindikatorn,
+   * så knappen hamnade under den på iPhone (ägarens skärmdump 2026-10-01).
+   */
+  safeBottom?: boolean;
 }) {
   const t = useTranslations("ShareCard");
   const { source } = props;
@@ -92,7 +98,12 @@ export function ShareCardPanel(props: {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col gap-4",
+        props.safeBottom && "pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+      )}
+    >
       <div className="flex min-h-[160px] flex-1 items-center justify-center">
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element

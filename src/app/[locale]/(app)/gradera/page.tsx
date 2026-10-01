@@ -67,6 +67,20 @@ interface GradeResultDto {
   /** Katalogens egen skrivning ("Camerupt · Ascended Heroes 28"). */
   cardLabel?: string | null;
   cardSetName?: string | null;
+  /** Användarens uppmätta centrering, sparad på jobbet (services/grading/extras.ts). */
+  centering?: {
+    front: StoredSide | null;
+    back: StoredSide | null;
+    psaCap: number | null;
+  } | null;
+}
+
+/** En sidas sparade mätning: den bredare sidans andel per axel, 50..100. */
+interface StoredSide {
+  mode: "standard" | "ereader";
+  leftRight?: number;
+  topBottom?: number;
+  topRight?: number;
 }
 
 /** "Lönar det sig att gradera?" — se services/grading/extras.ts. */
@@ -90,8 +104,10 @@ interface GradeResponse {
   confidence: number | null;
   modelUsed: string | null;
   result: GradeResultDto;
-  quota: Quota;
+  quota?: Quota;
   worth?: GradingWorthDto | null;
+  /** Öppnad ur historiken: när graderingen gjordes. Fotona finns inte kvar då. */
+  historyAt?: string;
 }
 
 interface GradingJobDto {
@@ -127,6 +143,16 @@ function ratiosText(r: CenteringResult, topRightWord: string): string {
   return [r.leftRight, r.topBottom]
     .filter((x): x is NonNullable<typeof x> => x != null)
     .map(formatRatio)
+    .join(" · ");
+}
+
+/** Sparad mätning → "54/46 · 52/48" eller "övre/höger 52/48". */
+function storedRatiosText(side: StoredSide, topRightWord: string): string {
+  const r = (wide: number) => `${Math.round(wide)}/${100 - Math.round(wide)}`;
+  if (side.mode === "ereader" && side.topRight != null) return `${topRightWord} ${r(side.topRight)}`;
+  return [side.leftRight, side.topBottom]
+    .filter((n): n is number => n != null)
+    .map(r)
     .join(" · ");
 }
 
@@ -347,6 +373,7 @@ export default function GraderaPage() {
   });
   const [toolSide, setToolSide] = useState<CenteringSide | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const resultRef = useRef<HTMLDivElement>(null);
   const tc = useTranslations("Centering");
   const ts = useTranslations("ShareCard");
 
@@ -432,7 +459,7 @@ export default function GraderaPage() {
       const data = (await res.json()) as GradeResponse & { error?: string };
       if (!res.ok) throw new Error(data.error ?? t("gradeFailMsg"));
       setResult(data);
-      setQuota(data.quota);
+      if (data.quota) setQuota(data.quota);
       void loadJobs();
     } catch (err) {
       toast({
@@ -453,14 +480,18 @@ export default function GraderaPage() {
       ? splitLabel(r.result.cardLabel, true)
       : splitLabel(r.result.cardName);
     const topRight = tc("axisTopRight").toLowerCase();
+    // Mätningen som sparades på JOBBET — samma väg för en färsk gradering och en
+    // ur historiken (då finns varken fotona eller mätarens tillstånd kvar).
+    const stored = r.result.centering;
     const parts: string[] = [];
-    if (centering.front) parts.push(`${t("frontShort")} ${ratiosText(centering.front.result, topRight)}`);
-    if (centering.back) parts.push(`${t("backShort")} ${ratiosText(centering.back.result, topRight)}`);
+    if (stored?.front) parts.push(`${t("frontShort")} ${storedRatiosText(stored.front, topRight)}`);
+    if (stored?.back) parts.push(`${t("backShort")} ${storedRatiosText(stored.back, topRight)}`);
+    const own = r.historyAt ? null : centering.front?.cropDataUrl ?? null;
     return {
       // Katalogbilden när kortet är styrkt (skarpast i en story); annars användarens
-      // kort utskuret längs stödlinjerna; sist råfotot.
-      imageUrl: r.result.cardImageUrl ?? centering.front?.cropDataUrl ?? null,
-      fallbackImageUrl: centering.front?.cropDataUrl ?? front,
+      // kort utskuret längs stödlinjerna; sist råfotot. Ur historiken: bara katalogen.
+      imageUrl: r.result.cardImageUrl ?? own,
+      fallbackImageUrl: r.historyAt ? null : own ?? front,
       name: label?.name ?? t("shareUnknownCard"),
       subtitle: label?.subtitle ?? "",
       overall: r.result.overall,
@@ -471,6 +502,36 @@ export default function GraderaPage() {
       disclaimer: t("shareDisclaimer"),
       footer: { lead: t("shareFooterLead"), domain: "foilio.se" },
     };
+  }
+
+  /**
+   * ÖPPNA EN TIDIGARE GRADERING (ägarönskan 2026-10-01): resultatkortet visar den
+   * sparade bedömningen, "Lönar det sig?" räknas om på begäran (priserna rör sig)
+   * och delningen fungerar — med katalogbilden, för fotona sparas aldrig.
+   */
+  async function openJob(job: GradingJobDto) {
+    const r = job.result as GradeResultDto | null;
+    if (job.status !== "COMPLETED" || !r?.subScores) return;
+    setResult({
+      jobId: job.id,
+      overallGrade: job.overallGrade,
+      confidence: job.confidence,
+      modelUsed: job.modelUsed,
+      result: r,
+      worth: null,
+      historyAt: job.createdAt,
+    });
+    window.requestAnimationFrame(() =>
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    );
+    try {
+      const res = await fetch(`/api/grading/jobs/${job.id}/worth`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { worth: GradingWorthDto | null };
+      setResult((prev) => (prev?.jobId === job.id ? { ...prev, worth: data.worth } : prev));
+    } catch {
+      // rutan är ett tillägg — utan den visas bedömningen ändå
+    }
   }
 
   const limitReached =
@@ -577,9 +638,13 @@ export default function GraderaPage() {
 
       {/* Resultat */}
       {result && (
-        <Card className="animate-scale-in">
+        <div ref={resultRef} className="scroll-mt-4">
+        <Card key={result.jobId} className="animate-scale-in">
           <CardHeader>
-            <CardTitle>{t("step2")}</CardTitle>
+            <CardTitle>{result.historyAt ? t("historyResultTitle") : t("step2")}</CardTitle>
+            {result.historyAt && (
+              <p className="text-xs text-ink-faint">{new Date(result.historyAt).toLocaleString(locale)}</p>
+            )}
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             <div className="flex items-center gap-5">
@@ -629,6 +694,7 @@ export default function GraderaPage() {
             </Button>
           </CardContent>
         </Card>
+        </div>
       )}
 
       {result && (
@@ -642,7 +708,8 @@ export default function GraderaPage() {
           {shareOpen && (
             <ShareCardPanel
               source="grade"
-              previewMax="58dvh"
+              previewMax="50dvh"
+              safeBottom
               name={splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ?? t("shareUnknownCard")}
               render={() => renderGradeShareCard(gradeShareInput(result))}
             />
@@ -681,8 +748,21 @@ export default function GraderaPage() {
             <ul className="divide-y divide-surface-border">
               {jobs.map((job) => {
                 const failed = job.status === "FAILED";
+                const openable = !failed && job.status === "COMPLETED" && job.result?.subScores != null;
+                const active = result?.jobId === job.id;
                 return (
-                  <li key={job.id} className="flex items-center gap-3 py-3">
+                  <li key={job.id}>
+                    <button
+                      type="button"
+                      disabled={!openable}
+                      onClick={() => void openJob(job)}
+                      aria-current={active || undefined}
+                      className={cn(
+                        "-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors",
+                        openable && "hover:bg-surface-overlay/60",
+                        active && "bg-holo-cyan/5 ring-1 ring-holo-cyan/30"
+                      )}
+                    >
                     {/* Katalogbilden. Användarens egna foton sparas ALDRIG (dataminimering),
                         så det här är den enda bilden som finns — och den visas bara när
                         samlarnumret styrkte vilket kort det var. Saknas den faller raden
@@ -738,6 +818,7 @@ export default function GraderaPage() {
                         {job.overallGrade.toFixed(1)}
                       </span>
                     )}
+                    </button>
                   </li>
                 );
               })}

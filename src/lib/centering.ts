@@ -313,10 +313,36 @@ export function guessLines(gray: Float32Array | Uint8ClampedArray, width: number
   // de räknas ändå inte.
   const skipX = Math.max(2, Math.round(cardW * 0.015));
   const skipY = Math.max(2, Math.round(cardH * 0.015));
-  const iL = edgeIn(col, oL + skipX, oL + Math.round(cardW * 0.09));
-  const iR = edgeIn(col, oR - skipX, oR - Math.round(cardW * 0.09));
-  const iT = edgeIn(row, oT + skipY, oT + Math.round(cardH * 0.09));
-  const iB = edgeIn(row, oB - skipY, oB - Math.round(cardH * 0.09));
+  // FÖRSTA starka kanten inåt, inte den starkaste: på fullbildskort är ramens
+  // innerkant svagare än namnraden strax innanför (prövat 2026-10-01).
+  const firstEdge = (p: Float32Array, from: number, to: number): number => {
+    const step = from <= to ? 1 : -1;
+    let max = 0;
+    for (let i = from; i !== to; i += step) {
+      if (i < 1 || i >= p.length - 1) continue;
+      max = Math.max(max, Math.abs(p[i + 1] - p[i - 1]));
+    }
+    if (max === 0) return from;
+    for (let i = from; i !== to; i += step) {
+      if (i < 1 || i >= p.length - 1) continue;
+      const g = Math.abs(p[i + 1] - p[i - 1]);
+      // Toppen av den första kanten över halva maxstyrkan.
+      if (g >= max * 0.5) {
+        let best = i;
+        let j = i;
+        while (j !== to && j >= 1 && j < p.length - 1 && Math.abs(p[j + 1] - p[j - 1]) >= max * 0.5) {
+          if (Math.abs(p[j + 1] - p[j - 1]) > Math.abs(p[best + 1] - p[best - 1])) best = j;
+          j += step;
+        }
+        return best;
+      }
+    }
+    return from;
+  };
+  const iL = firstEdge(col, oL + skipX, oL + Math.round(cardW * 0.09));
+  const iR = firstEdge(col, oR - skipX, oR - Math.round(cardW * 0.09));
+  const iT = firstEdge(row, oT + skipY, oT + Math.round(cardH * 0.09));
+  const iB = firstEdge(row, oB - skipY, oB - Math.round(cardH * 0.09));
 
   const lines: CenteringLines = {
     outerLeft: oL / width,

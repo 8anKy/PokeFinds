@@ -37,6 +37,7 @@ export const API_ERROR_KEYS: Record<string, string> = {
   "Gruppen hittades inte.": "groupNotFound",
   "Ogiltig bildnyckel.": "invalidImageKey",
   "Produkten hittades inte.": "productNotFound",
+  "Graderingen hittades inte.": "gradingNotFound",
   "Godkänn forumets regler innan du skriver.": "forumRules",
   "Inlägget innehåller ord som inte är tillåtna i forumet. Ändra texten och försök igen.": "profanityPost",
   "Svaret innehåller ord som inte är tillåtna i forumet. Ändra texten och försök igen.": "profanityReply",

@@ -47,3 +47,11 @@ paths:
   (samma grind som produktsidan; gratis ser antal + suddade tal). Skannern → `/gradera` via sessionStorage
   (`lib/grade-prefill.ts`, läses EN gång). Slab-bilden (`renderGradeShareCard`) har Foilios EGEN etikett —
   ⛔ aldrig PSA:s utseende.
+  **Uppdaterat samma kväll (ägarens fältrapport):** mätaren har nu TVÅ steg — 1) fyra hörn på kortet, bilden
+  RÄTAS UPP med en homografi (`lib/perspective.ts`, testad) till exakt 63:88 med marginal; 2) linjerna på den raka
+  bilden. ⛔ Rotationsreglaget är borttaget: det tog lutning men aldrig perspektiv, och ett snett foto gick inte
+  att mäta. Innerlinjens gissning tar den FÖRSTA starka kanten inåt (fullbildskortens namnrad är starkare än ramen).
+  Historiken är klickbar: en tidigare gradering öppnas med sparad bedömning + sparad mätning, "Lönar det sig?"
+  räknas om via `/api/grading/jobs/[id]/worth` (aldrig sparat — priserna rör sig). Delningen tar mätningen ur
+  `result.centering` (samma väg för färsk och historik); fotona finns aldrig kvar ⇒ katalogbilden ur historiken.
+  Slabben ritas platt (pärlemoetikett, folieremsa, nedsänkt brunn) och lutas i 3D med synlig tjocklek.
