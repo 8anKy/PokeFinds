@@ -35,3 +35,15 @@ paths:
   ⛔ **UTAN NUMMER — INGEN BILD.** 92 % av korten delar namn med minst ett annat; på strängarna ovan fick
   namn+nummer 1,53 och fyra olika Camerupt fick 1,03 var. Träffen måste bära precis det numret OCH vara ensam om
   det. Fel bild bredvid en gradering är ett påstående om en tryckning vi inte känner — värre än ingen bild.
+- **CENTRERINGSMÄTAREN + "LÖNAR DET SIG?" + DELNINGSKORTET (2026-10-01, ägarbeslut)**: användaren lägger åtta
+  stödlinjer på sitt eget foto (`components/features/centering-tool.tsx`, matematiken ren + testad i
+  `lib/centering.ts`) — ingen AI, inget nätverk. Gränserna är PSA:s PUBLICERADE (fram 55/45 = 10, 60/40 = 9,
+  65/35 = 8, 70/30 = 7; bak 75/25 = 10, annars 90/10; 10:an skärptes tyst från 60/40 under 2025) och resultatet
+  är ett TAK, aldrig en grad. ⛔ **e-READER-KORT** (Expedition/Aquapolis/Skyridge, `isEReaderSet`): framsidans
+  vänster- och nederkant är breddade för punktkoden ⇒ jämför ÖVRE mot HÖGRA kanten (i pixlar); baksidan mäts som
+  vanligt. Mätningen går med till modellen som klartext i `buildClosingInstruction` (contract.ts) och sparas på
+  jobbet (`result.centering`). "Lönar det sig?" (`services/grading/extras.ts`) = ograderat CM-först-värde mot
+  sålda PSA-medianer runt graden — ⛔ aldrig en uträknad vinst (avgift/frakt overifierade), ⛔ talen är Pro
+  (samma grind som produktsidan; gratis ser antal + suddade tal). Skannern → `/gradera` via sessionStorage
+  (`lib/grade-prefill.ts`, läses EN gång). Slab-bilden (`renderGradeShareCard`) har Foilios EGEN etikett —
+  ⛔ aldrig PSA:s utseende.

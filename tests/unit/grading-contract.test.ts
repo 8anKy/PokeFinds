@@ -159,6 +159,14 @@ describe("buildClosingInstruction", () => {
       "Bedöm kortets skick och anropa report_grade med dina poäng. Kortet är troligen: Torchic 65/100."
     );
   });
+
+  it("bär användarens uppmätta centrering och PSA:s gränser när den finns", () => {
+    const s = buildClosingInstruction(undefined, "framsida V/H 54/46, Ö/N 51/49");
+    expect(s).toContain("mätt centreringen med stödlinjer på fotona: framsida V/H 54/46, Ö/N 51/49.");
+    expect(s).toContain("framsida 55/45 för 10");
+    expect(s).toContain("baksida 75/25 för 10");
+    expect(buildClosingInstruction("X 1/2", undefined)).not.toContain("centrering");
+  });
 });
 
 /**

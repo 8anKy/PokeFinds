@@ -7,6 +7,7 @@ import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { readJsonCapped } from "@/lib/body-limit";
 import { getGradingQuota, runGradingJob } from "@/services/grading";
+import { centeringFromInput, centeringInputSchema, gradingWorth } from "@/services/grading/extras";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,8 @@ const gradeSchema = z.object({
   // måste klientens språk följa med hit. Utan det svarade graderingen på svenska
   // för engelska användare (rapporterat 2026-08-05).
   locale: z.enum(["sv", "en"]).optional(),
+  // Användarens uppmätta centrering (stödlinjerna, lib/centering.ts) — 2026-10-01.
+  centering: centeringInputSchema,
 });
 
 export async function POST(req: Request) {
@@ -46,7 +49,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { front, back, cardName, locale } = gradeSchema.parse(
+    const { front, back, cardName, locale, centering: centeringInput } = gradeSchema.parse(
       await readJsonCapped(req, MAX_BODY_BYTES)
     );
 
@@ -57,11 +60,24 @@ export async function POST(req: Request) {
       );
     }
 
-    const { job } = await runGradingJob(user.id, effectivePlanTier(user), front, back, {
-      cardName,
-      locale,
-    });
-    const quota = await getGradingQuota(user.id, effectivePlanTier(user));
+    const centering = centeringFromInput(centeringInput);
+    const tier = effectivePlanTier(user);
+    const { job } = await runGradingJob(
+      user.id,
+      tier,
+      front,
+      back,
+      { cardName, locale, centeringNote: centering?.note },
+      centering
+    );
+    const quota = await getGradingQuota(user.id, tier);
+    // "Lönar det sig att gradera?" — bara när numret styrkte kortet (card-link.ts).
+    // Aldrig ett fel för graderingen: utan underlag visas helt enkelt ingen ruta.
+    const linked = (job.result ?? {}) as { cardId?: string | null; cardSlug?: string | null };
+    const worth =
+      job.overallGrade != null
+        ? await gradingWorth(linked.cardId, linked.cardSlug, job.overallGrade, tier === "PREMIUM").catch(() => null)
+        : null;
 
     return jsonOk(
       {
@@ -72,6 +88,7 @@ export async function POST(req: Request) {
         modelUsed: job.modelUsed,
         result: job.result,
         quota,
+        worth,
       },
       { status: 201 }
     );

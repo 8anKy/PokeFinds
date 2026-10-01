@@ -92,7 +92,7 @@ export class ClaudeVisionGradingAdapter implements GradingAdapter {
               type: "image",
               source: { type: "base64", media_type: back.mediaType, data: back.data },
             },
-            { type: "text", text: buildClosingInstruction(context?.cardName) },
+            { type: "text", text: buildClosingInstruction(context?.cardName, context?.centeringNote) },
           ],
         },
       ],

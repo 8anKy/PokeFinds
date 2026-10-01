@@ -61,6 +61,11 @@ export interface GradingContext {
   /** Kortnamn om känt (t.ex. från en tidigare skanning). */
   cardName?: string;
   /**
+   * Användarens UPPMÄTTA centrering i klartext, t.ex. "framsida V/H 54/46, Ö/N 51/49;
+   * baksida V/H 60/40, Ö/N 55/45" (lib/centering.ts). Saknas när ingen mätning gjorts.
+   */
+  centeringNote?: string;
+  /**
    * Användarens språk. `rationale` skrivs AV MODELLEN och kan därför inte
    * översättas via messages/*.json — språket måste följa med förfrågan.
    * Utelämnas det faller vi tillbaka på `DEFAULT_GRADING_LOCALE`.

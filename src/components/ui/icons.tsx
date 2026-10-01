@@ -443,3 +443,25 @@ export const IconPanel = (p: IconProps) => (
     <path d="M3 9h18M8 13h8M8 16.5h5" />
   </svg>
 );
+
+export const IconChevronUp = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="m6 15 6-6 6 6" />
+  </svg>
+);
+
+/** Centreringsmätaren — ett kort med stödlinjer. */
+export const IconCentering = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="5" y="3" width="14" height="18" rx="2" />
+    <path d="M8.5 3v18M15.5 3v18M5 7h14M5 17h14" strokeDasharray="1.5 2" />
+  </svg>
+);
+
+/** Räta upp / rotera. */
+export const IconRotate = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+    <path d="M20 4v7h-7" />
+  </svg>
+);

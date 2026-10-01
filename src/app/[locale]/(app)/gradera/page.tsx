@@ -17,10 +17,27 @@ import { useToast } from "@/components/ui/toast";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { cn } from "@/lib/utils";
 import { ProCta } from "@/components/features/pro-cta";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { CenteringTool, type CenteringOutcome } from "@/components/features/centering-tool";
+import { ShareCardPanel } from "@/components/features/share-card-panel";
+import { Link } from "@/i18n/navigation";
+import { formatPrice } from "@/lib/format";
+import { takeGradePrefill } from "@/lib/grade-prefill";
+import { renderGradeShareCard } from "@/lib/share-card";
+import {
+  combinedPsaCap,
+  formatRatio,
+  isEReaderSet,
+  worstShare,
+  type CenteringResult,
+  type CenteringSide,
+} from "@/lib/centering";
 import {
   IconAlertTriangle,
   IconCamera,
+  IconCentering,
   IconCheck,
+  IconShare,
   IconShield,
   IconSparkle,
 } from "@/components/ui/icons";
@@ -49,6 +66,15 @@ interface GradeResultDto {
   cardSlug?: string | null;
   /** Katalogens egen skrivning ("Camerupt · Ascended Heroes 28"). */
   cardLabel?: string | null;
+  cardSetName?: string | null;
+}
+
+/** "Lönar det sig att gradera?" — se services/grading/extras.ts. */
+interface GradingWorthDto {
+  slug: string;
+  rawOre: number | null;
+  rows: { gradeTenths: number; medianOre: number | null; count: number; source: "ebay" | "tradera" }[];
+  locked: boolean;
 }
 
 interface Quota {
@@ -65,6 +91,7 @@ interface GradeResponse {
   modelUsed: string | null;
   result: GradeResultDto;
   quota: Quota;
+  worth?: GradingWorthDto | null;
 }
 
 interface GradingJobDto {
@@ -92,6 +119,46 @@ function gradeTone(score: number): string {
   if (score >= 7) return "text-holo-cyan";
   if (score >= 5) return "text-amber-400";
   return "text-fall";
+}
+
+/** En sidas mätning i kompakt form: "54/46 · 51/49" eller "övre/höger 52/48". */
+function ratiosText(r: CenteringResult, topRightWord: string): string {
+  if (r.topRight) return `${topRightWord} ${formatRatio(r.topRight)}`;
+  return [r.leftRight, r.topBottom]
+    .filter((x): x is NonNullable<typeof x> => x != null)
+    .map(formatRatio)
+    .join(" · ");
+}
+
+/** Mätningen i den form /api/grading/grade tar emot (bredaste andelen per axel). */
+function centeringPayload(o: CenteringOutcome | null) {
+  if (!o) return undefined;
+  const r = o.result;
+  return {
+    mode: r.mode,
+    leftRight: r.leftRight ? worstShare(r.leftRight) : undefined,
+    topBottom: r.topBottom ? worstShare(r.topBottom) : undefined,
+    topRight: r.topRight ? worstShare(r.topRight) : undefined,
+  };
+}
+
+/**
+ * Namn + undertitel för delningsbilden. Katalogens etikett ("Camerupt · Ascended
+ * Heroes 28") bär numret SIST → "Ascended Heroes · #28"; modellens sträng
+ * ("Torchic 65/100 · EX Crystal Guardians") lämnas som den är.
+ */
+function splitLabel(
+  label: string | null | undefined,
+  fromCatalog = false
+): { name: string; subtitle: string } | null {
+  if (!label) return null;
+  const [name, ...rest] = label.split(" · ");
+  let subtitle = rest.join(" · ").trim();
+  if (fromCatalog) {
+    const m = subtitle.match(/^(.*)\s+(\S+)$/);
+    if (m) subtitle = `${m[1]} · #${m[2]}`;
+  }
+  return { name: name.trim(), subtitle };
 }
 
 function ScoreBar({ label, score }: { label: string; score: number }) {
@@ -122,12 +189,15 @@ function ImageDropzone({
   onPick,
   inputRef,
   onChange,
+  footer,
 }: {
   label: string;
   preview: string | null;
   onPick: () => void;
   inputRef: React.RefObject<HTMLInputElement>;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  /** Under bilden — centreringsknappen. */
+  footer?: React.ReactNode;
 }) {
   const t = useTranslations("Grading");
   return (
@@ -167,6 +237,90 @@ function ImageDropzone({
         className="hidden"
         onChange={onChange}
       />
+      {footer}
+    </div>
+  );
+}
+
+/** Knappen under ett foto: mät, eller visa mätningen och mät om. */
+function CenteringButton(props: {
+  outcome: CenteringOutcome | null;
+  onMeasure: () => void;
+}) {
+  const t = useTranslations("Centering");
+  const { outcome } = props;
+  return (
+    <button
+      type="button"
+      onClick={props.onMeasure}
+      className={cn(
+        "flex w-full items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors",
+        outcome
+          ? "border-holo-cyan/40 bg-holo-cyan/5 text-holo-cyan hover:bg-holo-cyan/10"
+          : "border-surface-border text-ink-muted hover:border-holo-cyan/50 hover:text-ink"
+      )}
+    >
+      <IconCentering size={15} />
+      <span className="truncate tabular-nums">
+        {outcome ? ratiosText(outcome.result, t("axisTopRight").toLowerCase()) : t("measure")}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * "LÖNAR DET SIG ATT GRADERA?" — ograderat värde mot sålda PSA-exemplar runt
+ * den uppskattade graden. Underlaget visas (median + antal), aldrig en uträknad
+ * vinst: avgift och frakt varierar och vi har inga verifierade tal för dem.
+ */
+function GradingWorthPanel({ worth, overall }: { worth: GradingWorthDto; overall: number }) {
+  const t = useTranslations("Grading");
+  const nearest = Math.round(overall) * 10;
+  return (
+    <div className="rounded-xl border border-surface-border p-4">
+      <p className="text-sm font-semibold text-ink">{t("worthTitle")}</p>
+      <ul className="mt-3 divide-y divide-surface-border text-sm">
+        <li className="flex items-center justify-between py-2">
+          <span className="text-ink-muted">{t("worthRaw")}</span>
+          <span className="font-semibold tabular-nums text-ink">{formatPrice(worth.rawOre)}</span>
+        </li>
+        {worth.rows.map((r) => (
+          <li key={r.gradeTenths} className="flex items-center justify-between gap-3 py-2">
+            <span className="flex items-center gap-2">
+              <span className="font-medium text-ink">PSA {r.gradeTenths / 10}</span>
+              {r.gradeTenths === nearest && (
+                <span className="rounded-md bg-holo-cyan/15 px-1.5 py-0.5 text-[10px] font-bold text-holo-cyan">
+                  {t("worthYours")}
+                </span>
+              )}
+            </span>
+            <span className="text-right">
+              {r.medianOre != null ? (
+                <span className="font-semibold tabular-nums text-holo-cyan">{formatPrice(r.medianOre)}</span>
+              ) : (
+                <span aria-hidden="true" className="select-none font-semibold text-ink-faint blur-[5px]">
+                  0 000 kr
+                </span>
+              )}
+              <span className="block text-[11px] text-ink-faint">
+                {t("worthSold", { count: r.count, source: r.source === "ebay" ? "eBay" : "Tradera" })}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {worth.rows.length === 0 && <p className="mt-1 text-xs text-ink-muted">{t("worthNoSales")}</p>}
+      {worth.locked && (
+        <ProCta source="grading-worth" size="sm" className="mt-3 w-full">
+          {t("worthUnlock")}
+        </ProCta>
+      )}
+      <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
+        {t("worthNote")}{" "}
+        <Link href={`/produkter/${worth.slug}`} className="font-semibold text-holo-cyan hover:underline">
+          {t("worthAll")}
+        </Link>
+      </p>
     </div>
   );
 }
@@ -184,6 +338,26 @@ export default function GraderaPage() {
   const [result, setResult] = useState<GradeResponse | null>(null);
   const [quota, setQuota] = useState<Quota | null>(null);
   const [jobs, setJobs] = useState<GradingJobDto[] | null>(null);
+  /** Från skannern: kortets namn + set (lib/grade-prefill.ts). */
+  const [cardHint, setCardHint] = useState<string | null>(null);
+  const [setHint, setSetHint] = useState<string | null>(null);
+  const [centering, setCentering] = useState<Record<CenteringSide, CenteringOutcome | null>>({
+    front: null,
+    back: null,
+  });
+  const [toolSide, setToolSide] = useState<CenteringSide | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const tc = useTranslations("Centering");
+  const ts = useTranslations("ShareCard");
+
+  // Skannern → gradering: framsidan och kortets namn är redan kända.
+  useEffect(() => {
+    const p = takeGradePrefill();
+    if (!p) return;
+    setFront(p.front);
+    setCardHint(p.cardName);
+    setSetHint(p.setName);
+  }, []);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -219,6 +393,8 @@ export default function GraderaPage() {
       const dataUrl = typeof reader.result === "string" ? reader.result : null;
       if (side === "front") setFront(dataUrl);
       else setBack(dataUrl);
+      // En ny bild gör den gamla mätningen meningslös.
+      setCentering((c) => ({ ...c, [side]: null }));
       setResult(null);
     };
     reader.readAsDataURL(file);
@@ -242,7 +418,16 @@ export default function GraderaPage() {
         headers: { "Content-Type": "application/json" },
         // locale följer med: motiveringen skrivs av modellen och går inte att
         // översätta i efterhand — utan den kom svaret alltid på svenska.
-        body: JSON.stringify({ front, back, locale }),
+        body: JSON.stringify({
+          front,
+          back,
+          locale,
+          cardName: cardHint ?? undefined,
+          centering:
+            centering.front || centering.back
+              ? { front: centeringPayload(centering.front), back: centeringPayload(centering.back) }
+              : undefined,
+        }),
       });
       const data = (await res.json()) as GradeResponse & { error?: string };
       if (!res.ok) throw new Error(data.error ?? t("gradeFailMsg"));
@@ -258,6 +443,34 @@ export default function GraderaPage() {
     } finally {
       setGrading(false);
     }
+  }
+
+  const centeringCap = combinedPsaCap([centering.front?.result, centering.back?.result]);
+
+  /** Delningsbildens indata ur resultatet + mätningen. */
+  function gradeShareInput(r: GradeResponse) {
+    const label = r.result.cardLabel
+      ? splitLabel(r.result.cardLabel, true)
+      : splitLabel(r.result.cardName);
+    const topRight = tc("axisTopRight").toLowerCase();
+    const parts: string[] = [];
+    if (centering.front) parts.push(`${t("frontShort")} ${ratiosText(centering.front.result, topRight)}`);
+    if (centering.back) parts.push(`${t("backShort")} ${ratiosText(centering.back.result, topRight)}`);
+    return {
+      // Katalogbilden när kortet är styrkt (skarpast i en story); annars användarens
+      // kort utskuret längs stödlinjerna; sist råfotot.
+      imageUrl: r.result.cardImageUrl ?? centering.front?.cropDataUrl ?? null,
+      fallbackImageUrl: centering.front?.cropDataUrl ?? front,
+      name: label?.name ?? t("shareUnknownCard"),
+      subtitle: label?.subtitle ?? "",
+      overall: r.result.overall,
+      subScores: SUB_LABELS.map(({ key, labelKey }) => ({ label: t(labelKey), value: r.result.subScores[key] })),
+      labelEyebrow: t("shareEyebrow"),
+      outOf: t("outOf10"),
+      centeringLine: parts.length ? `${t("shareCenteringLead")} · ${parts.join(" · ")}` : null,
+      disclaimer: t("shareDisclaimer"),
+      footer: { lead: t("shareFooterLead"), domain: "foilio.se" },
+    };
   }
 
   const limitReached =
@@ -310,6 +523,11 @@ export default function GraderaPage() {
               onPick={() => frontRef.current?.click()}
               inputRef={frontRef}
               onChange={onChange("front")}
+              footer={
+                front ? (
+                  <CenteringButton outcome={centering.front} onMeasure={() => setToolSide("front")} />
+                ) : null
+              }
             />
             <ImageDropzone
               label={t("back")}
@@ -317,8 +535,25 @@ export default function GraderaPage() {
               onPick={() => backRef.current?.click()}
               inputRef={backRef}
               onChange={onChange("back")}
+              footer={
+                back ? (
+                  <CenteringButton outcome={centering.back} onMeasure={() => setToolSide("back")} />
+                ) : null
+              }
             />
           </div>
+          {cardHint && <p className="text-xs text-ink-muted">{t("fromScanner", { card: cardHint })}</p>}
+          {(centering.front || centering.back) && (
+            <div className="rounded-xl border border-holo-cyan/25 bg-holo-cyan/5 px-4 py-3">
+              <p className="text-sm font-semibold text-ink">{tc("summaryTitle")}</p>
+              {centeringCap != null && (
+                <p className="mt-0.5 text-sm font-semibold text-holo-cyan">
+                  {tc("psaCapLabel")} {tc("psaCap", { grade: centeringCap })}
+                </p>
+              )}
+              <p className="mt-1 text-[11px] leading-relaxed text-ink-faint">{tc("capNote")}</p>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-3">
             <Button
               onClick={() => void gradeNow()}
@@ -386,8 +621,44 @@ export default function GraderaPage() {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-faint">
               <span>{t("confidence", { pct: Math.round(result.result.confidence * 100) })}</span>
             </div>
+
+            {result.worth && <GradingWorthPanel worth={result.worth} overall={result.result.overall} />}
+
+            <Button variant="outline" onClick={() => setShareOpen(true)}>
+              <IconShare size={16} /> {t("shareGrade")}
+            </Button>
           </CardContent>
         </Card>
+      )}
+
+      {result && (
+        <BottomSheet
+          open={shareOpen}
+          title={ts("title")}
+          closeLabel={ts("back")}
+          onClose={() => setShareOpen(false)}
+          panelClassName="sm:mx-auto sm:max-w-md"
+        >
+          {shareOpen && (
+            <ShareCardPanel
+              source="grade"
+              previewMax="58dvh"
+              name={splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ?? t("shareUnknownCard")}
+              render={() => renderGradeShareCard(gradeShareInput(result))}
+            />
+          )}
+        </BottomSheet>
+      )}
+
+      {toolSide && (toolSide === "front" ? front : back) && (
+        <CenteringTool
+          src={(toolSide === "front" ? front : back)!}
+          side={toolSide}
+          defaultMode={isEReaderSet(result?.result.cardSetName ?? setHint) ? "ereader" : "standard"}
+          initial={centering[toolSide]}
+          onDone={(o) => setCentering((c) => ({ ...c, [o.side]: o }))}
+          onClose={() => setToolSide(null)}
+        />
       )}
 
       {/* Historik */}

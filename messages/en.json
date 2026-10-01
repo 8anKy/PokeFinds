@@ -1627,7 +1627,11 @@
     "guestLimitLogin": "Already have an account? Log in",
     "guestHeadline": "Get 20 more scans – free",
     "guestSub": "Create account · {count} of {limit} left",
-    "guestEmptySub": "Create account → 20 more scans"
+    "guestEmptySub": "Create account → 20 more scans",
+    "gradeCard": "Grade",
+    "gradeLeaveWarning": "Grading opens on its own page, and {count, plural, one {your other scan} other {your # other scans}} in the tray will be lost. Add them to your collection first if you want to keep them.",
+    "gradeAnyway": "Grade anyway",
+    "cancel": "Cancel"
   },
   "Grading": {
     "h1": "Grade card",
@@ -1668,7 +1672,24 @@
     "tooLargeDesc": "Max 5 MB. Try compressing the image.",
     "gradeFailTitle": "Couldn't grade the card",
     "unknownError": "Unknown error.",
-    "gradeFailMsg": "The grading failed."
+    "gradeFailMsg": "The grading failed.",
+    "fromScanner": "The front comes from your scan of {card}. Add the back and we'll grade it.",
+    "shareGrade": "Share the grade",
+    "shareUnknownCard": "My card",
+    "shareEyebrow": "Foilio AI grade",
+    "shareCenteringLead": "Measured centering",
+    "shareDisclaimer": "AI estimate — not an official grade",
+    "shareFooterLead": "Grade your cards for free at ",
+    "frontShort": "front",
+    "backShort": "back",
+    "worthTitle": "Is it worth grading?",
+    "worthRaw": "Raw (market value)",
+    "worthYours": "Your estimate",
+    "worthSold": "{count, plural, one {# sold} other {# sold}} · {source}",
+    "worthNoSales": "No sold PSA copies of this card around that grade yet.",
+    "worthUnlock": "See graded prices with Pro",
+    "worthNote": "Median of copies sold in the last year. Allow for grading fees and shipping.",
+    "worthAll": "All graded prices"
   },
   "PostCategory": {
     "PULLS": "Pulls",
@@ -2797,5 +2818,43 @@
     "error": "Couldn't create the image.",
     "retry": "Try again",
     "previewAlt": "Share image for {name}"
+  },
+  "Centering": {
+    "title": "Measure centering",
+    "front": "Front",
+    "back": "Back",
+    "close": "Close",
+    "done": "Done",
+    "loadError": "Couldn't open the image.",
+    "line": {
+      "outerLeft": "Outer left",
+      "outerRight": "Outer right",
+      "outerTop": "Outer top",
+      "outerBottom": "Outer bottom",
+      "innerLeft": "Inner left",
+      "innerRight": "Inner right",
+      "innerTop": "Inner top",
+      "innerBottom": "Inner bottom"
+    },
+    "pickLine": "Pick a line",
+    "nudgeLess": "Move the line one pixel back",
+    "nudgeMore": "Move the line one pixel forward",
+    "ereader": "e-Reader card",
+    "straighten": "Straighten",
+    "legendOuter": "White = card edge",
+    "legendInner": "Turquoise = inner frame edge",
+    "hint": "Drag the handles until the lines sit exactly on the edges. The magnifier shows while you drag; the arrows move one pixel.",
+    "hintEreader": "e-Reader cards have a dot code along the left and bottom edges, so we compare the top and right borders — equal width means centered.",
+    "axisLeftRight": "Left/right",
+    "axisTopBottom": "Top/bottom",
+    "axisTopRight": "Top/right",
+    "psaCapLabel": "Centering allows up to",
+    "psaCap": "PSA {grade}",
+    "measure": "Measure centering",
+    "measured": "Centering measured",
+    "remeasure": "Measure again",
+    "summaryTitle": "Measured centering",
+    "capNote": "Ceiling per PSA's published limits (front 55/45 for a 10, back 75/25). A ceiling, not a grade.",
+    "capShort": "Allows up to"
   }
 }

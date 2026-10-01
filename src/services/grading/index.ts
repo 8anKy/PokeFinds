@@ -23,6 +23,7 @@ import { ClaudeVisionGradingAdapter } from "@/services/grading/claude-vision";
 import { GeminiVisionGradingAdapter } from "@/services/grading/gemini-vision";
 import { MockGradingAdapter } from "@/services/grading/mock";
 import type { GradingAdapter, GradingContext } from "@/services/grading/types";
+import type { StoredCentering } from "@/services/grading/extras";
 
 const INLINE_UPLOAD = "inline-upload";
 
@@ -142,7 +143,9 @@ export async function runGradingJob(
   planTier: PlanTier,
   frontDataUrl: string,
   backDataUrl: string,
-  context?: GradingContext
+  context?: GradingContext,
+  /** Användarens uppmätta centrering — sparas på jobbet för historik/delning. */
+  centering?: StoredCentering | null
 ): Promise<GradingJobResult> {
   // Månadskvot (FREE = gratisgräns, PREMIUM = Pro-gräns mot Pro-modellens kostnad).
   const quota = await getGradingQuota(userId, planTier);
@@ -209,6 +212,9 @@ export async function runGradingJob(
           // Katalogens egen skrivning, så raden kan visa "Camerupt · Ascended Heroes
           // 28" i stället för modellens gissning ("… · Obsidian Flames", som var fel).
           cardLabel: linked ? `${linked.name} · ${linked.setName} ${linked.number}` : null,
+          // Katalogens setnamn — e-Reader-läget i centreringsmätaren läser det.
+          cardSetName: linked?.setName ?? null,
+          centering: centering ?? null,
         } as unknown as Prisma.InputJsonObject,
       },
     });

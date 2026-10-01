@@ -1627,7 +1627,11 @@
     "guestLimitLogin": "Har du redan ett konto? Logga in",
     "guestHeadline": "Få 20 skanningar till – gratis",
     "guestSub": "Skapa konto · {count} av {limit} kvar",
-    "guestEmptySub": "Skapa konto → 20 skanningar till"
+    "guestEmptySub": "Skapa konto → 20 skanningar till",
+    "gradeCard": "Gradera",
+    "gradeLeaveWarning": "Graderingen öppnas på en egen sida, och {count, plural, one {din andra skanning} other {dina # andra skanningar}} i brickan försvinner. Lägg till dem i samlingen först om du vill behålla dem.",
+    "gradeAnyway": "Gradera ändå",
+    "cancel": "Avbryt"
   },
   "Grading": {
     "h1": "Gradera kort",
@@ -1668,7 +1672,24 @@
     "tooLargeDesc": "Max 5 MB. Prova att komprimera bilden.",
     "gradeFailTitle": "Kunde inte gradera kortet",
     "unknownError": "Okänt fel.",
-    "gradeFailMsg": "Graderingen misslyckades."
+    "gradeFailMsg": "Graderingen misslyckades.",
+    "fromScanner": "Framsidan kommer från din skanning av {card}. Lägg till baksidan, så graderar vi.",
+    "shareGrade": "Dela graderingen",
+    "shareUnknownCard": "Mitt kort",
+    "shareEyebrow": "Foilio AI-grad",
+    "shareCenteringLead": "Uppmätt centrering",
+    "shareDisclaimer": "AI-uppskattning — inte en officiell gradering",
+    "shareFooterLead": "Gradera dina kort gratis på ",
+    "frontShort": "fram",
+    "backShort": "bak",
+    "worthTitle": "Lönar det sig att gradera?",
+    "worthRaw": "Ograderat (marknadsvärde)",
+    "worthYours": "Din uppskattning",
+    "worthSold": "{count, plural, one {# såld} other {# sålda}} · {source}",
+    "worthNoSales": "Inga sålda PSA-exemplar av kortet runt den graden ännu.",
+    "worthUnlock": "Se graderade priser med Pro",
+    "worthNote": "Median av sålda exemplar det senaste året. Räkna med graderingsavgift och frakt.",
+    "worthAll": "Alla graderade priser"
   },
   "PostCategory": {
     "PULLS": "Pulls",
@@ -2797,5 +2818,43 @@
     "error": "Bilden gick inte att skapa.",
     "retry": "Försök igen",
     "previewAlt": "Delningsbild för {name}"
+  },
+  "Centering": {
+    "title": "Mät centrering",
+    "front": "Framsida",
+    "back": "Baksida",
+    "close": "Stäng",
+    "done": "Klar",
+    "loadError": "Bilden gick inte att öppna.",
+    "line": {
+      "outerLeft": "Yttre vänster",
+      "outerRight": "Yttre höger",
+      "outerTop": "Yttre övre",
+      "outerBottom": "Yttre nedre",
+      "innerLeft": "Inre vänster",
+      "innerRight": "Inre höger",
+      "innerTop": "Inre övre",
+      "innerBottom": "Inre nedre"
+    },
+    "pickLine": "Välj en linje",
+    "nudgeLess": "Flytta linjen en pixel bakåt",
+    "nudgeMore": "Flytta linjen en pixel framåt",
+    "ereader": "e-Reader-kort",
+    "straighten": "Räta upp",
+    "legendOuter": "Vit = kortets kant",
+    "legendInner": "Turkos = ramens innerkant",
+    "hint": "Dra handtagen tills linjerna ligger exakt på kanterna. Förstoringsglaset visas medan du drar, pilarna flyttar en pixel.",
+    "hintEreader": "e-Reader-kort har punktkod längs vänster- och nederkanten, så vi jämför den övre och den högra kanten — lika breda betyder centrerat.",
+    "axisLeftRight": "Vänster/höger",
+    "axisTopBottom": "Övre/nedre",
+    "axisTopRight": "Övre/höger",
+    "psaCapLabel": "Centreringen räcker till",
+    "psaCap": "PSA {grade}",
+    "measure": "Mät centrering",
+    "measured": "Centrering uppmätt",
+    "remeasure": "Mät om",
+    "summaryTitle": "Uppmätt centrering",
+    "capNote": "Taket enligt PSA:s publicerade gränser (fram 55/45 för en 10:a, bak 75/25). Ett tak, inte en grad.",
+    "capShort": "Räcker till"
   }
 }

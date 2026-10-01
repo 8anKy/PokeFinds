@@ -75,9 +75,17 @@ export const IMAGE_LABEL_BACK = "Baksida:";
  * som systemprompten: ett extra mellanslag i den ena adaptern räcker för att en
  * A/B-körning ska mäta formatering i stället för modell.
  */
-export function buildClosingInstruction(cardNameHint?: string): string {
+export function buildClosingInstruction(cardNameHint?: string, centeringNote?: string): string {
   const hint = cardNameHint ? ` Kortet är troligen: ${cardNameHint}.` : "";
-  return `Bedöm kortets skick och anropa ${GRADE_TOOL_NAME} med dina poäng.${hint}`;
+  // UPPMÄTT CENTRERING (2026-10-01): användaren har lagt stödlinjer på sina foton
+  // (lib/centering.ts). Ett MÄTT tal slår modellens ögonmått på just det kriteriet;
+  // PSA:s gränser står med så att talet översätts lika varje gång.
+  const centering = centeringNote
+    ? ` Användaren har mätt centreringen med stödlinjer på fotona: ${centeringNote}.` +
+      " Utgå från mätningen när du sätter centering (PSA: framsida 55/45 för 10, 60/40 för 9," +
+      " 65/35 för 8, 70/30 för 7; baksida 75/25 för 10, 90/10 därunder)."
+    : "";
+  return `Bedöm kortets skick och anropa ${GRADE_TOOL_NAME} med dina poäng.${hint}${centering}`;
 }
 
 /** Fältspec i leverantörsneutral form. Varje adapter mappar `type` till sitt

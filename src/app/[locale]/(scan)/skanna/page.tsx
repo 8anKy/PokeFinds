@@ -67,6 +67,8 @@ import { EDGE_ZONE_PX, resolveBackSwipe } from "@/lib/swipe-gesture";
 import { pageMotionTransition, swipeSettleDuration } from "@/lib/page-motion";
 import { SellSheet, type SellItem } from "@/components/features/sell-sheet";
 import { ShareCardPanel } from "@/components/features/share-card-panel";
+import { renderShareCard } from "@/lib/share-card";
+import { writeGradePrefill } from "@/lib/grade-prefill";
 import {
   ScanPreparationSheet,
   markScanGuideNudgeSeen,
@@ -98,6 +100,7 @@ import {
   IconSearch,
   IconSettings,
   IconShare,
+  IconShield,
   IconTrash,
   IconUpload,
   IconX,
@@ -2761,6 +2764,9 @@ function Scanner() {
           }}
           onChoose={(c) => chooseCandidate(detailsItem.id, c)}
           onRemove={() => removeScan(detailsItem.id)}
+          // Gradering kräver konto (/gradera ligger i (app)); gäster ser ingen knapp.
+          canGrade={quota != null && !quota.guest}
+          otherScans={scans.length - 1}
         />
       )}
 
@@ -4086,14 +4092,37 @@ function ScanDetailsSheet(props: {
   onClose: () => void;
   onChoose: (c: Candidate) => void;
   onRemove: () => void;
+  /** Inloggad ⇒ "Gradera"-knappen visas. */
+  canGrade?: boolean;
+  /** Övriga skanningar i brickan — de försvinner när skannern lämnas. */
+  otherScans?: number;
 }) {
   const t = useTranslations("Scanner");
   const router = useRouter();
   const tShare = useTranslations("ShareCard");
+  const [confirmGrade, setConfirmGrade] = useState(false);
+
+  /**
+   * GRADERA FRÅN SKANNERN (2026-10-01): kortet är redan identifierat och
+   * framsidan redan fotograferad — användaren behöver bara baksidan. Fotot och
+   * kortets namn/set följer med via sessionStorage (lib/grade-prefill.ts).
+   * ⛔ /gradera är en egen sida: skannerns bricka lever bara i minnet, så finns
+   *    det fler skanningar frågar vi först (samma läxa som "Sök manuellt").
+   */
+  const goGrade = useCallback(() => {
+    const m = props.item.match;
+    writeGradePrefill({
+      front: props.item.captured,
+      cardName: m ? `${m.name} ${m.number}` : null,
+      setName: m?.setName ?? null,
+    });
+    router.push("/gradera");
+  }, [props.item.captured, props.item.match, router]);
   const { item } = props;
   const [searchOpen, setSearchOpen] = useState(props.startInSearch === true);
   /** Delningskortet (2026-10-01) — ersätter arkets innehåll, som sökningen. */
   const [shareOpen, setShareOpen] = useState(false);
+  const shareMatch = item.match;
 
   /**
    * ⛔ "SÖK MANUELLT" LÄMNAR ALDRIG SKANNERN (ägarens fältrapport 2026-09-23).
@@ -4164,24 +4193,25 @@ function ScanDetailsSheet(props: {
 
   return (
     <Sheet title={shareOpen ? tShare("title") : t("scanDetails")} onClose={props.onClose} fill>
-      {shareOpen && item.match ? (
+      {shareOpen && shareMatch ? (
         <ShareCardPanel
           source="scan"
+          name={shareMatch.name}
           onBack={() => setShareOpen(false)}
-          input={{
-            imageUrl: item.match.imageUrl,
+          render={() => renderShareCard({
+            imageUrl: shareMatch.imageUrl,
             // Katalogbilden kan vägra CORS (~65 kort) — då blir det användarens foto.
             fallbackImageUrl: item.captured,
-            name: item.match.name,
-            subtitle: [item.match.setName, `#${item.match.number}`, item.match.variantLabel]
+            name: shareMatch.name,
+            subtitle: [shareMatch.setName, `#${shareMatch.number}`, shareMatch.variantLabel]
               .filter(Boolean)
               .join(" · "),
             value:
-              item.match.estimatedValue != null
-                ? { label: tShare("valueLabel"), text: formatPrice(item.match.estimatedValue) }
+              shareMatch.estimatedValue != null
+                ? { label: tShare("valueLabel"), text: formatPrice(shareMatch.estimatedValue) }
                 : null,
             footer: { lead: tShare("footerLead"), domain: "foilio.se" },
-          }}
+          })}
         />
       ) : searchOpen ? (
         <ScannerCardSearch
@@ -4408,10 +4438,31 @@ function ScanDetailsSheet(props: {
           <Button variant="outline" onClick={openSearch}>
             <IconSearch size={15} /> {t("searchManually")}
           </Button>
+          {props.canGrade && item.match && (
+            <Button
+              variant="outline"
+              onClick={() => ((props.otherScans ?? 0) > 0 ? setConfirmGrade(true) : goGrade())}
+            >
+              <IconShield size={15} /> {t("gradeCard")}
+            </Button>
+          )}
           <Button variant="ghost" onClick={props.onRemove}>
             {t("removeScan")}
           </Button>
         </div>
+        {confirmGrade && (
+          <div className="shrink-0 rounded-xl bg-holo-gold/10 p-3 text-xs leading-relaxed text-holo-gold ring-1 ring-holo-gold/25">
+            <p>{t("gradeLeaveWarning", { count: props.otherScans ?? 0 })}</p>
+            <div className="mt-2 flex gap-2">
+              <Button size="sm" onClick={goGrade}>
+                {t("gradeAnyway")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmGrade(false)}>
+                {t("cancel")}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
       )}
     </Sheet>

@@ -122,7 +122,7 @@ export class GeminiVisionGradingAdapter implements GradingAdapter {
       inlineImage(frontDataUrl, "framsidan"),
       { text: IMAGE_LABEL_BACK },
       inlineImage(backDataUrl, "baksidan"),
-      { text: buildClosingInstruction(context?.cardName) },
+      { text: buildClosingInstruction(context?.cardName, context?.centeringNote) },
     ];
 
     const thinkingLevel =
