@@ -21,7 +21,6 @@
  */
 
 import { convexHull, homography, makeProjector, projectBox, warpPerspective } from "@/lib/perspective";
-import { detectCardQuad, warpPerspective as warpCardQuad } from "@/lib/card-quad";
 
 export const SHARE_CARD_WIDTH = 1080;
 export const SHARE_CARD_HEIGHT = 1920;
@@ -487,11 +486,10 @@ export interface GradeShareInput {
   disclaimer: string;
   footer: { lead: string; domain: string };
   /**
-   * Användarens foto av kortets BAKSIDA (data-URL) — videons baksida. Rätas upp
-   * till kortformat. Saknas (gradering ur historiken: fotona sparas aldrig) ⇒ en
-   * neutral mörk kortbaksida.
+   * Kortbaksidan i videon: "jp" (japanska kort) eller "en" (den internationella,
+   * alla andra språk). Bilderna ligger i public/card-backs/ (ägarens filer 2026-10-01).
    */
-  backImageUrl?: string | null;
+  cardBack?: "en" | "jp";
 }
 
 /**
@@ -1000,7 +998,7 @@ export interface GradeSpinLayers {
 export async function prepareGradeSpinLayers(input: GradeShareInput): Promise<GradeSpinLayers> {
   const [{ art, mark, family }, backArt] = await Promise.all([
     loadGradeAssets(input),
-    input.backImageUrl ? loadImage(input.backImageUrl, false).then(straightenCard).catch(() => null) : null,
+    loadImage(`/card-backs/${input.cardBack === "jp" ? "jp" : "en"}.jpg`, false).catch(() => null),
   ]);
   const background = document.createElement("canvas");
   background.width = SHARE_CARD_WIDTH;
@@ -1021,52 +1019,18 @@ export async function prepareGradeSpinLayers(input: GradeShareInput): Promise<Gr
 }
 
 /**
- * Kortet ur ett foto, upprätat till kortformat (63:88): kortets fyra hörn letas upp
- * (lib/card-quad.ts) och bilden rätas ut. Hittas inga hörn används fotot som det är
- * (centreringsmätarens utsnitt är redan upprätat).
- */
-function straightenCard(img: HTMLImageElement): HTMLCanvasElement | HTMLImageElement {
-  const maxSide = 1200;
-  const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
-  const w = Math.max(1, Math.round(img.naturalWidth * scale));
-  const h = Math.max(1, Math.round(img.naturalHeight * scale));
-  const c = document.createElement("canvas");
-  c.width = w;
-  c.height = h;
-  const ctx = c.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return img;
-  ctx.drawImage(img, 0, 0, w, h);
-  const px = ctx.getImageData(0, 0, w, h).data;
-  // Redan kortformat (mätarens utsnitt) ⇒ inget att räta.
-  if (Math.abs(w / h - 63 / 88) < 0.04) return c;
-  const quad = detectCardQuad(px, w, h, 4);
-  if (!quad) return c;
-  const outW = TEX_CARD.w;
-  const outH = TEX_CARD.h;
-  const warped = warpCardQuad(px, w, h, 4, quad.corners, outW, outH);
-  if (!warped) return c;
-  const out = document.createElement("canvas");
-  out.width = outW;
-  out.height = outH;
-  const octx = out.getContext("2d");
-  if (!octx) return c;
-  const id = octx.createImageData(outW, outH);
-  id.data.set(warped);
-  octx.putImageData(id, 0, 0);
-  return out;
-}
-
-/**
  * Slabbens BAKSIDA: samma klara plast, etikettens baksida med Foilios märke och en
- * hologramdekal, och KORTETS BAKSIDA i brunnen — användarens eget foto (ägarens
- * önskan 2026-10-01: "visa kortets baksida", inte vårt märke). Utan foto en neutral
- * mörk kortbaksida, aldrig en ritad kopia av Pokémon-baksidan.
+ * hologramdekal, och KORTETS BAKSIDA i brunnen — den japanska för japanska kort,
+ * annars den internationella (ägarens önskan och filer 2026-10-01). Går bilden inte
+ * att ladda blir det en neutral mörk kortbaksida.
+ * ⛔ Den gamla japanska baksidan (set före 2001-07-19) finns inte som fil än — de
+ *    korten får den nuvarande japanska tills ägaren tillför en.
  */
 function slabBackTexture(
   input: GradeShareInput,
   family: string,
   mark: HTMLImageElement | null,
-  backArt: HTMLCanvasElement | HTMLImageElement | null
+  backArt: HTMLImageElement | null
 ): HTMLCanvasElement {
   const c = document.createElement("canvas");
   c.width = TEX_W;
@@ -1151,12 +1115,7 @@ function slabBackTexture(
   if (backArt) {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    const iw = "naturalWidth" in backArt ? backArt.naturalWidth : backArt.width;
-    const ih = "naturalHeight" in backArt ? backArt.naturalHeight : backArt.height;
-    const sc = Math.max(TEX_CARD.w / iw, TEX_CARD.h / ih);
-    const dw = iw * sc;
-    const dh = ih * sc;
-    ctx.drawImage(backArt, TEX_CARD.x + (TEX_CARD.w - dw) / 2, TEX_CARD.y + (TEX_CARD.h - dh) / 2, dw, dh);
+    drawCover(ctx, backArt, TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h);
   } else {
     const card = ctx.createRadialGradient(
       TEX_CARD.x + TEX_CARD.w / 2,

@@ -40,6 +40,8 @@ export interface GradedCardLink {
   number: string;
   /** Produktsidans slug, när kortet har en produkt. */
   slug: string | null;
+  /** Katalogens språk ("EN", "JP" …) — avgör kortbaksidan i slabvideon. */
+  language: string;
 }
 
 /**
@@ -235,6 +237,7 @@ async function linkByNumber(
     setName: top.setName,
     number: top.number,
     slug: top.slug,
+    language: top.language,
   };
 }
 
@@ -282,6 +285,7 @@ export async function linkByCardId(cardId: string): Promise<GradedCardLink | nul
       name: true,
       number: true,
       imageUrl: true,
+      language: true,
       set: { select: { name: true } },
       // Ordinarie tryckning först (etikettlös), dolda produkter aldrig.
       products: {
@@ -304,5 +308,6 @@ export async function linkByCardId(cardId: string): Promise<GradedCardLink | nul
     setName: card.set.name,
     number: card.number,
     slug: product?.slug ?? null,
+    language: card.language,
   };
 }

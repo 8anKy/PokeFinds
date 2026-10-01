@@ -52,6 +52,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       cardSlug: printing?.slug ?? linked.slug,
       cardLabel: `${linked.name} · ${linked.setName} ${linked.number}`,
       cardSetName: linked.setName,
+      cardLanguage: linked.language,
     };
     const r = (job.result ?? {}) as Record<string, unknown>;
     await prisma.gradingJob.update({

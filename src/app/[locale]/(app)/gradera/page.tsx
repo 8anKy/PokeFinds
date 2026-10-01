@@ -70,6 +70,8 @@ interface GradeResultDto {
   /** Katalogens egen skrivning ("Camerupt · Ascended Heroes 28"). */
   cardLabel?: string | null;
   cardSetName?: string | null;
+  /** Katalogens språk ("JP" …) — slabvideons kortbaksida. */
+  cardLanguage?: string | null;
   cardId?: string | null;
   /** Användarens uppmätta centrering, sparad på jobbet (services/grading/extras.ts). */
   centering?: {
@@ -760,8 +762,12 @@ export default function GraderaPage() {
       centeringLine: parts.length ? `${t("shareCenteringLead")} · ${parts.join(" · ")}` : null,
       disclaimer: t("shareDisclaimer"),
       footer: { lead: t("shareFooterLead"), domain },
-      // Videons baksida: mätarens upprätade utsnitt, annars fotot (rätas upp vid ritningen).
-      backImageUrl: r.historyAt ? null : centering.back?.cropDataUrl ?? back,
+      // Videons kortbaksida: japansk för japanska kort, annars den internationella.
+      // Äldre graderingar saknar språket — katalognamnens "(JP)" säger samma sak.
+      cardBack:
+        r.result.cardLanguage === "JP" || /\(JP\)/.test(r.result.cardLabel ?? r.result.cardName ?? "")
+          ? ("jp" as const)
+          : ("en" as const),
     };
   }
 
@@ -790,7 +796,7 @@ export default function GraderaPage() {
       if (!res.ok) return;
       const data = (await res.json()) as {
         worth: GradingWorthDto | null;
-        card?: Pick<GradeResultDto, "cardId" | "cardImageUrl" | "cardSlug" | "cardLabel" | "cardSetName"> | null;
+        card?: Pick<GradeResultDto, "cardId" | "cardImageUrl" | "cardSlug" | "cardLabel" | "cardSetName" | "cardLanguage"> | null;
       };
       setResult((prev) =>
         prev?.jobId === job.id
@@ -818,7 +824,7 @@ export default function GraderaPage() {
         body: JSON.stringify({ cardId: c.cardId, slug: c.slug ?? undefined }),
       });
       const data = (await res.json().catch(() => null)) as {
-        card?: Pick<GradeResultDto, "cardId" | "cardImageUrl" | "cardSlug" | "cardLabel" | "cardSetName">;
+        card?: Pick<GradeResultDto, "cardId" | "cardImageUrl" | "cardSlug" | "cardLabel" | "cardSetName" | "cardLanguage">;
         worth?: GradingWorthDto | null;
         error?: string;
       } | null;

@@ -44,6 +44,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       cardSlug: string | null;
       cardLabel: string;
       cardSetName: string;
+      cardLanguage: string;
     } | null = null;
     if (!r.cardImageUrl && !r.cardPicked) {
       const linked = await resolveGradedCard(r.cardName).catch(() => null);
@@ -54,6 +55,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           cardSlug: linked.slug,
           cardLabel: `${linked.name} · ${linked.setName} ${linked.number}`,
           cardSetName: linked.setName,
+          cardLanguage: linked.language,
         };
         await prisma.gradingJob
           .update({ where: { id: job.id }, data: { result: { ...r, ...card } as unknown as Prisma.InputJsonObject } })
