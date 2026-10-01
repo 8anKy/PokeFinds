@@ -1630,8 +1630,6 @@
     "guestSub": "Skapa konto · {count} av {limit} kvar",
     "guestEmptySub": "Skapa konto → 20 skanningar till",
     "gradeCard": "Gradera",
-    "gradeLeaveWarning": "Graderingen öppnas på en egen sida, och {count, plural, one {din andra skanning} other {dina # andra skanningar}} i brickan försvinner. Lägg till dem i samlingen först om du vill behålla dem.",
-    "gradeAnyway": "Gradera ändå",
     "cancel": "Avbryt"
   },
   "Grading": {

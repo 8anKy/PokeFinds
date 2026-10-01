@@ -787,12 +787,15 @@ export default function GraderaPage() {
           title={t("pickCardTitle")}
           closeLabel={ts("back")}
           onClose={() => setPickOpen(false)}
-          panelClassName="sm:mx-auto sm:max-w-md"
+          // FAST höjd = 84 % av ytan OVANFÖR tangentbordet (arket slutar där det
+          // börjar). En höjd i dvh räknades mot hela skärmen och sköt listan in
+          // under tangentbordet (ägarens skärmdump 2026-10-01).
+          panelClassName="h-[84%] sm:mx-auto sm:max-w-md"
         >
           {pickOpen && (
             <div
               className={cn(
-                "flex h-[65dvh] flex-col pb-[max(1rem,env(safe-area-inset-bottom))]",
+                "flex h-full flex-col pb-[max(1rem,env(safe-area-inset-bottom))]",
                 picking && "pointer-events-none opacity-60"
               )}
             >

@@ -1630,8 +1630,6 @@
     "guestSub": "Create account · {count} of {limit} left",
     "guestEmptySub": "Create account → 20 more scans",
     "gradeCard": "Grade",
-    "gradeLeaveWarning": "Grading opens on its own page, and {count, plural, one {your other scan} other {your # other scans}} in the tray will be lost. Add them to your collection first if you want to keep them.",
-    "gradeAnyway": "Grade anyway",
     "cancel": "Cancel"
   },
   "Grading": {

@@ -9,7 +9,7 @@
  * en katalogfråga mot databasen. Resultaten har skanningens kandidatform
  * (`/api/scanner/search`), så ett val går samma väg som ett val ur raden.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { IconChevronLeft } from "@/components/ui/icons";
 import { formatPrice } from "@/lib/format";
@@ -45,6 +45,16 @@ export function CardSearch<C extends CardSearchCandidate>(props: {
   const [results, setResults] = useState<C[] | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
   const fetcher = props.fetcher ?? fetch;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Tangentbordet täcker halva listan på en telefon (ägarens skärmdump 2026-10-01).
+   * Drar man i listan vill man se korten, inte skriva — då fälls tangentbordet ner,
+   * som i iOS egna söklistor. Frågan står kvar i fältet.
+   */
+  function dismissKeyboard() {
+    if (document.activeElement === inputRef.current) inputRef.current?.blur();
+  }
 
   useEffect(() => {
     const q = query.trim();
@@ -113,6 +123,7 @@ export function CardSearch<C extends CardSearchCandidate>(props: {
           />
         )}
         <input
+          ref={inputRef}
           type="search"
           inputMode="search"
           enterKeyHint="search"
@@ -124,7 +135,7 @@ export function CardSearch<C extends CardSearchCandidate>(props: {
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" onTouchMove={dismissKeyboard}>
         {query.trim().length < 2 ? (
           <p className="px-1 py-4 text-sm text-ink-faint">{t("searchCardHint")}</p>
         ) : state === "error" ? (

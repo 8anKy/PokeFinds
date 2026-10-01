@@ -919,6 +919,28 @@ export default function SkannaPage() {
   return <Scanner />;
 }
 
+/**
+ * BRICKAN PARKERAD UNDER GRADERINGEN (ägarens fältrapport 2026-10-01): "AI-gradera"
+ * går till /gradera, skannern avmonteras och skanningarna — som bara finns i
+ * minnet — var borta när man gick tillbaka. Navigeringen är SPA (router.push /
+ * router.back), så MODULEN lever kvar: brickan parkeras här i stället för i
+ * sessionStorage, som hade slagit i ~5 MB-taket efter ett tiotal foton.
+ * Plockas upp EN gång när skannern monteras igen. En hel omladdning tömmer den,
+ * vilket är samma sak som förut.
+ */
+interface ParkedTray {
+  scans: ScanItem[];
+  view: View;
+  detailsId: string | null;
+  at: number;
+}
+let parkedTray: ParkedTray | null = null;
+const PARKED_TRAY_TTL_MS = 60 * 60 * 1000;
+
+function peekParkedTray(): ParkedTray | null {
+  return parkedTray && Date.now() - parkedTray.at < PARKED_TRAY_TTL_MS ? parkedTray : null;
+}
+
 function Scanner() {
   const t = useTranslations("Scanner");
   const { toast } = useToast();
@@ -1023,12 +1045,17 @@ function Scanner() {
     };
   }, []);
 
-  const [view, setView] = useState<View>("capture");
+  const [view, setView] = useState<View>(() => peekParkedTray()?.view ?? "capture");
   const [cameraState, setCameraState] = useState<CameraState>("starting");
   const [cameraError, setCameraError] = useState("");
   const [provider, setProvider] = useState<string | null>(null);
 
-  const [scans, setScans] = useState<ScanItem[]>([]);
+  const [scans, setScans] = useState<ScanItem[]>(() => peekParkedTray()?.scans ?? []);
+  // Upplockad i initieringen ovan; töms först här så att Strict Modes dubbla
+  // initiering läser samma parkering.
+  useEffect(() => {
+    parkedTray = null;
+  }, []);
   // LIVE-LÅSET: bildmatchningens bästa gissning medan användaren siktar,
   // uppdaterad ~2×/s via /identify-art (inga vision-anrop, ingen kvot).
   // "locked" = tre på varandra följande rutor pekar på SAMMA kort och den
@@ -1075,7 +1102,8 @@ function Scanner() {
   const [defaultCondition, setDefaultCondition] = useState("NEAR_MINT");
   // Skannern är endast engelska — inget språkval.
   const defaultLanguage = "EN";
-  const [detailsId, setDetailsId] = useState<string | null>(null);
+  // Tillbaka från graderingen ⇒ samma kort öppet som när man gick.
+  const [detailsId, setDetailsId] = useState<string | null>(() => peekParkedTray()?.detailsId ?? null);
   /** Detaljarket öppnat via "Sök manuellt" ⇒ börjar i sökläget. */
   const [detailsSearch, setDetailsSearch] = useState(false);
 
@@ -2767,7 +2795,16 @@ function Scanner() {
           onRemove={() => removeScan(detailsItem.id)}
           // Gradering kräver konto (/gradera ligger i (app)); gäster ser ingen knapp.
           canGrade={quota != null && !quota.guest}
-          otherScans={scans.length - 1}
+          onBeforeGrade={() => {
+            // En skanning som fortfarande identifieras har ingen väg tillbaka —
+            // svaret landar i en avmonterad komponent. Resten parkeras.
+            parkedTray = {
+              scans: scans.filter((s) => s.status !== "identifying"),
+              view,
+              detailsId: detailsItem.id,
+              at: Date.now(),
+            };
+          }}
         />
       )}
 
@@ -4095,23 +4132,24 @@ function ScanDetailsSheet(props: {
   onRemove: () => void;
   /** Inloggad ⇒ "Gradera"-knappen visas. */
   canGrade?: boolean;
-  /** Övriga skanningar i brickan — de försvinner när skannern lämnas. */
-  otherScans?: number;
+  /** Parkerar brickan innan skannern lämnas för /gradera (se `parkedTray`). */
+  onBeforeGrade?: () => void;
 }) {
   const t = useTranslations("Scanner");
   const router = useRouter();
   const tShare = useTranslations("ShareCard");
-  const [confirmGrade, setConfirmGrade] = useState(false);
 
   /**
    * GRADERA FRÅN SKANNERN (2026-10-01): kortet är redan identifierat och
    * framsidan redan fotograferad — användaren behöver bara baksidan. Fotot och
    * kortets namn/set följer med via sessionStorage (lib/grade-prefill.ts).
-   * ⛔ /gradera är en egen sida: skannerns bricka lever bara i minnet, så finns
-   *    det fler skanningar frågar vi först (samma läxa som "Sök manuellt").
+   * /gradera är en egen sida och skannern avmonteras — brickan parkeras först
+   * (`onBeforeGrade` ⇒ `parkedTray`) och är kvar när användaren går tillbaka.
+   * Varningen "dina andra skanningar försvinner" behövs därför inte längre.
    */
   const goGrade = useCallback(() => {
     const m = props.item.match;
+    props.onBeforeGrade?.();
     writeGradePrefill({
       front: props.item.captured,
       cardName: m ? `${m.name} ${m.number}` : null,
@@ -4119,7 +4157,7 @@ function ScanDetailsSheet(props: {
       cardId: m?.cardId ?? null,
     });
     router.push("/gradera");
-  }, [props.item.captured, props.item.match, router]);
+  }, [props, router]);
   const { item } = props;
   const [searchOpen, setSearchOpen] = useState(props.startInSearch === true);
   /** Delningskortet (2026-10-01) — ersätter arkets innehåll, som sökningen. */
@@ -4444,7 +4482,7 @@ function ScanDetailsSheet(props: {
           {props.canGrade && item.match && (
             <Button
               variant="outline"
-              onClick={() => ((props.otherScans ?? 0) > 0 ? setConfirmGrade(true) : goGrade())}
+              onClick={goGrade}
             >
               <IconShield size={15} /> {t("gradeCard")}
             </Button>
@@ -4453,19 +4491,6 @@ function ScanDetailsSheet(props: {
             {t("removeScan")}
           </Button>
         </div>
-        {confirmGrade && (
-          <div className="shrink-0 rounded-xl bg-holo-gold/10 p-3 text-xs leading-relaxed text-holo-gold ring-1 ring-holo-gold/25">
-            <p>{t("gradeLeaveWarning", { count: props.otherScans ?? 0 })}</p>
-            <div className="mt-2 flex gap-2">
-              <Button size="sm" onClick={goGrade}>
-                {t("gradeAnyway")}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setConfirmGrade(false)}>
-                {t("cancel")}
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
       )}
     </Sheet>
