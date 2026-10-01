@@ -10,7 +10,7 @@ import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { visibleListings } from "@/lib/listing-plausibility";
 import { pickCardValue, productMarketValue, type MarketValue } from "@/lib/market-value";
 import { compareCardNumbers } from "@/lib/card-number-order";
-import { PRINT_VARIANT_LABELS, REVERSE_VARIANT_LABELS } from "@/lib/print-variant";
+import { NOT_REVERSE_PRINTING, PRINT_VARIANT_LABELS } from "@/lib/print-variant";
 import { favoriteSetIds } from "@/lib/user-preferences";
 import { NOT_HIDDEN, NOT_HIDDEN_SQL } from "@/lib/product-visibility";
 import { getTrendingLift } from "@/services/market";
@@ -2076,7 +2076,11 @@ export async function getCardValues(
   const map = new Map<string, number>();
   if (cardIds.length === 0) return map;
   const products = await prisma.product.findMany({
-    where: { cardId: { in: cardIds }, NOT: { variantLabel: { in: [...REVERSE_VARIANT_LABELS] } } },
+    // ⛔ `NULL` MÅSTE STÅ UTSKRIVET. `NOT (variantLabel IN (…))` är NULL — inte sant —
+    // för en etikettlös rad, så det ORDINARIE kortet föll bort tyst (36 409 av 47 349
+    // kortprodukter). Upptäckt 2026-10-01: graderingens "Ograderat" visade "–" för
+    // Greninja ex SVP 132 trots en CM-offer på 509,85 kr. Vaktat i print-variant-where.test.ts.
+    where: { cardId: { in: cardIds }, ...NOT_REVERSE_PRINTING },
     select: { cardId: true, offers: { select: VALUE_OFFER_SELECT } },
   });
   const byCard = new Map<string, MarketValue[]>();

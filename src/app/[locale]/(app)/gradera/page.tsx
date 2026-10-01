@@ -41,6 +41,7 @@ import {
   IconShare,
   IconShield,
   IconSparkle,
+  IconTrendingUp,
 } from "@/components/ui/icons";
 
 interface SubScores {
@@ -301,54 +302,114 @@ function CenteringButton(props: {
  * den uppskattade graden. Underlaget visas (median + antal), aldrig en uträknad
  * vinst: avgift och frakt varierar och vi har inga verifierade tal för dem.
  */
+/**
+ * "Lönar det sig att gradera?" — ograderat värde som BASLINJE och varje PSA-betyg
+ * som en stapel mot den, så skillnaden syns innan man läst en siffra.
+ * ⛔ Ingen uträknad vinst (avgift och frakt varierar — se services/grading/extras.ts):
+ *    kvoten "2,5× ograderat" är ett faktum om medianerna, inte ett löfte.
+ * ⛔ Låst (gratis): staplarna ritas fulla och dämpade — en riktig längd hade
+ *    avslöjat talet som är Pro.
+ */
 function GradingWorthPanel({ worth, overall }: { worth: GradingWorthDto; overall: number }) {
   const t = useTranslations("Grading");
   const nearest = Math.round(overall) * 10;
+  const [filled, setFilled] = useState(false);
+  useEffect(() => setFilled(true), []);
+  const max = Math.max(worth.rawOre ?? 0, ...worth.rows.map((r) => r.medianOre ?? 0));
+  const pct = (ore: number | null) => (ore != null && max > 0 ? Math.max(4, (ore / max) * 100) : 0);
+  const ratio = (ore: number | null) =>
+    ore != null && worth.rawOre != null && worth.rawOre > 0 ? ore / worth.rawOre : null;
+
   return (
-    <div className="rounded-xl border border-surface-border p-4">
-      <p className="text-sm font-semibold text-ink">{t("worthTitle")}</p>
-      <ul className="mt-3 divide-y divide-surface-border text-sm">
-        <li className="flex items-center justify-between py-2">
-          <span className="text-ink-muted">{t("worthRaw")}</span>
-          <span className="font-semibold tabular-nums text-ink">{formatPrice(worth.rawOre)}</span>
+    <div className="overflow-hidden rounded-2xl border border-holo-cyan/25 bg-gradient-to-b from-holo-cyan/[0.07] to-transparent">
+      <div className="flex items-center gap-2.5 px-4 pt-4">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-holo-cyan ring-1 ring-holo-cyan/30">
+          <IconTrendingUp size={16} />
+        </span>
+        <p className="text-sm font-semibold text-ink">{t("worthTitle")}</p>
+      </div>
+
+      <ul className="flex flex-col gap-2 p-3">
+        {/* Baslinjen: vad kortet är värt som det är. */}
+        <li className="rounded-xl bg-surface-overlay/40 px-3 py-2.5 ring-1 ring-surface-border">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-sm font-medium text-ink-muted">{t("worthRaw")}</span>
+            <span className="text-base font-bold tabular-nums text-ink">{formatPrice(worth.rawOre)}</span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-overlay">
+            <div
+              className="h-full rounded-full bg-ink-faint transition-[width] duration-700 ease-out-soft"
+              style={{ width: filled ? `${pct(worth.rawOre)}%` : 0 }}
+            />
+          </div>
         </li>
-        {worth.rows.map((r) => (
-          <li key={r.gradeTenths} className="flex items-center justify-between gap-3 py-2">
-            <span className="flex items-center gap-2">
-              <span className="font-medium text-ink">PSA {r.gradeTenths / 10}</span>
-              {r.gradeTenths === nearest && (
-                <span className="rounded-md bg-holo-cyan/15 px-1.5 py-0.5 text-[10px] font-bold text-holo-cyan">
-                  {t("worthYours")}
-                </span>
+
+        {worth.rows.map((r) => {
+          const mine = r.gradeTenths === nearest;
+          const x = ratio(r.medianOre);
+          return (
+            <li
+              key={r.gradeTenths}
+              className={cn(
+                "rounded-xl px-3 py-2.5 ring-1",
+                mine ? "bg-holo-cyan/10 ring-holo-cyan/40" : "bg-surface-overlay/40 ring-surface-border"
               )}
-            </span>
-            <span className="text-right">
-              {r.medianOre != null ? (
-                <span className="font-semibold tabular-nums text-holo-cyan">{formatPrice(r.medianOre)}</span>
-              ) : (
-                <span aria-hidden="true" className="select-none font-semibold text-ink-faint blur-[5px]">
-                  0 000 kr
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="rounded-md bg-ink px-1.5 py-0.5 text-xs font-extrabold tabular-nums tracking-wide text-surface">
+                    PSA {r.gradeTenths / 10}
+                  </span>
+                  {mine && (
+                    <span className="truncate text-[11px] font-semibold text-holo-cyan">{t("worthYours")}</span>
+                  )}
                 </span>
-              )}
-              <span className="block text-[11px] text-ink-faint">
-                {t("worthSold", { count: r.count, source: r.source === "ebay" ? "eBay" : "Tradera" })}
-              </span>
-            </span>
-          </li>
-        ))}
+                {r.medianOre != null ? (
+                  <span className="shrink-0 text-base font-bold tabular-nums text-holo-cyan">
+                    {formatPrice(r.medianOre)}
+                  </span>
+                ) : (
+                  <span aria-hidden="true" className="shrink-0 select-none text-base font-bold text-ink-faint blur-[5px]">
+                    0 000 kr
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-overlay">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-[width] duration-700 ease-out-soft",
+                    r.medianOre != null ? "bg-holo-cyan" : "bg-holo-cyan/25"
+                  )}
+                  style={{ width: filled ? (r.medianOre != null ? `${pct(r.medianOre)}%` : "100%") : 0 }}
+                />
+              </div>
+              <p className="mt-1.5 flex justify-between gap-2 text-[11px] text-ink-faint">
+                <span>{t("worthSold", { count: r.count, source: r.source === "ebay" ? "eBay" : "Tradera" })}</span>
+                {x != null && (
+                  <span className={cn("font-semibold tabular-nums", x >= 1 ? "text-rise" : "text-fall")}>
+                    {t("worthRatio", { x: x.toFixed(1).replace(".", ",") })}
+                  </span>
+                )}
+              </p>
+            </li>
+          );
+        })}
       </ul>
-      {worth.rows.length === 0 && <p className="mt-1 text-xs text-ink-muted">{t("worthNoSales")}</p>}
-      {worth.locked && (
-        <ProCta source="grading-worth" size="sm" className="mt-3 w-full">
-          {t("worthUnlock")}
-        </ProCta>
-      )}
-      <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
-        {t("worthNote")}{" "}
-        <Link href={`/produkter/${worth.slug}`} className="font-semibold text-holo-cyan hover:underline">
-          {t("worthAll")}
-        </Link>
-      </p>
+
+      <div className="px-4 pb-4">
+        {worth.rows.length === 0 && <p className="text-xs text-ink-muted">{t("worthNoSales")}</p>}
+        {worth.locked && (
+          <ProCta source="grading-worth" size="sm" className="mt-1 w-full">
+            {t("worthUnlock")}
+          </ProCta>
+        )}
+        <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
+          {t("worthNote")}{" "}
+          <Link href={`/produkter/${worth.slug}`} className="font-semibold text-holo-cyan hover:underline">
+            {t("worthAll")}
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

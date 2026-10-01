@@ -1689,6 +1689,7 @@
     "worthRaw": "Raw (market value)",
     "worthYours": "Your estimate",
     "worthSold": "{count, plural, one {# sold} other {# sold}} · {source}",
+    "worthRatio": "{x}× raw",
     "worthNoSales": "No sold PSA copies of this card around that grade yet.",
     "worthUnlock": "See graded prices with Pro",
     "worthNote": "Median of copies sold in the last year. Allow for grading fees and shipping.",

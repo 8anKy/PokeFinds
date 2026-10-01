@@ -105,6 +105,16 @@ export const REVERSE_VARIANT_LABELS = [
 ] as const;
 
 /**
+ * Prisma-villkor: allt UTOM reverse-familjen — inklusive det etikettlösa ordinarie kortet.
+ * ⛔ `NOT: { variantLabel: { in } }` och `notIn` släpper BÅDA bort NULL (SQL:s
+ * tre-värda logik), dvs just det ordinarie kortet. Det kostade graderingens
+ * "Ograderat"-värde i två månader (2026-08-03 → 10-01). Använd det här.
+ */
+export const NOT_REVERSE_PRINTING = {
+  OR: [{ variantLabel: null }, { variantLabel: { notIn: [...REVERSE_VARIANT_LABELS] } }],
+};
+
+/**
  * Ordningen varianterna VISAS i: ordinarie först, sedan Base-tryckningarna
  * (vanligast → sällsyntast) och sist reverse-familjen.
  *

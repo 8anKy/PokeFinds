@@ -1689,6 +1689,7 @@
     "worthRaw": "Ograderat (marknadsvärde)",
     "worthYours": "Din uppskattning",
     "worthSold": "{count, plural, one {# såld} other {# sålda}} · {source}",
+    "worthRatio": "{x}× ograderat",
     "worthNoSales": "Inga sålda PSA-exemplar av kortet runt den graden ännu.",
     "worthUnlock": "Se graderade priser med Pro",
     "worthNote": "Median av sålda exemplar det senaste året. Räkna med graderingsavgift och frakt.",
