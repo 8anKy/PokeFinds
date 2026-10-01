@@ -2836,6 +2836,12 @@
     "copyLink": "Kopiera din inbjudningslänk",
     "copyLinkShort": "Länk",
     "linkCopied": "Kopierad",
+    "kindImage": "Bild",
+    "kindVideo": "Video",
+    "hintVideo": "Slabben snurrar ett varv och loopar. Dra i den för att vrida själv.",
+    "makingVideo": "Skapar video … {pct} %",
+    "shareVideo": "Dela video",
+    "saveVideo": "Spara video",
     "previewAlt": "Delningsbild för {name}"
   },
   "Centering": {

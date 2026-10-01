@@ -64,6 +64,7 @@
     "framer-motion": "^11.11.0",
     "ioredis": "^5.4.1",
     "jose": "^6.2.10",
+    "mediabunny": "^1.61.0",
     "next": "^14.2.35",
     "next-auth": "^4.24.10",
     "next-intl": "^4.13.1",

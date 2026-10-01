@@ -2836,6 +2836,12 @@
     "copyLink": "Copy your invite link",
     "copyLinkShort": "Link",
     "linkCopied": "Copied",
+    "kindImage": "Image",
+    "kindVideo": "Video",
+    "hintVideo": "The slab spins one full turn and loops. Drag it to turn it yourself.",
+    "makingVideo": "Making video … {pct} %",
+    "shareVideo": "Share video",
+    "saveVideo": "Save video",
     "previewAlt": "Share image for {name}"
   },
   "Centering": {

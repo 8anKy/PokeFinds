@@ -118,8 +118,8 @@ export async function shareImage(
   return "saved";
 }
 
-/** "Charizard ex" → "foilio-charizard-ex.jpg" */
-export function shareFilename(name: string): string {
+/** "Charizard ex" → "foilio-charizard-ex.jpg" (eller .mp4 för videon) */
+export function shareFilename(name: string, ext: "jpg" | "mp4" = "jpg"): string {
   const slug = name
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
@@ -127,5 +127,5 @@ export function shareFilename(name: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
-  return `foilio-${slug || "kort"}.jpg`;
+  return `foilio-${slug || "kort"}.${ext}`;
 }

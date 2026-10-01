@@ -25,7 +25,7 @@ import { Link } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
 import { takeGradePrefill } from "@/lib/grade-prefill";
 import { photoFingerprints } from "@/lib/photo-fingerprints";
-import { renderGradeShareCard } from "@/lib/share-card";
+import { prepareGradeSpinLayers, renderGradeShareCard } from "@/lib/share-card";
 import {
   combinedPsaCap,
   formatRatio,
@@ -1041,7 +1041,10 @@ export default function GraderaPage() {
               previewMax="50dvh"
               safeBottom
               name={splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ?? t("shareUnknownCard")}
+              // Slabben bär aldrig den personliga länken (ägarbeslut 2026-10-01).
+              printLink={false}
               render={(domain) => renderGradeShareCard(gradeShareInput(result, domain))}
+              spin={(domain) => prepareGradeSpinLayers(gradeShareInput(result, domain))}
             />
           )}
         </BottomSheet>

@@ -909,8 +909,8 @@ function drawSubScores(ctx: CanvasRenderingContext2D, subs: GradeShareInput["sub
   });
 }
 
-/** Rita graderingens delningsbild (1080 × 1920). */
-export async function renderGradeShareCard(input: GradeShareInput): Promise<Blob> {
+/** Kortkonst, märke och typsnitt — en gång per delningsbild/video. */
+async function loadGradeAssets(input: GradeShareInput) {
   const family = pageFontFamily();
   const [art, mark] = await Promise.all([
     loadArt({
@@ -924,18 +924,22 @@ export async function renderGradeShareCard(input: GradeShareInput): Promise<Blob
     loadImage("/brand/foilio-mark.png", false).catch(() => null),
     ensureFonts(family),
   ]);
+  return { art, mark, family };
+}
 
-  const canvas = document.createElement("canvas");
-  canvas.width = SHARE_CARD_WIDTH;
-  canvas.height = SHARE_CARD_HEIGHT;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("canvas");
+/** Den lutade stillbildsslabbens nederkant — texten under räknas från den (också i videon). */
+function staticSlabBottom(): number {
+  const project = makeProjector(TILT_X, TILT_Y, FOCAL, SLAB_CENTER);
+  const sw = TEX_W * SLAB_SCALE;
+  const sh = TEX_H * SLAB_SCALE;
+  const depth = SLAB_DEPTH * SLAB_SCALE;
+  const outline = roundedRectPoints(sw, sh, TEX_RADIUS * SLAB_SCALE);
+  return Math.max(...outline.map((p) => project(p.x, p.y, 0).y), ...outline.map((p) => project(p.x, p.y, depth).y));
+}
 
-  drawAmbient(ctx, art, SLAB_CENTER.y + 60, SLAB_CENTER.y + 420);
-  drawBrand(ctx, mark, family);
-  const bottom = drawSlab3D(ctx, slabTexture(input, family, art, mark));
-
-  let y = Math.max(bottom + 110, 1500);
+/** Delpoäng, centreringsrad, ansvarsrad och sidfot under slabben. */
+function drawGradeText(ctx: CanvasRenderingContext2D, input: GradeShareInput, family: string) {
+  let y = Math.max(staticSlabBottom() + 110, 1500);
   drawSubScores(ctx, input.subScores, family, y);
   y += 108;
   ctx.textAlign = "center";
@@ -948,10 +952,174 @@ export async function renderGradeShareCard(input: GradeShareInput): Promise<Blob
   ctx.font = `500 23px ${family}`;
   ctx.fillStyle = INK_FAINT;
   ctx.fillText(ellipsize(ctx, input.disclaimer, TEXT_MAX_W), SHARE_CARD_WIDTH / 2, y);
-
   drawFooter(ctx, input.footer, family, Math.max(y + 70, 1740));
+}
+
+/** Rita graderingens delningsbild (1080 × 1920). */
+export async function renderGradeShareCard(input: GradeShareInput): Promise<Blob> {
+  const { art, mark, family } = await loadGradeAssets(input);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = SHARE_CARD_WIDTH;
+  canvas.height = SHARE_CARD_HEIGHT;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas");
+
+  drawAmbient(ctx, art, SLAB_CENTER.y + 60, SLAB_CENTER.y + 420);
+  drawBrand(ctx, mark, family);
+  drawSlab3D(ctx, slabTexture(input, family, art, mark));
+  drawGradeText(ctx, input, family);
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("toBlob"))), "image/jpeg", 0.92);
   });
+}
+
+/**
+ * SLABBEN SOM SNURRAR (2026-10-01) — lagren videon och förhandsvisningen ritar på:
+ * bakgrunden (allt utom slabben, en gång) och slabbens två platta sidor. Se
+ * lib/slab-spin.ts för hur de vrids.
+ */
+export interface GradeSpinLayers {
+  background: HTMLCanvasElement;
+  front: HTMLCanvasElement;
+  back: HTMLCanvasElement;
+  center: { x: number; y: number };
+  /** Texturens radie och tjocklek, i texturens enheter. */
+  radius: number;
+  depth: number;
+}
+
+export async function prepareGradeSpinLayers(input: GradeShareInput): Promise<GradeSpinLayers> {
+  const { art, mark, family } = await loadGradeAssets(input);
+  const background = document.createElement("canvas");
+  background.width = SHARE_CARD_WIDTH;
+  background.height = SHARE_CARD_HEIGHT;
+  const ctx = background.getContext("2d");
+  if (!ctx) throw new Error("canvas");
+  drawAmbient(ctx, art, SLAB_CENTER.y + 60, SLAB_CENTER.y + 420);
+  drawBrand(ctx, mark, family);
+  drawGradeText(ctx, input, family);
+  return {
+    background,
+    front: slabTexture(input, family, art, mark),
+    back: slabBackTexture(input, family, mark),
+    center: SLAB_CENTER,
+    radius: TEX_RADIUS,
+    depth: SLAB_DEPTH,
+  };
+}
+
+/**
+ * Slabbens BAKSIDA: samma klara plast, etikettens baksida med Foilios märke och
+ * en hologramdekal, och ett Foilio-mönstrat kort i brunnen.
+ * ⛔ Aldrig Pokémon-kortets riktiga baksida — det är deras design (samma regel som
+ *    etiketten, se filhuvudet för graderingskortet).
+ */
+function slabBackTexture(input: GradeShareInput, family: string, mark: HTMLImageElement | null): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = TEX_W;
+  c.height = TEX_H;
+  const ctx = c.getContext("2d")!;
+
+  roundedRect(ctx, 0, 0, TEX_W, TEX_H, TEX_RADIUS);
+  const body = ctx.createLinearGradient(TEX_W, 0, 0, TEX_H);
+  body.addColorStop(0, "rgba(225,240,245,0.17)");
+  body.addColorStop(0.5, "rgba(200,220,228,0.07)");
+  body.addColorStop(1, "rgba(225,240,245,0.14)");
+  ctx.fillStyle = body;
+  ctx.fill();
+  ctx.save();
+  roundedRect(ctx, 1.5, 1.5, TEX_W - 3, TEX_H - 3, TEX_RADIUS - 1);
+  ctx.strokeStyle = "rgba(255,255,255,0.75)";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  roundedRect(ctx, 9, 9, TEX_W - 18, TEX_H - 18, TEX_RADIUS - 8);
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.restore();
+
+  // Etikettens baksida: svart, märket + ordmärket, en hologramdekal till höger.
+  const { x, y, w, h, r } = LABEL;
+  ctx.save();
+  roundedRect(ctx, x, y, w, h, r);
+  ctx.fillStyle = "#080a0a";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(45,212,191,0.45)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+  let tx = x + 40;
+  if (mark) {
+    const mh = 74;
+    const mw = (mh * MARK_CROP.w) / MARK_CROP.h;
+    ctx.drawImage(mark, MARK_CROP.x, MARK_CROP.y, MARK_CROP.w, MARK_CROP.h, tx, y + (h - mh) / 2 - 14, mw, mh);
+    tx += mw + 18;
+  }
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `800 52px ${family}`;
+  ctx.fillStyle = INK;
+  ctx.fillText("Foilio", tx, y + h / 2 + 4);
+  ctx.font = `700 22px ${family}`;
+  setTracking(ctx, 3);
+  ctx.fillStyle = CYAN;
+  ctx.fillText(input.labelEyebrow.toUpperCase(), tx, y + h / 2 + 44);
+  setTracking(ctx, 0);
+  const holo = ctx.createLinearGradient(x + w - 170, y + 40, x + w - 40, y + h - 40);
+  holo.addColorStop(0, "#7dd3fc");
+  holo.addColorStop(0.3, "#a78bfa");
+  holo.addColorStop(0.6, "#f472b6");
+  holo.addColorStop(1, "#2dd4bf");
+  ctx.save();
+  roundedRect(ctx, x + w - 160, y + 52, 110, 110, 18);
+  ctx.fillStyle = holo;
+  ctx.globalAlpha = 0.85;
+  ctx.fill();
+  ctx.restore();
+
+  // Brunnen med ett Foilio-kort: mörkt, turkosa ringar och märket i mitten.
+  ctx.save();
+  roundedRect(ctx, WELL.x, WELL.y, WELL.w, WELL.h, WELL.r);
+  ctx.fillStyle = "rgba(0,0,0,0.28)";
+  ctx.fill();
+  ctx.restore();
+  const radius = Math.round(TEX_CARD.w * 0.045);
+  ctx.save();
+  roundedRect(ctx, TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h, radius);
+  ctx.clip();
+  const card = ctx.createLinearGradient(TEX_CARD.x, TEX_CARD.y, TEX_CARD.x + TEX_CARD.w, TEX_CARD.y + TEX_CARD.h);
+  card.addColorStop(0, "#0b1a1a");
+  card.addColorStop(1, "#050909");
+  ctx.fillStyle = card;
+  ctx.fillRect(TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h);
+  const ccx = TEX_CARD.x + TEX_CARD.w / 2;
+  const ccy = TEX_CARD.y + TEX_CARD.h / 2;
+  for (let i = 1; i <= 7; i++) {
+    ctx.beginPath();
+    ctx.arc(ccx, ccy, i * 64, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(45,212,191,${0.28 - i * 0.03})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  if (mark) {
+    const mh = 220;
+    const mw = (mh * MARK_CROP.w) / MARK_CROP.h;
+    ctx.drawImage(mark, MARK_CROP.x, MARK_CROP.y, MARK_CROP.w, MARK_CROP.h, ccx - mw / 2, ccy - mh / 2, mw, mh);
+  }
+  ctx.restore();
+
+  // Samma glas som framsidan, spegelvänt.
+  ctx.save();
+  roundedRect(ctx, 0, 0, TEX_W, TEX_H, TEX_RADIUS);
+  ctx.clip();
+  const sweep = ctx.createLinearGradient(TEX_W, 0, 0, TEX_H * 0.9);
+  sweep.addColorStop(0, "rgba(255,255,255,0)");
+  sweep.addColorStop(0.22, "rgba(255,255,255,0.14)");
+  sweep.addColorStop(0.32, "rgba(255,255,255,0)");
+  ctx.fillStyle = sweep;
+  ctx.fillRect(0, 0, TEX_W, TEX_H);
+  ctx.restore();
+  return c;
 }
