@@ -29,6 +29,7 @@
  */
 import { prisma } from "@/lib/db";
 import { matchCards, parseGuessedNumber } from "@/services/scanner";
+import { variantDisplayRank } from "@/lib/print-variant";
 
 export interface GradedCardLink {
   cardId: string;
@@ -57,8 +58,13 @@ export function splitGradedCardName(raw: string | null | undefined): {
   // först: den är entydig, och en bar sifferserie i ett setnamn ska inte kunna
   // förväxlas med ett kortnummer.
   const withTotal = /(\d{1,4}\s*[/／]\s*\d{1,4})/.exec(s);
-  const lettered = /\b([A-Za-z]{1,5}\s?\d{1,4}[a-z]?)\b/.exec(s);
-  const hit = withTotal ?? lettered;
+  // Bokstavsformen bara i namndelen: i setgissningen blev "Base Set 2" annars numret "Set2".
+  const lettered = /\b([A-Za-z]{1,5}\s?\d{1,4}[a-z]?)\b/.exec(s.split("·")[0]);
+  // NAKET NUMMER sist i namndelen: "Articuno 22 · WotC Promo" (mätt i prod 2026-10-01).
+  // Bara i delen FÖRE första "·" — "Charizard · Base Set 2" är en setgissning, inget nummer.
+  const bare = /^(.+?)\s(\d{1,4})\s*$/.exec(s.split("·")[0]);
+  const bareHit = bare ? Object.assign([bare[0], bare[2]], { index: bare[1].length + 1 }) : null;
+  const hit = withTotal ?? lettered ?? bareHit;
   if (!hit) return { name: stripSeparators(s), number: null };
   return {
     name: stripSeparators(s.slice(0, hit.index)),
@@ -156,9 +162,16 @@ export function pickGradedCandidate(
  */
 export async function resolveGradedCard(
   cardName: string | null | undefined,
-  hintCardId?: string | null
+  hintCardId?: string | null,
+  opts: { confirmed?: boolean; artCardIds?: string[] } = {}
 ): Promise<GradedCardLink | null> {
   const { name, number } = splitGradedCardName(cardName);
+
+  // Användaren bekräftade kortet (bildmatchningen eller sökningen) — det gäller.
+  if (hintCardId && opts.confirmed) {
+    const confirmed = await linkByCardId(hintCardId);
+    if (confirmed) return confirmed;
+  }
 
   if (hintCardId) {
     const hinted = await linkByCardId(hintCardId);
@@ -173,6 +186,14 @@ export async function resolveGradedCard(
 
   const direct = await linkByNumber(cardName ?? "", name, number, setHint, false);
   if (direct) return direct;
+
+  // BILDEN + TEXTEN (2026-10-01): bildmatchningen på framsidan gav en topplista;
+  // pekar modellens namn OCH nummer ut ett av de korten är identiteten styrkt två
+  // gånger om — även när numrets FORMAT inte går att slå upp ("SVP 132" mot "132").
+  if (opts.artCardIds?.length) {
+    const byArt = await linkByArtCandidates(opts.artCardIds, name, number);
+    if (byArt) return byArt;
+  }
 
   // PROMOKOD FRAMFÖR NUMRET (ägarens fältrapport 2026-10-01): modellen läser det som
   // står tryckt — "SVP 132", "SWSH 034" — medan katalogen numrerar flera promoset med
@@ -217,6 +238,33 @@ async function linkByNumber(
   };
 }
 
+/**
+ * Bildmatchningens kandidater mot modellens namn + nummer. Numret jämförs på
+ * SIFFRORNA (promokoden och nollorna bort) — kandidaten är redan utpekad av bilden,
+ * så formatet behöver inte bära identiteten ensamt. Namnet måste ändå stämma.
+ */
+async function linkByArtCandidates(
+  artCardIds: string[],
+  name: string,
+  number: string
+): Promise<GradedCardLink | null> {
+  const digits = (x: string) => (x.match(/\d+/g)?.join("") ?? "").replace(/^0+/, "");
+  const want = digits(number.split(/[/／]/)[0]);
+  if (!want) return null;
+  const cards = await prisma.card.findMany({
+    where: { id: { in: artCardIds.slice(0, 5) } },
+    select: { id: true, name: true, number: true },
+  });
+  const hits = cards.filter(
+    (c) =>
+      digits(c.number) === want &&
+      (normName(c.name).includes(normName(name)) || normName(name).includes(normName(c.name)))
+  );
+  // Två olika kort med samma namn och nummer i topplistan = vi vet inte vilket.
+  if (hits.length !== 1) return null;
+  return linkByCardId(hits[0].id);
+}
+
 /** "Scarlet & Violet Black Star Promos", "SWSH Black Star Promos", "Wizards Black Star Promos" … */
 export function isPromoSet(setName: string): boolean {
   return /\bpromos?\b/i.test(setName);
@@ -224,25 +272,37 @@ export function isPromoSet(setName: string): boolean {
 
 /** Katalogkortet för ett känt kort-id, i samma form som matchningens träffar. */
 export async function linkByCardId(cardId: string): Promise<GradedCardLink | null> {
+  // DIREKT ur katalogen (2026-10-01). Förut gick uppslaget via `matchCards` och
+  // krävde att kortet fanns i dess topplista för namn + nummer — Wizards-promot
+  // "Articuno 22" gjorde det inte, så ett BEKRÄFTAT kort-id gav ändå ingen koppling.
   const card = await prisma.card.findUnique({
     where: { id: cardId },
-    select: { name: true, number: true },
+    select: {
+      id: true,
+      name: true,
+      number: true,
+      imageUrl: true,
+      set: { select: { name: true } },
+      // Ordinarie tryckning först (etikettlös), dolda produkter aldrig.
+      products: {
+        where: { hiddenAt: null },
+        select: { slug: true, variantLabel: true, imageUrl: true },
+      },
+    },
   });
   if (!card) return null;
-  const candidates = await matchCards({
-    rawText: `${card.name} ${card.number}`,
-    guessedName: card.name,
-    guessedNumber: card.number,
-    confidence: 0,
-  });
-  const hit = candidates.find((c) => c.cardId === cardId);
-  if (!hit) return null;
+  // Appens visningsordning: ordinarie, sedan Unlimited → Shadowless → 1st Edition,
+  // sist reverse-familjen. Base har ingen etikettlös produkt — utan rangordningen
+  // blev Charizard #4 en slumpvis tryckning (mätt: Shadowless).
+  const product =
+    [...card.products].sort((a, b) => variantDisplayRank(a.variantLabel) - variantDisplayRank(b.variantLabel))[0] ??
+    null;
   return {
-    cardId: hit.cardId,
-    imageUrl: hit.imageUrl,
-    name: hit.name,
-    setName: hit.setName,
-    number: hit.number,
-    slug: hit.slug,
+    cardId: card.id,
+    imageUrl: card.imageUrl ?? product?.imageUrl ?? null,
+    name: card.name,
+    setName: card.set.name,
+    number: card.number,
+    slug: product?.slug ?? null,
   };
 }

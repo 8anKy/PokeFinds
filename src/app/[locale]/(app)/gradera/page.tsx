@@ -24,6 +24,7 @@ import { CardSearch, type CardSearchCandidate } from "@/components/features/card
 import { Link } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
 import { takeGradePrefill } from "@/lib/grade-prefill";
+import { photoFingerprints } from "@/lib/photo-fingerprints";
 import { renderGradeShareCard } from "@/lib/share-card";
 import {
   combinedPsaCap,
@@ -414,6 +415,141 @@ function GradingWorthPanel({ worth, overall }: { worth: GradingWorthDto; overall
   );
 }
 
+/** Ett kort ur bildmatchningen eller sökningen — se /api/grading/identify. */
+interface IdentifiedCard {
+  cardId: string;
+  name: string;
+  number: string;
+  setName: string;
+  imageUrl: string | null;
+}
+
+/**
+ * "ÄR DET HÄR DITT KORT?" (2026-10-01) — skannerns bildmatchning på framsidan,
+ * FÖRE graderingen. AI:n graderar fortfarande; det här avgör bara vilket kort det
+ * är, så värdet och slabbens bild blir rätt. Förvalt bara när matchningen är
+ * säker (mätt: noll fel), annars får användaren välja bland tre eller söka.
+ */
+function CardIdentityBox(props: {
+  state: "loading" | "done";
+  chosen: IdentifiedCard | null;
+  suggestions: IdentifiedCard[];
+  onChoose: (c: IdentifiedCard) => void;
+  onSearch: () => void;
+}) {
+  const t = useTranslations("Grading");
+  const [changing, setChanging] = useState(false);
+  if (props.state === "loading") {
+    return (
+      <div className="flex items-center gap-2 rounded-xl bg-surface-overlay/40 px-3 py-3 text-sm text-ink-muted ring-1 ring-surface-border">
+        <Spinner />
+        {t("identifyLoading")}
+      </div>
+    );
+  }
+  const { chosen } = props;
+  if (chosen && !changing) {
+    return (
+      <div className="flex items-center gap-3 rounded-xl bg-holo-cyan/10 p-2.5 ring-1 ring-holo-cyan/40">
+        {chosen.imageUrl ? (
+          <SafeImage
+            src={chosen.imageUrl}
+            alt=""
+            className="h-16 w-[2.85rem] shrink-0 rounded object-cover"
+            fallback={<span className="h-16 w-[2.85rem] shrink-0 rounded bg-surface-overlay" />}
+          />
+        ) : (
+          <span className="h-16 w-[2.85rem] shrink-0 rounded bg-surface-overlay" />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1 text-[11px] font-semibold text-holo-cyan">
+            <IconCheck size={12} /> {t("identifyYourCard")}
+          </p>
+          <p className="truncate text-sm font-semibold text-ink">{chosen.name}</p>
+          <p className="truncate text-xs text-ink-faint">
+            {chosen.setName} · #{chosen.number}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setChanging(true)}
+          className="shrink-0 rounded-full px-3 py-1 text-xs font-medium text-ink-muted ring-1 ring-surface-border hover:text-ink"
+        >
+          {t("identifyChange")}
+        </button>
+      </div>
+    );
+  }
+  const options = props.suggestions.slice(0, 3);
+  return (
+    <div className="rounded-xl bg-surface-overlay/40 p-3 ring-1 ring-surface-border">
+      <p className="text-sm font-semibold text-ink">
+        {options.length > 0 ? t("identifyQuestion") : t("identifyNone")}
+      </p>
+      {options.length > 0 && (
+        <ul className="mt-2 grid grid-cols-3 gap-2">
+          {options.map((c) => (
+            <li key={c.cardId}>
+              <button
+                type="button"
+                onClick={() => {
+                  props.onChoose(c);
+                  setChanging(false);
+                }}
+                className={cn(
+                  "flex w-full flex-col items-center gap-1 rounded-lg p-1.5 text-center ring-1 transition-colors",
+                  chosen?.cardId === c.cardId
+                    ? "bg-holo-cyan/10 ring-holo-cyan/50"
+                    : "ring-surface-border hover:bg-surface-overlay"
+                )}
+              >
+                {c.imageUrl ? (
+                  <SafeImage
+                    src={c.imageUrl}
+                    alt=""
+                    className="aspect-[63/88] w-full rounded object-cover"
+                    fallback={<span className="aspect-[63/88] w-full rounded bg-surface-overlay" />}
+                  />
+                ) : (
+                  <span className="aspect-[63/88] w-full rounded bg-surface-overlay" />
+                )}
+                <span className="line-clamp-1 w-full text-[11px] font-semibold text-ink">{c.name}</span>
+                <span className="line-clamp-1 w-full text-[10px] text-ink-faint">
+                  {c.setName} · #{c.number}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+        <button
+          type="button"
+          onClick={() => {
+            setChanging(false);
+            props.onSearch();
+          }}
+          className="text-xs font-semibold text-holo-cyan hover:underline"
+        >
+          {t("identifySearch")}
+        </button>
+        {chosen && changing && (
+          <button
+            type="button"
+            onClick={() => setChanging(false)}
+            className="text-xs font-medium text-ink-faint hover:text-ink"
+          >
+            {t("identifyKeep")}
+          </button>
+        )}
+        {!chosen && options.length > 0 && (
+          <span className="text-[11px] text-ink-faint">{t("identifySkipHint")}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function GraderaPage() {
   const t = useTranslations("Grading");
   const locale = useLocale();
@@ -439,6 +575,13 @@ export default function GraderaPage() {
   const [shareOpen, setShareOpen] = useState(false);
   /** "Fel kort? Välj rätt" — användaren väljer kortet ur katalogen (api/grading/jobs/[id]/card). */
   const [pickOpen, setPickOpen] = useState(false);
+  /** Sökningen öppnad FÖRE graderingen (väljer `identified`), inte för ett jobb. */
+  const [pickForPhoto, setPickForPhoto] = useState(false);
+  /** Bildmatchningen på framsidan — se CardIdentityBox. */
+  const [idState, setIdState] = useState<"idle" | "loading" | "done">("idle");
+  const [suggestions, setSuggestions] = useState<IdentifiedCard[]>([]);
+  const [identified, setIdentified] = useState<IdentifiedCard | null>(null);
+  const userPickedRef = useRef(false);
   const [picking, setPicking] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
   const tc = useTranslations("Centering");
@@ -453,6 +596,43 @@ export default function GraderaPage() {
     setSetHint(p.setName);
     setCardIdHint(p.cardId);
   }, []);
+
+  // BILDMATCHNING PÅ FRAMSIDAN — det upprätade utsnittet ur centreringsmätaren när
+  // det finns (mätt topp-1 96 %), annars fotot. Inte när kortet redan kom från
+  // skannern. Ett användarval skrivs aldrig över; ett automatiskt förval får
+  // uppdateras när utsnittet ger ett säkrare svar.
+  const idSource = centering.front?.cropDataUrl ?? front;
+  useEffect(() => {
+    if (!idSource || cardIdHint) {
+      setIdState("idle");
+      setSuggestions([]);
+      return;
+    }
+    let alive = true;
+    setIdState("loading");
+    const none = { candidates: [] as IdentifiedCard[], confident: false };
+    (async () => {
+      const fps = await photoFingerprints(idSource).catch(() => null);
+      if (!fps) return none;
+      const res = await fetch("/api/grading/identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fps),
+      });
+      if (!res.ok) return none;
+      return (await res.json()) as { candidates: IdentifiedCard[]; confident: boolean };
+    })()
+      .catch(() => none)
+      .then((r) => {
+        if (!alive) return;
+        setSuggestions(r.candidates);
+        setIdState("done");
+        if (!userPickedRef.current) setIdentified(r.confident ? r.candidates[0] ?? null : null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [idSource, cardIdHint]);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -486,8 +666,15 @@ export default function GraderaPage() {
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = typeof reader.result === "string" ? reader.result : null;
-      if (side === "front") setFront(dataUrl);
-      else setBack(dataUrl);
+      if (side === "front") {
+        setFront(dataUrl);
+        // Ett nytt foto kan vara ett annat kort — bildmatchningen tar över.
+        setCardHint(null);
+        setSetHint(null);
+        setCardIdHint(null);
+        setIdentified(null);
+        userPickedRef.current = false;
+      } else setBack(dataUrl);
       // En ny bild gör den gamla mätningen meningslös.
       setCentering((c) => ({ ...c, [side]: null }));
       setResult(null);
@@ -517,8 +704,11 @@ export default function GraderaPage() {
           front,
           back,
           locale,
-          cardName: cardHint ?? undefined,
-          cardId: cardIdHint ?? undefined,
+          cardName: identified ? `${identified.name} ${identified.number}` : cardHint ?? undefined,
+          cardId: identified?.cardId ?? cardIdHint ?? undefined,
+          // Valt i "Är det här ditt kort?" (eller förvalt av en SÄKER bildträff).
+          cardConfirmed: identified ? true : undefined,
+          artCardIds: suggestions.length ? suggestions.map((c) => c.cardId) : undefined,
           centering:
             centering.front || centering.back
               ? { front: centeringPayload(centering.front), back: centeringPayload(centering.back) }
@@ -720,6 +910,21 @@ export default function GraderaPage() {
             />
           </div>
           {cardHint && <p className="text-xs text-ink-muted">{t("fromScanner", { card: cardHint })}</p>}
+          {front && !cardIdHint && idState !== "idle" && (
+            <CardIdentityBox
+              state={idState === "loading" ? "loading" : "done"}
+              chosen={identified}
+              suggestions={suggestions}
+              onChoose={(c) => {
+                userPickedRef.current = true;
+                setIdentified(c);
+              }}
+              onSearch={() => {
+                setPickForPhoto(true);
+                setPickOpen(true);
+              }}
+            />
+          )}
           {(centering.front || centering.back) && (
             <div className="rounded-xl border border-holo-cyan/25 bg-holo-cyan/5 px-4 py-3">
               <p className="text-sm font-semibold text-ink">{tc("summaryTitle")}</p>
@@ -842,12 +1047,15 @@ export default function GraderaPage() {
         </BottomSheet>
       )}
 
-      {result && (
+      {(result || pickForPhoto) && (
         <BottomSheet
           open={pickOpen}
           title={t("pickCardTitle")}
           closeLabel={ts("back")}
-          onClose={() => setPickOpen(false)}
+          onClose={() => {
+            setPickOpen(false);
+            setPickForPhoto(false);
+          }}
           // FAST höjd = 84 % av ytan OVANFÖR tangentbordet (arket slutar där det
           // börjar). En höjd i dvh räknades mot hela skärmen och sköt listan in
           // under tangentbordet (ägarens skärmdump 2026-10-01).
@@ -860,16 +1068,36 @@ export default function GraderaPage() {
                 picking && "pointer-events-none opacity-60"
               )}
             >
-              <CardSearch
-                captured={result.historyAt ? null : centering.front?.cropDataUrl ?? front}
-                initialQuery={
-                  splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ??
-                  cardHint ??
-                  ""
-                }
-                selectedCardId={result.result.cardId ?? null}
-                onPick={(c) => void pickCard(result.jobId, c)}
-              />
+              {pickForPhoto || !result ? (
+                <CardSearch
+                  captured={centering.front?.cropDataUrl ?? front}
+                  initialQuery={identified?.name ?? suggestions[0]?.name ?? ""}
+                  selectedCardId={identified?.cardId ?? null}
+                  onPick={(c) => {
+                    userPickedRef.current = true;
+                    setIdentified({
+                      cardId: c.cardId,
+                      name: c.name,
+                      number: c.number,
+                      setName: c.setName,
+                      imageUrl: c.imageUrl,
+                    });
+                    setPickOpen(false);
+                    setPickForPhoto(false);
+                  }}
+                />
+              ) : (
+                <CardSearch
+                  captured={result.historyAt ? null : centering.front?.cropDataUrl ?? front}
+                  initialQuery={
+                    splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ??
+                    cardHint ??
+                    ""
+                  }
+                  selectedCardId={result.result.cardId ?? null}
+                  onPick={(c) => void pickCard(result.jobId, c)}
+                />
+              )}
             </div>
           )}
         </BottomSheet>

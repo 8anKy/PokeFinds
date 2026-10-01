@@ -109,3 +109,15 @@ describe("promokoder i numret (2026-10-01)", () => {
     expect(isPromoSet("Promotional Deck")).toBe(false);
   });
 });
+
+describe("naket nummer före setgissningen (2026-10-01)", () => {
+  it("'Articuno 22 · WotC Promo' ger numret 22", () => {
+    expect(splitGradedCardName("Articuno 22 · WotC Promo")).toEqual({ name: "Articuno", number: "22" });
+  });
+  it("ett tal inne i setgissningen räknas inte", () => {
+    expect(splitGradedCardName("Charizard · Base Set 2")).toEqual({ name: "Charizard · Base Set 2", number: null });
+  });
+  it("total-formen vinner fortfarande", () => {
+    expect(splitGradedCardName("Mew ex 30/25 · Celebrations").number).toBe("30/25");
+  });
+});

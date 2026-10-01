@@ -179,7 +179,10 @@ export async function runGradingJob(
     // `null` när numret saknas eller är tvetydigt; se card-link.ts för varför ett
     // namn ensamt inte duger.
     const cardName = result.cardName ?? context?.cardName ?? null;
-    const linked = await resolveGradedCard(cardName, context?.cardId).catch(() => null);
+    const linked = await resolveGradedCard(cardName, context?.cardId, {
+      confirmed: context?.cardConfirmed === true,
+      artCardIds: context?.artCardIds,
+    }).catch(() => null);
 
     const updated = await prisma.gradingJob.update({
       where: { id: job.id },
@@ -214,6 +217,8 @@ export async function runGradingJob(
           cardLabel: linked ? `${linked.name} · ${linked.setName} ${linked.number}` : null,
           // Katalogens setnamn — e-Reader-läget i centreringsmätaren läser det.
           cardSetName: linked?.setName ?? null,
+          // Användaren bekräftade kortet ⇒ worth-rutten kopplar aldrig om det.
+          cardPicked: context?.cardConfirmed === true && linked?.cardId === context?.cardId ? true : undefined,
           centering: centering ?? null,
         } as unknown as Prisma.InputJsonObject,
       },

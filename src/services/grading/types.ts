@@ -66,6 +66,17 @@ export interface GradingContext {
    */
   cardId?: string;
   /**
+   * Användaren BEKRÄFTADE `cardId` ("Är det här ditt kort?", bildmatchningen på
+   * fotot, eller valt i sökningen) — då gäller kortet ovillkorligen, även om
+   * modellen läser namnet annorlunda (2026-10-01).
+   */
+  cardConfirmed?: boolean;
+  /**
+   * Bildmatchningens topplista för framsidan (kort-id, bäst först). Korskontroll
+   * när användaren INTE bekräftade: modellens namn + nummer pekar ut en av dem.
+   */
+  artCardIds?: string[];
+  /**
    * Användarens UPPMÄTTA centrering i klartext, t.ex. "framsida V/H 54/46, Ö/N 51/49;
    * baksida V/H 60/40, Ö/N 55/45" (lib/centering.ts). Saknas när ingen mätning gjorts.
    */
