@@ -21,6 +21,7 @@
  */
 
 import { convexHull, homography, makeProjector, projectBox, warpPerspective } from "@/lib/perspective";
+import { detectCardQuad, warpPerspective as warpCardQuad } from "@/lib/card-quad";
 
 export const SHARE_CARD_WIDTH = 1080;
 export const SHARE_CARD_HEIGHT = 1920;
@@ -485,6 +486,12 @@ export interface GradeShareInput {
   centeringLine: string | null;
   disclaimer: string;
   footer: { lead: string; domain: string };
+  /**
+   * Användarens foto av kortets BAKSIDA (data-URL) — videons baksida. Rätas upp
+   * till kortformat. Saknas (gradering ur historiken: fotona sparas aldrig) ⇒ en
+   * neutral mörk kortbaksida.
+   */
+  backImageUrl?: string | null;
 }
 
 /**
@@ -991,7 +998,10 @@ export interface GradeSpinLayers {
 }
 
 export async function prepareGradeSpinLayers(input: GradeShareInput): Promise<GradeSpinLayers> {
-  const { art, mark, family } = await loadGradeAssets(input);
+  const [{ art, mark, family }, backArt] = await Promise.all([
+    loadGradeAssets(input),
+    input.backImageUrl ? loadImage(input.backImageUrl, false).then(straightenCard).catch(() => null) : null,
+  ]);
   const background = document.createElement("canvas");
   background.width = SHARE_CARD_WIDTH;
   background.height = SHARE_CARD_HEIGHT;
@@ -1003,7 +1013,7 @@ export async function prepareGradeSpinLayers(input: GradeShareInput): Promise<Gr
   return {
     background,
     front: slabTexture(input, family, art, mark),
-    back: slabBackTexture(input, family, mark),
+    back: slabBackTexture(input, family, mark, backArt),
     center: SLAB_CENTER,
     radius: TEX_RADIUS,
     depth: SLAB_DEPTH,
@@ -1011,12 +1021,53 @@ export async function prepareGradeSpinLayers(input: GradeShareInput): Promise<Gr
 }
 
 /**
- * Slabbens BAKSIDA: samma klara plast, etikettens baksida med Foilios märke och
- * en hologramdekal, och ett Foilio-mönstrat kort i brunnen.
- * ⛔ Aldrig Pokémon-kortets riktiga baksida — det är deras design (samma regel som
- *    etiketten, se filhuvudet för graderingskortet).
+ * Kortet ur ett foto, upprätat till kortformat (63:88): kortets fyra hörn letas upp
+ * (lib/card-quad.ts) och bilden rätas ut. Hittas inga hörn används fotot som det är
+ * (centreringsmätarens utsnitt är redan upprätat).
  */
-function slabBackTexture(input: GradeShareInput, family: string, mark: HTMLImageElement | null): HTMLCanvasElement {
+function straightenCard(img: HTMLImageElement): HTMLCanvasElement | HTMLImageElement {
+  const maxSide = 1200;
+  const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * scale));
+  const h = Math.max(1, Math.round(img.naturalHeight * scale));
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return img;
+  ctx.drawImage(img, 0, 0, w, h);
+  const px = ctx.getImageData(0, 0, w, h).data;
+  // Redan kortformat (mätarens utsnitt) ⇒ inget att räta.
+  if (Math.abs(w / h - 63 / 88) < 0.04) return c;
+  const quad = detectCardQuad(px, w, h, 4);
+  if (!quad) return c;
+  const outW = TEX_CARD.w;
+  const outH = TEX_CARD.h;
+  const warped = warpCardQuad(px, w, h, 4, quad.corners, outW, outH);
+  if (!warped) return c;
+  const out = document.createElement("canvas");
+  out.width = outW;
+  out.height = outH;
+  const octx = out.getContext("2d");
+  if (!octx) return c;
+  const id = octx.createImageData(outW, outH);
+  id.data.set(warped);
+  octx.putImageData(id, 0, 0);
+  return out;
+}
+
+/**
+ * Slabbens BAKSIDA: samma klara plast, etikettens baksida med Foilios märke och en
+ * hologramdekal, och KORTETS BAKSIDA i brunnen — användarens eget foto (ägarens
+ * önskan 2026-10-01: "visa kortets baksida", inte vårt märke). Utan foto en neutral
+ * mörk kortbaksida, aldrig en ritad kopia av Pokémon-baksidan.
+ */
+function slabBackTexture(
+  input: GradeShareInput,
+  family: string,
+  mark: HTMLImageElement | null,
+  backArt: HTMLCanvasElement | HTMLImageElement | null
+): HTMLCanvasElement {
   const c = document.createElement("canvas");
   c.width = TEX_W;
   c.height = TEX_H;
@@ -1079,7 +1130,7 @@ function slabBackTexture(input: GradeShareInput, family: string, mark: HTMLImage
   ctx.fill();
   ctx.restore();
 
-  // Brunnen med ett Foilio-kort: mörkt, turkosa ringar och märket i mitten.
+  // Brunnen med kortets baksida.
   ctx.save();
   roundedRect(ctx, WELL.x, WELL.y, WELL.w, WELL.h, WELL.r);
   ctx.fillStyle = "rgba(0,0,0,0.28)";
@@ -1087,26 +1138,38 @@ function slabBackTexture(input: GradeShareInput, family: string, mark: HTMLImage
   ctx.restore();
   const radius = Math.round(TEX_CARD.w * 0.045);
   ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.6)";
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 6;
+  roundedRect(ctx, TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h, radius);
+  ctx.fillStyle = "#111";
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
   roundedRect(ctx, TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h, radius);
   ctx.clip();
-  const card = ctx.createLinearGradient(TEX_CARD.x, TEX_CARD.y, TEX_CARD.x + TEX_CARD.w, TEX_CARD.y + TEX_CARD.h);
-  card.addColorStop(0, "#0b1a1a");
-  card.addColorStop(1, "#050909");
-  ctx.fillStyle = card;
-  ctx.fillRect(TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h);
-  const ccx = TEX_CARD.x + TEX_CARD.w / 2;
-  const ccy = TEX_CARD.y + TEX_CARD.h / 2;
-  for (let i = 1; i <= 7; i++) {
-    ctx.beginPath();
-    ctx.arc(ccx, ccy, i * 64, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(45,212,191,${0.28 - i * 0.03})`;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-  if (mark) {
-    const mh = 220;
-    const mw = (mh * MARK_CROP.w) / MARK_CROP.h;
-    ctx.drawImage(mark, MARK_CROP.x, MARK_CROP.y, MARK_CROP.w, MARK_CROP.h, ccx - mw / 2, ccy - mh / 2, mw, mh);
+  if (backArt) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    const iw = "naturalWidth" in backArt ? backArt.naturalWidth : backArt.width;
+    const ih = "naturalHeight" in backArt ? backArt.naturalHeight : backArt.height;
+    const sc = Math.max(TEX_CARD.w / iw, TEX_CARD.h / ih);
+    const dw = iw * sc;
+    const dh = ih * sc;
+    ctx.drawImage(backArt, TEX_CARD.x + (TEX_CARD.w - dw) / 2, TEX_CARD.y + (TEX_CARD.h - dh) / 2, dw, dh);
+  } else {
+    const card = ctx.createRadialGradient(
+      TEX_CARD.x + TEX_CARD.w / 2,
+      TEX_CARD.y + TEX_CARD.h / 2,
+      40,
+      TEX_CARD.x + TEX_CARD.w / 2,
+      TEX_CARD.y + TEX_CARD.h / 2,
+      TEX_CARD.h * 0.65
+    );
+    card.addColorStop(0, "#1e2b4a");
+    card.addColorStop(1, "#0b1020");
+    ctx.fillStyle = card;
+    ctx.fillRect(TEX_CARD.x, TEX_CARD.y, TEX_CARD.w, TEX_CARD.h);
   }
   ctx.restore();
 

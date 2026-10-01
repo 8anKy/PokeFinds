@@ -17,6 +17,7 @@
  *    `mediabunny`, laddas bara när någon väljer Video). Ingen server, ingen DB.
  */
 import type { GradeSpinLayers } from "@/lib/share-card";
+import { convexHull } from "@/lib/perspective";
 import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from "@/lib/share-card";
 
 export const SPIN_DURATION_SEC = 4;
@@ -114,23 +115,27 @@ export function drawSpinFrame(ctx: CanvasRenderingContext2D, layers: GradeSpinLa
   ctx.fill();
   ctx.restore();
 
-  // Tjockleken: båda kantytorna, den bortre först (målarens algoritm).
-  const sideH = half.h - layers.radius * k;
-  const sides = [half.w, -half.w].map((u) => {
-    const pts = [project(u, -sideH, -half.d), project(u, -sideH, half.d), project(u, sideH, half.d), project(u, sideH, -half.d)];
-    return { pts, z: (pts[0].z + pts[1].z) / 2 };
-  });
-  sides.sort((a, b) => b.z - a.z);
-  for (const side of sides) {
-    ctx.save();
-    path(ctx, side.pts);
-    ctx.fillStyle = "rgba(150,185,195,0.42)";
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.35)";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.restore();
-  }
+  // TJOCKLEKEN SOM ETT STYCKE (ägarens fältrapport 2026-10-01: "ramen glider fram
+  // och tillbaka i stället för att vara en hel slab"). Två tunna kantpaneler lästes
+  // som att framsidans ram flyttade sig. Nu: konturen av fram- OCH baksidan fylls
+  // som en enda kropp av plast — samma grepp som stillbilden — och den bortre sidans
+  // kontur syns svagt genom plasten. Sidan som vänder sig mot oss ritas sist, ovanpå.
+  const outlineUV = roundedOutline(half.w * 2, half.h * 2, layers.radius * k);
+  const frontRing = outlineUV.map((p) => project(p.u, p.v, -half.d));
+  const backRing = outlineUV.map((p) => project(p.u, p.v, half.d));
+  const hull = convexHull([...frontRing, ...backRing]);
+  ctx.save();
+  path(ctx, hull);
+  const hxs = hull.map((p) => p.x);
+  const body = ctx.createLinearGradient(Math.min(...hxs), 0, Math.max(...hxs), 0);
+  body.addColorStop(0, "rgba(190,215,222,0.26)");
+  body.addColorStop(1, "rgba(120,150,160,0.40)");
+  ctx.fillStyle = body;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.32)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
 
   // Vilken sida vänder sig mot oss? Framsidans projektion avgör (perspektivrätt).
   const frontVisible = project(half.w, 0, -half.d).x > project(-half.w, 0, -half.d).x;
@@ -139,7 +144,14 @@ export function drawSpinFrame(ctx: CanvasRenderingContext2D, layers: GradeSpinLa
   // Baksidan spegelvänds så att den läses rätt bakifrån.
   const uAt = (t: number) => (frontVisible ? -half.w + (t / W) * 2 * half.w : half.w - (t / W) * 2 * half.w);
 
-  const outline = roundedOutline(half.w * 2, half.h * 2, layers.radius * k).map((p) => project(p.u, p.v, faceW));
+  const outline = frontVisible ? frontRing : backRing;
+  // Den bortre sidans kontur, svagt genom plasten — ger djup.
+  ctx.save();
+  path(ctx, frontVisible ? backRing : frontRing);
+  ctx.strokeStyle = "rgba(255,255,255,0.14)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
   const faceSpan = Math.abs(project(half.w, 0, faceW).x - project(-half.w, 0, faceW).x);
   if (faceSpan > 1.5) {
     // Remsorna ritas i ett EGET lager på HELA pixlar — kant mot kant, varken glapp

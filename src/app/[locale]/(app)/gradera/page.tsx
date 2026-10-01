@@ -760,6 +760,8 @@ export default function GraderaPage() {
       centeringLine: parts.length ? `${t("shareCenteringLead")} · ${parts.join(" · ")}` : null,
       disclaimer: t("shareDisclaimer"),
       footer: { lead: t("shareFooterLead"), domain },
+      // Videons baksida: mätarens upprätade utsnitt, annars fotot (rätas upp vid ritningen).
+      backImageUrl: r.historyAt ? null : centering.back?.cropDataUrl ?? back,
     };
   }
 
