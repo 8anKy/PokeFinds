@@ -66,6 +66,7 @@ import { getRouteSwipeSnapshot } from "@/components/layout/route-swipe-snapshot"
 import { EDGE_ZONE_PX, resolveBackSwipe } from "@/lib/swipe-gesture";
 import { pageMotionTransition, swipeSettleDuration } from "@/lib/page-motion";
 import { SellSheet, type SellItem } from "@/components/features/sell-sheet";
+import { ShareCardPanel } from "@/components/features/share-card-panel";
 import {
   ScanPreparationSheet,
   markScanGuideNudgeSeen,
@@ -96,6 +97,7 @@ import {
   IconScan,
   IconSearch,
   IconSettings,
+  IconShare,
   IconTrash,
   IconUpload,
   IconX,
@@ -4087,8 +4089,11 @@ function ScanDetailsSheet(props: {
 }) {
   const t = useTranslations("Scanner");
   const router = useRouter();
+  const tShare = useTranslations("ShareCard");
   const { item } = props;
   const [searchOpen, setSearchOpen] = useState(props.startInSearch === true);
+  /** Delningskortet (2026-10-01) — ersätter arkets innehåll, som sökningen. */
+  const [shareOpen, setShareOpen] = useState(false);
 
   /**
    * ⛔ "SÖK MANUELLT" LÄMNAR ALDRIG SKANNERN (ägarens fältrapport 2026-09-23).
@@ -4158,8 +4163,27 @@ function ScanDetailsSheet(props: {
   }, [item.candidates, item.match]);
 
   return (
-    <Sheet title={t("scanDetails")} onClose={props.onClose} fill>
-      {searchOpen ? (
+    <Sheet title={shareOpen ? tShare("title") : t("scanDetails")} onClose={props.onClose} fill>
+      {shareOpen && item.match ? (
+        <ShareCardPanel
+          source="scan"
+          onBack={() => setShareOpen(false)}
+          input={{
+            imageUrl: item.match.imageUrl,
+            // Katalogbilden kan vägra CORS (~65 kort) — då blir det användarens foto.
+            fallbackImageUrl: item.captured,
+            name: item.match.name,
+            subtitle: [item.match.setName, `#${item.match.number}`, item.match.variantLabel]
+              .filter(Boolean)
+              .join(" · "),
+            value:
+              item.match.estimatedValue != null
+                ? { label: tShare("valueLabel"), text: formatPrice(item.match.estimatedValue) }
+                : null,
+            footer: { lead: tShare("footerLead"), domain: "foilio.se" },
+          }}
+        />
+      ) : searchOpen ? (
         <ScannerCardSearch
           captured={item.captured}
           initialQuery={item.match?.name ?? item.candidates[0]?.name ?? ""}
@@ -4231,9 +4255,16 @@ function ScanDetailsSheet(props: {
                   {item.match.variantLabel ? ` · ${item.match.variantLabel}` : ""}
                 </p>
               </div>
-              <p className="shrink-0 text-lg font-semibold tabular-nums text-holo-cyan">
-                {item.match.estimatedValue != null ? formatPrice(item.match.estimatedValue) : "–"}
-              </p>
+              <div className="flex shrink-0 items-center gap-2.5">
+                <p className="text-lg font-semibold tabular-nums text-holo-cyan">
+                  {item.match.estimatedValue != null ? formatPrice(item.match.estimatedValue) : "–"}
+                </p>
+                {/* DELA (2026-10-01): en bild med kortet och värdet för story/Discord.
+                    Bredvid priset, för det är priset man vill visa upp. */}
+                <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
+                  <IconShare size={14} /> {tShare("open")}
+                </Button>
+              </div>
             </div>
           </div>
         )}

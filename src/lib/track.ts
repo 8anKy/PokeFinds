@@ -8,7 +8,17 @@
  * KÄLLAN ("free-restock-limit", "chart-max", "priser"…) i stället för en slug —
  * samma opersonliga händelsetabell, ingen userId. Läses i admin → Engagemang.
  */
-export type TrackType = "product_view" | "list_click" | "search_click" | "paywall_open" | "upgrade_click";
+/**
+ * `share_card` (2026-10-01): delningskortet. Nyckeln är "<yta>:<utfall>" —
+ * "scan:open" (förhandsvisningen öppnades), "scan:shared", "scan:saved".
+ */
+export type TrackType =
+  | "product_view"
+  | "list_click"
+  | "search_click"
+  | "paywall_open"
+  | "upgrade_click"
+  | "share_card";
 
 export function track(type: TrackType, slug: string | null | undefined): void {
   if (!slug || typeof window === "undefined") return;

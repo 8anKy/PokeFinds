@@ -2782,5 +2782,20 @@
     "welcomeBody": "Priser från över 40 svenska butiker, restock-larm och en kortskanner som visar vad dina kort är värda.",
     "welcomeStart": "Visa mig runt",
     "welcomeDismiss": "Jag klarar mig själv"
+  },
+  "ShareCard": {
+    "open": "Dela",
+    "title": "Dela kortet",
+    "valueLabel": "Uppskattat värde",
+    "footerLead": "Värdera dina kort gratis på ",
+    "shareImage": "Dela bild",
+    "saveImage": "Spara bild",
+    "saved": "Sparad",
+    "back": "Tillbaka",
+    "hint": "Lägg upp i din story, på Discord eller skicka till en vän.",
+    "rendering": "Skapar bilden …",
+    "error": "Bilden gick inte att skapa.",
+    "retry": "Försök igen",
+    "previewAlt": "Delningsbild för {name}"
   }
 }

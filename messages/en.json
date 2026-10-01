@@ -2782,5 +2782,20 @@
     "welcomeBody": "Prices from over 40 Swedish stores, restock alerts and a card scanner that shows what your cards are worth.",
     "welcomeStart": "Show me around",
     "welcomeDismiss": "I'll explore on my own"
+  },
+  "ShareCard": {
+    "open": "Share",
+    "title": "Share card",
+    "valueLabel": "Estimated value",
+    "footerLead": "Value your cards for free at ",
+    "shareImage": "Share image",
+    "saveImage": "Save image",
+    "saved": "Saved",
+    "back": "Back",
+    "hint": "Post it to your story, on Discord or send it to a friend.",
+    "rendering": "Creating the image …",
+    "error": "Couldn't create the image.",
+    "retry": "Try again",
+    "previewAlt": "Share image for {name}"
   }
 }
