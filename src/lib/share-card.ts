@@ -70,18 +70,45 @@ function loadImage(src: string, cors: boolean, timeoutMs = 8000): Promise<HTMLIm
   });
 }
 
+/**
+ * ⛔ EGEN URL FÖR CORS-LADDNINGEN (ägarens fältrapport 2026-10-01: tom slab ur
+ * historiken på en iPhone). Samma bild har redan visats som en vanlig <img> utan
+ * CORS (historikraden, skannerns ark), och WebKit återanvänder den cachade kopian
+ * för en `crossOrigin`-begäran — den saknar CORS-godkännandet och laddningen
+ * fallerar, trots att värden svarar `Access-Control-Allow-Origin: *`. En egen
+ * query-parameter ger en egen cachepost. Mätt: pokemontcg.io, tcggo, scrydex och
+ * tcgdex (> 99 % av katalogen) svarar 200 + ACAO * även med parametern.
+ */
+function corsUrl(src: string): string {
+  if (!/^https?:\/\//.test(src)) return src;
+  return `${src}${src.includes("?") ? "&" : "?"}fo=share`;
+}
+
+async function loadCorsImage(src: string): Promise<HTMLImageElement> {
+  try {
+    return await loadImage(corsUrl(src), true);
+  } catch {
+    // En värd som vägrar okända parametrar: prova den rena adressen.
+    return loadImage(src, true);
+  }
+}
+
 /** Ladda kortkonsten: katalogbilden med CORS, annars reserven, annars null. */
 async function loadArt(input: ShareCardInput): Promise<HTMLImageElement | null> {
   if (input.imageUrl) {
     try {
-      return await loadImage(input.imageUrl, true);
+      return await (input.imageUrl.startsWith("data:")
+        ? loadImage(input.imageUrl, false)
+        : loadCorsImage(input.imageUrl));
     } catch {
       /* CORS-vägran eller död länk → reserven */
     }
   }
   if (input.fallbackImageUrl) {
     try {
-      return await loadImage(input.fallbackImageUrl, !input.fallbackImageUrl.startsWith("data:"));
+      return await (input.fallbackImageUrl.startsWith("data:")
+        ? loadImage(input.fallbackImageUrl, false)
+        : loadCorsImage(input.fallbackImageUrl));
     } catch {
       /* ingen konst alls — kortet ritas utan */
     }

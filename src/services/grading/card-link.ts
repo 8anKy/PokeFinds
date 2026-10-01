@@ -121,8 +121,9 @@ export function pickGradedCandidate(
   printedNumber: string,
   setHint: string | null
 ): number {
-  const same = (a: string, b: string) =>
-    a.replace(/^0+/, "").toLowerCase() === b.replace(/^0+/, "").toLowerCase();
+  // "MEP 099" i katalogen mot modellens "MEP099": mellanslag och inledande nollor räknas inte.
+  const norm = (x: string) => x.replace(/\s+/g, "").replace(/^0+/, "").toLowerCase();
+  const same = (a: string, b: string) => norm(a) === norm(b);
   let pool = candidates.map((c, i) => ({ c, i })).filter(({ c }) => same(c.number, printedNumber));
   if (pool.length === 0) return -1;
   const exact = pool.filter(({ c }) => normName(c.name) === normName(modelName));
@@ -168,11 +169,33 @@ export async function resolveGradedCard(
 
   // Numret ÄR identiteten här — se filhuvudet. Inget nummer, ingen bild.
   if (!name || !number) return null;
+  const setHint = (cardName ?? "").split(" · ").slice(1).join(" ") || null;
+
+  const direct = await linkByNumber(cardName ?? "", name, number, setHint, false);
+  if (direct) return direct;
+
+  // PROMOKOD FRAMFÖR NUMRET (ägarens fältrapport 2026-10-01): modellen läser det som
+  // står tryckt — "SVP 132", "SWSH 034" — medan katalogen numrerar flera promoset med
+  // bara siffrorna ("132"). Med koden kvar fick matchningen inte ens fram rätt kort,
+  // så fyra graderingar av samma Greninja ex blev utan bild och utan värde.
+  // Andra försöket: bara siffrorna, och BARA kort ur ett promoset — annars hade
+  // "SVP 132" kunnat bli #132 i vilket set som helst.
+  const promo = /^([A-Za-z]{2,5})\s?0*(\d{1,4})$/.exec(number);
+  if (promo) return linkByNumber(cardName ?? "", name, promo[2], setHint, true);
+  return null;
+}
+
+async function linkByNumber(
+  rawText: string,
+  name: string,
+  number: string,
+  setHint: string | null,
+  promoSetsOnly: boolean
+): Promise<GradedCardLink | null> {
   const parsed = parseGuessedNumber(number);
   if (!parsed) return null;
-
-  const candidates = await matchCards({
-    rawText: cardName ?? "",
+  const all = await matchCards({
+    rawText,
     guessedName: name,
     guessedNumber: number,
     // Vi har ingen bild och ingen OCR-konfidens här — strängen är allt vi fick.
@@ -180,7 +203,7 @@ export async function resolveGradedCard(
     // avgörs av nummerkravet nedan.
     confidence: 0,
   });
-  const setHint = (cardName ?? "").split(" · ").slice(1).join(" ") || null;
+  const candidates = promoSetsOnly ? all.filter((c) => isPromoSet(c.setName)) : all;
   const i = pickGradedCandidate(candidates, name, parsed.printed, setHint);
   if (i < 0) return null;
   const top = candidates[i];
@@ -192,6 +215,11 @@ export async function resolveGradedCard(
     number: top.number,
     slug: top.slug,
   };
+}
+
+/** "Scarlet & Violet Black Star Promos", "SWSH Black Star Promos", "Wizards Black Star Promos" … */
+export function isPromoSet(setName: string): boolean {
+  return /\bpromos?\b/i.test(setName);
 }
 
 /** Katalogkortet för ett känt kort-id, i samma form som matchningens träffar. */

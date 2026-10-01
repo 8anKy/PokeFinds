@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickGradedCandidate, splitGradedCardName } from "../../src/services/grading/card-link";
+import { isPromoSet, pickGradedCandidate, splitGradedCardName } from "../../src/services/grading/card-link";
 
 /**
  * Graderingen sparar aldrig användarens foton, så historikens enda möjliga bild är
@@ -86,5 +86,26 @@ describe("pickGradedCandidate", () => {
   it("setgissningen räcker aldrig ensam — numret måste stämma", () => {
     const c = [{ name: "Dragonair", setName: "151", number: "148" }];
     expect(pickGradedCandidate(c, "Dragonair", "122", "151")).toBe(-1);
+  });
+});
+
+describe("promokoder i numret (2026-10-01)", () => {
+  it("splitGradedCardName läser 'SVP 132' som numret", () => {
+    expect(splitGradedCardName("Greninja ex SVP 132 · Black Star Promos")).toEqual({
+      name: "Greninja ex",
+      number: "SVP132",
+    });
+  });
+
+  it("katalogens 'MEP 099' matchar modellens 'MEP099'", () => {
+    const c = [{ name: "Greninja ex", number: "MEP 099", setName: "MEP Black Star Promos" }];
+    expect(pickGradedCandidate(c, "Greninja ex", "MEP099", null)).toBe(0);
+  });
+
+  it("isPromoSet känner igen promoseten, inte vanliga set", () => {
+    expect(isPromoSet("Scarlet & Violet Black Star Promos")).toBe(true);
+    expect(isPromoSet("SWSH Black Star Promos")).toBe(true);
+    expect(isPromoSet("Twilight Masquerade")).toBe(false);
+    expect(isPromoSet("Promotional Deck")).toBe(false);
   });
 });
