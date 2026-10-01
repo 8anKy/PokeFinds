@@ -93,7 +93,9 @@ export async function shareImage(
   if (mode === "web-share") {
     const file = new File([blob], filename, { type: blob.type || "image/jpeg" });
     try {
-      await navigator.share({ files: [file], title });
+      // ⛔ Ingen `title`/`text`: iOS lägger den som en egen textrad bredvid bilden
+      // ("Dela kortet" följde med till mottagaren — ägarens fältrapport 2026-10-01).
+      await navigator.share({ files: [file] });
       return "shared";
     } catch (e) {
       if (isCancel(e)) return "cancelled";
