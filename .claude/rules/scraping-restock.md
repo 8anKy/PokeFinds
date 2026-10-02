@@ -190,9 +190,12 @@ paths:
   `scripts/split-shopify-variants.ts` (torrkörning default).
 - **BUTIKS-WAVE 9 = SF-BOK + WORLD OF BOARD GAMES (ägarbeslut 2026-09-17: "jag vill ha restock på deras drops")**:
   `sfbok-adapter.ts` + `worldofboardgames-adapter.ts`, registrering `scripts/setup-wave9-sources.ts --apply --restock`.
-  **SF-Bok** (Next.js + Norce): ⛔ TCG-kategorin har bara 8 produkter — hela sortimentet (21, inkl. hela
-  30th-raden) ligger under `/sv/universum/pokemon?GameFamily=Pokémon TCG`, hämtad som RSC-flight (`RSC: 1`,
-  ~420 kB, EN förfrågan; HTML är 1 MB). Domen är butikens egen `webDisplay.buttonState`: 0 = köp online,
+  **SF-Bok** (Next.js + Norce): ⛔ **SEDAN 2026-10-02 TVÅ LISTNINGAR, UNIONEN PÅ `identifier`, ALLA SIDOR**:
+  `/sv/spel?GameFamily=Pokémon TCG` + kategorin `/sv/spel/samlarkortspel-tcg-ccg/pokemon-trading-card-game`,
+  RSC-flight (`RSC: 1`), `?page=N` (60/sida) tills `totalHits` (⛔ `hasMoreProducts` ljuger — `true` även på
+  sista sidan). En sida som faller ⇒ hela hämtningen är ett fel (aldrig en halv lista). ⛔ **ALDRIG
+  `/sv/universum/pokemon`** — den kräver även attributet Universe, som butikens NYA poster saknar: 30th Mini Tin
+  (280 ex i butik) och Booster Bundle syntes aldrig, varken i Discord eller i katalogen (14 mot 22). Domen är butikens egen `webDisplay.buttonState`: 0 = köp online,
   3/4 = **butiksvara** (lager > 0 ⇒ IN_STOCK = "reservera i butik"), 2 = Bevaka (isPreOrder ⇒ PREORDER).
   ⛔ **HELA POKÉMON TCG-SORTIMENTET VAR BUTIKSVARA VID PROBEN** ("går inte att beställa via hemsidan, kan inte
   förhandsbokas, max 3 ex per kund") — ett larm härifrån betyder "finns i fysisk butik", inte en köpknapp.

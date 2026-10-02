@@ -4,15 +4,21 @@
  * Probad 2026-09-17. Next.js App Router ovanpå Norce/Storm-backend. robots.txt:
  * `User-Agent: * / Allow: /` (bara Semrush/MJ12 nekas). Priser i SEK inkl. moms.
  *
- * ⛔ KATEGORIN `/sv/spel/samlarkortspel-tcg-ccg/pokemon-trading-card-game` TÄCKER INTE
- *    SORTIMENTET — butikens egen katalogisering (ETB:er ligger i föräldern, SPC/ETB ibland
- *    under brädspel). Vi läser hela `/sv/spel` med facetten `GameFamily=Pokémon TCG`.
+ * ⛔ TVÅ LISTNINGAR, UNIONEN PÅ `identifier` (2026-10-02). En vara syns på butikens sajt
+ *    via sin GameFamily-tagg ELLER sin kategori — så vi läser båda:
+ *      1. `/sv/spel?GameFamily=Pokémon TCG` — hela spelavdelningen, oavsett kategori
+ *         (ETB:er ligger i föräldern, SPC/ETB ibland under brädspel).
+ *      2. `/sv/spel/samlarkortspel-tcg-ccg/pokemon-trading-card-game` — Pokémon-kategorin,
+ *         för en ny vara som butiken glömt GameFamily-taggen på.
  *    ⛔ ALDRIG `/sv/universum/pokemon?GameFamily=…` (som vi läste t.o.m. 2026-10-02): den
  *    kräver ÄVEN attributet Universe, och butikens NYA poster saknar det — 30th Celebration
  *    Mini Tin (280 ex i butik) och Booster Bundle syntes aldrig, varken i Discord eller i
- *    katalogen. `/sv/spel?GameFamily=` gav 22 mot 14, en strikt överordnad mängd.
- *    Hämtas som RSC-flight (`RSC: 1`, ~490 kB) i stället för HTML (~1 MB) — samma JSON,
- *    en enda förfrågan (60 per sida; `hasMoreProducts` varnar om taket nås).
+ *    katalogen. Listning 1 gav 22 mot 14, en strikt överordnad mängd.
+ *    ⛔ PAGINERAS (`?page=N`, 60 per sida) tills `totalHits` är nått eller en sida inte ger
+ *    något nytt — `hasMoreProducts` i flighten är OPÅLITLIG (står `true` även på sista sidan).
+ *    ⛔ FALLER EN ENDA SIDA blir hela hämtningen ett fel utan produkter: en halv lista hade
+ *    fått lanen att se varor "försvinna" och sedan "komma tillbaka" som påfyllningar.
+ *    Hämtas som RSC-flight (`RSC: 1`, ~490 kB) i stället för HTML (~1 MB) — samma JSON.
  *    Svarar servern med HTML ändå (produktobjekten ligger då som `\"`-escapad
  *    sträng i `self.__next_f.push`) avkodas den och parsas likadant.
  *
@@ -44,7 +50,13 @@ import type {
 import { guessListingCategory } from "../listing-category";
 
 const BASE_URL = "https://www.sfbok.se";
-const LIST_URL = `${BASE_URL}/sv/spel?GameFamily=Pok%C3%A9mon+TCG`;
+const LIST_URLS = [
+  `${BASE_URL}/sv/spel?GameFamily=Pok%C3%A9mon+TCG`,
+  `${BASE_URL}/sv/spel/samlarkortspel-tcg-ccg/pokemon-trading-card-game`,
+];
+const PAGE_SIZE = 60;
+/** Skyddsräcke mot en loop som aldrig tar slut — 600 Pokémon-varor är ~25× dagens sortiment. */
+const MAX_PAGES = 10;
 
 export type SfBokStock = "in" | "out" | "preorder" | "unknown";
 
@@ -162,6 +174,59 @@ export function parseSfBokProducts(body: string): SfBokProduct[] {
   return [...out.values()];
 }
 
+/** Butikens eget totaltal för listningen, eller null om det inte står i svaret. */
+export function parseSfBokTotalHits(body: string): number | null {
+  const m = body.match(/\\?"totalHits\\?":(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
+export function sfbokPageUrl(url: string, page: number): string {
+  if (page <= 1) return url;
+  const u = new URL(url);
+  u.searchParams.set("page", String(page));
+  return u.toString();
+}
+
+/**
+ * Läser alla listningar, alla sidor, och slår ihop på `identifier`. Ren bortsett från
+ * `fetchBody` (injiceras — testad utan nät). Kastar om en sida inte går att hämta, eller
+ * om en listnings FÖRSTA sida saknar produktobjekt: då vet vi inte vad som finns, och
+ * anroparen ska behålla förra lagerläget hellre än att rapportera en halv lista.
+ */
+export async function collectSfBokProducts(
+  urls: string[],
+  fetchBody: (url: string) => Promise<string>
+): Promise<{ products: SfBokProduct[]; warnings: string[] }> {
+  const all = new Map<string, SfBokProduct>();
+  const warnings: string[] = [];
+  for (const url of urls) {
+    const seen = new Set<string>();
+    let total: number | null = null;
+    let page = 1;
+    for (; page <= MAX_PAGES; page++) {
+      const body = await fetchBody(sfbokPageUrl(url, page));
+      const parsed = parseSfBokProducts(body);
+      if (page === 1) {
+        if (parsed.length === 0) {
+          throw new Error(`0 produktobjekt i ${url} (${body.length} tecken) — markupen har troligen ändrats.`);
+        }
+        total = parseSfBokTotalHits(body);
+      }
+      let added = 0;
+      for (const p of parsed) {
+        if (seen.has(p.identifier)) continue;
+        seen.add(p.identifier);
+        added++;
+        if (!all.has(p.identifier)) all.set(p.identifier, p);
+      }
+      if (added === 0) break;
+      if (total !== null && page * PAGE_SIZE >= total) break;
+    }
+    if (page > MAX_PAGES) warnings.push(`${url}: sidtaket ${MAX_PAGES} nått (${seen.size} lästa) — höj MAX_PAGES.`);
+  }
+  return { products: [...all.values()], warnings };
+}
+
 export class SfBokAdapter implements SourceAdapter {
   name = "SF-Bok";
   type: SourceType = SourceType.SCRAPER;
@@ -172,25 +237,19 @@ export class SfBokAdapter implements SourceAdapter {
   async fetchProducts(): Promise<AdapterResult> {
     const products: RawProductData[] = [];
     const errors: string[] = [];
-    let body: string;
+    let parsed: SfBokProduct[];
     try {
-      const res = await politeFetch(LIST_URL, { delayMs: 1000, headers: { RSC: "1" } });
-      if (!res.ok) return { products, errors: [`${this.name}: HTTP ${res.status} ${LIST_URL}`] };
-      body = await res.text();
+      const out = await collectSfBokProducts(LIST_URLS, async (url) => {
+        const res = await politeFetch(url, { delayMs: 1000, headers: { RSC: "1" } });
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+        return res.text();
+      });
+      parsed = out.products;
+      for (const w of out.warnings) console.warn(`[sfbok] ${w}`);
     } catch (err) {
+      // Ett fel gör att anroparen behåller förra lagerläget (se runner/lanen) i stället
+      // för att nolla — samma väg som en tom lista alltid tagit.
       return { products, errors: [`${this.name}: ${err instanceof Error ? err.message : String(err)}`] };
-    }
-
-    const parsed = parseSfBokProducts(body);
-    if (parsed.length === 0) {
-      // Tom lista = "vi kan inte läsa sidan", aldrig "allt försvann". Ett fel gör att
-      // anroparen behåller förra lagerläget (se runner/lanen) i stället för att nolla.
-      errors.push(`${this.name}: 0 produktobjekt i svaret (${body.length} tecken) — markupen har troligen ändrats.`);
-      return { products, errors };
-    }
-    if (/\\?"hasMoreProducts\\?":true/.test(body)) {
-      // Sida 1 är inte hela sortimentet längre — det som faller utanför syns aldrig.
-      console.warn(`[sfbok] ${LIST_URL} har fler än en sida (${parsed.length} lästa) — paginera adaptern.`);
     }
 
     for (const p of parsed) {

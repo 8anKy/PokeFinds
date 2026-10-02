@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { sfbokStock, parseSfBokProducts } from "../../src/scrapers/adapters/sfbok-adapter";
+import {
+  sfbokStock,
+  parseSfBokProducts,
+  collectSfBokProducts,
+  sfbokPageUrl,
+} from "../../src/scrapers/adapters/sfbok-adapter";
 import { wobgStockFromButton, parseWobgListing } from "../../src/scrapers/adapters/worldofboardgames-adapter";
 
 // ── SF-Bok ─────────────────────────────────────────────────────────────────────
@@ -55,6 +60,59 @@ describe("parseSfBokProducts — RSC-flight och HTML ger samma objekt", () => {
   it("ett trasigt objekt fäller inte de andra", () => {
     const rsc = `{"identifier":"1","displayName":"trasig","variants":[` + SF_OBJ("2", "Pokemon TCG: Pitch Black Booster");
     expect(parseSfBokProducts(rsc).map((p) => p.identifier)).toEqual(["2"]);
+  });
+});
+
+// 2026-10-02: universum-listningen tappade nya varor utan Universe-attribut (30th Mini Tin
+// med 280 ex i butik syntes aldrig). Nu två listningar, alla sidor, unionen på identifier.
+describe("collectSfBokProducts — två listningar, alla sidor, aldrig en halv lista", () => {
+  const page = (ids: string[], total: number) =>
+    `2:{"totalHits":${total},"products":[${ids.map((id) => SF_OBJ(id, `Pokemon TCG: vara ${id}`)).join(",")}]}`;
+  const A = "https://www.sfbok.se/sv/spel?GameFamily=Pok%C3%A9mon+TCG";
+  const B = "https://www.sfbok.se/sv/spel/samlarkortspel-tcg-ccg/pokemon-trading-card-game";
+  const ids = (n: number, from = 1) => Array.from({ length: n }, (_, i) => String(from + i));
+
+  it("unionen fångar en vara som bara finns i kategorin (saknar GameFamily-taggen)", async () => {
+    const pages: Record<string, string> = { [A]: page(["1", "2"], 2), [B]: page(["2", "3"], 2) };
+    const out = await collectSfBokProducts([A, B], async (u) => pages[u]);
+    expect(out.products.map((p) => p.identifier).sort()).toEqual(["1", "2", "3"]);
+  });
+
+  it("paginerar tills totalHits är nått", async () => {
+    const pages: Record<string, string> = {
+      [A]: page(ids(60), 125),
+      [sfbokPageUrl(A, 2)]: page(ids(60, 61), 125),
+      [sfbokPageUrl(A, 3)]: page(ids(5, 121), 125),
+    };
+    const asked: string[] = [];
+    const out = await collectSfBokProducts([A], async (u) => (asked.push(u), pages[u]));
+    expect(out.products).toHaveLength(125);
+    expect(asked).toHaveLength(3);
+  });
+
+  it("slutar när en sida inte ger något nytt (servern ignorerar ?page)", async () => {
+    const asked: string[] = [];
+    const out = await collectSfBokProducts([A], async (u) => (asked.push(u), page(ids(60), 999)));
+    expect(out.products).toHaveLength(60);
+    expect(asked).toHaveLength(2);
+  });
+
+  it("en sida som inte går att hämta fäller HELA hämtningen", async () => {
+    await expect(
+      collectSfBokProducts([A, B], async (u) => {
+        if (u === B) throw new Error("HTTP 503");
+        return page(["1"], 1);
+      })
+    ).rejects.toThrow("HTTP 503");
+  });
+
+  it("en listning utan produktobjekt på sida 1 är ett fel, inte en tom butik", async () => {
+    await expect(collectSfBokProducts([A], async () => "<html>underhåll</html>")).rejects.toThrow(/0 produktobjekt/);
+  });
+
+  it("sidnumret läggs till utan att tappa facetten", () => {
+    expect(sfbokPageUrl(A, 1)).toBe(A);
+    expect(sfbokPageUrl(A, 2)).toBe("https://www.sfbok.se/sv/spel?GameFamily=Pok%C3%A9mon+TCG&page=2");
   });
 });
 
