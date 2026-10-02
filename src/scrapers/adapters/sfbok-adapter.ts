@@ -4,11 +4,15 @@
  * Probad 2026-09-17. Next.js App Router ovanpå Norce/Storm-backend. robots.txt:
  * `User-Agent: * / Allow: /` (bara Semrush/MJ12 nekas). Priser i SEK inkl. moms.
  *
- * ⛔ KATEGORIN `/sv/spel/samlarkortspel-tcg-ccg/pokemon-trading-card-game` HAR BARA
- *    8 PRODUKTER — butikens egen katalogisering. Hela sortimentet (21 st, inkl. hela
- *    30th Celebration-raden) ligger under UNIVERSUM-listningen med facetten
- *    `GameFamily=Pokémon TCG`. Den hämtas som RSC-flight (`RSC: 1`, ~420 kB) i
- *    stället för HTML (~1 MB) — samma JSON, hälften så tungt, en enda förfrågan.
+ * ⛔ KATEGORIN `/sv/spel/samlarkortspel-tcg-ccg/pokemon-trading-card-game` TÄCKER INTE
+ *    SORTIMENTET — butikens egen katalogisering (ETB:er ligger i föräldern, SPC/ETB ibland
+ *    under brädspel). Vi läser hela `/sv/spel` med facetten `GameFamily=Pokémon TCG`.
+ *    ⛔ ALDRIG `/sv/universum/pokemon?GameFamily=…` (som vi läste t.o.m. 2026-10-02): den
+ *    kräver ÄVEN attributet Universe, och butikens NYA poster saknar det — 30th Celebration
+ *    Mini Tin (280 ex i butik) och Booster Bundle syntes aldrig, varken i Discord eller i
+ *    katalogen. `/sv/spel?GameFamily=` gav 22 mot 14, en strikt överordnad mängd.
+ *    Hämtas som RSC-flight (`RSC: 1`, ~490 kB) i stället för HTML (~1 MB) — samma JSON,
+ *    en enda förfrågan (60 per sida; `hasMoreProducts` varnar om taket nås).
  *    Svarar servern med HTML ändå (produktobjekten ligger då som `\"`-escapad
  *    sträng i `self.__next_f.push`) avkodas den och parsas likadant.
  *
@@ -40,7 +44,7 @@ import type {
 import { guessListingCategory } from "../listing-category";
 
 const BASE_URL = "https://www.sfbok.se";
-const LIST_URL = `${BASE_URL}/sv/universum/pokemon?GameFamily=Pok%C3%A9mon+TCG`;
+const LIST_URL = `${BASE_URL}/sv/spel?GameFamily=Pok%C3%A9mon+TCG`;
 
 export type SfBokStock = "in" | "out" | "preorder" | "unknown";
 
@@ -183,6 +187,10 @@ export class SfBokAdapter implements SourceAdapter {
       // anroparen behåller förra lagerläget (se runner/lanen) i stället för att nolla.
       errors.push(`${this.name}: 0 produktobjekt i svaret (${body.length} tecken) — markupen har troligen ändrats.`);
       return { products, errors };
+    }
+    if (/\\?"hasMoreProducts\\?":true/.test(body)) {
+      // Sida 1 är inte hela sortimentet längre — det som faller utanför syns aldrig.
+      console.warn(`[sfbok] ${LIST_URL} har fler än en sida (${parsed.length} lästa) — paginera adaptern.`);
     }
 
     for (const p of parsed) {
