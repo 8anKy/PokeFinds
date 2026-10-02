@@ -39,6 +39,76 @@ export function spinAngleAt(tSec: number, duration = SPIN_DURATION_SEC, hold = S
   return 180 * (1 - Math.cos(Math.PI * x)); // 0 → 360, mjukt i båda ändar
 }
 
+export interface FaceStrip {
+  /** Skärmkolumner (bildens enheter). Inre gränser är HELA pixlar. */
+  x0: number;
+  x1: number;
+  /** Texturkolumner som EXAKT hör till x0..x1 (perspektivet inverterat). */
+  t0: number;
+  t1: number;
+  /** Perspektivskalan mitt i remsan (höjden). */
+  s: number;
+}
+
+/**
+ * Dela den synliga sidan i lodräta remsor. Ren funktion — testad.
+ *
+ * SKÄRPAN (ägarens fältrapport 2026-10-02: "videon ser ut som 720p"): remsorna var
+ * förut lika breda i TEXTUREN (760 / 96 ≈ 7,9 px) och kanterna avrundades sedan på
+ * skärmen — varannan remsa blev 6 px, varannan 7, så texturen trycktes ihop omväxlande
+ * 24 % och 12 % med en halv pixels hopp i varje skarv. På etikettens text såg det ut
+ * som en uppskalad lågupplöst bild. Nu väljs gränserna på HELA skärmpixlar och
+ * texturkolumnen räknas BAKLÄNGES ur perspektivet, så varje remsa har exakt rätt
+ * skala. Rakt framifrån (pausen, där ögat stannar) är perspektivet affint och sidan
+ * ritas i ETT drag.
+ */
+export function faceStrips(p: {
+  cx: number;
+  sin: number;
+  cos: number;
+  /** Sidans djup (w) i projektionen. */
+  depthW: number;
+  halfW: number;
+  texW: number;
+  /** Framsidan (annars baksidan, spegelvänd). */
+  front: boolean;
+  /** Skärm-x för texturens kolumn 0 resp. texW. */
+  xA: number;
+  xB: number;
+}): FaceStrip[] {
+  const { cx, sin, cos, depthW: w, halfW, texW } = p;
+  const sAtU = (u: number) => FOCAL / (FOCAL - u * sin + w * cos);
+  const uOfT = (t: number) => (p.front ? -halfW + (t / texW) * 2 * halfW : halfW - (t / texW) * 2 * halfW);
+  const tAtX = (x: number) => {
+    const dx = x - cx;
+    const u = (dx * (FOCAL + w * cos) - FOCAL * w * sin) / (FOCAL * cos + dx * sin);
+    const t = p.front ? ((u + halfW) / (2 * halfW)) * texW : ((halfW - u) / (2 * halfW)) * texW;
+    return Math.min(texW, Math.max(0, t));
+  };
+  const lo = Math.min(p.xA, p.xB);
+  const hi = Math.max(p.xA, p.xB);
+  const tLo = p.xA <= p.xB ? 0 : texW;
+  const tHi = texW - tLo;
+
+  if (Math.abs(sin) < 1e-6) {
+    return [{ x0: lo, x1: hi, t0: Math.min(tLo, tHi), t1: Math.max(tLo, tHi), s: sAtU(uOfT(texW / 2)) }];
+  }
+
+  const px = Math.max(1, Math.ceil((hi - lo) / STRIPS));
+  const xs = [lo];
+  for (let x = Math.floor(lo) + px; x < hi; x += px) xs.push(x);
+  xs.push(hi);
+  const ts = xs.map((x, i) => (i === 0 ? tLo : i === xs.length - 1 ? tHi : tAtX(x)));
+  const strips: FaceStrip[] = [];
+  for (let i = 0; i < xs.length - 1; i++) {
+    const t0 = Math.min(ts[i], ts[i + 1]);
+    const t1 = Math.max(ts[i], ts[i + 1]);
+    if (xs[i + 1] - xs[i] <= 0 || t1 - t0 <= 0) continue;
+    strips.push({ x0: xs[i], x1: xs[i + 1], t0, t1, s: sAtU(uOfT((t0 + t1) / 2)) });
+  }
+  return strips;
+}
+
 /** Ett återanvänt lager för sidans remsor (en per process — ritningen är synkron). */
 let faceCanvas: HTMLCanvasElement | null = null;
 function faceLayer(w: number, h: number): HTMLCanvasElement {
@@ -152,21 +222,16 @@ export function drawSpinFrame(ctx: CanvasRenderingContext2D, layers: GradeSpinLa
   ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.restore();
-  const faceSpan = Math.abs(project(half.w, 0, faceW).x - project(-half.w, 0, faceW).x);
-  if (faceSpan > 1.5) {
-    // Remsorna ritas i ett EGET lager på HELA pixlar — kant mot kant, varken glapp
-    // eller överlapp — och lagret läggs sedan på bilden. Med överlapp ritades den
-    // genomskinliga plasten två gånger i varje skarv: lodräta streck över ytan.
-    const xs: number[] = [];
-    const ss: number[] = [];
-    const step = W / STRIPS;
-    for (let i = 0; i <= STRIPS; i++) {
-      const pt = project(uAt(i * step), 0, faceW);
-      xs.push(pt.x);
-      ss.push(pt.s);
-    }
-    const left = Math.floor(Math.min(...xs));
-    const right = Math.ceil(Math.max(...xs));
+  const xA = project(uAt(0), 0, faceW).x;
+  const xB = project(uAt(W), 0, faceW).x;
+  if (Math.abs(xB - xA) > 1.5) {
+    // Remsorna ritas i ett EGET lager kant mot kant — varken glapp eller överlapp —
+    // och lagret läggs sedan på bilden. Med överlapp ritades den genomskinliga
+    // plasten två gånger i varje skarv: lodräta streck över ytan.
+    const strips = faceStrips({ cx, sin, cos, depthW: faceW, halfW: half.w, texW: W, front: frontVisible, xA, xB });
+    const ss = strips.map((s) => s.s);
+    const left = Math.floor(Math.min(xA, xB));
+    const right = Math.ceil(Math.max(xA, xB));
     const maxH = H * k * Math.max(...ss);
     const top = Math.floor(cy - maxH / 2);
     const lw = right - left + 1;
@@ -177,12 +242,9 @@ export function drawSpinFrame(ctx: CanvasRenderingContext2D, layers: GradeSpinLa
       lctx.clearRect(0, 0, lw, lh);
       lctx.imageSmoothingEnabled = true;
       lctx.imageSmoothingQuality = "high";
-      for (let i = 0; i < STRIPS; i++) {
-        const x0 = Math.round(Math.min(xs[i], xs[i + 1]));
-        const x1 = Math.round(Math.max(xs[i], xs[i + 1]));
-        if (x1 <= x0) continue;
-        const dh = H * k * ((ss[i] + ss[i + 1]) / 2);
-        lctx.drawImage(face, i * step, 0, step, H, x0 - left, cy - dh / 2 - top, x1 - x0, dh);
+      for (const st of strips) {
+        const dh = H * k * st.s;
+        lctx.drawImage(face, st.t0, 0, st.t1 - st.t0, H, st.x0 - left, cy - dh / 2 - top, st.x1 - st.x0, dh);
       }
       ctx.drawImage(layer, 0, 0, lw, lh, left, top, lw, lh);
     }
@@ -222,12 +284,12 @@ export async function spinVideoSize(): Promise<{ width: number; height: number }
     return null;
   }
   try {
-    const { canEncodeVideo, QUALITY_HIGH } = await import("mediabunny");
+    const { canEncodeVideo, QUALITY_VERY_HIGH } = await import("mediabunny");
     for (const size of [
       { width: SHARE_CARD_WIDTH, height: SHARE_CARD_HEIGHT },
       { width: 720, height: 1280 },
     ]) {
-      if (await canEncodeVideo("avc", { ...size, quality: QUALITY_HIGH, frameRate: SPIN_FPS })) return size;
+      if (await canEncodeVideo("avc", { ...size, quality: QUALITY_VERY_HIGH, frameRate: SPIN_FPS })) return size;
     }
   } catch {
     /* ingen WebCodecs */
@@ -241,7 +303,7 @@ export async function encodeSpinVideo(
   size: { width: number; height: number },
   onProgress?: (p: number) => void
 ): Promise<Blob> {
-  const { Output, Mp4OutputFormat, BufferTarget, CanvasSource, QUALITY_HIGH } = await import("mediabunny");
+  const { Output, Mp4OutputFormat, BufferTarget, CanvasSource, QUALITY_VERY_HIGH } = await import("mediabunny");
   const canvas = document.createElement("canvas");
   canvas.width = size.width;
   canvas.height = size.height;
@@ -250,7 +312,7 @@ export async function encodeSpinVideo(
   ctx.scale(size.width / SHARE_CARD_WIDTH, size.height / SHARE_CARD_HEIGHT);
 
   const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target: new BufferTarget() });
-  const source = new CanvasSource(canvas, { codec: "avc", quality: QUALITY_HIGH, keyFrameInterval: 1 });
+  const source = new CanvasSource(canvas, { codec: "avc", quality: QUALITY_VERY_HIGH, keyFrameInterval: 1 });
   output.addVideoTrack(source, { frameRate: SPIN_FPS });
   await output.start();
   const frames = Math.round(SPIN_DURATION_SEC * SPIN_FPS);
