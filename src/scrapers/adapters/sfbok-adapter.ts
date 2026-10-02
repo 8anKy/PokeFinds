@@ -26,8 +26,13 @@
  *   buttonState 0  → "Lägg i varukorg" online (även restnoterad "kan fortfarande
  *                    beställas": canBackorder) ⇒ IN_STOCK
  *   buttonState 3/4 → "butiksvara — kan endast köpas i våra fysiska butiker":
- *                    lager > 0 ⇒ IN_STOCK (går att RESERVERA I BUTIK — ägarbeslut
+ *                    BUTIKSLAGER > 0 ⇒ IN_STOCK (går att RESERVERA I BUTIK — ägarbeslut
  *                    2026-09-17: butikens drop är en drop), annars OUT_OF_STOCK
+ * ⛔ `stockQuantity` ÄR INTE BUTIKSLAGRET (2026-10-02): det är summan av ALLA lager i
+ *    `warehouseInventories`, centrallagret (`isPrimaryWarehouse`, kod "1") inräknat.
+ *    30th Celebration Mini Tin på släppdagen: 280 i centrallagret, 0 i var och en av
+ *    butikerna S010–S040 ⇒ vi larmade "280 ex i butik" om en vara ingen butik hade.
+ *    Butikslagret = summan av de icke-primära lagren (`sfbokStoreStock`).
  *   buttonState 2  → "Bevaka" (ej utgiven / osäkert leveransdatum) ⇒ OUT_OF_STOCK,
  *                    utom isPreOrder=true ⇒ PREORDER (bokningsbar)
  *   annat          → UNKNOWN
@@ -76,8 +81,15 @@ function isSfBokRaw(raw: unknown): raw is SfBokRaw {
   return typeof raw === "object" && raw !== null && "priceOre" in raw && "stock" in raw && "url" in raw;
 }
 
+interface SfBokWarehouse {
+  warehouseCode?: string;
+  quantity?: number | null;
+  isPrimaryWarehouse?: boolean;
+}
+
 interface SfBokVariant {
   skuCode?: string;
+  warehouseInventories?: SfBokWarehouse[];
   displayName?: string;
   slug?: string;
   isPublished?: boolean;
@@ -125,6 +137,23 @@ export function sfbokStock(input: {
     default:
       return { stock: "unknown", storeOnly: false };
   }
+}
+
+/**
+ * Exemplar i de FYSISKA butikerna = de icke-primära lagren (S010–S040); centrallagret
+ * (`isPrimaryWarehouse`) är webblagret och räknas aldrig. Saknas uppdelningen faller vi
+ * tillbaka på `stockQuantity` (totalen) med okänt butiksantal — samma som före 2026-10-02.
+ */
+export function sfbokStoreStock(v: {
+  stockQuantity?: number | null;
+  warehouseInventories?: SfBokWarehouse[] | null;
+}): { units: number | null; stores: number | null } {
+  const stores = (v.warehouseInventories ?? []).filter((w) => w.isPrimaryWarehouse === false);
+  if (stores.length === 0) {
+    return { units: typeof v.stockQuantity === "number" ? v.stockQuantity : null, stores: null };
+  }
+  const qty = stores.map((w) => (typeof w.quantity === "number" && w.quantity > 0 ? w.quantity : 0));
+  return { units: qty.reduce((a, b) => a + b, 0), stores: qty.filter((q) => q > 0).length };
 }
 
 /**
@@ -265,10 +294,11 @@ export class SfBokAdapter implements SourceAdapter {
         typeof price === "number" && Number.isFinite(price) && price > 0 && (v.price?.currency ?? "SEK") === "SEK"
           ? Math.round(price * 100)
           : null;
+      const inStores = sfbokStoreStock(v);
       const { stock, storeOnly } = sfbokStock({
         buttonState: p.webDisplay?.buttonState,
         isPreOrder: p.webDisplay?.isPreOrder,
-        stockQuantity: v.stockQuantity,
+        stockQuantity: inStores.units,
       });
       const ean = p.attributes?.find((a) => a.identifier === "ean")?.value?.trim() || null;
       const imageUrl = v.images?.find((i) => i.url)?.url ?? p.images?.find((i) => i.url)?.url ?? undefined;
@@ -277,7 +307,7 @@ export class SfBokAdapter implements SourceAdapter {
         priceOre,
         stock,
         buttonState: p.webDisplay?.buttonState ?? null,
-        stockQuantity: v.stockQuantity ?? null,
+        stockQuantity: inStores.units,
         storeOnly,
         ean,
         url,
@@ -292,11 +322,10 @@ export class SfBokAdapter implements SourceAdapter {
         imageUrl: imageUrl ?? undefined,
         category: guessListingCategory(p.displayName),
         storeOnly,
-        // ⛔ SF-Bok ger ETT totaltal, ingen nedbrytning per butik — `stores: null`
-        //    betyder "vet inte", och copyn skriver då bara antalet exemplar.
+        // ⛔ Butikerna är namnlösa lagerkoder (S010…) — antal butiker, aldrig ett namn.
         storeStock:
-          typeof v.stockQuantity === "number" && v.stockQuantity > 0
-            ? { units: v.stockQuantity, stores: null, capped: false }
+          storeOnly && inStores.units !== null && inStores.units > 0
+            ? { units: inStores.units, stores: inStores.stores, capped: false }
             : null,
         raw,
       });

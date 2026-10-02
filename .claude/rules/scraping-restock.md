@@ -197,6 +197,10 @@ paths:
   `/sv/universum/pokemon`** — den kräver även attributet Universe, som butikens NYA poster saknar: 30th Mini Tin
   (280 ex i butik) och Booster Bundle syntes aldrig, varken i Discord eller i katalogen (14 mot 22). Domen är butikens egen `webDisplay.buttonState`: 0 = köp online,
   3/4 = **butiksvara** (lager > 0 ⇒ IN_STOCK = "reservera i butik"), 2 = Bevaka (isPreOrder ⇒ PREORDER).
+  ⛔ **"Lager" = BUTIKSLAGRET, ALDRIG `stockQuantity`** (2026-10-02): den är summan av ALLA `warehouseInventories`,
+  centrallagret (`isPrimaryWarehouse`, kod "1") inräknat. Mini Tin på släppdagen: 280 i centrallagret, 0 i
+  S010–S040 ⇒ falskt "280 ex i butik" i Discord. `sfbokStoreStock` summerar de icke-primära lagren och ger
+  även antalet butiker (lagerkoderna är namnlösa — aldrig ett gissat filialnamn).
   ⛔ **HELA POKÉMON TCG-SORTIMENTET VAR BUTIKSVARA VID PROBEN** ("går inte att beställa via hemsidan, kan inte
   förhandsbokas, max 3 ex per kund") — ett larm härifrån betyder "finns i fysisk butik", inte en köpknapp.
   Ägaren valde det medvetet. JSON-LD säger OutOfStock även för butiksvaror i lager ⇒ `STORE_STOCK_STRATEGY`

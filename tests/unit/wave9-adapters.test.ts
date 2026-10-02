@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   sfbokStock,
+  sfbokStoreStock,
   parseSfBokProducts,
   collectSfBokProducts,
   sfbokPageUrl,
@@ -30,6 +31,42 @@ describe("sfbokStock — butikens egen webDisplay dömer", () => {
   it("okänd buttonState ⇒ unknown, aldrig en gissning", () => {
     expect(sfbokStock({ buttonState: 7, stockQuantity: 5 }).stock).toBe("unknown");
     expect(sfbokStock({ buttonState: null, stockQuantity: 5 }).stock).toBe("unknown");
+  });
+});
+
+// warehouseInventories ordagrant ur listningen 2026-10-02 (släppdagen för 30th Celebration).
+describe("sfbokStoreStock — centrallagret är inte butikslagret", () => {
+  const wh = (primary: number, s010: number, s020: number, s030: number, s040: number) => [
+    { warehouseCode: "S040", quantity: s040, isPrimaryWarehouse: false },
+    { warehouseCode: "S030", quantity: s030, isPrimaryWarehouse: false },
+    { warehouseCode: "S010", quantity: s010, isPrimaryWarehouse: false },
+    { warehouseCode: "1", quantity: primary, isPrimaryWarehouse: true },
+    { warehouseCode: "S020", quantity: s020, isPrimaryWarehouse: false },
+  ];
+
+  it("Mini Tin: 280 i centrallagret, 0 i butikerna ⇒ 0 ex och slut i butik", () => {
+    const inStores = sfbokStoreStock({ stockQuantity: 280, warehouseInventories: wh(280, 0, 0, 0, 0) });
+    expect(inStores).toEqual({ units: 0, stores: 0 });
+    expect(sfbokStock({ buttonState: 4, stockQuantity: inStores.units }).stock).toBe("out");
+  });
+
+  it("Enhanced 2-pack: 19 + 7 i två butiker ⇒ 26 ex i 2 butiker", () => {
+    expect(sfbokStoreStock({ stockQuantity: 26, warehouseInventories: wh(0, 0, 19, 7, 0) })).toEqual({
+      units: 26,
+      stores: 2,
+    });
+  });
+
+  it("centrallagret räknas aldrig med, även när butikerna har saldo", () => {
+    expect(sfbokStoreStock({ stockQuantity: 206, warehouseInventories: wh(112, 28, 27, 26, 13) })).toEqual({
+      units: 94,
+      stores: 4,
+    });
+  });
+
+  it("utan uppdelning ⇒ totalen med okänt butiksantal", () => {
+    expect(sfbokStoreStock({ stockQuantity: 5 })).toEqual({ units: 5, stores: null });
+    expect(sfbokStoreStock({ stockQuantity: null, warehouseInventories: [] })).toEqual({ units: null, stores: null });
   });
 });
 
