@@ -300,8 +300,9 @@ priskanalen.
   ⛔ **INGEN UPPDATERINGSTAKT I FOTEN** ("uppdateras varje timme" e.d.): butikerna pollas i olika takt
   (`restock-poll-interval.ts`) och saldot kan ändras mellan två pollningar. Foten säger "kan ändras
   snabbt — ring butiken innan du åker", vilket är sant oavsett takt.
-  ⛔ **VILKEN butik som har varan vet vi INTE** — Webhallens saldon ligger på numeriska nycklar utan
-  namn och SF-Bok ger bara ett ja. Texten säger "i <butik>s fysiska butiker", aldrig ett filialnamn.
+  ⛔ **BUTIKERNA NAMNGES BARA UR BUTIKENS EGEN UPPSLAGNING** — Webhallen `/api/store/se`
+  (`webhallen-stores.ts`), SF-Bok `/sv/butiker` (`sfbok-stores.ts`, sedan 2026-10-02: lagerkod S010…S040 →
+  ort; centrallagret räknas aldrig). Faller uppslagningen ⇒ "N ex i M butiker" utan namn, aldrig en gissning.
 - ⛔ **ONLINE OCH BUTIK ÄR TVÅ SPÅR (ägarbeslut 2026-09-23)**: 30th Celebration fylldes på hos Webhallen
   i webblagret OCH i butikerna samtidigt, men annonsen hade EN status ⇒ bara onlineinlägget. Nu sätter
   en källa som skiljer dem åt `RawProductData.storeStatus` (bara Webhallen: butikssaldo > 0 efter

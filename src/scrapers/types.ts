@@ -56,7 +56,7 @@ export interface RawProductData {
    * värd att göra. `null` på ett fält = "vet inte", ALDRIG noll.
    *
    * `locations` namnger butikerna när källan gör det möjligt (Webhallen via
-   * `/api/store/se`); SF-Bok ger bara ett totaltal och lämnar den tom. Saknas den
+   * `/api/store/se`, SF-Bok via `/sv/butiker`). Saknas den
    * står `stores` kvar som ANTAL — ett larm utan namn är sämre, inte trasigt.
    */
   storeStock?: StoreStock | null;
@@ -95,7 +95,7 @@ export interface StoreStock {
   /** Antal BUTIKER som har minst ett exemplar. null = källan bryter inte ner det. */
   stores: number | null;
   /**
-   * Butikerna med saldo, störst först. Tom = källan namnger dem inte (SF-Bok) eller
+   * Butikerna med saldo, störst först. Tom = källan namnger dem inte eller
    * uppslagningen fallerade — då återstår `units`/`stores`.
    * ⛔ ALDRIG ETT GISSAT NAMN. En rad här måste komma från butikens egen
    *    uppslagning; ett påhittat filialnamn skickar folk till fel stad.

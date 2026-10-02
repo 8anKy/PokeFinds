@@ -32,7 +32,8 @@
  *    `warehouseInventories`, centrallagret (`isPrimaryWarehouse`, kod "1") inräknat.
  *    30th Celebration Mini Tin på släppdagen: 280 i centrallagret, 0 i var och en av
  *    butikerna S010–S040 ⇒ vi larmade "280 ex i butik" om en vara ingen butik hade.
- *    Butikslagret = summan av de icke-primära lagren (`sfbokStoreStock`).
+ *    Butikslagret = summan av de icke-primära lagren (`sfbokStoreStock`), med ORTEN per
+ *    lagerkod ur butikens egen `/sv/butiker` (`sfbok-stores.ts`).
  *   buttonState 2  → "Bevaka" (ej utgiven / osäkert leveransdatum) ⇒ OUT_OF_STOCK,
  *                    utom isPreOrder=true ⇒ PREORDER (bokningsbar)
  *   annat          → UNKNOWN
@@ -46,11 +47,13 @@
 import { StockStatus, SourceType } from "@prisma/client";
 import { politeFetch } from "../http";
 import { normalizeTitle } from "../../lib/utils";
+import { fetchSfBokStores, sfbokStoreLabel, type SfBokStore } from "./sfbok-stores";
 import type {
   AdapterResult,
   NormalizedProduct,
   RawProductData,
   SourceAdapter,
+  StoreStockLocation,
 } from "../types";
 import { guessListingCategory } from "../listing-category";
 
@@ -143,17 +146,30 @@ export function sfbokStock(input: {
  * Exemplar i de FYSISKA butikerna = de icke-primära lagren (S010–S040); centrallagret
  * (`isPrimaryWarehouse`) är webblagret och räknas aldrig. Saknas uppdelningen faller vi
  * tillbaka på `stockQuantity` (totalen) med okänt butiksantal — samma som före 2026-10-02.
+ * Med `names` (`fetchSfBokStores`) får varje butik med saldo en rad, störst först; en
+ * lagerkod utan namn räknas i summan men får ingen rad. ⛔ Gissa ALDRIG en ort.
  */
-export function sfbokStoreStock(v: {
-  stockQuantity?: number | null;
-  warehouseInventories?: SfBokWarehouse[] | null;
-}): { units: number | null; stores: number | null } {
+export function sfbokStoreStock(
+  v: { stockQuantity?: number | null; warehouseInventories?: SfBokWarehouse[] | null },
+  names?: Map<string, SfBokStore>
+): { units: number | null; stores: number | null; locations: StoreStockLocation[] } {
   const stores = (v.warehouseInventories ?? []).filter((w) => w.isPrimaryWarehouse === false);
   if (stores.length === 0) {
-    return { units: typeof v.stockQuantity === "number" ? v.stockQuantity : null, stores: null };
+    return { units: typeof v.stockQuantity === "number" ? v.stockQuantity : null, stores: null, locations: [] };
   }
-  const qty = stores.map((w) => (typeof w.quantity === "number" && w.quantity > 0 ? w.quantity : 0));
-  return { units: qty.reduce((a, b) => a + b, 0), stores: qty.filter((q) => q > 0).length };
+  let units = 0;
+  let withStock = 0;
+  const locations: StoreStockLocation[] = [];
+  for (const w of stores) {
+    const qty = typeof w.quantity === "number" && w.quantity > 0 ? w.quantity : 0;
+    if (qty === 0) continue;
+    units += qty;
+    withStock++;
+    const store = w.warehouseCode ? names?.get(w.warehouseCode) : undefined;
+    if (store) locations.push({ id: store.warehouseCode, label: sfbokStoreLabel(store), units: qty, capped: false });
+  }
+  locations.sort((a, b) => b.units - a.units || a.label.localeCompare(b.label, "sv"));
+  return { units, stores: withStock, locations };
 }
 
 /**
@@ -267,6 +283,7 @@ export class SfBokAdapter implements SourceAdapter {
     const products: RawProductData[] = [];
     const errors: string[] = [];
     let parsed: SfBokProduct[];
+    let storeNames = new Map<string, SfBokStore>();
     try {
       const out = await collectSfBokProducts(LIST_URLS, async (url) => {
         const res = await politeFetch(url, { delayMs: 1000, headers: { RSC: "1" } });
@@ -275,6 +292,7 @@ export class SfBokAdapter implements SourceAdapter {
       });
       parsed = out.products;
       for (const w of out.warnings) console.warn(`[sfbok] ${w}`);
+      storeNames = await fetchSfBokStores();
     } catch (err) {
       // Ett fel gör att anroparen behåller förra lagerläget (se runner/lanen) i stället
       // för att nolla — samma väg som en tom lista alltid tagit.
@@ -294,7 +312,7 @@ export class SfBokAdapter implements SourceAdapter {
         typeof price === "number" && Number.isFinite(price) && price > 0 && (v.price?.currency ?? "SEK") === "SEK"
           ? Math.round(price * 100)
           : null;
-      const inStores = sfbokStoreStock(v);
+      const inStores = sfbokStoreStock(v, storeNames);
       const { stock, storeOnly } = sfbokStock({
         buttonState: p.webDisplay?.buttonState,
         isPreOrder: p.webDisplay?.isPreOrder,
@@ -322,10 +340,10 @@ export class SfBokAdapter implements SourceAdapter {
         imageUrl: imageUrl ?? undefined,
         category: guessListingCategory(p.displayName),
         storeOnly,
-        // ⛔ Butikerna är namnlösa lagerkoder (S010…) — antal butiker, aldrig ett namn.
+        // Orterna ur butikens egen butikssida; utan den bara antal butiker.
         storeStock:
           storeOnly && inStores.units !== null && inStores.units > 0
-            ? { units: inStores.units, stores: inStores.stores, capped: false }
+            ? { units: inStores.units, stores: inStores.stores, capped: false, locations: inStores.locations }
             : null,
         raw,
       });

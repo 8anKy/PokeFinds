@@ -6,6 +6,7 @@ import {
   collectSfBokProducts,
   sfbokPageUrl,
 } from "../../src/scrapers/adapters/sfbok-adapter";
+import { parseSfBokStores } from "../../src/scrapers/adapters/sfbok-stores";
 import { wobgStockFromButton, parseWobgListing } from "../../src/scrapers/adapters/worldofboardgames-adapter";
 
 // ── SF-Bok ─────────────────────────────────────────────────────────────────────
@@ -46,27 +47,83 @@ describe("sfbokStoreStock — centrallagret är inte butikslagret", () => {
 
   it("Mini Tin: 280 i centrallagret, 0 i butikerna ⇒ 0 ex och slut i butik", () => {
     const inStores = sfbokStoreStock({ stockQuantity: 280, warehouseInventories: wh(280, 0, 0, 0, 0) });
-    expect(inStores).toEqual({ units: 0, stores: 0 });
+    expect(inStores).toEqual({ units: 0, stores: 0, locations: [] });
     expect(sfbokStock({ buttonState: 4, stockQuantity: inStores.units }).stock).toBe("out");
   });
 
   it("Enhanced 2-pack: 19 + 7 i två butiker ⇒ 26 ex i 2 butiker", () => {
-    expect(sfbokStoreStock({ stockQuantity: 26, warehouseInventories: wh(0, 0, 19, 7, 0) })).toEqual({
+    expect(sfbokStoreStock({ stockQuantity: 26, warehouseInventories: wh(0, 0, 19, 7, 0) })).toMatchObject({
       units: 26,
       stores: 2,
     });
   });
 
   it("centrallagret räknas aldrig med, även när butikerna har saldo", () => {
-    expect(sfbokStoreStock({ stockQuantity: 206, warehouseInventories: wh(112, 28, 27, 26, 13) })).toEqual({
+    expect(sfbokStoreStock({ stockQuantity: 206, warehouseInventories: wh(112, 28, 27, 26, 13) })).toMatchObject({
       units: 94,
       stores: 4,
     });
   });
 
   it("utan uppdelning ⇒ totalen med okänt butiksantal", () => {
-    expect(sfbokStoreStock({ stockQuantity: 5 })).toEqual({ units: 5, stores: null });
-    expect(sfbokStoreStock({ stockQuantity: null, warehouseInventories: [] })).toEqual({ units: null, stores: null });
+    expect(sfbokStoreStock({ stockQuantity: 5 })).toEqual({ units: 5, stores: null, locations: [] });
+    expect(sfbokStoreStock({ stockQuantity: null, warehouseInventories: [] })).toEqual({
+      units: null,
+      stores: null,
+      locations: [],
+    });
+  });
+
+  it("med butikslistan får varje butik med saldo sin ort, störst först", () => {
+    const names = parseSfBokStores(SF_STORES_RSC);
+    expect(sfbokStoreStock({ stockQuantity: 26, warehouseInventories: wh(0, 0, 19, 7, 0) }, names).locations).toEqual([
+      { id: "S020", label: "Malmö", units: 19, capped: false },
+      { id: "S030", label: "Göteborg", units: 7, capped: false },
+    ]);
+  });
+
+  it("en lagerkod utan namn räknas i summan men får ingen rad — aldrig en gissad ort", () => {
+    const names = parseSfBokStores(SF_STORES_RSC);
+    names.delete("S030");
+    const out = sfbokStoreStock({ warehouseInventories: wh(0, 0, 19, 7, 0) }, names);
+    expect(out).toMatchObject({ units: 26, stores: 2 });
+    expect(out.locations.map((l) => l.label)).toEqual(["Malmö"]);
+  });
+});
+
+// Butikssidans RSC-flight, avskalad (2026-10-02): ett "store"-objekt per butik.
+const SF_STORE = (code: string, name: string, city: string) =>
+  `{"store":{"accessibility":[{"_key":"sv-SE","value":[{"text":"Butiken {har} hiss."}]}],` +
+  `"address":{"addressCountry":"SE","addressLocality":"${city}","streetAddress":"Gatan 1"},` +
+  `"name":"Science Fiction-Bokhandeln ${name}","storeId":"x","warehouseCode":"${code}"},"storesBasePath":"/sv/butiker"}`;
+const SF_STORES_RSC =
+  `24:["$","$L21","stockholm",${SF_STORE("S010", "Stockholm", "Stockholm")}]
+` +
+  `25:["$","$L21","malmo",${SF_STORE("S020", "Malmö", "Malmö")}]
+` +
+  `26:["$","$L21","goteborg",${SF_STORE("S030", "Göteborg", "Göteborg")}]
+` +
+  `27:["$","$L21","linkoping",${SF_STORE("S040", "Linköping", "Linköping")}]`;
+
+describe("parseSfBokStores — lagerkod → ort ur butikens egen butikssida", () => {
+  it("RSC-flight", () => {
+    const out = parseSfBokStores(SF_STORES_RSC);
+    expect([...out.values()].map((s) => [s.warehouseCode, s.city])).toEqual([
+      ["S010", "Stockholm"],
+      ["S020", "Malmö"],
+      ["S030", "Göteborg"],
+      ["S040", "Linköping"],
+    ]);
+  });
+
+  it("HTML med escapad flight ger samma butiker", () => {
+    const html = `<script>self.__next_f.push([1,"${SF_STORES_RSC.replace(/"/g, '\\"')}"])</script>`;
+    expect([...parseSfBokStores(html).keys()]).toEqual(["S010", "S020", "S030", "S040"]);
+  });
+
+  it("utan lagerkod eller namn ⇒ ingen post", () => {
+    expect(parseSfBokStores(`{"store":{"name":"X","address":{}}}`).size).toBe(0);
+    expect(parseSfBokStores("").size).toBe(0);
   });
 });
 
