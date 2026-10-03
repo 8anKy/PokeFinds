@@ -2899,6 +2899,13 @@
     "corner3": "Bottom left corner"
   },
   "LocalStores": {
+    "browseStores": "Expand store list",
+    "storeList": "Find a store",
+    "searchResults": "Search results",
+    "nearestFirst": "Nearest to you first",
+    "byCity": "Sorted by city",
+    "clearSearch": "Clear",
+    "showOnMap": "Show on map",
     "views": "Community views",
     "all": "All",
     "followed": "Followed",

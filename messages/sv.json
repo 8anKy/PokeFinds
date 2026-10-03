@@ -2899,6 +2899,13 @@
     "corner3": "Nedre vänstra hörnet"
   },
   "LocalStores": {
+    "browseStores": "Visa större lista",
+    "storeList": "Hitta en butik",
+    "searchResults": "Sökresultat",
+    "nearestFirst": "Närmast dig först",
+    "byCity": "Sorterat efter ort",
+    "clearSearch": "Rensa",
+    "showOnMap": "Visa på kartan",
     "views": "Community-vyer",
     "all": "Alla",
     "followed": "Följda",

@@ -1,10 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { hasStorePosition, storesInBounds, storeClusters } from "@/lib/community-map";
+import { hasStorePosition, storesInBounds, storesForBrowsing, storeClusters } from "@/lib/community-map";
 import type { CommunityStoreDto } from "@/services/community-stores";
 import curated from "@/data/community-stores-curated.json";
 
 const store = (id: string, latitude: number | null, longitude: number | null): CommunityStoreDto => ({ id, name: id, city: "Stockholm", address: "Test", latitude, longitude });
 describe("community store map", () => {
+  it("keeps the whole catalogue browsable, including stores outside the map and without coordinates", () => {
+    const input = [{ ...store("far", 65, 20), city: "Örebro" }, { ...store("unknown", null, null), city: "Boden" }, { ...store("near", 59.3, 18), city: "Alingsås" }];
+    expect(storesForBrowsing(input, null).map(s => s.id)).toEqual(["near", "unknown", "far"]);
+    expect(input.map(s => s.id)).toEqual(["far", "unknown", "near"]);
+  });
+  it("uses the user's location for nearest-first browsing and places unknown distances last", () => {
+    expect(storesForBrowsing([store("unknown", null, null), store("far", 65, 20), store("near", 59.31, 18.01)], { latitude: 59.3, longitude: 18 }).map(s => s.id)).toEqual(["near", "far", "unknown"]);
+  });
   it("never places incomplete or invalid coordinates on the map", () => {
     for (const s of [store("missing", null, null), store("half", 59, null), store("nan", NaN, 18), store("outside", 95, 18)]) expect(hasStorePosition(s)).toBe(false);
   });

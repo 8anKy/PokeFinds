@@ -15,6 +15,21 @@ export function storesInBounds(stores: CommunityStoreDto[], bounds: MapBounds, c
     .sort((a, b) => distanceMeters(a, center) - distanceMeters(b, center) || a.id.localeCompare(b.id));
 }
 
+/** Listan är en katalog, inte en följd av kartans senaste panorering. */
+export function storesForBrowsing(stores: CommunityStoreDto[], position: MapPoint | null): CommunityStoreDto[] {
+  return [...stores].sort((a, b) => {
+    if (position) {
+      const aMapped = hasStorePosition(a); const bMapped = hasStorePosition(b);
+      if (aMapped !== bMapped) return aMapped ? -1 : 1;
+      if (aMapped && bMapped) {
+        const difference = distanceMeters(a, position) - distanceMeters(b, position);
+        if (difference) return difference;
+      }
+    }
+    return a.city.localeCompare(b.city, "sv") || a.name.localeCompare(b.name, "sv") || a.id.localeCompare(b.id);
+  });
+}
+
 /** Klustra bara på skärmen, aldrig genom nya databas-/karttjänstanrop. */
 export function storeClusters(stores: MappedStore[], project: (s: MappedStore) => { x: number; y: number }, cellSize = 48) {
   const cells = new Map<string, MappedStore[]>();
