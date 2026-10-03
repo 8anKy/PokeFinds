@@ -271,6 +271,8 @@ model User {
   achievements      UserAchievement[]
   guestDevices      GuestDevice[]
   groupMemberships  CommunityGroupMember[]
+  suggestedStores   CommunityStore[]
+  followedStores    CommunityStoreFollow[]
   conversations     ConversationParticipant[]
   messagesSent      Message[]
   blocksMade        UserBlock[]               @relation("BlockBy")
@@ -1314,12 +1316,56 @@ model CommunityPost {
   savedPosts    SavedPost[]
   images        PostImage[]
   conversations Conversation[]
+  storeReport   CommunityStoreReport?
 
   @@index([category, createdAt])
   @@index([userId])
   @@index([groupId, lastActivityAt])
   @@index([lastActivityAt])
   @@index([listingStatus, lastActivityAt])
+}
+
+// Fysiska filialer är egna identiteter. Webblager får aldrig bli hyllstatus.
+model CommunityStore {
+  id          String   @id @default(cuid())
+  name        String
+  address     String
+  city        String
+  identityKey String   @unique
+  latitude    Float?
+  longitude   Float?
+  status      String   @default("PENDING")
+  createdById String?
+  createdAt   DateTime @default(now())
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  reports     CommunityStoreReport[]
+  followers   CommunityStoreFollow[]
+  @@index([status, city])
+}
+
+model CommunityStoreFollow {
+  userId    String
+  storeId   String
+  createdAt DateTime @default(now())
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store     CommunityStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  @@id([userId, storeId])
+}
+
+model CommunityStoreReport {
+  postId          String @id
+  storeId         String
+  productLabel    String
+  productSlug     String?
+  observation     String
+  observedAt      DateTime
+  // ⛔ Spara aldrig besökarens koordinater. Detta är en ungefärlig signal från
+  // enhetens platsuppgift, INTE ett verifierat besök eller en lagergaranti.
+  nearbyAtSubmit  Boolean @default(false)
+  post            CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  store           CommunityStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  @@index([storeId, observedAt])
+  @@index([observedAt])
 }
 
 enum ListingKind {

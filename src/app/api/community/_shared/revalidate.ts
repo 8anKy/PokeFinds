@@ -1,4 +1,4 @@
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 /**
  * Forumsidorna är ISR-cachade (5 min) och renderas om LAT efter en skrivning i
@@ -12,6 +12,7 @@ import { revalidatePath } from "next/cache";
  * renderas ändå aldrig om.
  */
 export function revalidateForum(opts: { group?: boolean; thread?: boolean } = {}) {
+  revalidateTag("community-feed");
   revalidatePath("/[locale]/forum", "page");
   if (opts.group) revalidatePath("/[locale]/forum/g/[slug]", "page");
   if (opts.thread) revalidatePath("/[locale]/forum/t/[id]", "page");

@@ -15,6 +15,10 @@
  * BÅDA språkfilerna.
  */
 export const API_ERROR_KEYS: Record<string, string> = {
+  "Butiken hittades inte.": "storeNotFound",
+  "För många butiksförslag. Försök igen i morgon.": "storeSuggestionLimit",
+  "Ange ett besök under de senaste sju dagarna, inte i framtiden.": "storeVisitTime",
+  "För många förfrågningar. Försök igen om en stund.": "storeFollowLimit",
   // auth
   "Du måste vara inloggad.": "loginRequired",
   "Du saknar behörighet.": "forbidden",

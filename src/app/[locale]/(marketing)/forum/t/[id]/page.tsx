@@ -22,6 +22,7 @@ import { ListingCard } from "@/components/community/listing-card";
 import { ThreadActions } from "@/components/community/thread-actions";
 import { Replies } from "@/components/community/replies";
 import { getPost, listComments } from "@/services/community";
+import { StoreReportSummary } from "@/components/community/store-report-summary";
 
 export const revalidate = 300;
 
@@ -168,6 +169,7 @@ export default async function ThreadPage({ params }: PageProps) {
         {post.images.length > 0 && <ImageGallery images={post.images} />}
 
         {post.listingKind && <ListingCard post={post} />}
+        {post.storeReport && <StoreReportSummary report={post.storeReport} />}
 
         <ThreadActions
           postId={post.id}

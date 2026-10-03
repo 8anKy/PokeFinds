@@ -8,6 +8,7 @@ import { IconMessage } from "@/components/ui/icons";
 import type { FeedItem } from "@/services/community";
 import { PostCard } from "./post-card";
 import { LoadMore } from "./load-more";
+import { useForumViewer } from "./use-forum-viewer";
 
 export interface FeedPage {
   items: FeedItem[];
@@ -59,6 +60,8 @@ export function ThreadList({
   showGroup = true,
   emptyText,
   hrefBase,
+  visual = false,
+  reportQuery,
 }: {
   initial: FeedPage;
   group?: string;
@@ -69,6 +72,8 @@ export function ThreadList({
   emptyText: string;
   /** Vart en tråd länkar; profilen utanför grinden pekar på gamla /community. */
   hrefBase?: string;
+  visual?: boolean;
+  reportQuery?: string;
 }) {
   const t = useTranslations("Forum");
   const [filter, setFilter] = useState<MarketFilter>("all");
@@ -78,12 +83,14 @@ export function ThreadList({
   pagesRef.current = pages;
 
   const current = pages[filter];
+  const personal = useForumViewer(current?.items.map(p => p.id) ?? []);
 
   const fetchPage = useCallback(
     async (f: MarketFilter, page: number, append: boolean) => {
       setLoading(true);
       try {
-        const res = await fetch(buildUrl(group, author, f, page), { credentials: "include" });
+        const url = reportQuery ? `/api/community/posts?${reportQuery}&page=${page}&pageSize=20` : buildUrl(group, author, f, page);
+        const res = await fetch(url, { credentials: "include" });
         if (!res.ok) return;
         const data = (await res.json()) as FeedPage;
         setPages((prev) => {
@@ -102,7 +109,7 @@ export function ThreadList({
         setLoading(false);
       }
     },
-    [group, author]
+    [group, author, reportQuery]
   );
 
   function selectFilter(f: MarketFilter) {
@@ -151,8 +158,8 @@ export function ThreadList({
         <EmptyState icon={<IconMessage size={32} />} title={emptyText} description="" />
       ) : (
         <ul className="space-y-2.5">
-          {current.items.map((post) => (
-            <PostCard key={post.id} post={post} showGroup={showGroup} hrefBase={hrefBase} />
+          {current.items.filter(post => !personal.state.blockedIds.includes(post.user.id)).map((post) => (
+            <PostCard key={post.id} post={post} showGroup={showGroup} hrefBase={hrefBase} visual={visual} personal={personal} />
           ))}
         </ul>
       )}

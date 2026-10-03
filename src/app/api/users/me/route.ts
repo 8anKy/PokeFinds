@@ -10,6 +10,7 @@ import { deleteUserImages } from "@/lib/object-storage";
 import { revalidateTag } from "next/cache";
 import { TRADERA_SELLER_ITEMS_TAG } from "@/lib/tradera-seller-items";
 import { setAllPortfoliosPublic } from "@/services/portfolios";
+import { revalidateForum } from "@/app/api/community/_shared/revalidate";
 
 export const dynamic = "force-dynamic";
 
@@ -220,6 +221,9 @@ export async function DELETE() {
 
     // Övriga relationer hanteras via onDelete: Cascade i schemat.
     await prisma.user.delete({ where: { id: sessionUser.id } });
+    // ⛔ Cascade når databasen, inte cachad text. Rapporter/inlägg från ett
+    // raderat konto ska försvinna även ur de delade läsvyerna direkt.
+    revalidateForum({ group: true, thread: true });
     return jsonOk({ message: "Ditt konto och all din data har raderats." });
   } catch (e) {
     return apiError(e);

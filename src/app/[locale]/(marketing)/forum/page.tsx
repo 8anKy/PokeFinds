@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { Link } from "@/i18n/navigation";
+import { Suspense } from "react";
 import { alternatesFor } from "@/lib/canonical";
 import { LinkButton } from "@/components/ui/button";
 import { IconBookmark, IconMail, IconPlus } from "@/components/ui/icons";
 import { UnreadBadge } from "@/components/chat/unread-badge";
-import { GroupChips } from "@/components/community/group-chips";
 import { ThreadList } from "@/components/community/thread-list";
 import { getFeed } from "@/services/community";
 import { listGroups } from "@/services/community-groups";
+import { listCommunityStores } from "@/services/community-stores";
+import { CommunityHub } from "@/components/community/community-hub";
 
 /**
  * Forumets startflöde. ISR (5 min) + revalidatePath vid varje skrivning —
@@ -51,7 +52,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ForumPage({ params }: PageProps) {
   setRequestLocale(params.locale);
   const t = await getTranslations("Forum");
-  const [groups, feed] = await Promise.all([listGroups(), getFeed({ page: 1, pageSize: 20 })]);
+  const [groups, feed, stores] = await Promise.all([listGroups(), getFeed({ page: 1, pageSize: 20 }), listCommunityStores()]);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
@@ -60,16 +61,16 @@ export default async function ForumPage({ params }: PageProps) {
         <h1 className="min-w-0 font-display text-3xl font-bold text-ink">{t("h1")}</h1>
         <div className="flex shrink-0 items-center gap-2">
           {/* Dit Spara/Gilla leder — knapparna på tråden pekar hit i sin toast. */}
-          <Link
-            href="/forum/sparade"
+          <a
+            href={`/${params.locale}/forum/sparade`}
             aria-label={t("savedLink")}
             title={t("savedLink")}
             className="grid h-10 w-10 place-items-center rounded-full border border-surface-border text-ink-muted transition-colors hover:border-holo-cyan/40 hover:text-holo-cyan"
           >
             <IconBookmark size={18} />
-          </Link>
-          <Link
-            href="/meddelanden"
+          </a>
+          <a
+            href={`/${params.locale}/meddelanden`}
             aria-label={t("messages")}
             className="relative grid h-10 w-10 place-items-center rounded-full border border-surface-border text-ink-muted transition-colors hover:border-holo-cyan/40 hover:text-holo-cyan"
           >
@@ -77,7 +78,7 @@ export default async function ForumPage({ params }: PageProps) {
             <span className="absolute -right-1 -top-1">
               <UnreadBadge />
             </span>
-          </Link>
+          </a>
           <LinkButton href="/forum/ny" size="sm">
             <IconPlus size={16} />
             {t("newThread")}
@@ -86,11 +87,9 @@ export default async function ForumPage({ params }: PageProps) {
       </header>
 
       <div className="mt-5">
-        <GroupChips groups={groups} />
-      </div>
-
-      <div className="mt-5">
-        <ThreadList initial={feed} emptyText={t("emptyFeed")} />
+        <Suspense fallback={<ThreadList initial={feed} emptyText={t("emptyFeed")} />}>
+          <CommunityHub initial={feed} groups={groups} stores={stores} />
+        </Suspense>
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 > hand nedanför sin markör.
 
 ## Nuläge
+- **COMMUNITY MED BUTIKSRAPPORTER (2026-10-03)**: Forum heter Community i UI:t; befintliga `/forum`-länkar fungerar. Flödet visar inlägg med bild, gilla/spara och kommentarer. `CommunityStore` är en FYSISK filial (förslag granskas före publicering); `CommunityStoreReport` hör till ETT vanligt communityinlägg och delar dess moderering/GDPR-radering. Närhet är FRIVILLIG: tidigare besök kan rapporteras hemifrån. Enhetens koordinater behandlas tillfälligt och sparas aldrig i rapporten; bara en ungefärlig signal när färsk, exakt GPS ligger nära en godkänd butiksposition. **Signalen verifierar INTE ett besök.** Besökstid, inte publicering eller svar, avgör sortering och färskhet (12 h ⇒ aktuell status okänd). Ort/butik/produkt filtreras på uttryckligt tryck, ingen DB per tangenttryck. Katalogen cachas 24 h, rapportflödet delas i cache och invalideras vid skrivningar. Inga nya crons eller leverantörsabonnemang; trafikens merkostnad är OMÄTT. Karta och riktade pushlarm är nästa etapp, inte påslagna här. Regler: `.claude/rules/community-v2.md`.
 - **LIVE** på https://foilio.se — **Railway** (`divine-reflection/PokeFinds`) + Neon serverless Postgres
   (Frankfurt). Deploy = `git push origin main` (Dockerfile, node:22-slim). Ingen Vercel. Railway blockar
   SMTP-portar → mejl via Resend HTTP API (`src/lib/mailer.ts`).

@@ -12,6 +12,12 @@ vi.mock("@/lib/object-storage", () => ({ imageUrls: async () => [] }));
 import { buildFeedWhere } from "@/services/community";
 
 describe("buildFeedWhere", () => {
+  it("butiksrapporter kräver synliga inlägg och en godkänd fysisk filial", () => {
+    expect(buildFeedWhere({ reportsOnly: true, storeId: "branch-1", city: "Gävle", productSlug: "bundle" })).toMatchObject({
+      isHidden: false,
+      storeReport: { is: { storeId: "branch-1", productSlug: "bundle", store: { status: "APPROVED", city: { contains: "Gävle", mode: "insensitive" } } } },
+    });
+  });
   it("startflödet: bara synliga trådar som är vanliga eller aktiva annonser", () => {
     expect(buildFeedWhere({})).toEqual({
       isHidden: false,

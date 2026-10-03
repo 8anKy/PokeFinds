@@ -11,6 +11,7 @@ import { ServiceError } from "@/lib/errors";
 import { hasRole } from "@/lib/auth";
 import { imageUrls } from "@/lib/object-storage";
 import { canSetListingStatus } from "@/lib/listing-rules";
+import { cachedRead } from "@/lib/cache";
 import type {
   ListingKind,
   ListingStatus,
@@ -99,7 +100,19 @@ export interface FeedItem {
   images: ForumImage[];
   commentCount: number;
   likeCount: number;
+  storeReport?: StoreReportDto | null;
 }
+
+export interface StoreReportDto {
+  store: { id: string; name: string; address: string; city: string };
+  productLabel: string;
+  productSlug: string | null;
+  observation: string;
+  observedAt: string;
+  nearbyAtSubmit: boolean;
+}
+
+const STORE_REPORT_INCLUDE = { include: { store: { select: { id: true, name: true, address: true, city: true } } } } as const;
 
 export interface ThreadAuthor extends ForumAuthor {
   memberSince: string;
@@ -124,6 +137,10 @@ export interface CommentDto {
 }
 
 export interface FeedParams {
+  reportsOnly?: boolean;
+  storeId?: string;
+  productSlug?: string;
+  city?: string;
   groupSlug?: string;
   /** Bara en viss författares trådar (profilens Inlägg-flik). */
   authorId?: string;
@@ -138,6 +155,7 @@ export interface FeedParams {
 }
 
 const FEED_INCLUDE = {
+  storeReport: STORE_REPORT_INCLUDE,
   user: { select: POST_AUTHOR_SELECT },
   group: { select: GROUP_REF_SELECT },
   images: { orderBy: { sortOrder: "asc" }, take: 1, select: IMAGE_SELECT },
@@ -195,14 +213,22 @@ async function toFeedItems(rows: FeedRow[]): Promise<FeedItem[]> {
       images,
       commentCount: r._count.comments,
       likeCount: r._count.likes,
+      storeReport: r.storeReport ? { ...r.storeReport, observedAt: r.storeReport.observedAt.toISOString() } : null,
     };
   });
 }
 
 export function buildFeedWhere(
-  params: Pick<FeedParams, "groupSlug" | "authorId" | "kind" | "status">
+  params: Pick<FeedParams, "groupSlug" | "authorId" | "kind" | "status" | "reportsOnly" | "storeId" | "productSlug" | "city">
 ) {
   const where: Prisma.CommunityPostWhereInput = { isHidden: false };
+  if (params.reportsOnly || params.storeId || params.productSlug || params.city) {
+    where.storeReport = { is: {
+      store: { status: "APPROVED", ...(params.city ? { city: { contains: params.city, mode: "insensitive" } } : {}) },
+      ...(params.storeId ? { storeId: params.storeId } : {}),
+      ...(params.productSlug ? { productSlug: params.productSlug } : {}),
+    } };
+  }
   if (params.groupSlug) where.group = { slug: params.groupSlug };
   if (params.authorId) where.userId = params.authorId;
   if (params.kind) where.listingKind = params.kind;
@@ -216,7 +242,7 @@ export function buildFeedWhere(
   return where;
 }
 
-export async function getFeed(params: FeedParams) {
+async function getFeedRaw(params: FeedParams) {
   const { page, pageSize } = params;
   const where = buildFeedWhere(params);
 
@@ -224,7 +250,11 @@ export async function getFeed(params: FeedParams) {
     prisma.communityPost.findMany({
       where,
       include: FEED_INCLUDE,
-      orderBy: { lastActivityAt: "desc" },
+      // ⛔ Ett nytt svar gör inte hyllobservationen färsk igen. Rapporter
+      // sorteras på BESÖKET, aldrig på kommentarer eller publicering hemifrån.
+      orderBy: params.reportsOnly || params.storeId || params.city || params.productSlug
+        ? [{ storeReport: { observedAt: "desc" } }, { id: "desc" }]
+        : [{ createdAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
@@ -234,6 +264,8 @@ export async function getFeed(params: FeedParams) {
   const items = await toFeedItems(rows);
   return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }
+
+export const getFeed = cachedRead(getFeedRaw, "community-feed-v3", 3600, ["community-feed"]);
 
 /**
  * Betraktarens SPARADE trådar, senast sparad först — dit Spara-knappen leder
@@ -277,6 +309,7 @@ export async function getPost(postId: string): Promise<ThreadDetail> {
   const post = await prisma.communityPost.findUnique({
     where: { id: postId },
     include: {
+      storeReport: STORE_REPORT_INCLUDE,
       user: {
         select: {
           ...POST_AUTHOR_SELECT,
@@ -321,10 +354,12 @@ export async function getPost(postId: string): Promise<ThreadDetail> {
     images,
     commentCount: post._count.comments,
     likeCount: post._count.likes,
+    storeReport: post.storeReport ? { ...post.storeReport, observedAt: post.storeReport.observedAt.toISOString() } : null,
   };
 }
 
 export interface CreatePostInput {
+  storeReport?: { storeId: string; productLabel: string; productSlug: string | null; observation: string; observedAt: Date; nearbyAtSubmit: boolean };
   groupId: string;
   title: string;
   content: string;
@@ -337,11 +372,12 @@ export interface CreatePostInput {
 }
 
 export async function createPost(userId: string, input: CreatePostInput) {
-  const { images, groupId, listingKind, ...rest } = input;
+  const { images, groupId, listingKind, storeReport, ...rest } = input;
   return prisma.communityPost.create({
     data: {
       userId,
       groupId,
+      ...(storeReport ? { storeReport: { create: storeReport } } : {}),
       ...rest,
       listingKind: listingKind ?? null,
       // Annonsstatus följer annonstypen: en annons föds aktiv, en vanlig tråd

@@ -20,10 +20,16 @@ import { postMarketThreadToDiscord } from "@/lib/discord-market";
 import { createPost, getFeed } from "@/services/community";
 import { getGroupBySlug } from "@/services/community-groups";
 import { revalidateForum } from "../_shared/revalidate";
+import { storeReportSchema, validVisitTime, nearbyAtSubmit } from "@/lib/community-stores";
+import { reportableStore } from "@/services/community-stores";
 
 export const dynamic = "force-dynamic";
 
 const feedSchema = z.object({
+  reports: z.enum(["1"]).optional(),
+  store: z.string().trim().min(1).max(64).optional(),
+  product: z.string().trim().min(1).max(200).optional(),
+  city: z.string().trim().min(1).max(80).optional(),
   group: z.string().trim().min(1).max(64).optional(),
   /** Författar-id (profilens Inlägg-flik). Trådar är publika, så ingen auth-koppling. */
   author: z
@@ -33,7 +39,7 @@ const feedSchema = z.object({
     .optional(),
   kind: z.nativeEnum(ListingKind).optional(),
   status: z.union([z.nativeEnum(ListingStatus), z.literal("all")]).optional(),
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(20),
 });
 
@@ -46,6 +52,7 @@ const optionalText = (max: number) =>
     .transform((v) => (v ? v : undefined));
 
 const createSchema = z.object({
+  storeReport: storeReportSchema.optional(),
   groupSlug: z.string().trim().min(1).max(64),
   title: z.string().trim().min(3, "Titeln är för kort.").max(120, "Titeln är för lång."),
   content: z.string().trim().min(1, "Skriv något i tråden.").max(10000),
@@ -85,6 +92,10 @@ export async function GET(req: NextRequest) {
       status: params.status,
       page: params.page,
       pageSize: params.pageSize,
+      reportsOnly: params.reports === "1",
+      storeId: params.store,
+      productSlug: params.product,
+      city: params.city,
     });
     return jsonOk(feed);
   } catch (e) {
@@ -122,6 +133,27 @@ export async function POST(req: Request) {
 
     const group = await getGroupBySlug(input.groupSlug);
     if (!group) throw new ServiceError(404, "Gruppen hittades inte.");
+
+    let storeReport;
+    if (input.storeReport) {
+      if (group.isMarketplace || input.listingKind) throw new ServiceError(400, "Ogiltig indata.");
+      if (!validVisitTime(input.storeReport.observedAt)) throw new ServiceError(400, "Ange ett besök under de senaste sju dagarna, inte i framtiden.");
+      const store = await reportableStore(input.storeReport.storeId);
+      let productLabel = input.storeReport.productLabel;
+      if (input.storeReport.productSlug) {
+        const product = await prisma.product.findFirst({ where: { slug: input.storeReport.productSlug, hiddenAt: null }, select: { title: true } });
+        if (!product) throw new ServiceError(404, "Produkten hittades inte.");
+        productLabel = product.title;
+      }
+      const dirtyLabel = findProfanity(productLabel);
+      if (dirtyLabel) {
+        logModerationEvent(user.id, "POST", dirtyLabel);
+        throw new ServiceError(400, "Inlägget innehåller ord som inte är tillåtna i forumet. Ändra texten och försök igen.", PROFANITY_CODE);
+      }
+      storeReport = { storeId: store.id, productLabel, productSlug: input.storeReport.productSlug ?? null,
+        observation: input.storeReport.observation, observedAt: new Date(input.storeReport.observedAt),
+        nearbyAtSubmit: nearbyAtSubmit(store, input.storeReport) };
+    }
 
     // Bildnycklar får bara peka på användarens EGET prefix — annars kan man
     // "låna" någon annans uppladdning genom att gissa nyckeln.
@@ -166,6 +198,7 @@ export async function POST(req: Request) {
     if (!verdict.ok) throw new ServiceError(400, verdict.message);
 
     const post = await createPost(user.id, {
+      storeReport,
       groupId: group.id,
       title: input.title,
       content: input.content,

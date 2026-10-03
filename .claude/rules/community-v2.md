@@ -26,6 +26,8 @@ paths:
 ---
 # Community v2: forum, Köp/Sälj/Byt, meddelanden, Tradera-annonser på profilen (byggt 2026-09-03)
 
+- **COMMUNITY + FYSISKA BUTIKSRAPPORTER (2026-10-03)**: UI-namnet är Community; `/forum` behålls för befintliga länkar. Butiksförslag är PENDING tills ADMIN/SUPERADMIN godkänt adress/filial/valfri position. Rapporten är kopplad 1:1 till ett vanligt inlägg: moderering, blockering, bilder och GDPR-radering får aldrig kringgås via en separat lagerlista. Webblager är aldrig bevis på hyllstatus. Färskhet och rapportsortering använder `observedAt`, aldrig `lastActivityAt`; efter 12 h visas aktuell status okänd utan bakgrundsjobb. GPS är frivillig, rå koordinat sparas aldrig på rapporten. `nearbyAtSubmit` är en ungefärlig enhetssignal, ALDRIG ett verifierat besök; kräver precision ≤100 m, avstånd + precision ≤250 m, platsprov ≤2 min och besök ≤10 min. Nekad GPS ska fortfarande tillåta rapportering. Katalogen är en delad 24h-cache, rapportläsningen en delad cache med invalidation via `revalidateForum`; filter tillämpas på uttryckligt tryck, ingen DB per tangenttryck. Följningar är en egen personrelation och måste exporteras/raderas med kontot. Karttjänst och automatiska lokala pushlarm tillhör nästa etapp.
+
 - **⛔ GRINDAT TILLS ÄGAREN TESTAT I TESTFLIGHT (ägarbeslut 2026-09-03).** Domen är EN ren funktion,
   `communityV2Allowed()` i `src/lib/community-v2-gate.ts`: släpper in (1) alla när `COMMUNITY_V2_PUBLIC=1`,
   (2) ADMIN/SUPERADMIN, (3) en native-byggnad vars User-Agent bär `FoilioApp/<version>` (`appendUserAgent` i
