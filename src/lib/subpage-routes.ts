@@ -29,7 +29,7 @@ const EXACT = new Set([
 ]);
 
 // "/admin/" — alla adminvyer bär mobilraden via admin/layout.tsx (2026-09-17).
-const PREFIXES = ["/admin/", "/forum/g/", "/forum/t/", "/installningar/", "/meddelanden/", "/produkter/", "/sets/", "/evenemang/", "/nyheter/"];
+const PREFIXES = ["/admin/", "/forum/g/", "/forum/t/", "/profil/", "/installningar/", "/meddelanden/", "/produkter/", "/sets/", "/evenemang/", "/nyheter/"];
 
 export function isSubpageRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false;

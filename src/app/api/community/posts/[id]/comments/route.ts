@@ -7,7 +7,7 @@ import { assertCommunityV2 } from "@/lib/community-v2-server";
 import { pushToUser } from "@/lib/push-to-user";
 import { assertForumRulesAccepted, logModerationEvent } from "@/lib/forum-rules";
 import { findProfanity, PROFANITY_CODE } from "@/lib/profanity";
-import { addComment, listComments } from "@/services/community";
+import { addComment, listCommentsCached } from "@/services/community";
 import { revalidateForum } from "../../../_shared/revalidate";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   try {
     const session = await auth();
     await assertCommunityV2(session?.user?.role ?? null);
-    const comments = await listComments(params.id);
+    const comments = await listCommentsCached(params.id);
     return jsonOk({ items: comments });
   } catch (e) {
     return apiError(e);

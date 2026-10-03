@@ -9,6 +9,7 @@ import { useRouter } from "@/i18n/navigation";
 import { apiFetch, apiErrorCode } from "@/lib/client-api";
 import { FORUM_RULES_CODE } from "@/lib/profanity";
 import { Button } from "@/components/ui/button";
+import { IconNews, IconMapPin, IconClock, IconPlus } from "@/components/ui/icons";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { StoreMap } from "./store-map";
@@ -181,12 +182,15 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
     <ProductPicker value={product} onChange={setProduct} />
     <Button variant="secondary" onClick={() => { setAppliedFilters({ storeId, city: area.trim(), productSlug: product?.slug ?? "" }); setReportVersion(v => v + 1); window.history.replaceState(null, "", `${window.location.pathname}?view=reports${storeId ? `&store=${encodeURIComponent(storeId)}` : ""}`); }}>{t("storeReports")}</Button>
     </div></details>
-    {stores.find(s => s.id === appliedFilters.storeId) && <Button onClick={() => { if (login()) setReportStore(stores.find(s => s.id === appliedFilters.storeId) ?? null); }}>{t("report")}</Button>}
+    {stores.find(s => s.id === appliedFilters.storeId) && <button type="button" className="inline-flex min-h-10 items-center gap-1.5 text-sm text-holo-cyan" onClick={() => { if (login()) setReportStore(stores.find(s => s.id === appliedFilters.storeId) ?? null); }}><IconPlus size={16} />{t("addReport")}</button>}
     <p className="text-xs text-ink-muted">{t("disclaimer")}</p>
     {reports ? <ThreadList key={query + reportVersion} initial={reports} reportQuery={query} emptyText={t("noReports")} visual /> : <p className="py-6 text-center text-sm text-ink-muted">{t("loading")}</p>}
   </div>;
   return <div className="space-y-4">
-    <nav className="grid grid-cols-3 border-b border-surface-border" aria-label={t("views")} role="tablist">{["feed", "nearby", "reports"].map(id => <button key={id} type="button" id={`community-tab-${id}`} role="tab" aria-selected={view === id} aria-controls={`community-panel-${id}`} onClick={() => selectView(id)} className={`min-h-12 border-b-2 text-sm font-medium ${view === id ? "border-holo-cyan text-holo-cyan" : "border-transparent text-ink-muted"}`}>{t(id)}</button>)}</nav>
+    <nav className="grid grid-cols-3 gap-1 rounded-full border border-surface-border p-1" aria-label={t("views")} role="tablist">{["feed", "nearby", "reports"].map(id => {
+      const Icon = id === "feed" ? IconNews : id === "nearby" ? IconMapPin : IconClock;
+      return <button key={id} type="button" id={`community-tab-${id}`} role="tab" aria-selected={view === id} aria-controls={`community-panel-${id}`} onClick={() => selectView(id)} className={`flex min-h-10 items-center justify-center gap-1.5 rounded-full text-sm font-medium transition-colors ${view === id ? "bg-surface-overlay text-ink" : "text-ink-muted hover:text-ink"}`}><Icon size={16} className={view === id ? "text-holo-cyan" : ""} />{t(id)}</button>;
+    })}</nav>
     {!suggestOpen && error && <FieldError message={error} />}
     {notice && <p className="text-sm text-holo-cyan" role="status">{notice}</p>}
     <section id={`community-panel-${view}`} role="tabpanel" aria-labelledby={`community-tab-${view}`}>
@@ -196,7 +200,7 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
       {view === "nearby" && local}
       {view === "reports" && reportPanel}
     </section>
-    {reportStore && <StoreReportSheet key={reportStore.id} store={reportStore} onClose={() => setReportStore(null)} />}
+    {reportStore && <StoreReportSheet key={reportStore.id} store={reportStore} onClose={() => setReportStore(null)} onSubmitted={() => { setReportVersion(v => v + 1); setNotice(t("reportShared")); }} />}
     <BottomSheet open={suggestOpen} title={t("suggestStore")} closeLabel={t("close")} onClose={() => !busy && setSuggestOpen(false)} footer={<Button className="w-full" disabled={busy || name.trim().length < 2 || address.trim().length < 3 || city.trim().length < 2} onClick={() => void suggest()}>{t(busy ? "saving" : "submitSuggestion")}</Button>}>
       <div className="space-y-4"><p className="text-sm text-ink-muted">{t("suggestHint")}</p>
         <div><Label htmlFor="store-name">{t("storeName")}</Label><Input id="store-name" value={name} maxLength={100} onChange={e => setName(e.target.value)} disabled={busy} /></div>

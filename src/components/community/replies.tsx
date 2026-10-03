@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useKeyboardInset } from "@/hooks/use-keyboard-inset";
@@ -15,6 +16,8 @@ import { useToast } from "@/components/ui/toast";
 import type { CommentDto } from "@/services/community";
 import { RelativeTime } from "./relative-time";
 import { useForumViewer } from "./use-forum-viewer";
+import { SafeImage } from "@/components/ui/safe-image";
+import { IconArrowRight } from "@/components/ui/icons";
 
 /**
  * Svarslista + svarsformulär. Listan kommer serverrenderad; nya svar läggs
@@ -29,7 +32,7 @@ import { useForumViewer } from "./use-forum-viewer";
  * Egna svar minns vi därför i fliken och slår ihop dem med serverns lista vid
  * montering (`lib/forum-client.ts`). Det kostar ingen extra läsning.
  */
-export function Replies({ postId, initial }: { postId: string; initial: CommentDto[] }) {
+export function Replies({ postId, initial, compact = false, footerTarget, onCountChange }: { postId: string; initial: CommentDto[]; compact?: boolean; footerTarget?: HTMLElement | null; onCountChange?: (count: number) => void }) {
   const t = useTranslations("Forum");
   const router = useRouter();
   const { toast } = useToast();
@@ -39,7 +42,7 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
   // bakom det och det finns ingen rullmån kvar att lyfta upp det med. Hooken ger
   // rullmånen (padding) och rullar fältet ovanför tangentbordet — samma som
   // /forum/ny. Se hooks/use-keyboard-inset.ts.
-  const kbInset = useKeyboardInset();
+  const kbInset = useKeyboardInset(!compact);
   const [comments, setComments] = useState<CommentDto[]>(() =>
     mergeComments(recallOwnComments(postId), initial)
   );
@@ -62,6 +65,9 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
   // ANDRAS svar.
   const refetched = useRef<string | null>(null);
   useEffect(() => {
+    // Arket har just hämtat sin lista. /me kan vara äldre än den, så det ska
+    // inte utlösa en andra läsning av samma kommentarer direkt vid öppning.
+    if (compact) return;
     if (!ready) return;
     const fresh = state.counts[postId];
     if (!fresh || fresh.commentCount === comments.length) return;
@@ -72,13 +78,15 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
       .catch(() => {
         // nätverksfel — behåll det som visas
       });
-  }, [ready, state.counts, postId, comments.length]);
+  }, [ready, state.counts, postId, comments.length, compact]);
 
   const blocked = new Set(state.blockedIds);
   const visible = comments.filter((c) => !blocked.has(c.user.id));
+  useEffect(() => { if (ready) onCountChange?.(visible.length); }, [ready, visible.length, onCountChange]);
   const loginHref = `/logga-in?callbackUrl=${encodeURIComponent(`/forum/t/${postId}`)}`;
 
   async function submit() {
+    if (busy) return;
     if (!loggedIn) {
       router.push(loginHref);
       return;
@@ -117,7 +125,9 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
       // routercache håller en förhämtad rutt i upp till 5 MINUTER — utan det här
       // visade /forum gammal svarsräknare när man gick tillbaka. Samma skäl som
       // composer.tsx. Neon är redan vaken av skrivningen.
-      router.refresh();
+      // Arket håller listan + räknaren lokalt. En serveromrendering mitt i
+      // skrivandet skulle kunna montera om flödet och stänga användarens ark.
+      if (!compact) router.refresh();
     } catch (e) {
       setComments((prev) => prev.filter((c) => c.id !== tempId));
       setText(content);
@@ -135,18 +145,37 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
     }
   }
 
+  const fieldId = `newReply-${postId}-${compact ? "sheet" : "page"}`;
+  const composer = loggedIn === null ? null : loggedIn ? (
+    <form className="space-y-2" style={!compact && kbInset ? { paddingBottom: kbInset } : undefined}
+      onSubmit={e => { e.preventDefault(); void submit(); }}>
+      <Label htmlFor={fieldId} className={compact ? "sr-only" : undefined}>{t("replyLabel")}</Label>
+      <div className={compact ? "flex items-end gap-2" : "space-y-3"}>
+        <Textarea id={fieldId} placeholder={t("replyPlaceholder")} value={text} onChange={e => setText(e.target.value)} maxLength={5000}
+          rows={compact ? 1 : undefined} className={compact ? "min-h-11 max-h-28 flex-1 resize-none rounded-2xl" : undefined} />
+        <Button type="submit" loading={busy} disabled={compact && (!ready || !text.trim())} variant={compact ? "ghost" : "primary"}
+          className={compact ? "h-11 w-11 shrink-0 rounded-full p-0 text-holo-cyan" : undefined} aria-label={t("replySend")}>
+          {compact ? <IconArrowRight size={21} className="-rotate-90" /> : t("replySend")}
+        </Button>
+      </div>
+      <FieldError message={error} />
+    </form>
+  ) : <LinkButton href={loginHref} variant="outline">{t("loginToReply")}</LinkButton>;
+
   return (
     <section aria-label={t("replies")} className="space-y-4">
-      <h2 className="font-display text-lg font-semibold text-ink">
+      {!compact && <h2 className="font-display text-lg font-semibold text-ink">
         {t("repliesCount", { count: visible.length })}
-      </h2>
+      </h2>}
 
       {visible.length === 0 ? (
         <p className="text-sm text-ink-muted">{t("noReplies")}</p>
       ) : (
         <ul className="space-y-3">
           {visible.map((c) => (
-            <li key={c.id} className="card-surface rounded-xl p-4">
+            <li key={c.id} className={compact ? "flex gap-3 py-3" : "card-surface rounded-xl p-4"}>
+              {compact && <Link href={`/profil/${c.user.id}`} className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-surface-overlay text-xs text-ink"><SafeImage src={c.user.avatarUrl} alt="" className="h-full w-full object-cover" fallback={<span>{c.user.name.charAt(0).toUpperCase()}</span>} /></Link>}
+              <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 text-xs text-ink-faint">
                 <Link
                   href={`/profil/${c.user.id}`}
@@ -159,38 +188,13 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
                 <RelativeTime date={c.createdAt} />
               </div>
               <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink">{c.content}</p>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      {loggedIn === null ? null : loggedIn ? (
-        <form
-          className="space-y-3"
-          style={kbInset ? { paddingBottom: kbInset } : undefined}
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-        >
-          <Label htmlFor="newReply">{t("replyLabel")}</Label>
-          <Textarea
-            id="newReply"
-            placeholder={t("replyPlaceholder")}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            maxLength={5000}
-          />
-          <FieldError message={error} />
-          <Button type="submit" loading={busy}>
-            {t("replySend")}
-          </Button>
-        </form>
-      ) : (
-        <LinkButton href={loginHref} variant="outline">
-          {t("loginToReply")}
-        </LinkButton>
-      )}
+      {compact ? footerTarget && createPortal(composer, footerTarget) : composer}
     </section>
   );
 }

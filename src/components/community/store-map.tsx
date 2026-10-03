@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { IconPlus } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { hasStorePosition, storesInBounds, type MapBounds, type MapPoint } from "@/lib/community-map";
 import { distanceMeters } from "@/lib/community-stores";
@@ -53,7 +54,7 @@ export function StoreMap({ stores, onReport, onReports, onSuggest, onFollow, fol
         {position && hasStorePosition(store) && <span className="shrink-0 text-xs text-ink-muted">{(distanceMeters(store, position) / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km</span>}
       </button>
       {store.assortmentUnconfirmed && <p className="text-xs text-ink-faint">{t("assortmentUnconfirmed")}</p>}
-      <div className="flex flex-wrap items-center gap-2"><Button size="sm" onClick={() => onReport(store)}>{t("report")}</Button><Button variant="secondary" size="sm" onClick={() => onReports(store)}>{t("storeReports")}</Button><button type="button" className="min-h-10 px-2 text-sm text-holo-cyan" disabled={busy} aria-pressed={followed?.includes(store.id) ?? false} onClick={() => onFollow(store.id)}>{t(followed?.includes(store.id) ? "following" : "follow")}</button><a className="inline-flex min-h-10 items-center text-sm text-ink-muted" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${store.address}, ${store.city}, Sweden`)}`} target="_blank" rel="noopener noreferrer">{t("directions")}</a>{store.websiteUrl && <a className="inline-flex min-h-10 items-center text-sm text-ink-muted" href={store.websiteUrl} target="_blank" rel="noopener noreferrer">{t("website")}</a>}</div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1"><button type="button" onClick={() => onReport(store)} className="inline-flex min-h-10 items-center gap-1.5 text-sm text-holo-cyan"><IconPlus size={16} />{t("addReport")}</button><button type="button" className="min-h-10 text-sm text-ink-muted" onClick={() => onReports(store)}>{t("storeReports")}</button><button type="button" className="min-h-10 text-sm text-ink-muted" disabled={busy} aria-pressed={followed?.includes(store.id) ?? false} onClick={() => onFollow(store.id)}>{t(followed?.includes(store.id) ? "following" : "follow")}</button><a className="inline-flex min-h-10 items-center text-sm text-ink-muted" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${store.address}, ${store.city}, Sweden`)}`} target="_blank" rel="noopener noreferrer">{t("directions")}</a>{store.websiteUrl && <a className="inline-flex min-h-10 items-center text-sm text-ink-muted" href={store.websiteUrl} target="_blank" rel="noopener noreferrer">{t("website")}</a>}</div>
     </li>;
   return <div className="space-y-3">
     <div className="flex items-center gap-2"><Input className="min-w-0 flex-1" id="community-area" aria-label={t("searchStores")} placeholder={t("searchStores")} value={search} onChange={e => { setSearch(e.target.value); setSelected(""); }} maxLength={100} /><Button className="shrink-0 whitespace-nowrap" variant="secondary" disabled={locating} onClick={locate}>{t(locating ? "locating" : "myLocation")}</Button></div>

@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import { useTranslations } from "next-intl";
+import { useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
@@ -18,6 +19,9 @@ import { RelativeTime } from "./relative-time";
 import { StoreReportSummary } from "./store-report-summary";
 import { FeedMedia } from "./feed-media";
 import { FeedActions } from "./feed-actions";
+import { CommentsSheet } from "./comments-sheet";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { ThreadActions } from "./thread-actions";
 import type { useForumViewer } from "./use-forum-viewer";
 
 /**
@@ -46,9 +50,12 @@ export function PostCard({
   const tGroups = useTranslations("ForumGroups");
   const muted = post.listingStatus === "SOLD" || post.listingStatus === "CLOSED";
   const thumb = post.images[0]?.url ?? null;
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [commentCount, setCommentCount] = useState<number | null>(null);
   const profileHref = `/profil/${post.user.id}?inlagg=${post.id}#post-${post.id}`;
 
-  if (visual) return <li id={`post-${post.id}`} className="scroll-mt-24 border-b border-surface-border pb-5">
+  if (visual) return <li id={`post-${post.id}`} className="scroll-mt-32 border-b border-surface-border pb-5">
     <div className="flex items-center justify-between gap-3 px-2.5 py-3 sm:px-0">
       <Link href={`/profil/${post.user.id}`} className="flex min-w-0 items-center gap-3">
         <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-surface-border bg-surface-overlay text-sm font-semibold text-ink">{post.user.avatarUrl ? <img src={post.user.avatarUrl} alt="" loading="lazy" className="h-full w-full object-cover" /> : post.user.name.charAt(0).toUpperCase()}</span>
@@ -56,17 +63,19 @@ export function PostCard({
           <span className="block truncate text-xs text-ink-muted">{post.storeReport ? `${post.storeReport.store.name} · ${post.storeReport.store.city}` : showGroup && post.group ? localizeGroupName(post.group.slug, post.group.name, tGroups) : <RelativeTime date={post.createdAt} />}</span>
         </span>
       </Link>
-      <Link href={`${hrefBase}/${post.id}`} className="grid h-10 w-10 shrink-0 place-items-center text-ink-muted" aria-label={tStores("readPost")}><IconMessage size={20} /></Link>
+      <button type="button" onClick={() => setOptionsOpen(true)} className="grid h-10 w-10 shrink-0 place-items-center text-xl text-ink-muted" aria-label={tStores("postOptions")}>···</button>
     </div>
     <FeedMedia images={post.images} href={profileHref} lightbox={onProfile} />
-    {personal && <FeedActions post={post} personal={personal} href={`${hrefBase}/${post.id}`} />}
+    {personal && <FeedActions post={post} personal={personal} href={`${hrefBase}/${post.id}`} onComments={() => setCommentsOpen(true)} />}
     <div className="space-y-2 px-2.5 sm:px-0">
       {onProfile ? <div className="text-sm leading-relaxed text-ink"><span className="mr-2 font-semibold">{post.user.name}</span><span className="font-medium">{post.title}</span>{(post.content || post.excerpt) && <p className="mt-1 whitespace-pre-wrap break-words text-ink-muted">{post.content || post.excerpt}</p>}</div> : <Link href={profileHref} className="block text-sm leading-relaxed text-ink"><span className="mr-2 font-semibold">{post.user.name}</span><span className="font-medium">{post.title}</span>{post.excerpt && <span className="mt-1 block whitespace-pre-line text-ink-muted">{post.excerpt}</span>}</Link>}
       {post.listingKind && <div className="flex items-center gap-2"><Badge variant={LISTING_KIND_VARIANTS[post.listingKind]}>{t(LISTING_KIND_KEYS[post.listingKind])}</Badge>{post.priceOre != null && post.priceOre > 0 && <span className="font-medium text-holo-cyan">{formatPrice(post.priceOre)}</span>}{muted && post.listingStatus && <Badge>{t(LISTING_STATUS_KEYS[post.listingStatus])}</Badge>}</div>}
       {post.storeReport && <StoreReportSummary report={post.storeReport} />}
-      <Link href={`${hrefBase}/${post.id}`} className="block min-h-8 text-sm text-ink-muted">{t("replies")} · {personal?.state.counts[post.id]?.commentCount ?? post.commentCount}</Link>
+      <button type="button" onClick={() => setCommentsOpen(true)} className="block min-h-9 text-sm text-ink-muted">{tStores("viewComments", { count: commentCount ?? personal?.state.counts[post.id]?.commentCount ?? post.commentCount })}</button>
       <p className="text-xs text-ink-faint"><RelativeTime date={post.createdAt} /></p>
     </div>
+    {commentsOpen && <CommentsSheet postId={post.id} onClose={() => setCommentsOpen(false)} onCountChange={setCommentCount} />}
+    {optionsOpen && <BottomSheet open title={tStores("postOptions")} closeLabel={tStores("close")} onClose={() => setOptionsOpen(false)} panelClassName="sm:mx-auto sm:w-full sm:max-w-xl"><div className="pb-6"><ThreadActions postId={post.id} authorId={post.user.id} initialLikeCount={post.likeCount} listingKind={post.listingKind} listingStatus={post.listingStatus} isMarketplace={post.group?.isMarketplace ?? false} /></div></BottomSheet>}
   </li>;
 
   return (

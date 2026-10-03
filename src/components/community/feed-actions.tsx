@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Link, useRouter } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
 import { rememberPostToggle, recallPostToggle } from "@/lib/forum-client";
 import { IconHeart, IconBookmark, IconMessage, IconShare } from "@/components/ui/icons";
@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import type { FeedItem } from "@/services/community";
 import type { useForumViewer } from "./use-forum-viewer";
 
-export function FeedActions({ post, personal, href }: { post: FeedItem; personal: ReturnType<typeof useForumViewer>; href: string }) {
+export function FeedActions({ post, personal, href, onComments }: { post: FeedItem; personal: ReturnType<typeof useForumViewer>; href: string; onComments: () => void }) {
   const t = useTranslations("Forum");
   const tStores = useTranslations("LocalStores");
   const { toast } = useToast();
@@ -56,7 +56,7 @@ export function FeedActions({ post, personal, href }: { post: FeedItem; personal
   return <div className="px-2.5 pb-1 sm:px-0">
     <div className="flex items-center gap-2 text-ink">
       <button type="button" className="grid h-11 w-11 place-items-center" disabled={busy} aria-pressed={liked} aria-label={t("likes")} onClick={() => void toggle("like")}><IconHeart size={25} className={liked ? "fill-holo-cyan text-holo-cyan" : ""} /></button>
-      <Link href={href} className="grid h-11 w-11 place-items-center" aria-label={t("replies")}><IconMessage size={25} /></Link>
+      <button type="button" onClick={onComments} className="grid h-11 w-11 place-items-center" aria-label={tStores("comments")}><IconMessage size={25} /></button>
       <button type="button" className="grid h-11 w-11 place-items-center" aria-label={tStores("sharePost")} onClick={() => void share()}><IconShare size={23} /></button>
       <button type="button" className="ml-auto grid h-11 w-11 place-items-center" disabled={busy} aria-pressed={saved} aria-label={t("savedLink")} onClick={() => void toggle("save")}><IconBookmark size={25} className={saved ? "fill-holo-cyan text-holo-cyan" : ""} /></button>
     </div>

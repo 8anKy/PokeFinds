@@ -21,6 +21,7 @@ describe("isSubpageRoute", () => {
       "/meddelanden",
       "/forum/g/allmant",
       "/forum/t/abc123",
+      "/profil/member123",
       "/mer/utmarkelser",
       "/mer/bjud-in",
       "/meddelanden/conv1",

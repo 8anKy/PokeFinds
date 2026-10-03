@@ -15,7 +15,7 @@ import { requestForumRules } from "./forum-rules-gate";
 import type { CommunityStoreDto } from "@/services/community-stores";
 import type { z } from "zod";
 
-export function StoreReportSheet({ store, onClose }: { store: CommunityStoreDto; onClose: () => void }) {
+export function StoreReportSheet({ store, onClose, onSubmitted }: { store: CommunityStoreDto; onClose: () => void; onSubmitted: () => void }) {
   const t = useTranslations("LocalStores");
   const router = useRouter();
   const [product, setProduct] = useState<PickedProduct | null>(null);
@@ -50,7 +50,7 @@ export function StoreReportSheet({ store, onClose }: { store: CommunityStoreDto;
       const groups = await apiFetch<{ items: { slug: string; isMarketplace: boolean }[] }>("/api/community/groups");
       const group = groups.items.find(g => g.slug === "allmant") ?? groups.items.find(g => !g.isMarketplace);
       if (!group) throw new Error(t("unavailable"));
-      const result = await apiFetch<{ id: string }>("/api/community/posts", { method: "POST", body: {
+      await apiFetch<{ id: string }>("/api/community/posts", { method: "POST", body: {
         groupSlug: group.slug,
         title: `${productLabel} · ${store.name}`.slice(0, 120),
         content: comment.trim() || t(`observation.${status}`),
@@ -58,7 +58,7 @@ export function StoreReportSheet({ store, onClose }: { store: CommunityStoreDto;
         storeReport: { storeId: store.id, productLabel, productSlug: product?.slug, observation: status,
           observedAt: observed.toISOString(), ...(when === "now" && location ? { location } : {}) },
       } });
-      router.refresh(); onClose(); router.push(`/forum/t/${result.id}`);
+      onSubmitted(); onClose(); router.refresh();
     } catch (e) {
       if (apiErrorCode(e) === FORUM_RULES_CODE) requestForumRules();
       setError(e instanceof Error ? e.message : t("error"));
@@ -66,19 +66,26 @@ export function StoreReportSheet({ store, onClose }: { store: CommunityStoreDto;
     }
   }
   return (
-    <BottomSheet open title={t("reportVisit")} closeLabel={t("close")} onClose={() => !busy && onClose()}
-      footer={<Button className="w-full" onClick={() => void submit()} disabled={busy || images.some(i => i.uploading)}>{busy ? t("saving") : t("publish")}</Button>}>
-      <div className="space-y-4">
-        <div><p className="font-medium text-ink">{store.name}</p><p className="text-sm text-ink-muted">{store.address} · {store.city}</p></div>
-        <div><Label>{t("product")}</Label><ProductPicker value={product} onChange={setProduct} disabled={busy} />
-          {!product && <Input aria-label={t("manualProduct")} placeholder={t("manualProduct")} value={label} maxLength={120} onChange={e => setLabel(e.target.value)} disabled={busy} />}</div>
-        <div><Label htmlFor="report-status">{t("whatSaw")}</Label><Select id="report-status" value={status} disabled={busy} onChange={e => setStatus(e.target.value as StoreObservation)}>{STORE_OBSERVATIONS.map(s => <option value={s} key={s}>{t(`observation.${s}`)}</option>)}</Select></div>
-        <div><Label htmlFor="report-when">{t("whenVisit")}</Label><Select id="report-when" value={when} disabled={busy} onChange={e => { setWhen(e.target.value); setLocation(undefined); setLocationMessage(""); }}><option value="now">{t("now")}</option><option value="earlier">{t("earlier")}</option></Select>
-          {when === "earlier" && <Input aria-label={t("visitTime")} type="datetime-local" value={visitTime} onChange={e => setVisitTime(e.target.value)} disabled={busy} />}</div>
-        {when === "now" && store.latitude != null && store.longitude != null && <div><Button variant="secondary" onClick={locate} disabled={busy || locating}>{locating ? t("locating") : t("checkLocation")}</Button><p className="mt-2 text-xs text-ink-muted">{t("locationPrivacy")}</p><p className="text-xs text-ink-muted" role="status">{locationMessage}</p></div>}
-        <div><Label htmlFor="report-comment">{t("comment")}</Label><Textarea id="report-comment" value={comment} maxLength={10000} disabled={busy} onChange={e => setComment(e.target.value)} /></div>
-        <ImagePicker value={images} onChange={setImages} disabled={busy} />
-        <p className="text-xs text-ink-muted">{t("disclaimer")}</p>
+    <BottomSheet open title={store.name} closeLabel={t("close")} onClose={() => !busy && onClose()}
+      footer={<Button className="w-full" onClick={() => void submit()} disabled={busy || images.some(i => i.uploading)}>{busy ? t("saving") : t("shareStatus")}</Button>}>
+      <div className="space-y-5 pb-2">
+        <p className="text-xs text-ink-muted">{store.address} · {store.city}</p>
+        <div><Label htmlFor="status-product">{t("product")}</Label><Input id="status-product" aria-label={t("manualProduct")} placeholder={t("productPlaceholder")} value={product?.title ?? label} maxLength={120} onChange={e => { setProduct(null); setLabel(e.target.value); }} disabled={busy} />
+          <details className="mt-2"><summary className="cursor-pointer text-xs text-ink-muted">{t("chooseCatalogProduct")}</summary><div className="mt-3"><ProductPicker value={product} onChange={setProduct} disabled={busy} /></div></details></div>
+        <fieldset disabled={busy}><legend className="mb-2 text-sm font-medium text-ink">{t("whatSaw")}</legend>
+          <div className="grid grid-cols-3 gap-2">{STORE_OBSERVATIONS.map(s => <label key={s} className="cursor-pointer">
+            <input type="radio" name="store-observation" className="peer sr-only" value={s} checked={status === s} onChange={() => setStatus(s)} />
+            <span className="flex min-h-11 items-center justify-center rounded-xl border border-surface-border px-2 text-sm text-ink-muted peer-checked:border-holo-cyan/50 peer-checked:bg-holo-cyan/10 peer-checked:text-holo-cyan peer-focus-visible:ring-2 peer-focus-visible:ring-holo-cyan">{t(`statusShort.${s}`)}</span>
+          </label>)}</div>
+        </fieldset>
+        <details className="border-t border-surface-border pt-3"><summary className="cursor-pointer text-sm text-ink-muted">{t("moreDetails")}</summary><div className="mt-4 space-y-4">
+          <div><Label htmlFor="report-when">{t("whenVisit")}</Label><Select id="report-when" value={when} disabled={busy} onChange={e => { setWhen(e.target.value); setLocation(undefined); setLocationMessage(""); }}><option value="now">{t("now")}</option><option value="earlier">{t("earlier")}</option></Select>
+            {when === "earlier" && <Input aria-label={t("visitTime")} type="datetime-local" value={visitTime} onChange={e => setVisitTime(e.target.value)} disabled={busy} />}</div>
+          {when === "now" && store.latitude != null && store.longitude != null && <div><Button variant="ghost" onClick={locate} disabled={busy || locating}>{locating ? t("locating") : t("checkLocation")}</Button><p className="mt-2 text-xs text-ink-muted">{t("locationPrivacy")}</p><p className="text-xs text-ink-muted" role="status">{locationMessage}</p></div>}
+          <div><Label htmlFor="report-comment">{t("comment")}</Label><Textarea id="report-comment" value={comment} maxLength={10000} disabled={busy} onChange={e => setComment(e.target.value)} /></div>
+          <ImagePicker value={images} onChange={setImages} disabled={busy} />
+        </div></details>
+        <p className="text-xs text-ink-faint">{t("disclaimer")}</p>
         {error && <FieldError message={error} />}
       </div>
     </BottomSheet>

@@ -14,5 +14,7 @@ import { isSubpageRoute } from "@/lib/subpage-routes";
  */
 export function SiteHeaderGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  return <div className={isSubpageRoute(pathname) ? "hidden lg:block" : undefined}>{children}</div>;
+  // ⛔ En sticky header inuti en lika hög wrapper kan inte följa dokumentet.
+  // Det är wrappern som måste fästas, annars scrollar huvudet bort på profilen.
+  return <div className={`lg:sticky lg:top-0 lg:z-40 ${isSubpageRoute(pathname) ? "hidden lg:block" : ""}`}>{children}</div>;
 }

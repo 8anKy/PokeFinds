@@ -41,22 +41,23 @@ function ensureVisible(el: HTMLElement, kb: number) {
  * ⛔ Modaler/bottenark ska INTE använda den här — de kapar sin egen höjd i
  * ui/modal.tsx resp. ui/bottom-sheet.tsx ur samma mätning.
  */
-export function useKeyboardInset(): number {
-  const kb = useKeyboardHeight(true);
+export function useKeyboardInset(enabled = true): number {
+  const kb = useKeyboardHeight(enabled);
   const kbRef = useRef(kb);
   kbRef.current = kb;
 
   // Höjden kommer via keyboardWillShow EFTER fokus — rulla när den är känd.
   useEffect(() => {
-    if (kb <= 0) return;
+    if (!enabled || kb <= 0) return;
     const el = document.activeElement;
     if (!isField(el)) return;
     const id = window.setTimeout(() => ensureVisible(el, kb), 60);
     return () => window.clearTimeout(id);
-  }, [kb]);
+  }, [kb, enabled]);
 
   // Fokusbyte medan tangentbordet redan står uppe ger ingen ny höjd.
   useEffect(() => {
+    if (!enabled) return;
     function onFocusIn(e: FocusEvent) {
       const el = e.target;
       if (!isField(el)) return;
@@ -64,7 +65,7 @@ export function useKeyboardInset(): number {
     }
     document.addEventListener("focusin", onFocusIn);
     return () => document.removeEventListener("focusin", onFocusIn);
-  }, []);
+  }, [enabled]);
 
   return kb;
 }

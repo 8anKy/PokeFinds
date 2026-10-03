@@ -488,6 +488,10 @@ export async function listComments(postId: string): Promise<CommentDto[]> {
   return rows.map(toCommentDto);
 }
 
+// Kommentararket läses på uttryckligt öppnande, aldrig via timer. Skrivning,
+// moderering och GDPR kastar samma tagg som flödet, så cache delar läsningen.
+export const listCommentsCached = cachedRead(listComments, "community-comments-v1", 3600, ["community-feed"]);
+
 /**
  * Nytt svar. Stämplar trådens `lastActivityAt` i SAMMA transaktion — det är
  * den stämpeln som lyfter tråden i flödet. Returnerar också det rutten behöver
