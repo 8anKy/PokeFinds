@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
-import { Link } from "@/i18n/navigation";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { prisma } from "@/lib/db";
 import { alternatesFor } from "@/lib/canonical";
 import { ServiceError } from "@/lib/errors";
-import { localizeGroupName } from "@/lib/community-group-i18n";
 import {
   LISTING_KIND_KEYS,
   LISTING_KIND_VARIANTS,
@@ -17,7 +15,7 @@ import { IconChevronLeft } from "@/components/ui/icons";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { SwipeBack } from "@/components/ui/swipe-back";
 import { RelativeTime } from "@/components/community/relative-time";
-import { ImageGallery } from "@/components/community/image-gallery";
+import { FeedMedia } from "@/components/community/feed-media";
 import { ListingCard } from "@/components/community/listing-card";
 import { ThreadActions } from "@/components/community/thread-actions";
 import { Replies } from "@/components/community/replies";
@@ -52,11 +50,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ThreadPage({ params }: PageProps) {
   setRequestLocale(params.locale);
-  const [t, tCat, tGroups, locale] = await Promise.all([
+  const [t, tCat] = await Promise.all([
     getTranslations("Forum"),
     getTranslations("PostCategory"),
-    getTranslations("ForumGroups"),
-    getLocale(),
   ]);
 
   let post;
@@ -68,15 +64,11 @@ export default async function ThreadPage({ params }: PageProps) {
     throw e;
   }
 
-  const memberSince = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(
-    new Date(post.user.memberSince)
-  );
   const initial = post.user.name.trim().charAt(0).toUpperCase() || "?";
 
-  const backHref = post.group ? `/forum/g/${post.group.slug}` : "/forum";
-  const backLabel = post.group
-    ? localizeGroupName(post.group.slug, post.group.name, tGroups)
-    : t("h1");
+  const backHref = "/forum";
+  const backLabel = t("h1");
+  const localized = (href: string) => `/${params.locale}${href}`;
   // Bara etiketter som säger något om TRÅDEN. Gruppen står redan i
   // tillbaka-länken rakt ovanför — som chip också blev det två "Allmänt" på
   // två rader (ägaren 2026-09-05: "one is enough").
@@ -84,17 +76,17 @@ export default async function ThreadPage({ params }: PageProps) {
 
   return (
     <SwipeBack fallback={backHref} coverViewport viewportInset="safe">
-      <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
+      <div className="mx-auto w-full max-w-xl px-2.5 py-4 sm:px-6">
       {/* Mobil: appens bakåtcirkel + gruppen som titel (tråden är rubriken nedanför).
           Desktop: textlänken som förr — där finns webbens huvud. */}
-      <SubpageHeader href={backHref} title={backLabel} subtitle={post.group ? t("h1") : undefined} mobileOnly />
-      <Link
-        href={backHref}
+      <SubpageHeader href={backHref} title={t("replies")} mobileOnly />
+      <a
+        href={localized(backHref)}
         className="hidden items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan lg:inline-flex"
       >
         <IconChevronLeft size={16} />
         {backLabel}
-      </Link>
+      </a>
 
       <article className="space-y-6 lg:mt-3">
         <header>
@@ -111,15 +103,9 @@ export default async function ThreadPage({ params }: PageProps) {
             </div>
           )}
 
-          <h1
-            className={`${hasBadges ? "mt-2 " : ""}font-display text-2xl font-bold leading-tight text-ink sm:text-3xl`}
-          >
-            {post.title}
-          </h1>
-
           <div className="mt-4 flex items-start gap-3">
-            <Link
-              href={`/profil/${post.user.id}`}
+            <a
+              href={localized(`/profil/${post.user.id}`)}
               className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-surface-border bg-surface-overlay font-display text-base font-semibold text-holo-cyan"
               aria-hidden="true"
               tabIndex={-1}
@@ -130,21 +116,15 @@ export default async function ThreadPage({ params }: PageProps) {
                 className="h-full w-full object-cover"
                 fallback={<span>{initial}</span>}
               />
-            </Link>
+            </a>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
-                <Link
-                  href={`/profil/${post.user.id}`}
+                <a
+                  href={localized(`/profil/${post.user.id}`)}
                   className="font-semibold text-ink hover:text-holo-cyan"
                 >
                   {post.user.name}
-                </Link>
-                <span className="text-xs text-ink-faint">
-                  {t("memberSince", { date: memberSince })}
-                </span>
-                <span className="text-xs text-ink-faint" aria-hidden="true">
-                  ·
-                </span>
+                </a>
                 <RelativeTime date={post.createdAt} className="text-xs text-ink-faint" />
               </div>
               {(post.user.traderaLinked || post.user.discordLinked || post.user.salesCount > 0) && (
@@ -162,11 +142,12 @@ export default async function ThreadPage({ params }: PageProps) {
           </div>
         </header>
 
-        <div className="max-w-prose whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink">
-          {post.content}
-        </div>
+        {post.images.length > 0 && <div className="-mx-2.5 sm:mx-0"><FeedMedia images={post.images} href={localized(`/profil/${post.user.id}`)} lightbox /></div>}
 
-        {post.images.length > 0 && <ImageGallery images={post.images} />}
+        <div className="space-y-1 text-sm leading-relaxed text-ink">
+          <h1 className="font-semibold">{post.title}</h1>
+          <p className="whitespace-pre-wrap break-words">{post.content}</p>
+        </div>
 
         {post.listingKind && <ListingCard post={post} />}
         {post.storeReport && <StoreReportSummary report={post.storeReport} />}
@@ -182,7 +163,7 @@ export default async function ThreadPage({ params }: PageProps) {
 
         <hr className="border-surface-border" />
 
-        <Replies postId={post.id} initial={comments} />
+        <div id="comments" className="scroll-mt-24"><Replies postId={post.id} initial={comments} /></div>
       </article>
       </div>
     </SwipeBack>

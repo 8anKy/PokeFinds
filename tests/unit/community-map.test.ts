@@ -22,7 +22,12 @@ describe("community store map", () => {
     expect(new Set(curated.map(s => `${s.name}|${s.address}|${s.city}`)).size).toBe(curated.length);
     for (const s of curated) {
       expect(s.source).toMatch(/^https:\/\//); expect(s.pokemonSource).toMatch(/^https:\/\//);
-      if (s.latitude != null) { expect(s.longitude).not.toBeNull(); expect(s.coordinateLabel.toLowerCase()).toContain(s.address.match(/\d+/)?.[0]); }
+      if (s.latitude != null) {
+        expect(s.longitude).not.toBeNull();
+        expect(s.coordinateSource).toMatch(/^https:\/\//);
+        if (s.coordinateSource === "https://lekextra.se/butiksoversikt/") expect(s.coordinateLabel).toContain(s.address);
+        else expect(s.coordinateLabel.toLowerCase()).toContain(s.address.match(/\d+/)?.[0]);
+      }
     }
   });
 });

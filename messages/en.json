@@ -2993,6 +2993,8 @@
     "previousImage": "Previous image",
     "nextImage": "Next image",
     "readPost": "Open post",
+    "openProfile": "Open user profile",
+    "assortmentUnconfirmed": "The card selection is not confirmed for this branch. Help with a visit report.",
     "sharePost": "Share post",
     "linkCopied": "Link copied",
     "shareError": "The link could not be shared. Open the post and copy its address.",

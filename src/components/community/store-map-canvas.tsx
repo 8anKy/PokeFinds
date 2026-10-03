@@ -26,12 +26,13 @@ export default function StoreMapCanvas({ stores, selectedId, focus, userPosition
     if (!host.current) return;
     const map = L.map(host.current, { zoomControl: false, scrollWheelZoom: false, worldCopyJump: true }).setView([62, 15], 5);
     mapRef.current = map;
+    map.attributionControl.setPrefix(false);
     L.control.zoom({ position: "topright", zoomInTitle: t("zoomIn"), zoomOutTitle: t("zoomOut") }).addTo(map);
     // ⛔ Bara kartan användaren faktiskt öppnat laddas. Ingen förladdning/offline-
     // cache: OSM:s tile-policy förbjuder det. Webbläsaren sköter HTTP-cachen.
     const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19, minZoom: 3, keepBuffer: 0, updateWhenIdle: true,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>',
       className: "community-map-tiles",
     }).addTo(map);
     tiles.on("tileerror", () => setTileError(true));

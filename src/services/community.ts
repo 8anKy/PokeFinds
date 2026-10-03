@@ -86,6 +86,8 @@ export interface FeedItem {
   id: string;
   title: string;
   excerpt: string;
+  /** Full bildtext på profilen; listor kan fortsatt använda det korta utdraget. */
+  content?: string;
   /** Legacy-kategori på trådar från före grupperna. */
   category: PostCategory | null;
   listingKind: ListingKind | null;
@@ -201,6 +203,7 @@ async function toFeedItems(rows: FeedRow[]): Promise<FeedItem[]> {
       id: r.id,
       title: r.title,
       excerpt: excerptOf(r.content),
+      content: r.content,
       category: r.category,
       listingKind: r.listingKind,
       listingStatus: r.listingStatus,
@@ -265,7 +268,14 @@ async function getFeedRaw(params: FeedParams) {
   return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
-export const getFeed = cachedRead(getFeedRaw, "community-feed-v4", 3600, ["community-feed"]);
+export const getFeed = cachedRead(getFeedRaw, "community-feed-v5", 3600, ["community-feed"]);
+
+/** Ett valt äldre inlägg på profilen: samma miniatyrer/modereringsvakt som
+ * flödet, en delad läsning i stället för att hämta alla personens sidor. */
+export const getProfileFeedItem = cachedRead(async (postId: string, authorId: string): Promise<FeedItem | null> => {
+  const row = await prisma.communityPost.findFirst({ where: { id: postId, userId: authorId, isHidden: false }, include: FEED_INCLUDE });
+  return row ? (await toFeedItems([row]))[0] : null;
+}, "community-profile-feed-item-v2", 3600, ["community-feed"]);
 
 /**
  * Betraktarens SPARADE trådar, senast sparad först — dit Spara-knappen leder

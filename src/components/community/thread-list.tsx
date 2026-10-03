@@ -172,7 +172,7 @@ export function ThreadList({
       ) : (
         <ul className={visual ? "-mx-2.5 space-y-4 sm:mx-0" : "space-y-2.5"}>
           {current.items.filter(post => !personal.state.blockedIds.includes(post.user.id)).map((post) => (
-            <PostCard key={post.id} post={post} showGroup={showGroup} hrefBase={hrefBase} visual={visual} personal={personal} />
+            <PostCard key={post.id} post={post} showGroup={showGroup} hrefBase={hrefBase} visual={visual} personal={personal} onProfile={!!author} />
           ))}
         </ul>
       )}

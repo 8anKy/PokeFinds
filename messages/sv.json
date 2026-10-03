@@ -2993,6 +2993,8 @@
     "previousImage": "Föregående bild",
     "nextImage": "Nästa bild",
     "readPost": "Öppna inlägg",
+    "openProfile": "Öppna användarens profil",
+    "assortmentUnconfirmed": "Kortsortimentet är inte bekräftat för den här filialen. Hjälp till med en besöksrapport.",
     "sharePost": "Dela inlägg",
     "linkCopied": "Länken är kopierad",
     "shareError": "Länken kunde inte delas. Öppna inlägget och kopiera adressen.",

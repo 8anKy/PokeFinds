@@ -7,7 +7,19 @@
 .community-store-map { @apply bg-surface; }
 .community-map-tiles { filter: grayscale(.65) invert(1) hue-rotate(180deg) brightness(.75); }
 .community-map-marker { background: transparent; border: 0; }
-.community-map-pin { @apply grid h-10 w-10 place-items-center rounded-full border-2 border-surface bg-holo-cyan text-xs font-bold text-surface shadow-lg; }
+.community-map-pin { @apply grid h-10 w-10 place-items-center overflow-hidden rounded-full border-2 border-surface bg-holo-cyan text-xs font-bold text-surface shadow-lg; }
+/* ⛔ Leaflet ger markörbilder width:auto och obegränsad maxstorlek. Utan
+   denna avgränsning täcker en 128 px-logga flera andra butikers markörer. */
+.community-store-map .community-map-pin > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain;
+}
 .community-map-pin.is-cluster { @apply bg-surface-overlay text-holo-cyan border-holo-cyan; }
 .community-map-pin.is-selected { @apply ring-4 ring-holo-cyan/40; }
 .community-map-location { @apply block h-4 w-4 rounded-full border-2 border-ink bg-holo-cyan ring-4 ring-holo-cyan/25; }

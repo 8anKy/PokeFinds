@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { getFeed } from "@/services/community";
+import { getFeed, getProfileFeedItem } from "@/services/community";
 import { communityV2Request } from "@/lib/community-v2-server";
 import { allowsPurchaseRequests } from "@/lib/purchase-requests";
 import { getTraderaSellerListingsCached, type SellerListing } from "@/lib/tradera-seller-items";
@@ -71,7 +71,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProfilePage({ params }: { params: { locale: string; id: string } }) {
+export default async function ProfilePage({ params, searchParams }: { params: { locale: string; id: string }; searchParams?: { inlagg?: string } }) {
   const t = await getTranslations("Profile");
   const locale = await getLocale();
   const [session, user] = await Promise.all([
@@ -120,6 +120,15 @@ export default async function ProfilePage({ params }: { params: { locale: string
       : Promise.resolve<SellerListing[]>([]),
   ]);
 
+  const profilePosts = { ...posts, items: [...posts.items] };
+  // ⛔ Ett klick på ett äldre flödesinlägg får inte landa på en profil där
+  // inlägget saknas i första sidan. Läs just det cachade inlägget, aldrig alla
+  // profilsidor. Dolt/raderat eller en annan författares id får inte injiceras.
+  if (communityV2 && typeof searchParams?.inlagg === "string" && !posts.items.some(p => p.id === searchParams.inlagg)) {
+    const selected = await getProfileFeedItem(searchParams.inlagg, user.id);
+    if (selected) profilePosts.items.unshift(selected);
+  }
+
   /**
    * Förtroenderaden (community v2): kopplade konton + antal försäljningar via
    * Foilio. Den finns för Köp/Sälj/Byt — en köpare som ska skicka pengar till en
@@ -150,7 +159,8 @@ export default async function ProfilePage({ params }: { params: { locale: string
       label: t("tabPosts"),
       content: (
         <ThreadList
-          initial={posts}
+          visual={communityV2}
+          initial={profilePosts}
           author={user.id}
           emptyText={t("noPosts", { name: user.name })}
           // Utanför grinden bor trådarna i gamla communityt (samma id:n).
