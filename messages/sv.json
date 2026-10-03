@@ -2899,8 +2899,6 @@
     "corner3": "Nedre vänstra hörnet"
   },
   "LocalStores": {
-    "moveMap": "Flytta kartan",
-    "finishMap": "Klar",
     "browseStores": "Visa större lista",
     "storeList": "Hitta en butik",
     "searchResults": "Sökresultat",

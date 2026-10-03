@@ -29,7 +29,6 @@ export function StoreMap({ stores, onReport, onReports, onSuggest, onFollow, fol
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
   const [choosingPin, setChoosingPin] = useState(false);
-  const [movingMap, setMovingMap] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
   const [detailStore, setDetailStore] = useState<CommunityStoreDto | null>(null);
   useEffect(() => {
@@ -65,7 +64,7 @@ export function StoreMap({ stores, onReport, onReports, onSuggest, onFollow, fol
   return <>
     <div data-store-map-view className="overflow-hidden rounded-2xl border border-surface-border">
       <div className="relative isolate h-[34dvh] min-h-[200px] shrink-0 sm:h-[360px]">
-        <Canvas interactive={movingMap || choosingPin} stores={mapped} selectedId={selected} focus={focus} userPosition={position} onSelect={id => { const store = stores.find(s => s.id === id); if (store) openStore(store); setChoosingPin(false); setMovingMap(false); }} onView={view} onPin={choosingPin ? point => { setChoosingPin(false); setMovingMap(false); onSuggest(point); } : undefined} />
+        <Canvas stores={mapped} selectedId={selected} focus={focus} userPosition={position} onSelect={id => { const store = stores.find(s => s.id === id); if (store) openStore(store); setChoosingPin(false); }} onView={view} onPin={choosingPin ? point => { setChoosingPin(false); onSuggest(point); } : undefined} />
         <div className="pointer-events-none absolute inset-x-3 top-3 z-[500] space-y-2" data-swipe-ignore>
           <Input className="pointer-events-auto h-11 w-full rounded-xl border-surface-border bg-surface/95 shadow-lg" id="community-area" aria-label={t("searchStores")} placeholder={t("searchStores")} value={search} onChange={e => { setSearch(e.target.value); setError(""); }} maxLength={100} />
           <div className="flex items-center gap-1.5"><div className="pointer-events-auto flex rounded-full border border-surface-border bg-surface/95 p-1 shadow-lg"><button type="button" onClick={() => { if (onlyFollowed) onFollowed(); }} className={`min-h-8 rounded-full px-3 text-xs ${!onlyFollowed ? "bg-holo-cyan text-surface" : "text-ink-muted"}`} aria-pressed={!onlyFollowed}>{t("all")}</button><button type="button" disabled={busy} onClick={() => { if (!onlyFollowed) onFollowed(); }} className={`min-h-8 rounded-full px-3 text-xs ${onlyFollowed ? "bg-holo-cyan text-surface" : "text-ink-muted"}`} aria-pressed={onlyFollowed}>{t("followed")}</button></div>
@@ -74,12 +73,11 @@ export function StoreMap({ stores, onReport, onReports, onSuggest, onFollow, fol
           {choosingPin && <p className="pointer-events-auto rounded-xl border border-holo-cyan/30 bg-surface/95 p-3 text-xs text-ink" role="status">{t("choosePin")} <button type="button" className="text-holo-cyan underline" onClick={() => { setChoosingPin(false); onSuggest(); }}>{t("withoutPin")}</button></p>}
           {error && <p className="rounded-xl bg-surface/95 p-3 text-xs text-ink" role="status">{error}</p>}
         </div>
-        <button type="button" aria-pressed={movingMap} onClick={() => { setMovingMap(v => !v); setChoosingPin(false); }} className="absolute bottom-7 left-16 z-[500] min-h-10 rounded-full border border-surface-border bg-surface/95 px-3 text-xs font-medium text-ink shadow-lg">{t(movingMap ? "finishMap" : "moveMap")}</button>
         <button type="button" aria-label={t(locating ? "locating" : "myLocation")} disabled={locating} onClick={locate} className="absolute bottom-7 left-3 z-[500] grid h-10 w-10 place-items-center rounded-full border border-surface-border bg-surface/95 text-holo-cyan shadow-lg"><IconMapPin size={20} className={locating ? "animate-pulse" : ""} /></button>
       </div>
       <div className="bg-surface px-2 pt-1">
         <div className="flex min-h-12 shrink-0 items-center justify-between gap-2 px-1"><h2 className="text-sm font-semibold text-ink">{t(search ? "searchResults" : "storesInView")} <span className="ml-1 font-normal tabular-nums text-ink-muted">{list.length}</span></h2><button type="button" onClick={() => setBrowseOpen(true)} className="min-h-11 text-xs font-medium text-holo-cyan">{t("browseStores")}</button></div>
-        <ul data-store-list className="divide-y divide-surface-border pb-3">{list.length ? list.slice(0, 4).map(storeRow) : empty}</ul>
+        <ul data-store-list className="divide-y divide-surface-border pb-3">{list.length ? list.map(storeRow) : empty}</ul>
       </div>
     </div>
     <BottomSheet open={browseOpen} title={t("storeList")} closeLabel={t("close")} onClose={() => setBrowseOpen(false)} headerAction={{ label: t("close"), onClick: () => setBrowseOpen(false) }} panelClassName="h-[90dvh] max-h-[calc(100%_-_env(safe-area-inset-top)_-_0.5rem)] sm:mx-auto sm:w-full sm:max-w-xl">

@@ -7,12 +7,11 @@ import { useTranslations } from "next-intl";
 import { hasStorePosition, storeClusters, type MapBounds, type MapPoint } from "@/lib/community-map";
 import type { CommunityStoreDto } from "@/services/community-stores";
 
-export default function StoreMapCanvas({ stores, selectedId, focus, userPosition, onSelect, onView, onPin, interactive }: {
+export default function StoreMapCanvas({ stores, selectedId, focus, userPosition, onSelect, onView, onPin }: {
   stores: CommunityStoreDto[]; selectedId: string; focus: (MapPoint & { zoom?: number }) | null; userPosition: MapPoint | null;
   onSelect: (id: string) => void;
   onView: (bounds: MapBounds, center: MapPoint) => void;
   onPin?: (point: MapPoint) => void;
-  interactive: boolean;
 }) {
   const t = useTranslations("LocalStores");
   const host = useRef<HTMLDivElement>(null);
@@ -25,7 +24,7 @@ export default function StoreMapCanvas({ stores, selectedId, focus, userPosition
 
   useEffect(() => {
     if (!host.current) return;
-    const map = L.map(host.current, { zoomControl: false, scrollWheelZoom: false, dragging: false, touchZoom: false, doubleClickZoom: false, worldCopyJump: true }).setView([62, 15], 5);
+    const map = L.map(host.current, { zoomControl: false, scrollWheelZoom: false, worldCopyJump: true }).setView([62, 15], 5);
     mapRef.current = map;
     map.attributionControl.setPrefix(false);
     L.control.zoom({ position: "bottomright", zoomInTitle: t("zoomIn"), zoomOutTitle: t("zoomOut") }).addTo(map);
@@ -52,15 +51,6 @@ export default function StoreMapCanvas({ stores, selectedId, focus, userPosition
     // Språket följer sidans locale; callbacks läses alltid färskt via ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!ready || !map) return;
-    // ⛔ En telefonsvepning ska scrolla sidan tills användaren väljer att flytta kartan.
-    const enabled = interactive || window.matchMedia("(pointer: fine)").matches;
-    if (enabled) { map.dragging.enable(); map.touchZoom.enable(); }
-    else { map.dragging.disable(); map.touchZoom.disable(); }
-  }, [interactive, ready]);
 
   useEffect(() => {
     const map = mapRef.current; const markers = layer.current;
@@ -110,7 +100,8 @@ export default function StoreMapCanvas({ stores, selectedId, focus, userPosition
   }, [focus, ready]);
 
   return <div className="relative isolate h-full overflow-hidden rounded-t-2xl" data-swipe-ignore data-drag-surface>
-    <div ref={host} className="community-store-map h-full w-full" style={{ touchAction: interactive ? "none" : "pan-y" }} aria-label={t("mapLabel")} />
+    {/* ⛔ Kartan äger sina drag; butikslistan under scrollar sidan utan en egen scrollbehållare. */}
+    <div ref={host} className="community-store-map h-full w-full" style={{ touchAction: "none" }} aria-label={t("mapLabel")} />
     {tileError && <p role="status" className="absolute bottom-7 left-2 right-2 z-[500] rounded-lg bg-surface/90 p-2 text-xs text-ink">{t("mapUnavailable")}</p>}
   </div>;
 }
