@@ -69,8 +69,13 @@ export function StoreReportSheet({ store, onClose, onSubmitted }: { store: Commu
         <div><Label htmlFor="report-price">{t("price")}</Label>
           <Input id="report-price" inputMode="decimal" value={price} maxLength={16} required placeholder="0,00" disabled={busy} onChange={e => { setPrice(e.target.value); setError(undefined); }} />
         </div>
-        <div className="border-t border-surface-border pt-4"><Label htmlFor="report-comment">{t("comment")}</Label><Textarea id="report-comment" value={comment} maxLength={10000} disabled={busy} onChange={e => setComment(e.target.value)} /></div>
-        <ImagePicker value={images} onChange={setImages} disabled={busy} />
+        <details className="border-t border-surface-border pt-3">
+          <summary className="cursor-pointer text-sm text-ink-muted">{t("moreDetails")}</summary>
+          <div className="mt-4 space-y-4">
+            <div><Label htmlFor="report-comment">{t("comment")}</Label><Textarea id="report-comment" value={comment} maxLength={10000} disabled={busy} onChange={e => setComment(e.target.value)} /></div>
+            <ImagePicker value={images} onChange={setImages} disabled={busy} />
+          </div>
+        </details>
         <p className="text-xs text-ink-faint">{t("disclaimer")}</p>
         {error && <FieldError message={error} />}
       </div>
