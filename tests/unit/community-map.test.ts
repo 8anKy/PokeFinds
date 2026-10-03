@@ -1,11 +1,22 @@
 import { describe, it, expect } from "vitest";
 import { existsSync } from "node:fs";
-import { hasStorePosition, storesInBounds, storesForBrowsing, storeClusters } from "@/lib/community-map";
+import { hasStorePosition, storesInBounds, storesForBrowsing, storeClusters, cityMapTargets, normalizeStoreSearch } from "@/lib/community-map";
 import type { CommunityStoreDto } from "@/services/community-stores";
 import curated from "@/data/community-stores-curated.json";
 
 const store = (id: string, latitude: number | null, longitude: number | null): CommunityStoreDto => ({ id, name: id, city: "Stockholm", address: "Test", latitude, longitude });
 describe("community store map", () => {
+  it("finds cities by prefix without accents and frames their verified branches only", () => {
+    const stores = [{ ...store("a", 57.7, 11.9), city: "Göteborg" }, { ...store("b", 57.8, 12), city: "Göteborg" }, { ...store("missing", null, null), city: "Göteborg" }, store("other", 59.3, 18)];
+    const target = cityMapTargets(stores, "  goteb  ");
+    expect(target).toHaveLength(1);
+    expect(target[0].city).toBe("Göteborg");
+    expect(target[0].focus.bounds).toEqual({ south: 57.7, north: 57.8, west: 11.9, east: 12 });
+    expect(normalizeStoreSearch("Göteborg")).toBe("goteborg");
+    expect(cityMapTargets(stores, "g")).toEqual([]);
+    expect(cityMapTargets(stores, "Webhallen")).toEqual([]);
+    expect(cityMapTargets([{ ...store("missing", null, null), city: "Boden" }], "Boden")).toEqual([]);
+  });
   it("keeps the whole catalogue browsable, including stores outside the map and without coordinates", () => {
     const input = [{ ...store("far", 65, 20), city: "Örebro" }, { ...store("unknown", null, null), city: "Boden" }, { ...store("near", 59.3, 18), city: "Alingsås" }];
     expect(storesForBrowsing(input, null).map(s => s.id)).toEqual(["near", "unknown", "far"]);

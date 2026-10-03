@@ -3015,6 +3015,7 @@
     "productPlaceholder": "E.g. booster or box",
     "chooseCatalogProduct": "Choose from the product catalog",
     "moreDetails": "More details (optional)",
+    "citySuggestions": "City suggestions",
     "statusShort": { "SEEN": "Available", "SOLD_OUT": "Sold out", "NOT_CARRIED": "Not sold" },
     "assortmentUnconfirmed": "The card selection is not confirmed for this branch. Help with a visit report.",
     "sharePost": "Share post",

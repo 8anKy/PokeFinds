@@ -3015,6 +3015,7 @@
     "productPlaceholder": "T.ex. booster eller box",
     "chooseCatalogProduct": "Välj från produktkatalogen",
     "moreDetails": "Fler detaljer (valfritt)",
+    "citySuggestions": "Ortförslag",
     "statusShort": { "SEEN": "Finns", "SOLD_OUT": "Slut", "NOT_CARRIED": "Säljs inte" },
     "assortmentUnconfirmed": "Kortsortimentet är inte bekräftat för den här filialen. Hjälp till med en besöksrapport.",
     "sharePost": "Dela inlägg",

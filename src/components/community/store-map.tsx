@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { IconPlus, IconMapPin, IconChevronRight } from "@/components/ui/icons";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Input } from "@/components/ui/input";
-import { hasStorePosition, storesInBounds, storesForBrowsing, type MapBounds, type MapPoint } from "@/lib/community-map";
+import { hasStorePosition, storesInBounds, storesForBrowsing, normalizeStoreSearch, cityMapTargets, type MapBounds, type MapPoint, type MapFocus } from "@/lib/community-map";
 import { distanceMeters } from "@/lib/community-stores";
 import type { CommunityStoreDto } from "@/services/community-stores";
 
@@ -23,7 +23,8 @@ export function StoreMap({ stores, onReport, onReports, onSuggest, onFollow, fol
   const [search, setSearch] = useState("");
   const [bounds, setBounds] = useState<MapBounds | null>(null);
   const [center, setCenter] = useState<MapPoint>({ latitude: 62, longitude: 15 });
-  const [focus, setFocus] = useState<(MapPoint & { zoom?: number }) | null>(null);
+  const [focus, setFocus] = useState<MapFocus | null>(null);
+  const [citySuggestionsOpen, setCitySuggestionsOpen] = useState(false);
   const [position, setPosition] = useState<MapPoint | null>(null);
   const [selected, setSelected] = useState(initialStoreId ?? "");
   const [locating, setLocating] = useState(false);
@@ -36,7 +37,20 @@ export function StoreMap({ stores, onReport, onReports, onSuggest, onFollow, fol
     const store = stores.find(s => s.id === initialStoreId);
     if (store) { setSelected(store.id); if (hasStorePosition(store)) setFocus({ latitude: store.latitude, longitude: store.longitude, zoom: 15 }); }
   }, [initialStoreId, stores]);
-  const matching = useMemo(() => stores.filter(s => (!onlyFollowed || followed?.includes(s.id)) && `${s.name} ${s.address} ${s.city}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())), [stores, search, onlyFollowed, followed]);
+  const matching = useMemo(() => stores.filter(s => (!onlyFollowed || followed?.includes(s.id)) && normalizeStoreSearch(`${s.name} ${s.address} ${s.city}`).includes(normalizeStoreSearch(search))), [stores, search, onlyFollowed, followed]);
+  const cityTargets = useMemo(() => cityMapTargets(stores, search), [stores, search]);
+  useEffect(() => {
+    const city = cityTargets.find(c => normalizeStoreSearch(c.city) === normalizeStoreSearch(search));
+    if (!city) return;
+    // ⛔ Panorera bara vid färdig ortsökning, inte vid varje bokstav eller fortsatt kartdrag.
+    const timer = setTimeout(() => { setFocus(city.focus); setSelected(""); setCitySuggestionsOpen(false); }, 350);
+    return () => clearTimeout(timer);
+  }, [cityTargets, search]);
+  useEffect(() => {
+    const outside = (event: PointerEvent) => { if (!(event.target as HTMLElement)?.closest("[data-city-search]")) setCitySuggestionsOpen(false); };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, []);
   const mapped = useMemo(() => matching.filter(hasStorePosition), [matching]);
   const visible = useMemo(() => bounds ? storesInBounds(matching, bounds, position ?? center) : mapped, [matching, bounds, position, center, mapped]);
   const browseList = useMemo(() => storesForBrowsing(matching, position), [matching, position]);
@@ -66,7 +80,12 @@ export function StoreMap({ stores, onReport, onReports, onSuggest, onFollow, fol
       <div className="relative isolate h-[34dvh] min-h-[200px] shrink-0 sm:h-[360px]">
         <Canvas stores={mapped} selectedId={selected} focus={focus} userPosition={position} onSelect={id => { const store = stores.find(s => s.id === id); if (store) openStore(store); setChoosingPin(false); }} onView={view} onPin={choosingPin ? point => { setChoosingPin(false); onSuggest(point); } : undefined} />
         <div className="pointer-events-none absolute inset-x-3 top-3 z-[500] space-y-2" data-swipe-ignore>
-          <Input className="pointer-events-auto h-11 w-full rounded-xl border-surface-border bg-surface/95 shadow-lg" id="community-area" aria-label={t("searchStores")} placeholder={t("searchStores")} value={search} onChange={e => { setSearch(e.target.value); setError(""); }} maxLength={100} />
+          <div className="pointer-events-auto relative" data-city-search>
+            <Input className="h-11 w-full rounded-xl border-surface-border bg-surface/95 shadow-lg" id="community-area" aria-label={t("searchStores")} placeholder={t("searchStores")} value={search} onFocus={() => setCitySuggestionsOpen(true)} onKeyDown={e => { if (e.key === "Escape") setCitySuggestionsOpen(false); if (e.key === "Enter" && cityTargets.length === 1) { e.preventDefault(); setSearch(cityTargets[0].city); setFocus(cityTargets[0].focus); setCitySuggestionsOpen(false); e.currentTarget.blur(); } }} onChange={e => { setSearch(e.target.value); setError(""); setCitySuggestionsOpen(true); }} maxLength={100} />
+            {citySuggestionsOpen && cityTargets.length > 0 && !cityTargets.some(c => normalizeStoreSearch(c.city) === normalizeStoreSearch(search)) && <ul aria-label={t("citySuggestions")} className="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-xl border border-surface-border bg-surface shadow-lg">
+              {cityTargets.slice(0, 3).map(city => <li key={city.city}><button type="button" className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm text-ink hover:bg-surface-overlay" onClick={() => { setSearch(city.city); setFocus(city.focus); setSelected(""); setCitySuggestionsOpen(false); document.getElementById("community-area")?.blur(); }}><IconMapPin size={16} className="text-holo-cyan" />{city.city}</button></li>)}
+            </ul>}
+          </div>
           <div className="flex items-center gap-1.5"><div className="pointer-events-auto flex rounded-full border border-surface-border bg-surface/95 p-1 shadow-lg"><button type="button" onClick={() => { if (onlyFollowed) onFollowed(); }} className={`min-h-8 rounded-full px-3 text-xs ${!onlyFollowed ? "bg-holo-cyan text-surface" : "text-ink-muted"}`} aria-pressed={!onlyFollowed}>{t("all")}</button><button type="button" disabled={busy} onClick={() => { if (!onlyFollowed) onFollowed(); }} className={`min-h-8 rounded-full px-3 text-xs ${onlyFollowed ? "bg-holo-cyan text-surface" : "text-ink-muted"}`} aria-pressed={onlyFollowed}>{t("followed")}</button></div>
             <button type="button" className="pointer-events-auto ml-auto grid h-10 w-10 place-items-center rounded-full border border-surface-border bg-surface/95 text-ink shadow-lg" aria-label={t(choosingPin ? "cancelPin" : "suggestStore")} onClick={() => setChoosingPin(v => !v)}><IconPlus size={18} className={choosingPin ? "rotate-45" : ""} /></button>
           </div>

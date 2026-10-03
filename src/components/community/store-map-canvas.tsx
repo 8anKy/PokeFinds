@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useTranslations } from "next-intl";
-import { hasStorePosition, storeClusters, type MapBounds, type MapPoint } from "@/lib/community-map";
+import { hasStorePosition, storeClusters, type MapBounds, type MapPoint, type MapFocus } from "@/lib/community-map";
 import type { CommunityStoreDto } from "@/services/community-stores";
 
 export default function StoreMapCanvas({ stores, selectedId, focus, userPosition, onSelect, onView, onPin }: {
-  stores: CommunityStoreDto[]; selectedId: string; focus: (MapPoint & { zoom?: number }) | null; userPosition: MapPoint | null;
+  stores: CommunityStoreDto[]; selectedId: string; focus: MapFocus | null; userPosition: MapPoint | null;
   onSelect: (id: string) => void;
   onView: (bounds: MapBounds, center: MapPoint) => void;
   onPin?: (point: MapPoint) => void;
@@ -91,6 +91,11 @@ export default function StoreMapCanvas({ stores, selectedId, focus, userPosition
   useEffect(() => {
     const map = mapRef.current;
     if (ready && map && focus) {
+      if (focus.bounds) {
+        const b = focus.bounds;
+        map.fitBounds([[b.south, b.west], [b.north, b.east]], { paddingTopLeft: [20, 108], paddingBottomRight: [20, 40], maxZoom: focus.zoom ?? 14 });
+        return;
+      }
       const zoom = focus.zoom ?? 13;
       // ⛔ I en 200 px telefonkarta hamnade mittmarkören under sökfiltren.
       // Flytta vyn i pixelplanet (inte butikens koordinat), med ETT tile-byte.
