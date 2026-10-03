@@ -21,8 +21,7 @@ export const storeSuggestionSchema = z.object({
 }).refine(v => (v.latitude == null) === (v.longitude == null));
 export const storeReportSchema = z.object({
   storeId: z.string().min(1).max(64),
-  productLabel: z.string().trim().min(2).max(120),
-  productSlug: z.string().trim().min(1).max(200).optional(),
+  productSlug: z.string().trim().min(1).max(200),
   observation: z.enum(STORE_OBSERVATIONS),
   observedAt: z.string().datetime(),
   location: locationSchema.optional(),

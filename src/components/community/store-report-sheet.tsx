@@ -19,7 +19,6 @@ export function StoreReportSheet({ store, onClose, onSubmitted }: { store: Commu
   const t = useTranslations("LocalStores");
   const router = useRouter();
   const [product, setProduct] = useState<PickedProduct | null>(null);
-  const [label, setLabel] = useState("");
   const [status, setStatus] = useState<StoreObservation>("SEEN");
   const [when, setWhen] = useState("now");
   const [visitTime, setVisitTime] = useState("");
@@ -40,8 +39,8 @@ export function StoreReportSheet({ store, onClose, onSubmitted }: { store: Commu
     }, () => { setLocationMessage(t("locationUnavailable")); setLocating(false); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
   }
   async function submit() {
-    const productLabel = product?.title ?? label.trim();
-    if (productLabel.length < 2) { setError(t("productRequired")); return; }
+    if (!product) { setError(t("productRequired")); return; }
+    const productLabel = product.title;
     if (images.some(i => i.uploading || i.error)) { setError(t("waitImages")); return; }
     const observed = when === "now" ? new Date() : new Date(visitTime);
     if (!Number.isFinite(observed.getTime())) { setError(t("visitRequired")); return; }
@@ -55,7 +54,7 @@ export function StoreReportSheet({ store, onClose, onSubmitted }: { store: Commu
         title: `${productLabel} · ${store.name}`.slice(0, 120),
         content: comment.trim() || t(`observation.${status}`),
         images: images.filter(i => i.key).map(i => ({ key: i.key, thumbKey: i.thumbKey })),
-        storeReport: { storeId: store.id, productLabel, productSlug: product?.slug, observation: status,
+        storeReport: { storeId: store.id, productSlug: product.slug, observation: status,
           observedAt: observed.toISOString(), ...(when === "now" && location ? { location } : {}) },
       } });
       onSubmitted(); onClose(); router.refresh();
@@ -67,11 +66,12 @@ export function StoreReportSheet({ store, onClose, onSubmitted }: { store: Commu
   }
   return (
     <BottomSheet open title={store.name} closeLabel={t("close")} onClose={() => !busy && onClose()}
-      footer={<Button className="w-full" onClick={() => void submit()} disabled={busy || images.some(i => i.uploading)}>{busy ? t("saving") : t("shareStatus")}</Button>}>
+      footer={<Button className="w-full" onClick={() => void submit()} disabled={!product || busy || images.some(i => i.uploading)}>{busy ? t("saving") : t("shareStatus")}</Button>}>
       <div className="space-y-5 pb-2">
         <p className="text-xs text-ink-muted">{store.address} · {store.city}</p>
-        <div><Label htmlFor="status-product">{t("product")}</Label><Input id="status-product" aria-label={t("manualProduct")} placeholder={t("productPlaceholder")} value={product?.title ?? label} maxLength={120} onChange={e => { setProduct(null); setLabel(e.target.value); }} disabled={busy} />
-          <details className="mt-2"><summary className="cursor-pointer text-xs text-ink-muted">{t("chooseCatalogProduct")}</summary><div className="mt-3"><ProductPicker value={product} onChange={setProduct} disabled={busy} /></div></details></div>
+        <div><Label htmlFor="status-product">{t("product")}</Label>
+          <ProductPicker inputId="status-product" inlineResults value={product} onChange={next => { setProduct(next); setError(undefined); }} disabled={busy} />
+        </div>
         <fieldset disabled={busy}><legend className="mb-2 text-sm font-medium text-ink">{t("whatSaw")}</legend>
           <div className="grid grid-cols-3 gap-2">{STORE_OBSERVATIONS.map(s => <label key={s} className="cursor-pointer">
             <input type="radio" name="store-observation" className="peer sr-only" value={s} checked={status === s} onChange={() => setStatus(s)} />

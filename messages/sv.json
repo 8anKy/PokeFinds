@@ -2959,7 +2959,7 @@
     "visitTime": "Tid för besöket",
     "comment": "Kommentar (frivilligt)",
     "publish": "Publicera rapport",
-    "productRequired": "Välj en produkt eller skriv vad du såg.",
+    "productRequired": "Välj en produkt från katalogen.",
     "visitRequired": "Ange när du besökte butiken.",
     "waitImages": "Vänta på bilderna eller ta bort en bild som inte kunde laddas upp.",
     "unavailable": "Rapportering är inte tillgänglig just nu.",

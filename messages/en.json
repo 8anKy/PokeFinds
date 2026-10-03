@@ -2959,7 +2959,7 @@
     "visitTime": "Visit time",
     "comment": "Comment (optional)",
     "publish": "Publish report",
-    "productRequired": "Choose a product or enter what you saw.",
+    "productRequired": "Choose a product from the catalog.",
     "visitRequired": "Enter when you visited the store.",
     "waitImages": "Wait for the images or remove an image that failed to upload.",
     "unavailable": "Reporting is unavailable right now.",

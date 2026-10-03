@@ -26,10 +26,15 @@ export function ProductPicker({
   value,
   onChange,
   disabled,
+  inputId,
+  inlineResults = false,
 }: {
   value: PickedProduct | null;
   onChange: (next: PickedProduct | null) => void;
   disabled?: boolean;
+  inputId?: string;
+  /** I bottenark ska sökträffarna kunna scrollas med innehållet ovanför foten. */
+  inlineResults?: boolean;
 }) {
   const t = useTranslations("Forum");
   const listId = useId();
@@ -109,6 +114,7 @@ export function ProductPicker({
   return (
     <div ref={containerRef} className="relative">
       <Input
+        id={inputId}
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -128,7 +134,7 @@ export function ProductPicker({
         <ul
           id={listId}
           role="listbox"
-          className="absolute inset-x-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-xl border border-surface-border bg-surface-raised shadow-2xl shadow-black/40"
+          className={cn("mt-1 rounded-xl border border-surface-border bg-surface-raised", !inlineResults && "absolute inset-x-0 top-full z-50 max-h-72 overflow-y-auto shadow-2xl shadow-black/40")}
         >
           {results.map((s) => (
             <li key={s.slug} role="option" aria-selected={false}>

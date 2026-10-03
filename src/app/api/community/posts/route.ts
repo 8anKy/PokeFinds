@@ -139,18 +139,17 @@ export async function POST(req: Request) {
       if (group.isMarketplace || input.listingKind) throw new ServiceError(400, "Ogiltig indata.");
       if (!validVisitTime(input.storeReport.observedAt)) throw new ServiceError(400, "Ange ett besök under de senaste sju dagarna, inte i framtiden.");
       const store = await reportableStore(input.storeReport.storeId);
-      let productLabel = input.storeReport.productLabel;
-      if (input.storeReport.productSlug) {
-        const product = await prisma.product.findFirst({ where: { slug: input.storeReport.productSlug, hiddenAt: null }, select: { title: true } });
-        if (!product) throw new ServiceError(404, "Produkten hittades inte.");
-        productLabel = product.title;
-      }
+      // ⛔ Rapporter kräver en katalogprodukt; fri text kan inte kopplas säkert till framtida larm.
+      // Namnet hämtas från katalogen, aldrig från klientens etikett.
+      const product = await prisma.product.findFirst({ where: { slug: input.storeReport.productSlug, hiddenAt: null }, select: { title: true } });
+      if (!product) throw new ServiceError(404, "Produkten hittades inte.");
+      const productLabel = product.title;
       const dirtyLabel = findProfanity(productLabel);
       if (dirtyLabel) {
         logModerationEvent(user.id, "POST", dirtyLabel);
         throw new ServiceError(400, "Inlägget innehåller ord som inte är tillåtna i forumet. Ändra texten och försök igen.", PROFANITY_CODE);
       }
-      storeReport = { storeId: store.id, productLabel, productSlug: input.storeReport.productSlug ?? null,
+      storeReport = { storeId: store.id, productLabel, productSlug: input.storeReport.productSlug,
         observation: input.storeReport.observation, observedAt: new Date(input.storeReport.observedAt),
         nearbyAtSubmit: nearbyAtSubmit(store, input.storeReport) };
     }

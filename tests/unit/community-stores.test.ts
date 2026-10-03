@@ -3,9 +3,15 @@ import { distanceMeters, nearbyAtSubmit, reportIsFresh, storeIdentity, storeRepo
 
 const now = Date.parse("2026-10-03T12:00:00Z");
 const store = { latitude: 59.33, longitude: 18.06 };
-const report: StoreReportInput = { storeId: "branch", productLabel: "Booster bundle", observation: "SEEN", observedAt: new Date(now).toISOString() };
+const report: StoreReportInput = { storeId: "branch", productSlug: "booster-bundle", observation: "SEEN", observedAt: new Date(now).toISOString() };
 
 describe("local store observations", () => {
+  it("requires catalogue identity and never trusts a client product label", () => {
+    const { productSlug, ...withoutProduct } = report;
+    expect(storeReportSchema.safeParse({ ...withoutProduct, productLabel: "Any free text" }).success).toBe(false);
+    expect(storeReportSchema.safeParse({ ...report, productSlug: " " }).success).toBe(false);
+    expect(storeReportSchema.parse({ ...report, productLabel: "Spoofed name" })).not.toHaveProperty("productLabel");
+  });
   it("keeps branches distinct and normalizes case/spacing", () => {
     expect(storeIdentity("Kortbutik", "Storgatan 1", "Gävle")).toBe(storeIdentity(" KORTBUTIK ", "Storgatan  1", "Gävle"));
     expect(storeIdentity("Kortbutik", "Storgatan 1", "Gävle")).not.toBe(storeIdentity("Kortbutik", "Storgatan 2", "Gävle"));
