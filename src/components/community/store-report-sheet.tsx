@@ -33,6 +33,7 @@ export function StoreReportSheet({ store, onClose }: { store: CommunityStoreDto;
   function locate() {
     if (!navigator.geolocation) { setLocationMessage(t("locationUnavailable")); return; }
     setLocating(true);
+    setLocation(undefined); setLocationMessage("");
     navigator.geolocation.getCurrentPosition(pos => {
       setLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy, sampledAt: new Date(pos.timestamp).toISOString() });
       setLocationMessage(t("locationReceived")); setLocating(false);

@@ -96,7 +96,7 @@ export interface FeedItem {
   lastActivityAt: string;
   user: ForumAuthor;
   group: ForumGroupRef | null;
-  /** Bara första bilden i listor. */
+  /** Miniatyrer för bildserien; klienten laddar bara den synliga bilden. */
   images: ForumImage[];
   commentCount: number;
   likeCount: number;
@@ -158,7 +158,7 @@ const FEED_INCLUDE = {
   storeReport: STORE_REPORT_INCLUDE,
   user: { select: POST_AUTHOR_SELECT },
   group: { select: GROUP_REF_SELECT },
-  images: { orderBy: { sortOrder: "asc" }, take: 1, select: IMAGE_SELECT },
+  images: { orderBy: { sortOrder: "asc" }, take: 6, select: IMAGE_SELECT },
   _count: { select: { comments: true, likes: true } },
 } satisfies Prisma.CommunityPostInclude;
 
@@ -265,7 +265,7 @@ async function getFeedRaw(params: FeedParams) {
   return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
-export const getFeed = cachedRead(getFeedRaw, "community-feed-v3", 3600, ["community-feed"]);
+export const getFeed = cachedRead(getFeedRaw, "community-feed-v4", 3600, ["community-feed"]);
 
 /**
  * Betraktarens SPARADE trådar, senast sparad först — dit Spara-knappen leder

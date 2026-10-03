@@ -1,3 +1,4 @@
+"use client";
 /* eslint-disable @next/next/no-img-element */
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -15,13 +16,14 @@ import { IconHeart, IconMessage } from "@/components/ui/icons";
 import type { FeedItem } from "@/services/community";
 import { RelativeTime } from "./relative-time";
 import { StoreReportSummary } from "./store-report-summary";
+import { FeedMedia } from "./feed-media";
 import { FeedActions } from "./feed-actions";
 import type { useForumViewer } from "./use-forum-viewer";
 
 /**
- * En tråd i listan. Ingen "use client" — renderas som klient när den ligger i
- * ThreadList och som server i andra träd. Sålda/avslutade annonser tonas ner
- * men försvinner inte: tråden är fortfarande en sann historia.
+ * Samma inlägg i kompakt trådlista eller bildflöde. Bildserien och personliga
+ * åtgärder ligger i klienten; servern skickar redan signerade miniatyrer.
+ * Sålda/avslutade annonser finns kvar på profil/tråd som sann historik.
  */
 export function PostCard({
   post,
@@ -37,26 +39,31 @@ export function PostCard({
   personal?: ReturnType<typeof useForumViewer>;
 }) {
   const t = useTranslations("Forum");
+  const tStores = useTranslations("LocalStores");
   const tCat = useTranslations("PostCategory");
   const tGroups = useTranslations("ForumGroups");
   const muted = post.listingStatus === "SOLD" || post.listingStatus === "CLOSED";
   const thumb = post.images[0]?.url ?? null;
 
-  if (visual) return <li className="card-surface overflow-hidden rounded-xl">
-    <Link href={`/profil/${post.user.id}`} className="flex items-center gap-3 px-4 pt-4">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-overlay text-sm text-ink">{post.user.name.charAt(0).toUpperCase()}</span>
-      <span className="min-w-0"><span className="block truncate text-sm font-medium text-ink">{post.user.name}</span><span className="text-xs text-ink-muted"><RelativeTime date={post.createdAt} /></span></span>
-    </Link>
-    <Link href={`${hrefBase}/${post.id}`} className="block space-y-3 p-4">
-      {thumb && <img src={thumb} alt="" loading="lazy" decoding="async" className="max-h-80 w-full rounded-lg bg-surface-overlay object-contain" />}
-      {showGroup && post.group && <p className="text-xs text-ink-muted">{localizeGroupName(post.group.slug, post.group.name, tGroups)}</p>}
-      <h2 className="font-display text-lg font-semibold text-ink">{post.title}</h2>
-      {post.excerpt && <p className="whitespace-pre-line text-sm text-ink-muted">{post.excerpt}</p>}
-      {post.priceOre != null && post.priceOre > 0 && <p className="font-medium text-holo-cyan">{formatPrice(post.priceOre)}</p>}
-      {post.listingStatus && <Badge>{t(LISTING_STATUS_KEYS[post.listingStatus])}</Badge>}
-      {post.storeReport && <StoreReportSummary report={post.storeReport} linked={false} />}
-    </Link>
+  if (visual) return <li className="border-b border-surface-border pb-5">
+    <div className="flex items-center justify-between gap-3 px-2.5 py-3 sm:px-0">
+      <Link href={`/profil/${post.user.id}`} className="flex min-w-0 items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-surface-border bg-surface-overlay text-sm font-semibold text-ink">{post.user.avatarUrl ? <img src={post.user.avatarUrl} alt="" loading="lazy" className="h-full w-full object-cover" /> : post.user.name.charAt(0).toUpperCase()}</span>
+        <span className="min-w-0"><span className="block truncate text-sm font-semibold text-ink">{post.user.name}</span>
+          <span className="block truncate text-xs text-ink-muted">{post.storeReport ? `${post.storeReport.store.name} · ${post.storeReport.store.city}` : showGroup && post.group ? localizeGroupName(post.group.slug, post.group.name, tGroups) : <RelativeTime date={post.createdAt} />}</span>
+        </span>
+      </Link>
+      <Link href={`${hrefBase}/${post.id}`} className="grid h-10 w-10 shrink-0 place-items-center text-xl text-ink-muted" aria-label={tStores("readPost")}>···</Link>
+    </div>
+    <FeedMedia images={post.images} href={`${hrefBase}/${post.id}`} />
     {personal && <FeedActions post={post} personal={personal} href={`${hrefBase}/${post.id}`} />}
+    <div className="space-y-2 px-2.5 sm:px-0">
+      <Link href={`${hrefBase}/${post.id}`} className="block text-sm leading-relaxed text-ink"><span className="mr-2 font-semibold">{post.user.name}</span><span className="font-medium">{post.title}</span>{post.excerpt && <span className="mt-1 block whitespace-pre-line text-ink-muted">{post.excerpt}</span>}</Link>
+      {post.listingKind && <div className="flex items-center gap-2"><Badge variant={LISTING_KIND_VARIANTS[post.listingKind]}>{t(LISTING_KIND_KEYS[post.listingKind])}</Badge>{post.priceOre != null && post.priceOre > 0 && <span className="font-medium text-holo-cyan">{formatPrice(post.priceOre)}</span>}{muted && post.listingStatus && <Badge>{t(LISTING_STATUS_KEYS[post.listingStatus])}</Badge>}</div>}
+      {post.storeReport && <StoreReportSummary report={post.storeReport} />}
+      <Link href={`${hrefBase}/${post.id}`} className="block min-h-8 text-sm text-ink-muted">{t("replies")} · {personal?.state.counts[post.id]?.commentCount ?? post.commentCount}</Link>
+      <p className="text-xs text-ink-faint"><RelativeTime date={post.createdAt} /></p>
+    </div>
   </li>;
 
   return (

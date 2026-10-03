@@ -5,12 +5,15 @@ import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
 import { rememberPostToggle, recallPostToggle } from "@/lib/forum-client";
-import { IconHeart, IconBookmark, IconMessage } from "@/components/ui/icons";
+import { IconHeart, IconBookmark, IconMessage, IconShare } from "@/components/ui/icons";
+import { useToast } from "@/components/ui/toast";
 import type { FeedItem } from "@/services/community";
 import type { useForumViewer } from "./use-forum-viewer";
 
 export function FeedActions({ post, personal, href }: { post: FeedItem; personal: ReturnType<typeof useForumViewer>; href: string }) {
   const t = useTranslations("Forum");
+  const tStores = useTranslations("LocalStores");
+  const { toast } = useToast();
   const router = useRouter();
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -24,6 +27,7 @@ export function FeedActions({ post, personal, href }: { post: FeedItem; personal
     setCount(local.likeCount ?? personal.state.counts[post.id]?.likeCount ?? post.likeCount);
   }, [personal.state, post.id, post.likeCount]);
   async function toggle(kind: "like" | "save") {
+    if (busy) return;
     if (!personal.loggedIn) { router.push(`/logga-in?callbackUrl=${encodeURIComponent(href)}`); return; }
     setBusy(true); setError("");
     const previous = kind === "like" ? liked : saved;
@@ -39,12 +43,24 @@ export function FeedActions({ post, personal, href }: { post: FeedItem; personal
       setError(e instanceof Error ? e.message : t("somethingWrong"));
     } finally { setBusy(false); }
   }
-  return <div className="border-t border-surface-border px-4 py-2">
-    <div className="flex items-center gap-4 text-sm text-ink-muted">
-      <button type="button" className="inline-flex min-h-11 items-center gap-1.5" disabled={busy} aria-pressed={liked} aria-label={t("likes")} onClick={() => void toggle("like")}><IconHeart size={19} className={liked ? "text-holo-cyan" : ""} />{count}</button>
-      <Link href={href} className="inline-flex min-h-11 items-center gap-1.5"><IconMessage size={19} />{personal.state.counts[post.id]?.commentCount ?? post.commentCount}<span className="sr-only">{t("replies")}</span></Link>
-      <button type="button" className="ml-auto inline-flex min-h-11 items-center" disabled={busy} aria-pressed={saved} aria-label={t("savedLink")} onClick={() => void toggle("save")}><IconBookmark size={19} className={saved ? "text-holo-cyan" : ""} /></button>
+  async function share() {
+    const url = new URL(href, window.location.href);
+    // Behåll språkprefixet även när standardlokalen inte syns i adressen.
+    const prefix = window.location.pathname.match(/^\/(sv|en)(?:\/|$)/)?.[1];
+    if (prefix) url.pathname = `/${prefix}${href}`;
+    try {
+      if (navigator.share) await navigator.share({ title: post.title, url: url.href });
+      else { await navigator.clipboard.writeText(url.href); toast({ title: tStores("linkCopied"), variant: "success" }); }
+    } catch (e) { if (!(e instanceof DOMException && e.name === "AbortError")) setError(tStores("shareError")); }
+  }
+  return <div className="px-2.5 pb-1 sm:px-0">
+    <div className="flex items-center gap-2 text-ink">
+      <button type="button" className="grid h-11 w-11 place-items-center" disabled={busy} aria-pressed={liked} aria-label={t("likes")} onClick={() => void toggle("like")}><IconHeart size={25} className={liked ? "fill-holo-cyan text-holo-cyan" : ""} /></button>
+      <Link href={href} className="grid h-11 w-11 place-items-center" aria-label={t("replies")}><IconMessage size={25} /></Link>
+      <button type="button" className="grid h-11 w-11 place-items-center" aria-label={tStores("sharePost")} onClick={() => void share()}><IconShare size={23} /></button>
+      <button type="button" className="ml-auto grid h-11 w-11 place-items-center" disabled={busy} aria-pressed={saved} aria-label={t("savedLink")} onClick={() => void toggle("save")}><IconBookmark size={25} className={saved ? "fill-holo-cyan text-holo-cyan" : ""} /></button>
     </div>
+    {count > 0 && <p className="pb-1 text-sm font-semibold text-ink">{count} {t("likes")}</p>}
     {error && <p className="text-xs text-fall" role="alert">{error}</p>}
   </div>;
 }

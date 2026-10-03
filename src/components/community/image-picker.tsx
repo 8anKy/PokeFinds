@@ -7,12 +7,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { IconUpload, IconX } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/spinner";
+import { THUMB_MAX_EDGE } from "@/lib/community-images";
 
 export const MAX_IMAGES = 6;
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.82;
-/** Miniatyren som trådlistan visar (kortet är 80×80; 2× för retina + marginal). */
-const THUMB_EDGE = 320;
+/** Flödesbild på högst 768 px, ritad i klienten. Gamla 320 px-bilder fungerar fortsatt. */
+const THUMB_EDGE = THUMB_MAX_EDGE;
 const THUMB_QUALITY = 0.72;
 
 export interface PickedImage {
@@ -60,7 +61,7 @@ async function encode(canvas: HTMLCanvasElement, type: string, quality?: number)
   return blob;
 }
 
-/** Samma bild i ≤320 px — ritas ur den redan nedskalade canvasen, inte ur filen. */
+/** Flödesbilden ritas ur den nedskalade canvasen, utan EXIF/GPS eller serverarbete. */
 async function makeThumb(source: HTMLCanvasElement, type: string): Promise<Blob | null> {
   try {
     const scale = Math.min(1, THUMB_EDGE / Math.max(source.width, source.height));

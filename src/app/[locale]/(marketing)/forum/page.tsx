@@ -55,10 +55,10 @@ export default async function ForumPage({ params }: PageProps) {
   const [groups, feed, stores] = await Promise.all([listGroups(), getFeed({ page: 1, pageSize: 20 }), listCommunityStores()]);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
+    <div className="mx-auto w-full max-w-2xl px-2.5 py-4 sm:px-6">
       {/* Bara rubriken — ingen ingress (ägarbeslut 2026-09-03: "onödig text"). */}
       <header className="flex items-center justify-between gap-3">
-        <h1 className="min-w-0 font-display text-3xl font-bold text-ink">{t("h1")}</h1>
+        <h1 className="min-w-0 font-display text-2xl font-bold text-ink">{t("h1")}</h1>
         <div className="flex shrink-0 items-center gap-2">
           {/* Dit Spara/Gilla leder — knapparna på tråden pekar hit i sin toast. */}
           <a
@@ -79,9 +79,9 @@ export default async function ForumPage({ params }: PageProps) {
               <UnreadBadge />
             </span>
           </a>
-          <LinkButton href="/forum/ny" size="sm">
+          <LinkButton href="/forum/ny" size="sm" aria-label={t("newThread")}>
             <IconPlus size={16} />
-            {t("newThread")}
+            <span className="hidden sm:inline">{t("newThread")}</span>
           </LinkButton>
         </div>
       </header>

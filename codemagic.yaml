@@ -80,11 +80,16 @@ workflows:
           PL=ios/App/App/Info.plist
           CAM='Foilio använder kameran för att skanna dina Pokémon-kort.'
           PHOTO='Foilio öppnar bildbiblioteket så att du kan välja en kortbild att skanna.'
+          LOCATION='Foilio använder din plats när du väljer Min plats för att hitta Pokémon-butiker nära dig, eller själv väljer närhetskontroll i en butiksrapport.'
           /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string \"$CAM\"" "$PL" || \
             /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription \"$CAM\"" "$PL"
           /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string \"$PHOTO\"" "$PL" || \
             /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription \"$PHOTO\"" "$PL"
           /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PL"
+          # ⛔ Skrivs i bygget: ios/ genereras om, så en lokal plist-ändring försvinner.
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string \"$LOCATION\"" "$PL" || \
+            /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription \"$LOCATION\"" "$PL"
+          /usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PL"
           # Export compliance: appen använder BARA standard-HTTPS = undantagen kryptering.
           # Utan nyckeln laddas bygget upp och bearbetas klart, men TestFlight-inskicket
           # 422:ar ("The build is missing export compliance") → grönt bygge som ALDRIG når

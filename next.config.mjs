@@ -175,9 +175,10 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
-            // Kameran behövs för skannern (samma origin) → self; övrigt av.
+            // Skannern och butikskartans frivilliga platsval behöver samma
+            // origin. ⛔ geolocation=() blockerar även användarens uttryckliga OK.
             key: "Permissions-Policy",
-            value: "camera=(self), microphone=(), geolocation=(), browsing-topics=()",
+            value: "camera=(self), microphone=(), geolocation=(self), browsing-topics=()",
           },
         ],
       },

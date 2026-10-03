@@ -18,8 +18,12 @@ export async function PATCH(req: Request) {
   try {
     const user = await requireRole("ADMIN");
     await assertCommunityV2(user.role);
-    const input = z.object({ id: z.string().min(1).max(64), status: z.enum(["APPROVED", "REJECTED"]) }).parse(await req.json());
-    await prisma.communityStore.update({ where: { id: input.id, status: "PENDING" }, data: { status: input.status } });
+    const input = z.object({ id: z.string().min(1).max(64), status: z.enum(["APPROVED", "REJECTED"]),
+      latitude: z.number().min(-90).max(90).nullable().optional(), longitude: z.number().min(-180).max(180).nullable().optional(),
+    }).refine(v => (v.latitude == null) === (v.longitude == null) && (v.latitude === undefined) === (v.longitude === undefined)).parse(await req.json());
+    await prisma.communityStore.update({ where: { id: input.id, status: "PENDING" }, data: { status: input.status,
+      ...(input.latitude !== undefined ? { latitude: input.latitude, longitude: input.longitude } : {}),
+    } });
     revalidateTag(COMMUNITY_STORES_TAG);
     revalidateForum();
     return jsonOk({ ok: true });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -9,6 +9,7 @@ import type { FeedItem } from "@/services/community";
 import { PostCard } from "./post-card";
 import { LoadMore } from "./load-more";
 import { useForumViewer } from "./use-forum-viewer";
+import { apiFetch } from "@/lib/client-api";
 
 export interface FeedPage {
   items: FeedItem[];
@@ -79,6 +80,8 @@ export function ThreadList({
   const [filter, setFilter] = useState<MarketFilter>("all");
   const [pages, setPages] = useState<Record<string, FeedPage>>({ all: initial });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { setPages({ all: initial }); setFilter("all"); }, [initial]);
   const pagesRef = useRef(pages);
   pagesRef.current = pages;
 
@@ -88,28 +91,27 @@ export function ThreadList({
   const fetchPage = useCallback(
     async (f: MarketFilter, page: number, append: boolean) => {
       setLoading(true);
+      setError("");
       try {
         const url = reportQuery ? `/api/community/posts?${reportQuery}&page=${page}&pageSize=20` : buildUrl(group, author, f, page);
-        const res = await fetch(url, { credentials: "include" });
-        if (!res.ok) return;
-        const data = (await res.json()) as FeedPage;
+        const data = await apiFetch<FeedPage>(url);
         setPages((prev) => {
           const existing = append ? prev[f] : undefined;
           return {
             ...prev,
             [f]: {
               ...data,
-              items: existing ? [...existing.items, ...data.items] : data.items,
+              items: existing ? [...existing.items, ...data.items.filter(p => !existing.items.some(e => e.id === p.id))] : data.items,
             },
           };
         });
-      } catch {
-        // nätverksfel — behåll det som visas
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t("somethingWrong"));
       } finally {
         setLoading(false);
       }
     },
-    [group, author, reportQuery]
+    [group, author, reportQuery, t]
   );
 
   function selectFilter(f: MarketFilter) {
@@ -117,7 +119,18 @@ export function ThreadList({
     if (!pagesRef.current[f]) void fetchPage(f, 1, false);
   }
 
-  const hasMore = current ? current.items.length < current.total : false;
+  // ⛔ Nya inlägg kan flytta sidgränsen under scrollningen. Efter avdubblering
+  // är antal VISNINGAR mindre än totalen; det får inte ge ändlös tom paginering.
+  const hasMore = current ? current.page * current.pageSize < current.total : false;
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!visual || !hasMore || loading || error || !current || !sentinel.current) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) { observer.disconnect(); void fetchPage(filter, current.page + 1, true); }
+    }, { rootMargin: "200px" });
+    observer.observe(sentinel.current);
+    return () => observer.disconnect();
+  }, [visual, hasMore, loading, error, current, filter, fetchPage]);
 
   return (
     <div className="space-y-3">
@@ -157,13 +170,15 @@ export function ThreadList({
       ) : current.items.length === 0 ? (
         <EmptyState icon={<IconMessage size={32} />} title={emptyText} description="" />
       ) : (
-        <ul className="space-y-2.5">
+        <ul className={visual ? "-mx-2.5 space-y-4 sm:mx-0" : "space-y-2.5"}>
           {current.items.filter(post => !personal.state.blockedIds.includes(post.user.id)).map((post) => (
             <PostCard key={post.id} post={post} showGroup={showGroup} hrefBase={hrefBase} visual={visual} personal={personal} />
           ))}
         </ul>
       )}
 
+      {error && <p role="alert" className="text-sm text-fall">{error}</p>}
+      <div ref={sentinel} aria-hidden="true" />
       <LoadMore
         hasMore={hasMore}
         loading={loading}

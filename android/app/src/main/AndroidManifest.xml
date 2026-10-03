@@ -37,4 +37,7 @@
     <!-- Live kort-skanner (/skanna) använder getUserMedia i WebView:en -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Frivillig Min plats / närhetskontroll, bara efter användarens tryck. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 </manifest>

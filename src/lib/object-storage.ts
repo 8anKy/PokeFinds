@@ -27,7 +27,7 @@ import { createHash, randomUUID } from "node:crypto";
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // efter klientens nedskalning ~300 kB
 /** Miniatyren är ~10 kB — taket är bara en vakt mot en klient som skickar fel fil. */
 export const MAX_THUMB_BYTES = 256 * 1024;
-export const THUMB_MAX_EDGE = 320;
+export { THUMB_MAX_EDGE } from "./community-images";
 export const MAX_IMAGES_PER_POST = 6;
 export const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 /** S3 tillåter max 7 dygn för presignerade URL:er. */

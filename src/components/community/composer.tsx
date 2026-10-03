@@ -164,6 +164,7 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
         void submit();
       }}
     >
+      <ImagePicker value={images} onChange={setImages} disabled={saving} />
       <div>
         <Label htmlFor="postGroup">{t("composerGroup")}</Label>
         <Select
@@ -210,7 +211,6 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
         />
       </div>
 
-      <ImagePicker value={images} onChange={setImages} disabled={saving} />
 
       {marketplace && (
         <fieldset className="space-y-4 rounded-xl border border-surface-border p-4">

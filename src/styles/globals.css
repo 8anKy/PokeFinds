@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Kartan äger sitt drag. Leaflets lager hålls i en egen stacking context,
+   annars hamnar markörer ovanpå appens bottenark och navigation. */
+.community-store-map { @apply bg-surface; }
+.community-map-tiles { filter: grayscale(.65) invert(1) hue-rotate(180deg) brightness(.75); }
+.community-map-marker { background: transparent; border: 0; }
+.community-map-pin { @apply grid h-10 w-10 place-items-center rounded-full border-2 border-surface bg-holo-cyan text-xs font-bold text-surface shadow-lg; }
+.community-map-pin.is-cluster { @apply bg-surface-overlay text-holo-cyan border-holo-cyan; }
+.community-map-pin.is-selected { @apply ring-4 ring-holo-cyan/40; }
+.community-map-location { @apply block h-4 w-4 rounded-full border-2 border-ink bg-holo-cyan ring-4 ring-holo-cyan/25; }
+.community-store-map .leaflet-control-zoom a { @apply border-surface-border bg-surface text-ink; }
+.community-store-map .leaflet-control-attribution { @apply bg-surface/90 text-ink-muted; }
+.community-store-map .leaflet-control-attribution a { @apply text-holo-cyan; }
+
 :root {
   /* Samma klarering i flikraden och sidskalet, inklusive telefonens hemindikator. */
   --bottom-tabs-space: calc(4rem + env(safe-area-inset-bottom));
