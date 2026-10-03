@@ -27,7 +27,7 @@ export default function StoreMapCanvas({ stores, selectedId, focus, userPosition
     const map = L.map(host.current, { zoomControl: false, scrollWheelZoom: false, worldCopyJump: true }).setView([62, 15], 5);
     mapRef.current = map;
     map.attributionControl.setPrefix(false);
-    L.control.zoom({ position: "topright", zoomInTitle: t("zoomIn"), zoomOutTitle: t("zoomOut") }).addTo(map);
+    L.control.zoom({ position: "bottomright", zoomInTitle: t("zoomIn"), zoomOutTitle: t("zoomOut") }).addTo(map);
     // ⛔ Bara kartan användaren faktiskt öppnat laddas. Ingen förladdning/offline-
     // cache: OSM:s tile-policy förbjuder det. Webbläsaren sköter HTTP-cachen.
     const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -90,11 +90,17 @@ export default function StoreMapCanvas({ stores, selectedId, focus, userPosition
 
   useEffect(() => {
     const map = mapRef.current;
-    if (ready && map && focus) map.setView([focus.latitude, focus.longitude], focus.zoom ?? 13);
+    if (ready && map && focus) {
+      const zoom = focus.zoom ?? 13;
+      // ⛔ I en 200 px telefonkarta hamnade mittmarkören under sökfiltren.
+      // Flytta vyn i pixelplanet (inte butikens koordinat), med ETT tile-byte.
+      const center = map.project([focus.latitude, focus.longitude], zoom).subtract([0, 48]);
+      map.setView(map.unproject(center, zoom), zoom);
+    }
   }, [focus, ready]);
 
-  return <div className="relative isolate overflow-hidden rounded-2xl border border-surface-border" data-swipe-ignore data-drag-surface>
-    <div ref={host} className="community-store-map h-[45dvh] min-h-[300px] w-full sm:h-[480px]" aria-label={t("mapLabel")} />
+  return <div className="relative isolate h-full overflow-hidden rounded-t-2xl" data-swipe-ignore data-drag-surface>
+    <div ref={host} className="community-store-map h-full w-full" aria-label={t("mapLabel")} />
     {tileError && <p role="status" className="absolute bottom-7 left-2 right-2 z-[500] rounded-lg bg-surface/90 p-2 text-xs text-ink">{t("mapUnavailable")}</p>}
   </div>;
 }

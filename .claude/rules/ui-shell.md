@@ -9,7 +9,7 @@ paths:
 ---
 # UI-skal: haptik, bottenark, lager, layoutmått
 
-- **PROFILHUVUD OCH STICKY-WRAPPERS (2026-10-03)**: mobilprofilen scrollar i SwipeBack:s fasta behållare, så namn/bakåt-raden måste ligga inuti den med safe-area-offset. `/profil/` döljer mobilens logotyphuvud. På desktop måste SiteHeaderGate:s wrapper vara sticky: en sticky header inuti en wrapper av samma höjd kan aldrig följa dokumentets scroll. Profilnamnet ligger under sidhuvudets 64 px. Kommentarkompositorn i ett bottenark stänger av useKeyboardInset; arket äger tangentbordslyftet, annars lyfts formuläret dubbelt.
+- **PROFILHUVUD OCH STICKY-WRAPPERS (2026-10-03)**: mobilprofilen scrollar i SwipeBack:s fasta behållare, så namn/bakåt-raden måste ligga inuti den med top-0: behållaren har redan safe-area-padding, en andra sticky-inset gav 118 px vid 59 px inset (mätt med telefonemulering). Communitys rotsida äger också sin mobilrubrik och döljer logotyphuvudet så karta + butikskort ryms. `/profil/` döljer mobilens logotyphuvud. På desktop måste SiteHeaderGate:s wrapper vara sticky: en sticky header inuti en wrapper av samma höjd kan aldrig följa dokumentets scroll. Profilnamnet ligger under sidhuvudets 64 px. Kommentarkompositorn i ett bottenark stänger av useKeyboardInset; arket äger tangentbordslyftet, annars lyfts formuläret dubbelt.
 
 - **HAPTIK BOR I `src/lib/haptics.ts`, MED TRE STYRKOR (2026-08-02)**: `hapticTick` (långtryck löste ut, val
   gjordes), `hapticGlide` (fingret gled till ett NYTT värde) och `hapticImpact` (något blev klart — skannern

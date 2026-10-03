@@ -27,7 +27,7 @@ export function StoreReportSummary({ report, linked = true }: { report: StoreRep
       <p className="text-xs text-ink-muted">{t("observed")} <RelativeTime date={report.observedAt} /></p>
       {!fresh && now !== null && <p className="text-xs text-ink-muted">{t("previousObservation", { status: t(`observation.${report.observation as StoreObservation}`) })}</p>}
       <p className="text-xs text-ink-faint">{report.nearbyAtSubmit ? t("nearbySignal") : t("memberReport")}</p>
-      {linked && <Link className="inline-block py-2 text-holo-cyan" href={`/forum?store=${encodeURIComponent(report.store.id)}&view=reports`}>{t("storeReports")}</Link>}
+      {linked && <Link className="inline-block py-2 text-holo-cyan" href={`/forum?store=${encodeURIComponent(report.store.id)}&view=nearby&status=1`}>{t("storeReports")}</Link>}
     </div>
   );
 }

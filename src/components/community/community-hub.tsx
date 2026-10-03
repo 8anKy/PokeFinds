@@ -9,21 +9,22 @@ import { useRouter } from "@/i18n/navigation";
 import { apiFetch, apiErrorCode } from "@/lib/client-api";
 import { FORUM_RULES_CODE } from "@/lib/profanity";
 import { Button } from "@/components/ui/button";
-import { IconNews, IconMapPin, IconClock, IconPlus } from "@/components/ui/icons";
+import { IconNews, IconMapPin, IconPlus } from "@/components/ui/icons";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { useToast } from "@/components/ui/toast";
 import { StoreMap } from "./store-map";
 import type { MapPoint } from "@/lib/community-map";
 import { GroupChips } from "./group-chips";
 import { ThreadList, type FeedPage } from "./thread-list";
 import { StoreReportSheet } from "./store-report-sheet";
 import { requestForumRules } from "./forum-rules-gate";
-import { ProductPicker, type PickedProduct } from "./product-picker";
 import type { GroupSummary } from "@/services/community-groups";
 import type { CommunityStoreDto } from "@/services/community-stores";
 
 export function CommunityHub({ initial, stores: initialStores, groups }: { initial: FeedPage; stores: CommunityStoreDto[]; groups: GroupSummary[] }) {
   const t = useTranslations("LocalStores");
+  const { toast } = useToast();
   const search = useSearchParams();
   const router = useRouter();
   const loggedIn = useAuthHint();
@@ -36,24 +37,27 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
   }, [loggedIn]);
   const [stores, setStores] = useState(initialStores);
   useEffect(() => setStores(initialStores), [initialStores]);
-  const [view, setView] = useState(search.get("view") === "reports" ? "reports" : search.get("view") === "nearby" ? "nearby" : "feed");
+  const [view, setView] = useState(search.get("view") === "nearby" || search.get("view") === "reports" ? "nearby" : "feed");
+  const [statusStore, setStatusStore] = useState<string | null>(search.get("view") === "reports" || search.get("status") === "1" ? search.get("store") : null);
   useEffect(() => {
     const next = search.get("view");
-    setView(next === "reports" || next === "nearby" ? next : "feed");
-    setStoreId(search.get("store") ?? "");
-    if (next === "reports") {
-      setReportsActive(true);
-      setAppliedFilters(p => ({ ...p, storeId: search.get("store") ?? "" }));
-    }
+    setView(next === "nearby" || next === "reports" ? "nearby" : "feed");
+    setStatusStore(next === "reports" || search.get("status") === "1" ? search.get("store") : null);
   }, [search]);
   function selectView(next: string) {
-    setView(next);
-    if (next === "reports") setReportsActive(true);
+    setView(next); setStatusStore(null);
     const params = new URLSearchParams(search.toString());
-    params.set("view", next);
-    // ⛔ Flikbyte är bara klientläge. En router-navigering kan rendera om
-    // serverträdet och läsa gruppräknare trots att kartan redan har katalogen.
+    params.set("view", next); params.delete("store"); params.delete("status");
+    // ⛔ Flikbyte är klientläge: katalog och grupper är redan lästa.
     window.history.pushState(null, "", `${window.location.pathname}?${params}`);
+  }
+  function closeStatus() {
+    setStatusStore(null);
+    if (search.get("status") || search.get("view") === "reports") {
+      const params = new URLSearchParams(search.toString());
+      params.set("view", "nearby"); params.delete("status");
+      window.history.replaceState(null, "", `${window.location.pathname}?${params}`);
+    }
   }
   const [feedGroup, setFeedGroup] = useState("");
   const [feed, setFeed] = useState<FeedPage>(initial);
@@ -68,13 +72,8 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
       .finally(() => { if (!controller.signal.aborted) setFeedLoading(false); });
     return () => controller.abort();
   }, [feedGroup, initial, t]);
-  const [area, setArea] = useState("");
-  const [storeId, setStoreId] = useState(search.get("store") ?? "");
-  const [product, setProduct] = useState<PickedProduct | null>(null);
-  const [appliedFilters, setAppliedFilters] = useState({ storeId: search.get("store") ?? "", city: "", productSlug: "" });
   const [reports, setReports] = useState<FeedPage | null>(null);
   const [reportVersion, setReportVersion] = useState(0);
-  const [reportsActive, setReportsActive] = useState(search.get("view") === "reports");
   const [reportStore, setReportStore] = useState<CommunityStoreDto | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [name, setName] = useState("");
@@ -87,12 +86,17 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState("");
-  const request = useRef(0);
-  // Filtren tillämpas på ett uttryckligt tryck. Ingen DB-läsning per bokstav.
-  const reportQuery = new URLSearchParams({ reports: "1", ...(appliedFilters.storeId ? { store: appliedFilters.storeId } : {}), ...(appliedFilters.city ? { city: appliedFilters.city } : {}), ...(appliedFilters.productSlug ? { product: appliedFilters.productSlug } : {}) });
-  const query = reportQuery.toString();
+  // Bekräftelser ska inte lägga en extra rad ovanför den viewport-anpassade
+  // kartan: då hamnar butikernas knappar bakom bottennavigationen efter delning.
   useEffect(() => {
-    if (!reportsActive) return;
+    if (!notice) return;
+    toast({ title: notice, variant: "success" }); setNotice("");
+  }, [notice, toast]);
+  const request = useRef(0);
+  // Status läses först när användaren öppnar en butik, inte vid kartpanorering.
+  const query = new URLSearchParams({ reports: "1", ...(statusStore ? { store: statusStore } : {}) }).toString();
+  useEffect(() => {
+    if (!statusStore) return;
     const generation = ++request.current;
     const controller = new AbortController();
     setReports(null); setError(undefined);
@@ -100,7 +104,7 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
       if (generation === request.current) setReports(data);
     }).catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : t("error")); });
     return () => controller.abort();
-  }, [query, reportsActive, reportVersion, t]);
+  }, [query, statusStore, reportVersion, t]);
 
   function login(): boolean {
     if (loggedIn) return true;
@@ -110,7 +114,9 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
     setBusy(true); setError(undefined); setNotice("");
     try { await action(); } catch (e) {
       if (apiErrorCode(e) === FORUM_RULES_CODE) requestForumRules();
-      setError(e instanceof Error ? e.message : t("error"));
+      const message = e instanceof Error ? e.message : t("error");
+      if (suggestOpen) setError(message);
+      else toast({ title: message, variant: "error" });
     } finally { setBusy(false); }
   }
   async function loadFollows() {
@@ -143,20 +149,13 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
       setBusy(false);
     }, () => { setBusy(false); setError(t("locationUnavailable")); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
   }
-  const normalizedArea = area.trim().toLocaleLowerCase();
-  const filtered = stores.filter(s => !normalizedArea || s.city.toLocaleLowerCase().includes(normalizedArea));
-  function showStoreReports(store: CommunityStoreDto) {
-    setArea(""); setStoreId(store.id); setProduct(null);
-    setAppliedFilters({ storeId: store.id, city: "", productSlug: "" });
-    setReportsActive(true); setView("reports");
-    window.history.pushState(null, "", `${window.location.pathname}?view=reports&store=${encodeURIComponent(store.id)}`);
-  }
+  function showStoreReports(store: CommunityStoreDto) { setStatusStore(store.id); }
   function openSuggestion(point?: MapPoint) {
     if (!login()) return;
     setCoordinates(point); setError(undefined); setSuggestOpen(true);
   }
   const local = <div className="space-y-5">
-    <StoreMap stores={stores} followed={followed} onlyFollowed={onlyFollowed} busy={busy}
+    <StoreMap initialStoreId={search.get("store") ?? undefined} stores={stores} followed={followed} onlyFollowed={onlyFollowed} busy={busy}
       onReport={store => { if (login()) setReportStore(store); }} onReports={showStoreReports}
       onSuggest={openSuggestion} onFollow={follow}
       onFollowed={() => onlyFollowed ? setOnlyFollowed(false) : void loadFollows()} />
@@ -171,35 +170,26 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
       })}>{t(status === "APPROVED" ? "approve" : "reject")}</Button>)}</div></div>)}
     </div>}
   </div>;
-  const reportPanel = <div className="space-y-4">
-    <div className="flex items-center justify-between gap-3"><h2 className="font-display text-lg font-semibold text-ink">{stores.find(s => s.id === appliedFilters.storeId)?.name ?? t("latestReports")}</h2>
-      {appliedFilters.storeId && <Button variant="ghost" size="sm" onClick={() => { setStoreId(""); setArea(""); setProduct(null); setAppliedFilters({ storeId: "", city: "", productSlug: "" }); window.history.replaceState(null, "", `${window.location.pathname}?view=reports`); }}>{t("allStores")}</Button>}
-    </div>
-    <details className="rounded-xl border border-surface-border p-3"><summary className="cursor-pointer text-sm text-ink">{t("filterReports")}</summary><div className="mt-4 space-y-3">
-    <div><Label htmlFor="report-area-filter">{t("area")}</Label><Input id="report-area-filter" value={area} onChange={e => { setArea(e.target.value); setStoreId(""); }} placeholder={t("areaPlaceholder")} maxLength={80} /></div>
-    <Label htmlFor="report-store-filter">{t("store")}</Label>
-    <select id="report-store-filter" className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-ink" value={storeId} onChange={e => setStoreId(e.target.value)}><option value="">{t("allStores")}</option>{filtered.map(s => <option value={s.id} key={s.id}>{s.name} · {s.city}</option>)}</select>
-    <ProductPicker value={product} onChange={setProduct} />
-    <Button variant="secondary" onClick={() => { setAppliedFilters({ storeId, city: area.trim(), productSlug: product?.slug ?? "" }); setReportVersion(v => v + 1); window.history.replaceState(null, "", `${window.location.pathname}?view=reports${storeId ? `&store=${encodeURIComponent(storeId)}` : ""}`); }}>{t("storeReports")}</Button>
-    </div></details>
-    {stores.find(s => s.id === appliedFilters.storeId) && <button type="button" className="inline-flex min-h-10 items-center gap-1.5 text-sm text-holo-cyan" onClick={() => { if (login()) setReportStore(stores.find(s => s.id === appliedFilters.storeId) ?? null); }}><IconPlus size={16} />{t("addReport")}</button>}
-    <p className="text-xs text-ink-muted">{t("disclaimer")}</p>
-    {reports ? <ThreadList key={query + reportVersion} initial={reports} reportQuery={query} emptyText={t("noReports")} visual /> : <p className="py-6 text-center text-sm text-ink-muted">{t("loading")}</p>}
-  </div>;
+  const statusSelection = stores.find(s => s.id === statusStore);
   return <div className="space-y-4">
-    <nav className="grid grid-cols-3 gap-1 rounded-full border border-surface-border p-1" aria-label={t("views")} role="tablist">{["feed", "nearby", "reports"].map(id => {
-      const Icon = id === "feed" ? IconNews : id === "nearby" ? IconMapPin : IconClock;
+    <nav className="grid grid-cols-2 gap-1 rounded-full border border-surface-border p-1" aria-label={t("views")} role="tablist">{["feed", "nearby"].map(id => {
+      const Icon = id === "feed" ? IconNews : IconMapPin;
       return <button key={id} type="button" id={`community-tab-${id}`} role="tab" aria-selected={view === id} aria-controls={`community-panel-${id}`} onClick={() => selectView(id)} className={`flex min-h-10 items-center justify-center gap-1.5 rounded-full text-sm font-medium transition-colors ${view === id ? "bg-surface-overlay text-ink" : "text-ink-muted hover:text-ink"}`}><Icon size={16} className={view === id ? "text-holo-cyan" : ""} />{t(id)}</button>;
     })}</nav>
-    {!suggestOpen && error && <FieldError message={error} />}
-    {notice && <p className="text-sm text-holo-cyan" role="status">{notice}</p>}
     <section id={`community-panel-${view}`} role="tabpanel" aria-labelledby={`community-tab-${view}`}>
       {view === "feed" && <div className="space-y-4"><GroupChips groups={groups} activeSlug={feedGroup} onSelect={setFeedGroup} />
         {feedError ? <FieldError message={feedError} /> : feedLoading ? <p className="py-8 text-center text-sm text-ink-muted">{t("loading")}</p> : <ThreadList key={feedGroup} initial={feed} group={feedGroup || undefined} emptyText={t("noPosts")} visual />}
       </div>}
       {view === "nearby" && local}
-      {view === "reports" && reportPanel}
     </section>
+    <BottomSheet open={!!statusSelection && !reportStore} title={statusSelection?.name ?? t("latestReports")} closeLabel={t("close")} headerAction={{ label: t("close"), onClick: closeStatus }} onClose={closeStatus} panelClassName="h-[78dvh] sm:mx-auto sm:w-full sm:max-w-xl">
+      <div className="space-y-4 pb-6">
+        <p className="text-xs text-ink-muted">{statusSelection?.address} · {statusSelection?.city}</p>
+        <button type="button" className="inline-flex min-h-10 items-center gap-1.5 text-sm text-holo-cyan" onClick={() => { if (statusSelection && login()) setReportStore(statusSelection); }}><IconPlus size={16} />{t("addReport")}</button>
+        <p className="text-xs text-ink-muted">{t("disclaimer")}</p>
+        {error ? <FieldError message={error} /> : reports ? <ThreadList key={query + reportVersion} initial={reports} reportQuery={query} emptyText={t("noReports")} visual /> : <p role="status" className="py-6 text-center text-sm text-ink-muted">{t("loading")}</p>}
+      </div>
+    </BottomSheet>
     {reportStore && <StoreReportSheet key={reportStore.id} store={reportStore} onClose={() => setReportStore(null)} onSubmitted={() => { setReportVersion(v => v + 1); setNotice(t("reportShared")); }} />}
     <BottomSheet open={suggestOpen} title={t("suggestStore")} closeLabel={t("close")} onClose={() => !busy && setSuggestOpen(false)} footer={<Button className="w-full" disabled={busy || name.trim().length < 2 || address.trim().length < 3 || city.trim().length < 2} onClick={() => void suggest()}>{t(busy ? "saving" : "submitSuggestion")}</Button>}>
       <div className="space-y-4"><p className="text-sm text-ink-muted">{t("suggestHint")}</p>

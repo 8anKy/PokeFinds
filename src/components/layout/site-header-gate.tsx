@@ -16,5 +16,8 @@ export function SiteHeaderGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   // ⛔ En sticky header inuti en lika hög wrapper kan inte följa dokumentet.
   // Det är wrappern som måste fästas, annars scrollar huvudet bort på profilen.
-  return <div className={`lg:sticky lg:top-0 lg:z-40 ${isSubpageRoute(pathname) ? "hidden lg:block" : ""}`}>{children}</div>;
+  // Community har en egen mobilrad. Två huvuden tryckte kartan och butikerna
+  // nedanför skärmen innan användaren ens hade valt en butik.
+  const ownsMobileHeader = pathname === "/forum" || isSubpageRoute(pathname);
+  return <div className={`lg:sticky lg:top-0 lg:z-40 ${ownsMobileHeader ? "hidden lg:block" : ""}`}>{children}</div>;
 }

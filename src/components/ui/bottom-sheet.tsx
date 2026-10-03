@@ -7,6 +7,11 @@ import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 import { useEventCallback } from "@/hooks/use-event-callback";
 import { classifyDrag, shouldCloseSheet } from "@/lib/sheet-drag";
 
+// ⛔ Kommentarer kan öppnas ovanpå en butiks statusark. Ett stängt översta
+// ark får inte låsa upp sidan bakom det andra, även vid samtidig navigering.
+let openSheets = 0;
+let overflowBeforeSheets = "";
+
 /**
  * Bottenark — appens ENDA glid-upp-panel.
  *
@@ -82,15 +87,18 @@ export function BottomSheet({
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+        if (dialogs[dialogs.length - 1] !== panelRef.current?.closest('[role="dialog"]')) return;
         e.stopPropagation();
         onClose();
       }
     }
     document.addEventListener("keydown", onKeyDown);
+    if (openSheets++ === 0) overflowBeforeSheets = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = "";
+      if (--openSheets === 0) document.body.style.overflow = overflowBeforeSheets;
     };
   }, [open, onClose]);
 

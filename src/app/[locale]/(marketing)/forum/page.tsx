@@ -55,7 +55,7 @@ export default async function ForumPage({ params }: PageProps) {
   const [groups, feed, stores] = await Promise.all([listGroups(), getFeed({ page: 1, pageSize: 20 }), listCommunityStores()]);
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-2.5 py-4 sm:px-6">
+    <div className="mx-auto w-full max-w-2xl px-2.5 py-2 sm:px-6 sm:py-4">
       {/* Bara rubriken — ingen ingress (ägarbeslut 2026-09-03: "onödig text"). */}
       <header className="flex items-center justify-between gap-3">
         <h1 className="min-w-0 font-display text-2xl font-bold text-ink">{t("h1")}</h1>
@@ -86,7 +86,7 @@ export default async function ForumPage({ params }: PageProps) {
         </div>
       </header>
 
-      <div className="mt-5">
+      <div className="mt-3">
         <Suspense fallback={<ThreadList initial={feed} emptyText={t("emptyFeed")} />}>
           <CommunityHub initial={feed} groups={groups} stores={stores} />
         </Suspense>
