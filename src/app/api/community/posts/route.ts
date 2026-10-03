@@ -150,6 +150,7 @@ export async function POST(req: Request) {
         throw new ServiceError(400, "Inlägget innehåller ord som inte är tillåtna i forumet. Ändra texten och försök igen.", PROFANITY_CODE);
       }
       storeReport = { storeId: store.id, productLabel, productSlug: input.storeReport.productSlug,
+        priceOre: input.storeReport.priceOre, currency: input.storeReport.currency,
         observation: input.storeReport.observation, observedAt: new Date(input.storeReport.observedAt),
         nearbyAtSubmit: nearbyAtSubmit(store, input.storeReport) };
     }

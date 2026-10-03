@@ -5,6 +5,7 @@ export type StoreObservation = (typeof STORE_OBSERVATIONS)[number];
 export const REPORT_FRESH_HOURS = 12;
 export const MAX_VISIT_AGE_DAYS = 7;
 export const COMMUNITY_STORES_TAG = "community-stores";
+export const storeReportPriceSchema = z.number().int().positive().max(100000000);
 
 export const locationSchema = z.object({
   latitude: z.number().min(-90).max(90),
@@ -22,6 +23,8 @@ export const storeSuggestionSchema = z.object({
 export const storeReportSchema = z.object({
   storeId: z.string().min(1).max(64),
   productSlug: z.string().trim().min(1).max(200),
+  priceOre: storeReportPriceSchema,
+  currency: z.literal("SEK").default("SEK"),
   observation: z.enum(STORE_OBSERVATIONS),
   observedAt: z.string().datetime(),
   location: locationSchema.optional(),

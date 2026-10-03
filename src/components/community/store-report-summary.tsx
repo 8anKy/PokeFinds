@@ -6,6 +6,7 @@ import { Link } from "@/i18n/navigation";
 import { reportIsFresh, type StoreObservation } from "@/lib/community-stores";
 import type { StoreReportDto } from "@/services/community";
 import { RelativeTime } from "./relative-time";
+import { formatPrice } from "@/lib/format";
 
 export function StoreReportSummary({ report, linked = true }: { report: StoreReportDto; linked?: boolean }) {
   const t = useTranslations("LocalStores");
@@ -23,6 +24,7 @@ export function StoreReportSummary({ report, linked = true }: { report: StoreRep
         {now === null || fresh ? t(`observation.${report.observation as StoreObservation}`) : t("oldReport")}
       </p>
       <p className="font-medium text-ink">{report.productLabel}</p>
+      {report.priceOre != null && <p className="font-semibold tabular-nums text-ink">{formatPrice(report.priceOre, report.currency)}</p>}
       <p className="text-ink-muted">{report.store.name} · {report.store.city}</p>
       <p className="text-xs text-ink-muted">{t("observed")} <RelativeTime date={report.observedAt} /></p>
       {!fresh && now !== null && <p className="text-xs text-ink-muted">{t("previousObservation", { status: t(`observation.${report.observation as StoreObservation}`) })}</p>}

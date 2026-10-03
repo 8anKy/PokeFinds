@@ -109,6 +109,8 @@ export interface StoreReportDto {
   store: { id: string; name: string; address: string; city: string };
   productLabel: string;
   productSlug: string | null;
+  priceOre: number | null;
+  currency: string;
   observation: string;
   observedAt: string;
   nearbyAtSubmit: boolean;
@@ -268,14 +270,14 @@ async function getFeedRaw(params: FeedParams) {
   return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
-export const getFeed = cachedRead(getFeedRaw, "community-feed-v5", 3600, ["community-feed"]);
+export const getFeed = cachedRead(getFeedRaw, "community-feed-v6", 3600, ["community-feed"]);
 
 /** Ett valt äldre inlägg på profilen: samma miniatyrer/modereringsvakt som
  * flödet, en delad läsning i stället för att hämta alla personens sidor. */
 export const getProfileFeedItem = cachedRead(async (postId: string, authorId: string): Promise<FeedItem | null> => {
   const row = await prisma.communityPost.findFirst({ where: { id: postId, userId: authorId, isHidden: false }, include: FEED_INCLUDE });
   return row ? (await toFeedItems([row]))[0] : null;
-}, "community-profile-feed-item-v2", 3600, ["community-feed"]);
+}, "community-profile-feed-item-v3", 3600, ["community-feed"]);
 
 /**
  * Betraktarens SPARADE trådar, senast sparad först — dit Spara-knappen leder
@@ -369,7 +371,7 @@ export async function getPost(postId: string): Promise<ThreadDetail> {
 }
 
 export interface CreatePostInput {
-  storeReport?: { storeId: string; productLabel: string; productSlug: string | null; observation: string; observedAt: Date; nearbyAtSubmit: boolean };
+  storeReport?: { storeId: string; productLabel: string; productSlug: string | null; priceOre: number; currency: string; observation: string; observedAt: Date; nearbyAtSubmit: boolean };
   groupId: string;
   title: string;
   content: string;

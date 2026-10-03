@@ -3,9 +3,19 @@ import { distanceMeters, nearbyAtSubmit, reportIsFresh, storeIdentity, storeRepo
 
 const now = Date.parse("2026-10-03T12:00:00Z");
 const store = { latitude: 59.33, longitude: 18.06 };
-const report: StoreReportInput = { storeId: "branch", productSlug: "booster-bundle", observation: "SEEN", observedAt: new Date(now).toISOString() };
+const report: StoreReportInput = { storeId: "branch", productSlug: "booster-bundle", priceOre: 9950, currency: "SEK", observation: "SEEN", observedAt: new Date(now).toISOString() };
 
 describe("local store observations", () => {
+  it("requires a positive integer SEK price for every stock status", () => {
+    for (const observation of ["SEEN", "SOLD_OUT", "NOT_CARRIED"]) {
+      for (const priceOre of [undefined, null, 0, -1, 99.5, 100000001]) {
+        expect(storeReportSchema.safeParse({ ...report, observation, priceOre }).success).toBe(false);
+      }
+      expect(storeReportSchema.parse({ ...report, observation, priceOre: 9950 }).priceOre).toBe(9950);
+    }
+    expect(storeReportSchema.safeParse({ ...report, currency: "EUR" }).success).toBe(false);
+    expect(storeReportSchema.parse({ ...report, currency: undefined }).currency).toBe("SEK");
+  });
   it("requires catalogue identity and never trusts a client product label", () => {
     const { productSlug, ...withoutProduct } = report;
     expect(storeReportSchema.safeParse({ ...withoutProduct, productLabel: "Any free text" }).success).toBe(false);

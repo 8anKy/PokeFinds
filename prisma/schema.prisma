@@ -1357,6 +1357,9 @@ model CommunityStoreReport {
   storeId         String
   productLabel    String
   productSlug     String?
+  // ⛔ Äldre rapporter saknar pris; hitta aldrig på ett vid backfill. Nya kräver positiva öre.
+  priceOre        Int?
+  currency        String @default("SEK")
   observation     String
   observedAt      DateTime
   // ⛔ Spara aldrig besökarens koordinater. Detta är en ungefärlig signal från
