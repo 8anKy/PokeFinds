@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { existsSync } from "node:fs";
 import { hasStorePosition, storesInBounds, storesForBrowsing, storeClusters } from "@/lib/community-map";
 import type { CommunityStoreDto } from "@/services/community-stores";
 import curated from "@/data/community-stores-curated.json";
@@ -26,6 +27,15 @@ describe("community store map", () => {
     expect(storeClusters([a, b], s => ({ x: (s.longitude - 18) * 1000, y: 0 }))).toHaveLength(1);
     expect(storeClusters([a, b], s => ({ x: (s.longitude - 18) * 10000, y: 0 }))).toHaveLength(2);
   });
+  it("includes current missing chains and existing retailers with local branch logos", () => {
+    for (const name of ["Webhallen Fridhemsplan", "Webhallen Frölunda Torg", "Kandyz Länna", "Speltrollet", "RGB Kingz", "Manatörsk", "Spelgalaxen"]) {
+      expect(curated.some(s => s.name === name)).toBe(true);
+    }
+    for (const s of curated) {
+      expect(s.logoUrl).toMatch(/^\/retailer-logos\/[a-z0-9-]+\.png$/);
+      expect(existsSync(`public${s.logoUrl}`)).toBe(true);
+    }
+  });
   it("every seeded store has address and Pokémon evidence; map coordinates require an exact address source", () => {
     expect(new Set(curated.map(s => `${s.name}|${s.address}|${s.city}`)).size).toBe(curated.length);
     for (const s of curated) {
@@ -33,7 +43,7 @@ describe("community store map", () => {
       if (s.latitude != null) {
         expect(s.longitude).not.toBeNull();
         expect(s.coordinateSource).toMatch(/^https:\/\//);
-        if (s.coordinateSource === "https://lekextra.se/butiksoversikt/") expect(s.coordinateLabel).toContain(s.address);
+        if (!s.coordinateSource?.includes("openstreetmap.org")) expect(s.coordinateLabel).toContain(s.address);
         else expect(s.coordinateLabel.toLowerCase()).toContain(s.address.match(/\d+/)?.[0]);
       }
     }

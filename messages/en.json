@@ -2899,6 +2899,8 @@
     "corner3": "Bottom left corner"
   },
   "LocalStores": {
+    "moveMap": "Move map",
+    "finishMap": "Done",
     "browseStores": "Expand store list",
     "storeList": "Find a store",
     "searchResults": "Search results",
