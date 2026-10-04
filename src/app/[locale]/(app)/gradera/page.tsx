@@ -855,8 +855,11 @@ export default function GraderaPage() {
   const [tourOpen, setTourOpen] = useState(false);
   /** Slabbens bild (ägarönskan 2026-10-04): katalogbilden eller användarens eget foto. */
   const [slabImage, setSlabImage] = useState<"catalog" | "photo">("catalog");
-  /** Kortet utskuret ur framsidan när centreringen inte mätts. undefined = inte försökt. */
-  const [autoCrop, setAutoCrop] = useState<string | null | undefined>(undefined);
+  /** Kortet utskuret ur fotot när centreringen inte mätts. undefined = inte försökt. */
+  const [autoCrop, setAutoCrop] = useState<Record<CenteringSide, string | null | undefined>>({
+    front: undefined,
+    back: undefined,
+  });
   const tc = useTranslations("Centering");
   const ts = useTranslations("ShareCard");
 
@@ -932,19 +935,43 @@ export default function GraderaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobs === null]);
 
-  // "Mitt foto" på slabben utan mätning: skär ut kortet ur framsidan (en gång per foto).
-  const ownCrop = centering.front?.cropDataUrl ?? null;
+  // "Mitt foto" på slabben utan mätning: skär ut kortet ur fotot (en gång per foto).
+  // Baksidan behövs för videon — slabben snurrar med kortets riktiga baksida.
+  const photos: Record<CenteringSide, string | null> = { front, back };
+  useEffect(() => setAutoCrop((a) => ({ ...a, front: undefined })), [front]);
+  useEffect(() => setAutoCrop((a) => ({ ...a, back: undefined })), [back]);
+  const cropFor = (s: CenteringSide) => centering[s]?.cropDataUrl ?? autoCrop[s] ?? null;
+  const cropsPending = (["front", "back"] as const).some(
+    (s) => photos[s] && !centering[s]?.cropDataUrl && autoCrop[s] === undefined
+  );
   useEffect(() => {
-    setAutoCrop(undefined);
-  }, [front]);
-  useEffect(() => {
-    if (!shareOpen || !front || ownCrop || autoCrop !== undefined || result?.historyAt) return;
+    if (!shareOpen || result?.historyAt) return;
     let alive = true;
-    void autoCropCard(front).then((c) => alive && setAutoCrop(c));
+    for (const s of ["front", "back"] as const) {
+      const src = s === "front" ? front : back;
+      if (!src || centering[s]?.cropDataUrl || autoCrop[s] !== undefined) continue;
+      void autoCropCard(src).then((c) => alive && setAutoCrop((a) => ({ ...a, [s]: c })));
+    }
     return () => {
       alive = false;
     };
-  }, [shareOpen, front, ownCrop, autoCrop, result?.historyAt]);
+  }, [shareOpen, front, back, centering, autoCrop, result?.historyAt]);
+
+  /** Börja om: nya foton, ny gradering (resultatet ligger kvar i historiken). */
+  function startOver() {
+    setFront(null);
+    setBack(null);
+    setCentering({ front: null, back: null });
+    setResult(null);
+    setCardHint(null);
+    setSetHint(null);
+    setCardIdHint(null);
+    setIdentified(null);
+    setSuggestions([]);
+    userPickedRef.current = false;
+    setSlabImage("catalog");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   async function handleFile(file: File, side: "front" | "back") {
     // HEIC kan sakna typ i vissa filväljare — släpp igenom en tom typ och låt
@@ -1036,7 +1063,7 @@ export default function GraderaPage() {
     if (stored?.front) parts.push(`${t("frontShort")} ${storedRatiosText(stored.front, topRight)}`);
     if (stored?.back) parts.push(`${t("backShort")} ${storedRatiosText(stored.back, topRight)}`);
     // Användarens kort: utskuret längs stödlinjerna, annars hittat automatiskt.
-    const own = r.historyAt ? null : ownCrop ?? autoCrop ?? null;
+    const own = r.historyAt ? null : cropFor("front");
     const photo = image === "photo" && !r.historyAt;
     return {
       // Standard: katalogbilden när kortet är styrkt (skarpast i en story); annars
@@ -1055,6 +1082,8 @@ export default function GraderaPage() {
       footer: { lead: t("shareFooterLead"), domain },
       // Videons kortbaksida: japansk för japanska kort, annars den internationella.
       // Äldre graderingar saknar språket — katalognamnens "(JP)" säger samma sak.
+      // "Mitt foto": videon snurrar med användarens egen baksida.
+      backImageUrl: photo ? cropFor("back") ?? back : null,
       cardBack:
         r.result.cardLanguage === "JP" || /\(JP\)/.test(r.result.cardLabel ?? r.result.cardName ?? "")
           ? ("jp" as const)
@@ -1252,15 +1281,24 @@ export default function GraderaPage() {
             </div>
           )}
           <div className="flex flex-wrap items-center gap-3">
-            <Button
-              data-tour="grading-grade"
-              onClick={() => void gradeNow()}
-              disabled={!front || !back || limitReached}
-              loading={grading}
-            >
-              <IconShield size={16} />
-              {t("gradeBtn")}
-            </Button>
+            {/* Graderat på DE HÄR fotona ⇒ ingen andra gradering av samma bilder; nästa
+                steg är ett nytt kort. (Ett nytt foto nollar resultatet och knappen kommer tillbaka.) */}
+            {result && !result.historyAt ? (
+              <Button data-tour="grading-grade" variant="outline" onClick={startOver}>
+                <IconCamera size={16} />
+                {t("gradeAnother")}
+              </Button>
+            ) : (
+              <Button
+                data-tour="grading-grade"
+                onClick={() => void gradeNow()}
+                disabled={!front || !back || limitReached}
+                loading={grading}
+              >
+                <IconShield size={16} />
+                {t("gradeBtn")}
+              </Button>
+            )}
             {grading && (
               <span className="text-sm text-ink-muted">{t("analyzing")}</span>
             )}
@@ -1360,41 +1398,32 @@ export default function GraderaPage() {
           onClose={() => setShareOpen(false)}
           panelClassName="sm:mx-auto sm:max-w-md"
         >
-          {shareOpen && !result.historyAt && result.result.cardImageUrl && front && (
-            <div className="flex items-center justify-between gap-3 px-4 pb-1 pt-1 sm:px-5">
-              <span className="text-xs font-medium text-ink-muted">{t("slabImage")}</span>
-              <div className="flex gap-1 rounded-full bg-surface-overlay/60 p-1 ring-1 ring-surface-border">
-                {(["catalog", "photo"] as const).map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    aria-pressed={slabImage === k}
-                    onClick={() => setSlabImage(k)}
-                    className={cn(
-                      "flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-                      slabImage === k ? "bg-holo-cyan text-surface" : "text-ink-muted hover:text-ink"
-                    )}
-                  >
-                    {k === "photo" ? <IconImage size={13} /> : <IconSparkle size={13} />}
-                    {k === "photo" ? t("slabImagePhoto") : t("slabImageCatalog")}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {shareOpen && (!result.historyAt && front && !ownCrop && autoCrop === undefined ? (
+          {shareOpen && (!result.historyAt && cropsPending ? (
             <div className="flex justify-center py-16">
               <Spinner />
             </div>
           ) : (
             <ShareCardPanel
-              key={result.historyAt ? "history" : slabImage}
+              key={result.historyAt ? "history" : "fresh"}
               source="grade"
               previewMax="50dvh"
               safeBottom
               name={splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ?? t("shareUnknownCard")}
               // Slabben bär aldrig den personliga länken (ägarbeslut 2026-10-01).
               printLink={false}
+              // Katalogbild eller eget foto — bara när båda finns (ur historiken finns inga foton).
+              choice={
+                !result.historyAt && result.result.cardImageUrl && front
+                  ? {
+                      value: slabImage,
+                      options: [
+                        { key: "catalog", label: t("slabImageCatalog") },
+                        { key: "photo", label: t("slabImagePhoto") },
+                      ],
+                      onChange: (k) => setSlabImage(k as "catalog" | "photo"),
+                    }
+                  : undefined
+              }
               render={(domain) => renderGradeShareCard(gradeShareInput(result, domain, slabImage))}
               spin={(domain) => prepareGradeSpinLayers(gradeShareInput(result, domain, slabImage))}
             />

@@ -66,6 +66,11 @@ paths:
   Uppladdningen har TVÅ inputs: kamera (`capture`) och kamerarulle (utan) — en input med `capture` stängde galleriet
   på Android. Delningsarket väljer slabbens bild: katalogbild eller "Mitt foto" (mätarens utsnitt, annars
   `autoCropCard` med skannerns hörnsökare, annars råfotot). Centreringsmätaren visar en ritad hjälp första gången
-  per steg ("?" tar fram den), linjesteget har ALLTID en vald linje med en mening + "Nästa linje".
+  per steg ("?" tar fram den) som täcker HELA mätaren; linjesteget har bara Hörnen + e-Reader och EN mening om
+  linjen man drar (ägarens fältrapport: pilknappar/"Nästa linje"/andra hjälptext var för mycket). Efter en färsk
+  gradering byts Gradera-knappen mot "Gradera ett nytt kort" (samma foton graderas inte två gånger). "Mitt foto" på
+  slabben ⇒ videon snurrar med användarens EGEN baksida (`backImageUrl`), annars den generiska. Turerna stoppar
+  pek/hjul/tangent-scroll medan de är öppna (`useBlockScroll`, händelser — aldrig `overflow`). "Vilket kort är det?"
+  visar bara bildträffar ≥ ART_TRUST_SCORE (0,55); under golvet är träffen i praktiken alltid fel.
   Graderingsturen (`lib/grading-tour.ts`, fem info-steg, localStorage) delar ritningen med appturen
   (`components/features/spotlight.tsx`).

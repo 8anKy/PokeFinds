@@ -1729,7 +1729,8 @@
       "minor": "Lätt",
       "moderate": "Märkbar",
       "major": "Tydlig"
-    }
+    },
+    "gradeAnother": "Gradera ett nytt kort"
   },
   "PostCategory": {
     "PULLS": "Pulls",
@@ -2888,13 +2889,9 @@
       "innerTop": "Inre övre",
       "innerBottom": "Inre nedre"
     },
-    "pickLine": "Välj en linje",
-    "nudgeLess": "Flytta linjen en pixel bakåt",
-    "nudgeMore": "Flytta linjen en pixel framåt",
     "ereader": "e-Reader-kort",
     "legendOuter": "Vit = kortets kant",
     "legendInner": "Turkos = ramens innerkant",
-    "hint": "Dra handtagen tills linjerna ligger exakt på kanterna. Förstoringsglaset visas medan du drar, pilarna flyttar en pixel.",
     "hintEreader": "e-Reader-kort har punktkod längs vänster- och nederkanten, så vi jämför den övre och den högra kanten — lika breda betyder centrerat.",
     "axisLeftRight": "Vänster/höger",
     "axisTopBottom": "Övre/nedre",
@@ -2919,7 +2916,6 @@
     "tipTitle": "Mät centreringen själv (valfritt)",
     "tipBody": "Tar ungefär en halv minut: lägg linjer på kortets kant och ramens insida. Ett uppmätt värde ger en säkrare grad än AI:ns ögonmått.",
     "helpOpen": "Visa hur mätaren fungerar",
-    "nextLine": "Nästa linje",
     "lineHelpOuter": "lägg den vita linjen exakt på kortets {edge} kant.",
     "lineHelpInner": "lägg den turkosa linjen där den gula ramen slutar vid {edge} kanten — där bilden/textrutan börjar.",
     "lineHelpInnerBack": "lägg den turkosa linjen där den blå ramen slutar vid {edge} kanten.",
@@ -2935,11 +2931,12 @@
     "helpCorners3": "Tryck Nästa så rätar vi upp fotot, även om det är taget snett.",
     "helpLinesTitle": "Två linjer per kant",
     "helpLines1": "VIT linje = kortets yttre kant. TURKOS linje = ramens insida.",
-    "helpLines2": "En linje är alltid vald. Dra den, eller finjustera med pilarna. Förstoringsglaset visas medan du drar.",
-    "helpLines3": "Tryck Nästa linje tills alla sitter. Lika breda ramar på båda sidor betyder perfekt centrerat.",
+    "helpLines2": "Dra en linje i taget. Förstoringsglaset visas medan du drar så att du kan lägga den exakt.",
+    "helpLines3": "Lika breda ramar på båda sidor betyder perfekt centrerat. Tryck Klar när alla linjer sitter.",
     "helpGotIt": "Jag förstår",
     "tipWhereButtons": "Tryck på Mät centrering under fotot.",
-    "tipAfterPhoto": "Knappen dyker upp under fotot när du lagt till det."
+    "tipAfterPhoto": "Knappen dyker upp under fotot när du lagt till det.",
+    "linesGeneral": "Dra varje linje till sin kant — förstoringsglaset visas medan du drar."
   },
   "LocalStores": {
     "browseStores": "Visa större lista",

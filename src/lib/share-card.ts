@@ -490,6 +490,11 @@ export interface GradeShareInput {
    * alla andra språk). Bilderna ligger i public/card-backs/ (ägarens filer 2026-10-01).
    */
   cardBack?: "en" | "jp";
+  /**
+   * Användarens EGNA baksida (utskuren) när slabben visar "Mitt foto" — då snurrar
+   * slabben med kortets riktiga baksida i stället för den generiska (2026-10-04).
+   */
+  backImageUrl?: string | null;
 }
 
 /**
@@ -998,7 +1003,12 @@ export interface GradeSpinLayers {
 export async function prepareGradeSpinLayers(input: GradeShareInput): Promise<GradeSpinLayers> {
   const [{ art, mark, family }, backArt] = await Promise.all([
     loadGradeAssets(input),
-    loadImage(`/card-backs/${input.cardBack === "jp" ? "jp" : "en"}.jpg`, false).catch(() => null),
+    (input.backImageUrl
+      ? loadImage(input.backImageUrl, false).catch(() => null)
+      : Promise.resolve(null)
+    ).then(
+      (own) => own ?? loadImage(`/card-backs/${input.cardBack === "jp" ? "jp" : "en"}.jpg`, false).catch(() => null)
+    ),
   ]);
   const background = document.createElement("canvas");
   background.width = SHARE_CARD_WIDTH;

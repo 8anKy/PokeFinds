@@ -15,9 +15,10 @@
  *
  * HJÄLPEN (2026-10-04, "folk förstår inte hur mätaren används"): varje steg öppnas
  * första gången med en bild som VISAR vad man gör (`CenteringHelp`, "?" tar fram den
- * igen), och i linjesteget är alltid EN linje vald med en mening om var just den ska
- * ligga — "Nästa linje" går igenom alla åtta. Förut var ingen linje vald, pilarna var
- * döda och instruktionen stod i liten text längst ned.
+ * igen) och täcker HELA skärmen — inga knappar syns bakom den. Linjesteget har bara
+ * Hörnen + e-Reader under avläsningen och EN mening om linjen man drar (ägarens
+ * fältrapport samma kväll: pilknappar, "Nästa linje" och en andra hjälptext var för
+ * mycket). Pilknapparna på tangentbordet finns kvar för den som fokuserar ett handtag.
  *
  * ⛔ Ingen AI och inget nätverk — allt räknas på telefonen.
  * ⛔ Portal till body + `data-drag-surface` + `touch-none`, precis som bildläsaren:
@@ -41,10 +42,6 @@ import { Button } from "@/components/ui/button";
 import { CircleButton } from "@/components/ui/back-circle";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  IconChevronDown,
-  IconChevronLeft,
-  IconChevronRight,
-  IconChevronUp,
   IconHelp,
   IconRotate,
   IconX,
@@ -339,7 +336,7 @@ export function CenteringTool(props: {
   const [quad, setQuad] = useState<Quad | null>(props.initial?.quad ?? null);
   const [lines, setLines] = useState<CenteringLines>(props.initial?.lines ?? defaultLines());
   const [mode, setMode] = useState<CenteringMode>(props.initial?.mode ?? props.defaultMode);
-  const [selected, setSelected] = useState<CenteringLineKey | null>(props.initial ? "outerLeft" : null);
+  const [selected, setSelected] = useState<CenteringLineKey | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [fingerLeft, setFingerLeft] = useState(true);
   const [help, setHelp] = useState<Step | null>(null);
@@ -478,8 +475,7 @@ export function CenteringTool(props: {
     const ok = await buildStraight(quad, null).catch(() => false);
     setBusy(false);
     if (ok) {
-      // En linje är alltid vald: pilarna fungerar direkt och meningen säger var den ska ligga.
-      setSelected("outerLeft");
+      setSelected(null);
       setStep("lines");
     }
   }
@@ -551,23 +547,6 @@ export function CenteringTool(props: {
     dragStart.current = null;
     setDrag(null);
   }, []);
-
-  const nudge = useCallback(
-    (dir: -1 | 1) => {
-      if (!selected || !straight) return;
-      const size = isVerticalLine(selected) ? straight.w : straight.h;
-      setLines((prev) => ({ ...prev, [selected]: clampLine(prev, selected, prev[selected] + dir / size) }));
-    },
-    [selected, straight]
-  );
-
-  /** Nästa linje i tur (ytterlinjerna först, sedan innerlinjerna); e-Readerns döda hoppas över. */
-  const nextLine = () => {
-    const usable = LINE_KEYS.filter((k) => !(mode === "ereader" && side === "front" && (k === "innerLeft" || k === "innerBottom")));
-    const order = [...usable.filter((k) => k.startsWith("outer")), ...usable.filter((k) => k.startsWith("inner"))];
-    const i = selected ? order.indexOf(selected) : -1;
-    setSelected(order[(i + 1) % order.length]);
-  };
 
   function done() {
     const w = straightRef.current;
@@ -743,8 +722,6 @@ export function CenteringTool(props: {
     );
   }
 
-  const verticalSelected = selected ? isVerticalLine(selected) : true;
-
   const content = (
     <div
       role="dialog"
@@ -783,7 +760,6 @@ export function CenteringTool(props: {
       <div ref={stageRef} className="relative min-h-0 flex-1 touch-none select-none px-3">
         {stageContent}
         {loupe}
-        {help && <CenteringHelp step={help} side={side} onClose={closeHelp} />}
       </div>
 
       {/* Kontroller */}
@@ -793,47 +769,31 @@ export function CenteringTool(props: {
         ) : (
           <>
             <Readout result={result} side={side} />
-            {selected && (
-              <p className="rounded-lg bg-surface-overlay/60 px-3 py-2 text-[12px] leading-relaxed text-ink">
-                <span className={cn("font-semibold", selected.startsWith("inner") ? "text-holo-cyan" : "text-white")}>
-                  {t(`line.${selected}`)}:
-                </span>{" "}
-                {t(selected.startsWith("inner") ? (side === "front" ? "lineHelpInner" : "lineHelpInnerBack") : "lineHelpOuter", {
-                  edge: t(`edge.${edgeOf(selected)}`),
-                })}
-              </p>
-            )}
+            <p className="rounded-lg bg-surface-overlay/60 px-3 py-2 text-[12px] leading-relaxed text-ink">
+              {selected ? (
+                <>
+                  <span className={cn("font-semibold", selected.startsWith("inner") ? "text-holo-cyan" : "text-white")}>
+                    {t(`line.${selected}`)}:
+                  </span>{" "}
+                  {t(
+                    selected.startsWith("inner")
+                      ? side === "front"
+                        ? "lineHelpInner"
+                        : "lineHelpInnerBack"
+                      : "lineHelpOuter",
+                    { edge: t(`edge.${edgeOf(selected)}`) }
+                  )}
+                </>
+              ) : mode === "ereader" && side === "front" ? (
+                t("hintEreader")
+              ) : (
+                <>
+                  <span className="font-semibold text-white">{t("legendOuter")}</span> ·{" "}
+                  <span className="font-semibold text-holo-cyan">{t("legendInner")}</span>. {t("linesGeneral")}
+                </>
+              )}
+            </p>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 rounded-full border border-surface-border p-1">
-                <button
-                  type="button"
-                  aria-label={t("nudgeLess")}
-                  disabled={!selected}
-                  onClick={() => nudge(-1)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-ink hover:bg-surface-overlay disabled:opacity-30"
-                >
-                  {verticalSelected ? <IconChevronLeft size={16} /> : <IconChevronUp size={16} />}
-                </button>
-                <span className="w-24 truncate text-center text-[11px] text-ink-muted">
-                  {selected ? t(`line.${selected}`) : t("pickLine")}
-                </span>
-                <button
-                  type="button"
-                  aria-label={t("nudgeMore")}
-                  disabled={!selected}
-                  onClick={() => nudge(1)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-ink hover:bg-surface-overlay disabled:opacity-30"
-                >
-                  {verticalSelected ? <IconChevronRight size={16} /> : <IconChevronDown size={16} />}
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={nextLine}
-                className="flex items-center gap-1 rounded-full bg-holo-cyan px-3 py-2 text-xs font-semibold text-surface hover:bg-holo-cyan/90"
-              >
-                {t("nextLine")} <IconChevronRight size={14} />
-              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -860,15 +820,12 @@ export function CenteringTool(props: {
                 </button>
               )}
             </div>
-            <p className="text-[11px] leading-relaxed text-ink-faint">
-              <span className="font-semibold text-white">{t("legendOuter")}</span> ·{" "}
-              <span className="font-semibold text-holo-cyan">{t("legendInner")}</span>
-              {" — "}
-              {mode === "ereader" && side === "front" ? t("hintEreader") : t("hint")}
-            </p>
           </>
         )}
       </div>
+
+      {/* Hjälpen täcker HELA mätaren — huvud, scen och kontroller. */}
+      {help && <CenteringHelp step={help} side={side} onClose={closeHelp} />}
     </div>
   );
 
@@ -914,8 +871,11 @@ function CenteringHelp({ step, side, onClose }: { step: Step; side: CenteringSid
   const reduced =
     typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/85 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-2xl">
+    <div
+      className="absolute inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black px-4"
+      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      <div className="my-4 w-full max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-2xl">
         <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-holo-cyan">
           {step === "corners" ? t("stepCorners") : t("stepLines")}
         </p>
@@ -940,41 +900,122 @@ function CenteringHelp({ step, side, onClose }: { step: Step; side: CenteringSid
   );
 }
 
-/** Steg 1: ett snett kort, hörnen glider ut till kortets hörn, sedan det upprätade kortet. */
+/**
+ * Steg 1, ritat som det ser ut i mätaren: prickarna börjar i en rak ruta som inte
+ * stämmer, ett finger drar dem en i taget till det sneda kortets hörn och konturen
+ * följer med. Inzoomningen visar regeln för RUNDADE hörn: pricken ligger där de raka
+ * kanterna skulle mötas, inte på rundningen.
+ */
 function CornersDiagram({ animate }: { animate: boolean }) {
-  // Det sneda kortets hörn (ÖV, ÖH, NH, NV) och startlägena handtagen glider från.
-  const card = [
-    [38, 30],
-    [104, 22],
-    [114, 118],
-    [44, 128],
+  // Kortet: mitt (122, 76), 64 × 90, lutat −9°.
+  const cx = 122;
+  const cy = 76;
+  const a = (-9 * Math.PI) / 180;
+  const rot = (dx: number, dy: number): [number, number] => [
+    Math.round((cx + dx * Math.cos(a) - dy * Math.sin(a)) * 10) / 10,
+    Math.round((cy + dx * Math.sin(a) + dy * Math.cos(a)) * 10) / 10,
   ];
-  const start = [
-    [26, 18],
-    [118, 14],
-    [126, 132],
-    [30, 140],
+  const target = [rot(-32, -45), rot(32, -45), rot(32, 45), rot(-32, 45)];
+  const start: [number, number][] = [
+    [80, 22],
+    [166, 22],
+    [166, 132],
+    [80, 132],
   ];
-  const pts = card.map((p) => p.join(",")).join(" ");
+  // Tidslinjen (andel av 8 s): prick i flyttas under [t_i, t_i + MOVE].
+  const T = [0.1, 0.28, 0.46, 0.64];
+  const MOVE = 0.12;
+  const END = 0.94;
+  const pointsAt = (k: number) => target.map((p, i) => (i < k ? p : start[i]).join(",")).join(" ");
+  const fmt = (n: number) => n.toFixed(3);
+
+  // Konturen: ett nyckelläge efter varje drag.
+  const polyKeys = [0, ...T.flatMap((t) => [t, t + MOVE]), END, 1];
+  const polyVals = [
+    pointsAt(0),
+    ...T.flatMap((_, i) => [pointsAt(i), pointsAt(i + 1)]),
+    pointsAt(4),
+    pointsAt(0),
+  ];
+  // Fingret: vilar på nästa pricks startläge, följer pricken, försvinner på slutet.
+  const fingerKeys = [0, ...T.flatMap((t) => [t, t + MOVE]), END, 1];
+  const fingerPts: [number, number][] = [start[0], ...T.flatMap((_, i) => [start[i], target[i]]), target[3], start[0]];
+  const DUR = "8s";
+  const dim = `M0 0H220V150H0Z M${(animate ? start : target).map((p) => p.join(" ")).join(" L")}Z`;
+
   return (
     <svg viewBox="0 0 220 150" className="block h-auto w-full" aria-hidden="true">
-      <rect width="220" height="150" fill="#111114" />
-      <polygon points={pts} fill="#d6b13a" />
-      <polygon points="45,37 101,30 106,74 50,80" fill="#2a2a30" />
-      <polygon points={pts} fill="none" stroke="#2dd4bf" strokeWidth="1.5" strokeDasharray="4 3" />
-      {card.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="5" fill="rgba(0,0,0,0.7)" stroke="#2dd4bf" strokeWidth="2">
-          {animate && (
-            <>
-              <animate attributeName="cx" values={`${start[i][0]};${x};${x}`} keyTimes="0;0.45;1" dur="2.6s" repeatCount="indefinite" />
-              <animate attributeName="cy" values={`${start[i][1]};${y};${y}`} keyTimes="0;0.45;1" dur="2.6s" repeatCount="indefinite" />
-            </>
-          )}
+      <rect width="220" height="150" fill="#3b2f25" />
+      {/* Kortet (rundade hörn) på bordet */}
+      <g transform={`rotate(-9 ${cx} ${cy})`}>
+        <rect x={cx - 32} y={cy - 45} width="64" height="90" rx="5" fill="#d6b13a" />
+        <rect x={cx - 26} y={cy - 38} width="52" height="38" fill="#2a2a30" />
+        <rect x={cx - 26} y={cy + 6} width="52" height="28" fill="#e9d48a" />
+      </g>
+      {/* Konturen mätaren ritar */}
+      <path d={dim} fill="rgba(0,0,0,0.35)" fillRule="evenodd" opacity={animate ? 0 : 1} />
+      <polygon points={animate ? pointsAt(0) : pointsAt(4)} fill="none" stroke="#2dd4bf" strokeWidth="1.5">
+        {animate && (
+          <animate
+            attributeName="points"
+            values={polyVals.join(";")}
+            keyTimes={polyKeys.map(fmt).join(";")}
+            dur={DUR}
+            repeatCount="indefinite"
+          />
+        )}
+      </polygon>
+      {target.map((tgt, i) => (
+        <circle
+          key={i}
+          cx={animate ? start[i][0] : tgt[0]}
+          cy={animate ? start[i][1] : tgt[1]}
+          r="5"
+          fill="rgba(0,0,0,0.75)"
+          stroke="#2dd4bf"
+          strokeWidth="2"
+        >
+          {animate &&
+            (["cx", "cy"] as const).map((attr, k) => (
+              <animate
+                key={attr}
+                attributeName={attr}
+                values={[start[i][k], start[i][k], tgt[k], tgt[k], start[i][k]].join(";")}
+                keyTimes={[0, T[i], T[i] + MOVE, END, 1].map(fmt).join(";")}
+                dur={DUR}
+                repeatCount="indefinite"
+              />
+            ))}
         </circle>
       ))}
-      <path d="M134 75h22m-6-6 6 6-6 6" stroke="#9ca3af" strokeWidth="2" fill="none" strokeLinecap="round" />
-      <rect x="166" y="34" width="44" height="82" rx="3" fill="#d6b13a" />
-      <rect x="171" y="40" width="34" height="34" fill="#2a2a30" />
+      {/* Fingret */}
+      {animate && (
+        <circle r="9" fill="rgba(255,255,255,0.35)" stroke="#fff" strokeWidth="1.5">
+          {(["cx", "cy"] as const).map((attr, k) => (
+            <animate
+              key={attr}
+              attributeName={attr}
+              values={fingerPts.map((p) => p[k]).join(";")}
+              keyTimes={fingerKeys.map(fmt).join(";")}
+              dur={DUR}
+              repeatCount="indefinite"
+            />
+          ))}
+          <animate attributeName="opacity" values="1;1;0;0" keyTimes={`0;${fmt(END - 0.06)};${fmt(END)};1`} dur={DUR} repeatCount="indefinite" />
+        </circle>
+      )}
+      {/* Inzoomat rundat hörn: pricken där de raka kanterna möts */}
+      <g>
+        <circle cx="38" cy="112" r="30" fill="#111114" stroke="#2dd4bf" strokeWidth="1.5" />
+        <clipPath id="ct-zoom">
+          <circle cx="38" cy="112" r="29" />
+        </clipPath>
+        <g clipPath="url(#ct-zoom)">
+          <path d="M26 150V112a14 14 0 0 1 14-14H80V150Z" fill="#d6b13a" />
+          <path d="M26 150V100M14 98H80" stroke="#2dd4bf" strokeWidth="1.25" strokeDasharray="3 2.5" />
+          <circle cx="26" cy="98" r="4.5" fill="rgba(0,0,0,0.75)" stroke="#2dd4bf" strokeWidth="2" />
+        </g>
+      </g>
     </svg>
   );
 }

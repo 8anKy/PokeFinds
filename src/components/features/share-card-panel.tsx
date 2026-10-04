@@ -80,6 +80,11 @@ export function ShareCardPanel(props: {
   printLink?: boolean;
   /** Lagren för den snurrande slabben ⇒ "Bild | Video" visas (om telefonen kan koda video). */
   spin?: (domain: string) => Promise<GradeSpinLayers>;
+  /**
+   * Ett val som ändrar bilden (graderingens "Katalogbild | Mitt foto"). Står i SAMMA
+   * rad och form som "Bild | Video"; ett byte ritar om bilden och videon.
+   */
+  choice?: { value: string; options: { key: string; label: string }[]; onChange: (key: string) => void };
 }) {
   const t = useTranslations("ShareCard");
   const { source } = props;
@@ -133,9 +138,9 @@ export function ShareCardPanel(props: {
       alive = false;
       if (url) URL.revokeObjectURL(url);
     };
-    // Ritas om bara vid ett nytt försök — indata är fast medan panelen är öppen.
+    // Ritas om vid ett nytt försök eller ett nytt val — indata är annars fast.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attempt]);
+  }, [attempt, props.choice?.value]);
 
   // Video valt första gången: lagren ritas och kodningen startar direkt.
   useEffect(() => {
@@ -155,7 +160,17 @@ export function ShareCardPanel(props: {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kind, videoSize]);
+  }, [kind, videoSize, props.choice?.value]);
+
+  /** Nytt val: videon gäller den gamla bilden — kasta den, så kodas en ny. */
+  function choose(key: string) {
+    if (!props.choice || key === props.choice.value) return;
+    setLayers(null);
+    setVideo(null);
+    setVideoProgress(0);
+    setVideoFailed(false);
+    props.choice.onChange(key);
+  }
 
   useEffect(() => {
     track("share_card", `${source}:open`);
@@ -208,22 +223,27 @@ export function ShareCardPanel(props: {
         props.safeBottom && "pb-[max(1.25rem,env(safe-area-inset-bottom))]"
       )}
     >
-      {showToggle && (
-        <div className="mx-auto flex shrink-0 rounded-full bg-surface-overlay p-1 ring-1 ring-surface-border">
-          {(["image", "video"] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setKind(k)}
-              aria-pressed={kind === k}
-              className={cn(
-                "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
-                kind === k ? "bg-holo-cyan text-surface" : "text-ink-muted hover:text-ink"
-              )}
-            >
-              {k === "image" ? t("kindImage") : t("kindVideo")}
-            </button>
-          ))}
+      {(showToggle || props.choice) && (
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-2">
+          {props.choice && (
+            <Segmented
+              value={props.choice.value}
+              options={props.choice.options}
+              onChange={choose}
+              compact={showToggle}
+            />
+          )}
+          {showToggle && (
+            <Segmented
+              value={kind}
+              options={[
+                { key: "image", label: t("kindImage") },
+                { key: "video", label: t("kindVideo") },
+              ]}
+              onChange={(k) => setKind(k as Kind)}
+              compact={!!props.choice}
+            />
+          )}
         </div>
       )}
 
@@ -373,5 +393,34 @@ function SpinPreview(props: { layers: GradeSpinLayers; style?: React.CSSProperti
         drag.current.active = false;
       }}
     />
+  );
+}
+
+/** Arkets väljare — samma pillerform för "Bild | Video" och graderingens bildval. */
+function Segmented(props: {
+  value: string;
+  options: { key: string; label: string }[];
+  onChange: (key: string) => void;
+  /** Två väljare i samma rad ⇒ smalare knappar så båda ryms på en telefon. */
+  compact?: boolean;
+}) {
+  return (
+    <div className="flex rounded-full bg-surface-overlay p-1 ring-1 ring-surface-border">
+      {props.options.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          onClick={() => props.onChange(o.key)}
+          aria-pressed={props.value === o.key}
+          className={cn(
+            "rounded-full py-1.5 text-sm font-semibold transition-colors",
+            props.compact ? "px-3.5" : "px-5",
+            props.value === o.key ? "bg-holo-cyan text-surface" : "text-ink-muted hover:text-ink"
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }

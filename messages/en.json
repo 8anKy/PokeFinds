@@ -1729,7 +1729,8 @@
       "minor": "Minor",
       "moderate": "Noticeable",
       "major": "Clear"
-    }
+    },
+    "gradeAnother": "Grade another card"
   },
   "PostCategory": {
     "PULLS": "Pulls",
@@ -2888,13 +2889,9 @@
       "innerTop": "Inner top",
       "innerBottom": "Inner bottom"
     },
-    "pickLine": "Pick a line",
-    "nudgeLess": "Move the line one pixel back",
-    "nudgeMore": "Move the line one pixel forward",
     "ereader": "e-Reader card",
     "legendOuter": "White = card edge",
     "legendInner": "Turquoise = inner frame edge",
-    "hint": "Drag the handles until the lines sit exactly on the edges. The magnifier shows while you drag; the arrows move one pixel.",
     "hintEreader": "e-Reader cards have a dot code along the left and bottom edges, so we compare the top and right borders — equal width means centered.",
     "axisLeftRight": "Left/right",
     "axisTopBottom": "Top/bottom",
@@ -2919,7 +2916,6 @@
     "tipTitle": "Measure centering yourself (optional)",
     "tipBody": "Takes about half a minute: place lines on the card edge and the inside of the border. A measured value gives a more reliable grade than the AI's eye.",
     "helpOpen": "Show how the tool works",
-    "nextLine": "Next line",
     "lineHelpOuter": "place the white line exactly on the card's {edge} edge.",
     "lineHelpInner": "place the turquoise line where the yellow border ends at the {edge} edge — where the art/text box begins.",
     "lineHelpInnerBack": "place the turquoise line where the blue border ends at the {edge} edge.",
@@ -2935,11 +2931,12 @@
     "helpCorners3": "Tap Next and we straighten the photo, even if it was taken at an angle.",
     "helpLinesTitle": "Two lines per edge",
     "helpLines1": "WHITE line = the card's outer edge. TURQUOISE line = the inside of the border.",
-    "helpLines2": "One line is always selected. Drag it, or fine-tune with the arrows. The magnifier shows while you drag.",
-    "helpLines3": "Tap Next line until all are placed. Equal borders on both sides means perfectly centered.",
+    "helpLines2": "Drag one line at a time. The magnifier shows while you drag so you can place it exactly.",
+    "helpLines3": "Equal borders on both sides means perfectly centered. Tap Done when all lines are in place.",
     "helpGotIt": "Got it",
     "tipWhereButtons": "Tap Measure centering under the photo.",
-    "tipAfterPhoto": "The button appears under the photo once you've added it."
+    "tipAfterPhoto": "The button appears under the photo once you've added it.",
+    "linesGeneral": "Drag each line to its edge — the magnifier shows while you drag."
   },
   "LocalStores": {
     "browseStores": "Expand store list",
