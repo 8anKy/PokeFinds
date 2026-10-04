@@ -1656,13 +1656,7 @@
   },
   "Grading": {
     "h1": "Grade card",
-    "intro": "Photograph the front and back and our AI gives an estimated grade of the card's condition: centering, corners, edges and surface.",
-    "disclaimerLabel": "AI estimate:",
-    "disclaimerText": "this is not an official PSA or BGS grade, but a guiding assessment based on your photos. Use it as a benchmark.",
-    "quotaPremium": "Gradings this month:",
-    "quotaFree": "Free gradings this month:",
     "upgradeCta": "Upgrade to Pro",
-    "step1": "1. Add images",
     "front": "Front",
     "back": "Back",
     "previewAlt": "Preview: {label}",
@@ -1681,7 +1675,6 @@
     "model": "Model: {model}",
     "saveHint": "Want to save the card? Add it to your <link>collection</link> and set the grading company to \"Foilio AI\" with the grade above.",
     "historyTitle": "Latest gradings",
-    "noHistory": "No gradings yet",
     "noHistoryDesc": "Your graded cards show up here. Add a front and back image above.",
     "failed": "Failed",
     "gradeLine": "Grade {grade} / 10",
@@ -1744,7 +1737,9 @@
       "moderate": "Noticeable",
       "major": "Clear"
     },
-    "gradeAnother": "Grade another card"
+    "gradeAnother": "Grade another card",
+    "quotaLeft": "{left} of {limit} gradings left this month",
+    "disclaimerShort": "AI estimate, not an official PSA or BGS grade."
   },
   "PostCategory": {
     "PULLS": "Pulls",
@@ -2913,9 +2908,6 @@
     "psaCapLabel": "Centering allows up to",
     "psaCap": "PSA {grade}",
     "measure": "Measure centering",
-    "measured": "Centering measured",
-    "remeasure": "Measure again",
-    "summaryTitle": "Measured centering",
     "capNote": "Ceiling per PSA's published limits (front 55/45 for a 10, back 75/25). A ceiling, not a grade.",
     "capShort": "Allows up to",
     "stepCorners": "Step 1 of 2 · corners",
@@ -2927,8 +2919,6 @@
     "corner1": "Top right corner",
     "corner2": "Bottom right corner",
     "corner3": "Bottom left corner",
-    "tipTitle": "Measure centering yourself (optional)",
-    "tipBody": "Takes about half a minute: place lines on the card edge and the inside of the border. A measured value gives a more reliable grade than the AI's eye.",
     "helpOpen": "Show how the tool works",
     "lineHelpOuter": "place the white line exactly on the card's {edge} edge.",
     "lineHelpInner": "place the turquoise line where the yellow border ends at the {edge} edge — where the art/text box begins.",
@@ -2948,9 +2938,8 @@
     "helpLines2": "Drag one line at a time. The magnifier shows while you drag so you can place it exactly.",
     "helpLines3": "Equal borders on both sides means perfectly centered. Tap Done when all lines are in place.",
     "helpGotIt": "Got it",
-    "tipWhereButtons": "Tap Measure centering under the photo.",
-    "tipAfterPhoto": "The button appears under the photo once you've added it.",
-    "linesGeneral": "Drag each line to its edge — the magnifier shows while you drag."
+    "linesGeneral": "Drag each line to its edge — the magnifier shows while you drag.",
+    "tipShort": "Measure centering under the photo — it takes half a minute and gives a more accurate grade."
   },
   "LocalStores": {
     "browseStores": "Expand store list",
@@ -3096,7 +3085,7 @@
     "backTitle": "The back",
     "backBody": "Same for the back. The AI needs both sides to see edges and corners.",
     "centeringTitle": "Measure centering",
-    "centeringBody": "Optional but worth it: put dots on the corners and lines on the borders, and we calculate centering exactly instead of the AI guessing.",
+    "centeringBody": "Once you've taken the photos, Measure centering appears under them. Put dots on the corners and lines on the borders, and we calculate centering exactly instead of the AI guessing.",
     "gradeTitle": "Grade",
     "gradeBody": "The AI assesses centering, corners, edges and surface — and circles the flaws it finds in your photos.",
     "historyTitle": "Your gradings",

@@ -12,7 +12,6 @@ import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { SafeImage } from "@/components/ui/safe-image";
-import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { cn } from "@/lib/utils";
@@ -47,7 +46,6 @@ import {
   IconImage,
   IconShare,
   IconShield,
-  IconSparkle,
   IconTrendingUp,
 } from "@/components/ui/icons";
 
@@ -280,9 +278,9 @@ function ImageDropzone({
           if (file) onFile(file);
         }}
         className={cn(
-          "relative flex aspect-[3/4] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed px-3 py-4 text-center transition-colors",
-          preview ? "border-holo-cyan/40" : "border-surface-border",
-          over && "border-holo-cyan bg-holo-cyan/5"
+          "relative flex aspect-[3/4] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl px-3 py-4 text-center transition-colors",
+          preview ? "bg-surface-overlay/30" : "bg-surface-overlay/50",
+          over && "bg-holo-cyan/10 ring-2 ring-holo-cyan"
         )}
       >
         {preview ? (
@@ -311,22 +309,26 @@ function ImageDropzone({
           </>
         ) : (
           <>
-            <span aria-hidden="true" className="text-ink-faint">
-              <IconCamera size={28} />
+            <span
+              aria-hidden="true"
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-surface text-ink-muted ring-1 ring-surface-border"
+            >
+              <IconCamera size={22} />
             </span>
-            <p className="text-sm font-medium text-ink">{label}</p>
+            <p className="text-sm font-semibold text-ink">{label}</p>
             <div className="mt-1 flex w-full flex-col gap-2">
               <button
                 type="button"
                 onClick={() => cameraRef.current?.click()}
-                className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg bg-holo-cyan px-2 text-xs font-semibold text-surface transition-colors hover:bg-holo-cyan/90 lg:hidden"
+                className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl bg-holo-cyan px-2 text-xs font-semibold text-surface transition-colors hover:bg-holo-cyan/90 lg:hidden"
               >
                 <IconCamera size={15} /> {t("takePhoto")}
               </button>
               <button
                 type="button"
                 onClick={() => libraryRef.current?.click()}
-                className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink ring-1 ring-surface-border transition-colors hover:bg-surface-overlay"
+                // På desktop finns ingen kameraknapp — då är det här huvudknappen.
+                className="flex min-h-[36px] items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink-muted transition-colors hover:text-ink lg:min-h-[40px] lg:rounded-xl lg:bg-holo-cyan lg:text-surface lg:hover:bg-holo-cyan/90 lg:hover:text-surface"
               >
                 <IconImage size={15} /> {t("chooseFromLibrary")}
               </button>
@@ -354,10 +356,10 @@ function CenteringButton(props: {
       type="button"
       onClick={props.onMeasure}
       className={cn(
-        "flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors",
+        "flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[13px] font-semibold transition-colors",
         outcome
           ? "border-holo-cyan/40 bg-holo-cyan/5 text-holo-cyan hover:bg-holo-cyan/10"
-          : "border-holo-cyan bg-holo-cyan text-surface hover:bg-holo-cyan/90"
+          : "border-holo-cyan bg-holo-cyan text-surface shadow-[0_0_0_4px_rgba(45,212,191,0.18)] hover:bg-holo-cyan/90"
       )}
     >
       <IconCentering size={15} />
@@ -651,39 +653,6 @@ function DefectsPanel(props: {
           );
         })}
       </ul>
-    </div>
-  );
-}
-
-/**
- * CENTRERINGSRADEN (2026-10-04): mätaren fanns bara som en liten knapp under varje
- * foto och hittades inte. Raden står alltid i uppladdningskortet (turens mål) och
- * säger vad mätningen ger; KNAPPARNA är de under fotona (fyllda tills sidan mätts)
- * — egna knappar här gav fyra knappar för samma två saker (ägarens skärmdump).
- */
-function CenteringTip(props: {
-  front: string | null;
-  back: string | null;
-  measured: Record<CenteringSide, boolean>;
-}) {
-  const t = useTranslations("Centering");
-  const unmeasured = (["front", "back"] as const).filter((s) => props[s] && !props.measured[s]);
-  // Båda fotona mätta ⇒ sammanfattningen under tar över.
-  if (props.front && props.back && unmeasured.length === 0) return null;
-  return (
-    <div
-      data-tour="grading-centering"
-      className="flex items-start gap-3 rounded-xl bg-surface-overlay/40 p-3 ring-1 ring-surface-border"
-    >
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-holo-cyan ring-1 ring-holo-cyan/30">
-        <IconCentering size={16} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-ink">{t("tipTitle")}</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">
-          {t("tipBody")} {props.front || props.back ? t("tipWhereButtons") : t("tipAfterPhoto")}
-        </p>
-      </div>
     </div>
   );
 }
@@ -1182,7 +1151,7 @@ export default function GraderaPage() {
     quota != null && quota.remaining !== null && quota.remaining <= 0;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex max-w-xl flex-col gap-6">
       <div>
         <SubpageHeader
           title={t("h1")}
@@ -1198,128 +1167,116 @@ export default function GraderaPage() {
             </Button>
           }
         />
-        <p className="text-sm text-ink-muted lg:mt-1">{t("intro")}</p>
       </div>
 
-      {/* Disclaimer */}
-      <div className="flex items-start gap-3 rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-3">
-        <span aria-hidden="true" className="mt-0.5 shrink-0 text-amber-400">
-          <IconAlertTriangle size={18} />
-        </span>
-        <p className="text-sm text-ink-muted">
-          <span className="font-semibold text-ink">{t("disclaimerLabel")}</span> {t("disclaimerText")}
-        </p>
-      </div>
+      {/* FOTONA FÖRST (ägarens återkoppling 2026-10-04: ingress, varningsruta, kvotruta
+          och centreringsruta gjorde starten tung). Ingen ram runt uppladdningen — rutorna
+          ÄR innehållet. Centreringen tar över betoningen först när ett foto finns. */}
+      <section className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3" data-tour="grading-centering">
+          <ImageDropzone
+            label={t("front")}
+            preview={front}
+            onFile={(f) => void handleFile(f, "front")}
+            tour="grading-front"
+            footer={
+              front ? (
+                <CenteringButton outcome={centering.front} onMeasure={() => setToolSide("front")} />
+              ) : null
+            }
+          />
+          <ImageDropzone
+            label={t("back")}
+            preview={back}
+            onFile={(f) => void handleFile(f, "back")}
+            tour="grading-back"
+            footer={
+              back ? (
+                <CenteringButton outcome={centering.back} onMeasure={() => setToolSide("back")} />
+              ) : null
+            }
+          />
+        </div>
 
-      {/* Kvot (gratis) */}
-      {quota?.limit != null && (
-        <div className="flex items-center justify-between rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-sm">
-          <span className="text-ink-muted">
-            {quota.isPremium ? t("quotaPremium") : t("quotaFree")}{" "}
-            <span className="font-semibold text-ink">
-              {quota.used} / {quota.limit}
-            </span>
-          </span>
-          {limitReached && !quota.isPremium && (
-            <ProCta source="grading-quota" size="sm" variant="secondary">
-              {t("upgradeCta")}
-            </ProCta>
+        {cardHint && <p className="text-xs text-ink-muted">{t("fromScanner", { card: cardHint })}</p>}
+
+        {/* En rad, ingen ruta: varför centreringen är värd en halv minut — bara när
+            det finns ett foto att mäta och något är omätt. */}
+        {(front || back) && (!centering.front || !centering.back) && !(result && !result.historyAt) && (
+          <p className="flex items-start gap-2 text-[13px] leading-snug text-holo-cyan">
+            <IconCentering size={16} className="mt-px shrink-0" />
+            <span>{tc("tipShort")}</span>
+          </p>
+        )}
+
+        {(centering.front || centering.back) && centeringCap != null && (
+          <p className="text-[13px] leading-snug text-ink-muted">
+            <span className="font-semibold text-ink">{tc("psaCapLabel")}</span>{" "}
+            <span className="font-semibold text-holo-cyan">{tc("psaCap", { grade: centeringCap })}</span>
+            <span className="block text-[11px] text-ink-faint">{tc("capNote")}</span>
+          </p>
+        )}
+
+        {front && !cardIdHint && idState !== "idle" && (
+          <CardIdentityBox
+            state={idState === "loading" ? "loading" : "done"}
+            chosen={identified}
+            suggestions={suggestions}
+            onChoose={(c) => {
+              userPickedRef.current = true;
+              setIdentified(c);
+            }}
+            onSearch={() => {
+              setPickForPhoto(true);
+              setPickOpen(true);
+            }}
+          />
+        )}
+
+        <div className="flex flex-col gap-2">
+          {/* Graderat på DE HÄR fotona ⇒ ingen andra gradering av samma bilder; nästa
+              steg är ett nytt kort. (Ett nytt foto nollar resultatet och knappen kommer tillbaka.) */}
+          {result && !result.historyAt ? (
+            <Button data-tour="grading-grade" size="lg" variant="outline" className="w-full" onClick={startOver}>
+              <IconCamera size={18} />
+              {t("gradeAnother")}
+            </Button>
+          ) : (
+            <Button
+              data-tour="grading-grade"
+              size="lg"
+              // Omätt centrering ⇒ knappen backar (kontur) så att Mät centrering är
+              // det som lyser — graderingen går ändå att starta direkt.
+              variant={front && back && !centering.front && !centering.back ? "outline" : "primary"}
+              className="w-full"
+              onClick={() => void gradeNow()}
+              disabled={!front || !back || limitReached}
+              loading={grading}
+            >
+              <IconShield size={18} />
+              {grading ? t("analyzing") : t("gradeBtn")}
+            </Button>
+          )}
+          {limitReached ? (
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-amber-400">
+              <span>{quota?.isPremium ? t("limitPremium") : t("limitFree")}</span>
+              {!quota?.isPremium && (
+                <ProCta source="grading-quota" size="sm" variant="secondary">
+                  {t("upgradeCta")}
+                </ProCta>
+              )}
+            </div>
+          ) : (
+            // Kvot + att det är en uppskattning — EN tyst rad i stället för två rutor.
+            <p className="text-center text-[11px] leading-relaxed text-ink-faint">
+              {quota?.limit != null && quota.remaining != null && (
+                <>{t("quotaLeft", { left: quota.remaining, limit: quota.limit })} · </>
+              )}
+              {t("disclaimerShort")}
+            </p>
           )}
         </div>
-      )}
-
-      {/* Uppladdning */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("step1")}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
-            <ImageDropzone
-              label={t("front")}
-              preview={front}
-              onFile={(f) => void handleFile(f, "front")}
-              tour="grading-front"
-              footer={
-                front ? (
-                  <CenteringButton outcome={centering.front} onMeasure={() => setToolSide("front")} />
-                ) : null
-              }
-            />
-            <ImageDropzone
-              label={t("back")}
-              preview={back}
-              onFile={(f) => void handleFile(f, "back")}
-              tour="grading-back"
-              footer={
-                back ? (
-                  <CenteringButton outcome={centering.back} onMeasure={() => setToolSide("back")} />
-                ) : null
-              }
-            />
-          </div>
-          {cardHint && <p className="text-xs text-ink-muted">{t("fromScanner", { card: cardHint })}</p>}
-          <CenteringTip
-            front={front}
-            back={back}
-            measured={{ front: !!centering.front, back: !!centering.back }}
-          />
-          {front && !cardIdHint && idState !== "idle" && (
-            <CardIdentityBox
-              state={idState === "loading" ? "loading" : "done"}
-              chosen={identified}
-              suggestions={suggestions}
-              onChoose={(c) => {
-                userPickedRef.current = true;
-                setIdentified(c);
-              }}
-              onSearch={() => {
-                setPickForPhoto(true);
-                setPickOpen(true);
-              }}
-            />
-          )}
-          {(centering.front || centering.back) && (
-            <div className="rounded-xl border border-holo-cyan/25 bg-holo-cyan/5 px-4 py-3">
-              <p className="text-sm font-semibold text-ink">{tc("summaryTitle")}</p>
-              {centeringCap != null && (
-                <p className="mt-0.5 text-sm font-semibold text-holo-cyan">
-                  {tc("psaCapLabel")} {tc("psaCap", { grade: centeringCap })}
-                </p>
-              )}
-              <p className="mt-1 text-[11px] leading-relaxed text-ink-faint">{tc("capNote")}</p>
-            </div>
-          )}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Graderat på DE HÄR fotona ⇒ ingen andra gradering av samma bilder; nästa
-                steg är ett nytt kort. (Ett nytt foto nollar resultatet och knappen kommer tillbaka.) */}
-            {result && !result.historyAt ? (
-              <Button data-tour="grading-grade" variant="outline" onClick={startOver}>
-                <IconCamera size={16} />
-                {t("gradeAnother")}
-              </Button>
-            ) : (
-              <Button
-                data-tour="grading-grade"
-                onClick={() => void gradeNow()}
-                disabled={!front || !back || limitReached}
-                loading={grading}
-              >
-                <IconShield size={16} />
-                {t("gradeBtn")}
-              </Button>
-            )}
-            {grading && (
-              <span className="text-sm text-ink-muted">{t("analyzing")}</span>
-            )}
-            {limitReached && (
-              <span className="text-sm text-amber-400">
-                {quota?.isPremium ? t("limitPremium") : t("limitFree")}
-              </span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      </section>
 
       {/* Resultat */}
       {result && (
@@ -1508,22 +1465,16 @@ export default function GraderaPage() {
         />
       )}
 
-      {/* Historik */}
-      <Card data-tour="grading-history">
-        <CardHeader>
-          <CardTitle>{t("historyTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* Historik — en rubrik och en lista, ingen ram. */}
+      <section data-tour="grading-history" className="flex flex-col gap-2">
+        <h2 className="text-base font-semibold text-ink">{t("historyTitle")}</h2>
+        <div>
           {jobs === null ? (
             <div className="flex justify-center py-8">
               <Spinner />
             </div>
           ) : jobs.length === 0 ? (
-            <EmptyState
-              icon={<IconSparkle size={32} />}
-              title={t("noHistory")}
-              description={t("noHistoryDesc")}
-            />
+            <p className="py-2 text-sm text-ink-faint">{t("noHistoryDesc")}</p>
           ) : (
             <ul className="divide-y divide-surface-border">
               {jobs.map((job) => {
@@ -1604,8 +1555,8 @@ export default function GraderaPage() {
               })}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       <GradingTour open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>

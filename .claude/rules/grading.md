@@ -80,3 +80,8 @@ paths:
   visar bara bildträffar ≥ ART_TRUST_SCORE (0,55); under golvet är träffen i praktiken alltid fel.
   Graderingsturen (`lib/grading-tour.ts`, fem info-steg, localStorage) delar ritningen med appturen
   (`components/features/spotlight.tsx`).
+- **SIDANS FORM (ägarens återkoppling 2026-10-04: "allt är i rutor, för mycket text")**: inga ingress-, varnings-, kvot-
+  eller centreringsrutor. Fotorutorna kommer direkt under rubriken (mjuk fyllning, ingen streckad ram); efter ett foto
+  är Mät centrering-knappen under fotot FYLLD turkos med glöd och Gradera-knappen KONTUR tills någon sida mätts — så
+  centreringen är det som lyser. Kvot + "AI-uppskattning, inte en officiell gradering" står som EN tyst rad under
+  knappen (⛔ uppskattningsraden får inte tas bort — den är ärligheten). Historiken är rubrik + lista, ingen ram.
