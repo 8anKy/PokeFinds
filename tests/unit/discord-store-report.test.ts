@@ -47,7 +47,8 @@ describe("butikslarm från communityrapporter", () => {
   it("bygger ett inlägg med butik, pris, adress, länkar och absoluta bilder", () => {
     const e = buildStoreReportEmbed(post({ photoUrl: "https://bucket.example/signed.jpg" }));
     expect(e.title).toBe("Finns på hyllan: Mega Evolution Elite Trainer Box");
-    expect(e.url).toBe("https://foilio.se/forum/t/p1");
+    // Titeln är ingen länk och "Se rapporten" är borttagen (ägarbeslut 2026-10-05).
+    expect("url" in e).toBe(false);
     expect(e.color).toBe(0x22c55e);
     expect(e.author.icon_url).toBe("https://foilio.se/retailer-logos/hemmakvall.png");
     expect(e.thumbnail?.url).toBe("https://foilio.se/api/cm-image/123");
@@ -57,6 +58,9 @@ describe("butikslarm från communityrapporter", () => {
     expect(byName["Pris i butik"]).toMatch(/649/);
     expect(byName["Adress"]).toContain("Bankgatan 6, Lund");
     expect(byName["På Foilio"]).toContain("/produkter/mega-evolution-etb");
+    expect(byName["På Foilio"]).toContain("Butikens status");
+    expect(byName["På Foilio"]).not.toContain("Se rapporten");
+    expect(byName["Bekräftad"]).toBeUndefined();
     expect(e.footer.text).toMatch(/inget garanterat lager/);
   });
 
@@ -68,6 +72,14 @@ describe("butikslarm från communityrapporter", () => {
     const reporter = e.fields.find((f) => f.name === "Rapporterad av")!.value;
     expect(reporter).toContain("platsuppgift nära butiken");
     expect(JSON.stringify(e)).not.toMatch(/verifierat besök/i);
+  });
+
+  it("visar bekräftelser med levande relativ tid när någon bekräftat", () => {
+    const at = new Date(NOW - 60_000);
+    const e = buildStoreReportEmbed(post({ confirmCount: 2, lastConfirmedAt: at }));
+    const field = e.fields.find((f) => f.name === "Bekräftad")!.value;
+    expect(field).toBe(`✅ 2 medlemmar till · senast <t:${Math.floor(at.getTime() / 1000)}:R>`);
+    expect(buildStoreReportEmbed(post({ confirmCount: 1 })).fields.find((f) => f.name === "Bekräftad")!.value).toBe("✅ 1 medlem till");
   });
 
   it("vägbeskrivningen använder koordinater och faller tillbaka på adressen", () => {

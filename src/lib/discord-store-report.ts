@@ -49,6 +49,9 @@ export interface StoreReportPost {
   photoUrl: string | null;
   authorName: string;
   nearbyAtSubmit: boolean;
+  /** Andra medlemmar som bekräftat rapporten — inlägget REDIGERAS när talet ändras. */
+  confirmCount?: number;
+  lastConfirmedAt?: Date | null;
   store: {
     id: string;
     name: string;
@@ -109,7 +112,6 @@ export function directionsUrl(store: StoreReportPost["store"]): string {
 export function buildStoreReportEmbed(post: StoreReportPost) {
   const seen = post.observation === "SEEN";
   const delta = msrpDelta(post.priceOre, post.msrpOre);
-  const threadUrl = localeUrl("sv", `/forum/t/${post.postId}`);
   const storeUrl = localeUrl(
     "sv",
     `/forum?store=${encodeURIComponent(post.store.id)}&view=nearby&status=1`
@@ -145,8 +147,16 @@ export function buildStoreReportEmbed(post: StoreReportPost) {
     ),
     inline: true,
   });
+  if (post.confirmCount && post.confirmCount > 0) {
+    // <t:…:R> renderas av Discord som levande relativ tid ("för 3 minuter sedan").
+    const last = post.lastConfirmedAt ? ` · senast <t:${Math.floor(post.lastConfirmedAt.getTime() / 1000)}:R>` : "";
+    fields.push({
+      name: "Bekräftad",
+      value: `✅ ${post.confirmCount} ${post.confirmCount === 1 ? "medlem till" : "medlemmar till"}${last}`,
+      inline: true,
+    });
+  }
   const links = [
-    `[Se rapporten](${threadUrl})`,
     `[Butikens status](${storeUrl})`,
     ...(post.productSlug
       ? [`[Prishistorik](${localeUrl("sv", `/produkter/${post.productSlug}`)})`]
@@ -168,8 +178,8 @@ export function buildStoreReportEmbed(post: StoreReportPost) {
       url: storeUrl,
       ...(logo ? { icon_url: logo } : {}),
     },
+    // Ingen titellänk (ägarbeslut 2026-10-05): länkarna står i "På Foilio".
     title: clamp(`${seen ? "Finns på hyllan" : "Slut i butiken"}: ${post.productLabel}`, MAX_TITLE),
-    url: threadUrl,
     description: clamp(comment ? `${lead}\n> ${comment}` : lead, MAX_DESCRIPTION),
     color: seen ? SEEN_COLOR : SOLD_OUT_COLOR,
     fields,
@@ -211,6 +221,30 @@ export async function postStoreReportToDiscord(post: StoreReportPost): Promise<s
   } catch (err) {
     console.error("[discord-store-report] misslyckades:", err instanceof Error ? err.message : err);
     return null;
+  }
+}
+
+/**
+ * Redigerar det BEFINTLIGA meddelandet (t.ex. när någon bekräftar) — inget nytt
+ * inlägg, ingen ny notis i kanalen. `false` = misslyckades; 404 = någon har tagit
+ * bort meddelandet i Discord, och då postas det inte igen.
+ */
+export async function editStoreReportInDiscord(messageId: string, post: StoreReportPost): Promise<boolean> {
+  const config = discordStoreReportConfig();
+  if (!config || !/^\d{5,25}$/.test(messageId)) return false;
+  try {
+    const res = await discordFetch(`/channels/${config.channelId}/messages/${messageId}`, {
+      method: "PATCH",
+      authorization: `Bot ${config.botToken}`,
+      body: JSON.stringify({ embeds: [buildStoreReportEmbed(post)], allowed_mentions: { parse: [] } }),
+    });
+    if (!res.ok && res.status !== 404) {
+      console.error(`[discord-store-report] kunde inte redigera ${messageId}: ${res.status}`);
+    }
+    return res.ok;
+  } catch (err) {
+    console.error("[discord-store-report] redigering misslyckades:", err instanceof Error ? err.message : err);
+    return false;
   }
 }
 

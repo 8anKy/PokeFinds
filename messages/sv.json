@@ -1088,7 +1088,9 @@
     "storeNotFound": "Butiken hittades inte.",
     "storeSuggestionLimit": "För många butiksförslag. Försök igen i morgon.",
     "storeVisitTime": "Ange ett besök under de senaste sju dagarna, inte i framtiden.",
-    "storeFollowLimit": "För många förfrågningar. Försök igen om en stund."
+    "storeFollowLimit": "För många förfrågningar. Försök igen om en stund.",
+    "storeReportOwnConfirm": "Du kan inte bekräfta din egen rapport.",
+    "storeReportConfirmStale": "Rapporten är för gammal för att bekräftas."
   },
   "Cookies": {
     "bannerAria": "Information om cookies",
@@ -3073,7 +3075,12 @@
     "website": "Butikens webbplats",
     "positionPending": "Kartposition saknas ännu",
     "latitude": "Latitud",
-    "longitude": "Longitud"
+    "longitude": "Longitud",
+    "confirm": "Bekräfta",
+    "confirmed": "Bekräftad",
+    "confirmHint": "Bekräfta att du också ser det här i butiken",
+    "confirmThanks": "Tack! Rapporten är bekräftad.",
+    "confirmCount": "Bekräftad av {count}"
   },
   "GradingTour": {
     "label": "Guide till graderingen",

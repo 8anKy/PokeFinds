@@ -7,6 +7,7 @@
  * (`imageUrls`) och lagras aldrig — nyckeln är sanningen, URL:en är färskvara.
  */
 import { deleteStoreReportFromDiscord } from "@/lib/discord-store-report";
+import { reportIsFresh } from "@/lib/community-stores";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { hasRole } from "@/lib/auth";
@@ -115,9 +116,33 @@ export interface StoreReportDto {
   observation: string;
   observedAt: string;
   nearbyAtSubmit: boolean;
+  /** Andra medlemmar som bekräftat rapporten ("jag ser den också"). */
+  confirmCount: number;
+  lastConfirmedAt: string | null;
 }
 
-const STORE_REPORT_INCLUDE = { include: { store: { select: { id: true, name: true, address: true, city: true } } } } as const;
+const STORE_REPORT_INCLUDE = { include: {
+  store: { select: { id: true, name: true, address: true, city: true } },
+  _count: { select: { confirmations: true } },
+  confirmations: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+} } as const;
+
+type StoreReportRow = {
+  store: StoreReportDto["store"]; productLabel: string; productSlug: string | null; priceOre: number | null;
+  currency: string; observation: string; observedAt: Date; nearbyAtSubmit: boolean;
+  _count: { confirmations: number }; confirmations: { createdAt: Date }[];
+};
+
+/** Explicit fältlista — `discordMessageId` och andra interna kolumner lämnar aldrig servern. */
+function toStoreReportDto(r: StoreReportRow | null | undefined): StoreReportDto | null {
+  if (!r) return null;
+  return {
+    store: r.store, productLabel: r.productLabel, productSlug: r.productSlug, priceOre: r.priceOre,
+    currency: r.currency, observation: r.observation, observedAt: r.observedAt.toISOString(),
+    nearbyAtSubmit: r.nearbyAtSubmit, confirmCount: r._count.confirmations,
+    lastConfirmedAt: r.confirmations[0]?.createdAt.toISOString() ?? null,
+  };
+}
 
 export interface ThreadAuthor extends ForumAuthor {
   memberSince: string;
@@ -219,7 +244,7 @@ async function toFeedItems(rows: FeedRow[]): Promise<FeedItem[]> {
       images,
       commentCount: r._count.comments,
       likeCount: r._count.likes,
-      storeReport: r.storeReport ? { ...r.storeReport, observedAt: r.storeReport.observedAt.toISOString() } : null,
+      storeReport: toStoreReportDto(r.storeReport),
     };
   });
 }
@@ -367,7 +392,7 @@ export async function getPost(postId: string): Promise<ThreadDetail> {
     images,
     commentCount: post._count.comments,
     likeCount: post._count.likes,
-    storeReport: post.storeReport ? { ...post.storeReport, observedAt: post.storeReport.observedAt.toISOString() } : null,
+    storeReport: toStoreReportDto(post.storeReport),
   };
 }
 
@@ -611,15 +636,54 @@ export async function postCounts(postIds: string[]): Promise<Record<string, Post
 
 /** Vad DEN HÄR användaren gillat/sparat bland `postIds` — två små läsningar. */
 export async function personalPostState(userId: string, postIds: string[]) {
-  if (postIds.length === 0) return { likedIds: [] as string[], savedIds: [] as string[] };
-  const [likes, saved] = await prisma.$transaction([
+  if (postIds.length === 0) return { likedIds: [] as string[], savedIds: [] as string[], confirmedIds: [] as string[] };
+  const [likes, saved, confirmed] = await prisma.$transaction([
     prisma.like.findMany({ where: { userId, postId: { in: postIds } }, select: { postId: true } }),
     prisma.savedPost.findMany({
       where: { userId, postId: { in: postIds } },
       select: { postId: true },
     }),
+    prisma.communityStoreReportConfirmation.findMany({
+      where: { userId, postId: { in: postIds } },
+      select: { postId: true },
+    }),
   ]);
-  return { likedIds: likes.map((l) => l.postId), savedIds: saved.map((s) => s.postId) };
+  return {
+    likedIds: likes.map((l) => l.postId),
+    savedIds: saved.map((s) => s.postId),
+    confirmedIds: confirmed.map((c) => c.postId),
+  };
+}
+
+/**
+ * "Jag ser den också" på en butiksrapport. Bara ANDRAS rapporter, bara medan
+ * rapporten är färsk (en bekräftelse av gårdagens hylla säger ingenting) och
+ * aldrig på ett dolt inlägg.
+ */
+export async function toggleStoreReportConfirm(postId: string, userId: string) {
+  const report = await prisma.communityStoreReport.findUnique({
+    where: { postId },
+    select: { observedAt: true, post: { select: { userId: true, isHidden: true } } },
+  });
+  if (!report || report.post.isHidden) throw new ServiceError(404, "Rapporten hittades inte.");
+  if (report.post.userId === userId) {
+    throw new ServiceError(403, "Du kan inte bekräfta din egen rapport.");
+  }
+  const key = { postId_userId: { postId, userId } };
+  const existing = await prisma.communityStoreReportConfirmation.findUnique({ where: key });
+  if (existing) {
+    await prisma.communityStoreReportConfirmation.delete({ where: key });
+  } else {
+    if (!reportIsFresh(report.observedAt.toISOString())) {
+      throw new ServiceError(400, "Rapporten är för gammal för att bekräftas.");
+    }
+    await prisma.communityStoreReportConfirmation.create({ data: { postId, userId } }).catch((e) => {
+      // Dubbeltryck: den andra skrivningen krockar på primärnyckeln — samma utfall.
+      if ((e as { code?: string }).code !== "P2002") throw e;
+    });
+  }
+  const confirmCount = await prisma.communityStoreReportConfirmation.count({ where: { postId } });
+  return { confirmed: !existing, confirmCount };
 }
 
 export async function reportPost(postId: string, reporterId: string, reason: string) {

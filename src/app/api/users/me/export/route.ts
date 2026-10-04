@@ -71,6 +71,7 @@ export async function GET() {
         posts: { include: { storeReport: true } },
         suggestedStores: true,
         followedStores: true,
+        storeReportConfirmations: true,
         comments: true,
         alerts: true,
         // ⛔ Art. 15/20: ALL användarkopplad data måste med. Den explicita selecten
@@ -197,6 +198,7 @@ export async function GET() {
       posts: user.posts,
       suggestedStores: user.suggestedStores,
       followedStores: user.followedStores,
+      storeReportConfirmations: user.storeReportConfirmations,
       comments: user.comments,
       likes: user.likes,
       savedPosts: user.savedPosts,

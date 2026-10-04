@@ -5,7 +5,9 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
 import { rememberPostToggle, recallPostToggle } from "@/lib/forum-client";
-import { IconHeart, IconBookmark, IconMessage, IconShare } from "@/components/ui/icons";
+import { IconHeart, IconBookmark, IconMessage, IconShare, IconCheck } from "@/components/ui/icons";
+import { reportIsFresh } from "@/lib/community-stores";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import type { FeedItem } from "@/services/community";
 import type { useForumViewer } from "./use-forum-viewer";
@@ -20,6 +22,31 @@ export function FeedActions({ post, personal, href, onComments }: { post: FeedIt
   const [count, setCount] = useState(post.likeCount);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const report = post.storeReport ?? null;
+  const [confirmed, setConfirmed] = useState(false);
+  const [confirmCount, setConfirmCount] = useState(report?.confirmCount ?? 0);
+  // Bekräfta = "jag ser den också": bara andras rapporter och bara medan de är färska
+  // (servern dömer likadant). Klockan läses efter mount så SSR och klient är lika.
+  const [fresh, setFresh] = useState(false);
+  useEffect(() => { if (report) setFresh(reportIsFresh(report.observedAt)); }, [report]);
+  useEffect(() => { setConfirmed(personal.state.confirmedIds.includes(post.id)); }, [personal.state, post.id]);
+  const ownReport = !!report && personal.viewer?.id === post.user.id;
+  async function toggleConfirm() {
+    if (busy) return;
+    if (!personal.loggedIn) { router.push(`/logga-in?callbackUrl=${encodeURIComponent(href)}`); return; }
+    setBusy(true); setError("");
+    const previous = confirmed;
+    const previousCount = confirmCount;
+    setConfirmed(!previous); setConfirmCount(Math.max(0, confirmCount + (previous ? -1 : 1)));
+    try {
+      const data = await apiFetch<{ confirmed: boolean; confirmCount: number }>(`/api/community/posts/${post.id}/confirm`, { method: "POST" });
+      setConfirmed(data.confirmed); setConfirmCount(data.confirmCount);
+      if (data.confirmed) toast({ title: tStores("confirmThanks"), variant: "success" });
+    } catch (e) {
+      setConfirmed(previous); setConfirmCount(previousCount);
+      setError(e instanceof Error ? e.message : t("somethingWrong"));
+    } finally { setBusy(false); }
+  }
   useEffect(() => {
     const local = recallPostToggle(post.id);
     setLiked(local.liked ?? personal.state.likedIds.includes(post.id));
@@ -57,10 +84,23 @@ export function FeedActions({ post, personal, href, onComments }: { post: FeedIt
     <div className="flex items-center gap-2 text-ink">
       <button type="button" className="grid h-11 w-11 place-items-center" disabled={busy} aria-pressed={liked} aria-label={t("likes")} onClick={() => void toggle("like")}><IconHeart size={25} className={liked ? "fill-holo-cyan text-holo-cyan" : ""} /></button>
       <button type="button" onClick={onComments} className="grid h-11 w-11 place-items-center" aria-label={tStores("comments")}><IconMessage size={25} /></button>
-      <button type="button" className="grid h-11 w-11 place-items-center" aria-label={tStores("sharePost")} onClick={() => void share()}><IconShare size={23} /></button>
-      <button type="button" className="ml-auto grid h-11 w-11 place-items-center" disabled={busy} aria-pressed={saved} aria-label={t("savedLink")} onClick={() => void toggle("save")}><IconBookmark size={25} className={saved ? "fill-holo-cyan text-holo-cyan" : ""} /></button>
+      {report ? (
+        // Butiksrapporter: ingen dela/spara (ägarbeslut 2026-10-05) — bekräfta i stället.
+        fresh && !ownReport && <button type="button" disabled={busy} aria-pressed={confirmed} aria-label={tStores("confirmHint")} onClick={() => void toggleConfirm()}
+          className={cn("ml-auto inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-semibold transition-colors",
+            confirmed ? "border-holo-cyan bg-holo-cyan text-black" : "border-surface-border text-ink")}>
+          <IconCheck size={16} />{confirmed ? tStores("confirmed") : tStores("confirm")}
+        </button>
+      ) : <>
+        <button type="button" className="grid h-11 w-11 place-items-center" aria-label={tStores("sharePost")} onClick={() => void share()}><IconShare size={23} /></button>
+        <button type="button" className="ml-auto grid h-11 w-11 place-items-center" disabled={busy} aria-pressed={saved} aria-label={t("savedLink")} onClick={() => void toggle("save")}><IconBookmark size={25} className={saved ? "fill-holo-cyan text-holo-cyan" : ""} /></button>
+      </>}
     </div>
-    {count > 0 && <p className="pb-1 text-sm font-semibold text-ink">{count} {t("likes")}</p>}
+    {(count > 0 || confirmCount > 0) && <p className="pb-1 text-sm font-semibold text-ink">
+      {count > 0 && <span>{count} {t("likes")}</span>}
+      {count > 0 && confirmCount > 0 && <span className="text-ink-muted"> · </span>}
+      {confirmCount > 0 && <span className="text-holo-cyan">{tStores("confirmCount", { count: confirmCount })}</span>}
+    </p>}
     {error && <p className="text-xs text-fall" role="alert">{error}</p>}
   </div>;
 }

@@ -1088,7 +1088,9 @@
     "storeNotFound": "The store could not be found.",
     "storeSuggestionLimit": "Too many store suggestions. Try again tomorrow.",
     "storeVisitTime": "Enter a visit within the past seven days, not in the future.",
-    "storeFollowLimit": "Too many requests. Try again shortly."
+    "storeFollowLimit": "Too many requests. Try again shortly.",
+    "storeReportOwnConfirm": "You can't confirm your own report.",
+    "storeReportConfirmStale": "This report is too old to confirm."
   },
   "Cookies": {
     "bannerAria": "Cookie information",
@@ -3073,7 +3075,12 @@
     "website": "Store website",
     "positionPending": "Map position pending",
     "latitude": "Latitude",
-    "longitude": "Longitude"
+    "longitude": "Longitude",
+    "confirm": "Confirm",
+    "confirmed": "Confirmed",
+    "confirmHint": "Confirm that you see this in the store too",
+    "confirmThanks": "Thanks! The report is confirmed.",
+    "confirmCount": "Confirmed by {count}"
   },
   "GradingTour": {
     "label": "Grading guide",

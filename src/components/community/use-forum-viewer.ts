@@ -23,6 +23,8 @@ export interface ForumViewer {
 export interface ForumPersonalState {
   likedIds: string[];
   savedIds: string[];
+  /** Butiksrapporter betraktaren bekräftat ("jag ser den också"). */
+  confirmedIds: string[];
   joinedGroupIds: string[];
   blockedIds: string[];
   /** Forumreglerna godkända? null = okänt/utloggad. Läses av ForumRulesGate. */
@@ -38,6 +40,7 @@ export interface ForumPersonalState {
 const EMPTY: ForumPersonalState = {
   likedIds: [],
   savedIds: [],
+  confirmedIds: [],
   joinedGroupIds: [],
   blockedIds: [],
   rulesAccepted: null,

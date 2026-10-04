@@ -273,6 +273,7 @@ model User {
   groupMemberships  CommunityGroupMember[]
   suggestedStores   CommunityStore[]
   followedStores    CommunityStoreFollow[]
+  storeReportConfirmations CommunityStoreReportConfirmation[]
   conversations     ConversationParticipant[]
   messagesSent      Message[]
   blocksMade        UserBlock[]               @relation("BlockBy")
@@ -1368,10 +1369,23 @@ model CommunityStoreReport {
   // Speglingen i Discords butikslarm-kanal (lib/discord-store-report.ts). Tas bort
   // tillsammans med inlägget: radering, moderering och GDPR får aldrig lämna den kvar.
   discordMessageId String?
+  confirmations   CommunityStoreReportConfirmation[]
   post            CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   store           CommunityStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
   @@index([storeId, observedAt])
   @@index([observedAt])
+}
+
+// "Jag ser den också": en annan medlem bekräftar en FÄRSK rapport. Personrelation ⇒
+// raderas med kontot (Cascade) och följer med i dataexporten.
+model CommunityStoreReportConfirmation {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  report    CommunityStoreReport @relation(fields: [postId], references: [postId], onDelete: Cascade)
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([postId, userId])
+  @@index([userId])
 }
 
 enum ListingKind {
