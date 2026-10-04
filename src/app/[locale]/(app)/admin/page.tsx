@@ -2,6 +2,12 @@ import { prisma } from "@/lib/db";
 import { isRedisAvailable } from "@/lib/queue";
 import { formatRelative, formatDateTime, formatPrice } from "@/lib/format";
 import { PayingCustomersTable, type PayingCustomerRow } from "@/components/features/admin/paying-customers-table";
+import {
+  SubscriberChurn,
+  type CancelledRow,
+  type ComebackRow,
+  type FormerRow,
+} from "@/components/features/admin/subscriber-churn";
 import { getAdminOverview, STORE_CUT } from "@/services/admin/overview";
 import { getServiceCosts, type CostSource } from "@/services/admin/service-costs";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
@@ -138,8 +144,19 @@ export default async function AdminOverviewPage() {
     ]);
 
   const [products, offers, retailers, jobs24h, failedJobs24h] = catalog;
-  const { users, revenue, reach, invites, activity, funnel, series, payingUsers, planMix, eventMix } =
-    overview;
+  const {
+    users,
+    revenue,
+    reach,
+    invites,
+    activity,
+    funnel,
+    series,
+    payingUsers,
+    formerSubscribers,
+    planMix,
+    eventMix,
+  } = overview;
   const redisOk = isRedisAvailable();
   const alertsPaused = restockAlertsPaused();
 
@@ -163,7 +180,44 @@ export default async function AdminOverviewPage() {
     watchlistCount: u.watchlistCount,
     collectionCount: u.collectionCount,
     lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
+    streak: u.streak,
+    cancelledAt: u.cancelledAt?.toISOString() ?? null,
+    cancelledApprox: u.cancelledApprox,
+    comebacks: u.comebacks,
   }));
+
+  // Uppsägningar/tidigare/återkomster — samma kunder, sedda ur historiken.
+  const iso = (d: Date | null) => d?.toISOString() ?? null;
+  const cancelledRows: CancelledRow[] = payingUsers
+    .filter((u) => u.renewal === "no")
+    .map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      cancelledAt: iso(u.cancelledAt),
+      cancelledApprox: u.cancelledApprox,
+      proUntil: iso(u.channel === "stripe" ? u.stripeUntil : u.rcExpiresAt),
+    }))
+    // Senast uppsagd först; okänt datum sist.
+    .sort((a, b) => (b.cancelledAt ?? "").localeCompare(a.cancelledAt ?? ""));
+  const formerRows: FormerRow[] = formerSubscribers.map((u) => ({
+    ...u,
+    firstStartAt: iso(u.firstStartAt),
+    cancelledAt: iso(u.cancelledAt),
+    endedAt: iso(u.endedAt),
+  }));
+  const comebackRows: ComebackRow[] = payingUsers
+    .filter((u) => u.comebacks > 0)
+    .map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      firstStartAt: iso(u.firstStartAt),
+      lastComebackAt: iso(u.lastComebackAt),
+      comebacks: u.comebacks,
+      streak: u.streak,
+    }))
+    .sort((a, b) => (b.streak ?? 0) - (a.streak ?? 0));
 
   // ── Ringdiagrammens data ────────────────────────────────────────────────
   // ⛔ Färg per NYCKEL ur den fasta ordningen, aldrig per index i en filtrerad
@@ -508,6 +562,8 @@ export default async function AdminOverviewPage() {
           </div>
 
           <PayingCustomersTable rows={payingClientRows} />
+
+          <SubscriberChurn cancelled={cancelledRows} former={formerRows} comebacks={comebackRows} />
         </CardContent>
       </Card>
 

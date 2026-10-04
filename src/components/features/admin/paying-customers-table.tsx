@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { RENEWAL_LABELS, type RenewalStatus } from "@/lib/subscription-status";
 import { LastSeen } from "@/app/[locale]/(app)/admin/anvandare/user-bits";
 
@@ -30,6 +30,12 @@ export interface PayingCustomerRow {
   watchlistCount: number;
   collectionCount: number;
   lastSeenAt: string | null;
+  /** Betalda månader i rad just nu. null = ingen webhook-historik. */
+  streak: number | null;
+  /** Satt bara när kunden har sagt upp och Pro ännu löper. */
+  cancelledAt: string | null;
+  cancelledApprox: boolean;
+  comebacks: number;
 }
 
 type SortKey =
@@ -37,6 +43,7 @@ type SortKey =
   | "channel"
   | "proSince"
   | "renewal"
+  | "streak"
   | "created"
   | "watchlist"
   | "collection"
@@ -67,6 +74,8 @@ function rank(row: PayingCustomerRow, key: SortKey): number | string {
       return ts(row.proSince);
     case "renewal":
       return RENEWAL_RANK[row.renewal];
+    case "streak":
+      return row.streak ?? -1;
     case "created":
       return ts(row.createdAt);
     case "watchlist":
@@ -119,6 +128,13 @@ const COLUMNS: ColumnDef[] = [
     key: "renewal",
     label: "Förnyas",
     title: "Auto-förnyelse enligt leverantörens senaste webhook-event. Fallande = förnyas överst.",
+    firstDir: "desc",
+  },
+  {
+    key: "streak",
+    label: "I rad",
+    title: "Betalda månader i rad sedan senaste starten (förnyelser i webhook-historiken).",
+    align: "right",
     firstDir: "desc",
   },
   { key: "created", label: "Konto skapat", firstDir: "desc" },
@@ -232,9 +248,23 @@ export function PayingCustomersTable({ rows }: { rows: PayingCustomerRow[] }) {
                 <Badge variant={RENEWAL_VARIANTS[u.renewal]} title={RENEWAL_LABELS[u.renewal].hint}>
                   {RENEWAL_LABELS[u.renewal].label}
                 </Badge>
+                {u.comebacks > 0 && (
+                  <Badge variant="info" className="ml-1" title="Har sagt upp eller slutat tidigare och kommit tillbaka">
+                    Tillbaka
+                  </Badge>
+                )}
+                {u.cancelledAt && (
+                  <span className="block text-xs text-ink-faint">
+                    sa upp{" "}
+                    {u.cancelledApprox ? `senast ${formatDate(u.cancelledAt)}` : formatDateTime(u.cancelledAt)}
+                  </span>
+                )}
                 {u.renewal === "no" && u.rcExpiresAt && (
                   <span className="block text-xs text-ink-faint">t.o.m. {formatDateTime(u.rcExpiresAt)}</span>
                 )}
+              </TD>
+              <TD className="text-right text-ink">
+                {u.streak != null ? `${nf(u.streak)} mån` : <span className="text-ink-faint">–</span>}
               </TD>
               <TD className="text-sm text-ink-muted">{formatDateTime(u.createdAt)}</TD>
               <TD className="text-right">

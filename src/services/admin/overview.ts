@@ -15,6 +15,11 @@
 import { prisma } from "@/lib/db";
 import { payingUserWhere } from "@/lib/plan";
 import { renewalStatus, type RenewalStatus } from "@/lib/subscription-status";
+import {
+  SUBSCRIPTION_AUDIT_ACTIONS,
+  subscriptionHistories,
+  type SubscriptionHistory,
+} from "@/lib/subscription-history";
 
 /** Månadspris i öre. Samma tal som prissidan visar. */
 export const PRO_PRICE_ORE = 4900;
@@ -69,6 +74,28 @@ export interface PayingUserRow {
   watchlistCount: number;
   collectionCount: number;
   lastSeenAt: Date | null;
+  /** Betalda månader i rad just nu (ur webhook-historiken). null = ingen historik. */
+  streak: number | null;
+  /** Senaste uppsägningen — bara satt när kunden har sagt upp och Pro ännu löper. */
+  cancelledAt: Date | null;
+  cancelledApprox: boolean;
+  /** Gånger kunden kommit tillbaka efter en uppsägning eller ett slut. */
+  comebacks: number;
+  lastComebackAt: Date | null;
+  firstStartAt: Date | null;
+}
+
+/** Någon som betalat men inte gör det längre. */
+export interface FormerSubscriberRow {
+  id: string;
+  name: string;
+  email: string;
+  firstStartAt: Date | null;
+  cancelledAt: Date | null;
+  cancelledApprox: boolean;
+  endedAt: Date | null;
+  /** Betalda månader totalt. */
+  paidPeriods: number;
 }
 
 export async function getAdminOverview() {
@@ -191,7 +218,7 @@ export async function getAdminOverview() {
   // på noll och påstår att sajten föddes för 90 dagar sedan.
   const usersBeforeWindow = users - signupSeries.reduce((sum, r) => sum + r.value, 0);
 
-  const [inviteEdges, payingRows] = await Promise.all([
+  const [inviteEdges, payingRows, subscriptionAudit] = await Promise.all([
     prisma.invite.findMany({
       orderBy: { createdAt: "desc" },
       take: 50,
@@ -228,7 +255,52 @@ export async function getAdminOverview() {
         _count: { select: { watchlistItems: true, collectionItems: true } },
       },
     }),
+    // Webhookarnas egna rader — enda stället där DATUMEN för uppsägning, slut och
+    // återkomst finns. Några rader per kund och månad; ingen ny skrivning behövs.
+    prisma.auditLog.findMany({
+      where: {
+        entityType: "User",
+        action: { in: [...SUBSCRIPTION_AUDIT_ACTIONS] },
+        userId: { not: null },
+      },
+      select: { userId: true, action: true, createdAt: true, metadata: true },
+    }),
   ]);
+
+  const histories = subscriptionHistories(subscriptionAudit);
+  const payingIds = new Set(payingRows.map((u) => u.id));
+  // Tidigare kunder = har en betald start i historiken men räknas inte som
+  // betalande nu. Staff och sandbox-testare filtreras i frågan, precis som i
+  // payingUserWhere().
+  const formerIds = [...histories.entries()]
+    .filter(([id, h]) => !payingIds.has(id) && h.firstStartAt)
+    .map(([id]) => id);
+  const formerUsers = formerIds.length
+    ? await prisma.user.findMany({
+        where: {
+          id: { in: formerIds },
+          role: { notIn: ["ADMIN", "SUPERADMIN"] },
+          OR: [{ rcEnvironment: null }, { rcEnvironment: { not: "SANDBOX" } }],
+        },
+        select: { id: true, name: true, email: true },
+      })
+    : [];
+  const formerSubscribers: FormerSubscriberRow[] = formerUsers
+    .map((u) => {
+      const h = histories.get(u.id) as SubscriptionHistory;
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        firstStartAt: h.firstStartAt,
+        cancelledAt: h.lastCancelAt,
+        cancelledApprox: h.lastCancelApprox,
+        endedAt: h.lastEndAt,
+        paidPeriods: h.totalPeriods,
+      };
+    })
+    // Senast avslutad först.
+    .sort((a, b) => (b.endedAt?.getTime() ?? 0) - (a.endedAt?.getTime() ?? 0));
 
   /**
    * ⛔ TRATTEN ÄR INGEN RANGORDNING — stegen är samma resa, och varje steg är
@@ -364,23 +436,34 @@ export async function getAdminOverview() {
       events: eventSeries,
       scans: scanSeries,
     },
-    payingUsers: payingRows.map(
-      (u): PayingUserRow => ({
+    formerSubscribers,
+    payingUsers: payingRows.map((u): PayingUserRow => {
+      const h = histories.get(u.id);
+      const renewal = renewalStatus(u);
+      return {
         id: u.id,
         name: u.name,
         email: u.email,
         channel: u.stripeProUntil && u.stripeProUntil > now ? "stripe" : "store",
         stripeUntil: u.stripeProUntil ?? null,
         proSince: u.proSince,
-        renewal: renewalStatus(u),
+        renewal,
         environment: u.rcEnvironment,
         rcExpiresAt: u.rcExpiresAt,
         createdAt: u.createdAt,
         watchlistCount: u._count.watchlistItems,
         collectionCount: u._count.collectionItems,
         lastSeenAt: u.lastSeenAt,
-      })
-    ),
+        streak: h?.active ? h.periodsInRun : null,
+        // Datumet visas bara när NULÄGET säger uppsagd — en gammal, ångrad
+        // uppsägning ska inte se ut som en aktuell.
+        cancelledAt: renewal === "no" ? (h?.lastCancelAt ?? null) : null,
+        cancelledApprox: renewal === "no" ? (h?.lastCancelApprox ?? false) : false,
+        comebacks: h?.comebacks ?? 0,
+        lastComebackAt: h?.lastComebackAt ?? null,
+        firstStartAt: h?.firstStartAt ?? null,
+      };
+    }),
   };
 }
 
