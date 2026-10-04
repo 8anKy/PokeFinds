@@ -26,6 +26,35 @@ export function findTourTarget(name: string): HTMLElement | null {
 }
 
 /**
+ * SIDAN STÅR STILL UNDER TUREN (ägarens fältrapport 2026-10-04: svep upp/ned fick
+ * ringen och bubblan att släpa efter). Pek- och hjulscroll stoppas medan turen är
+ * öppen; turens egen `scrollIntoView` är programmatisk och fungerar ändå.
+ * ⛔ Inte `overflow: hidden` på body — LockScroll-läxan (ui-shell.md): två låsare
+ *    återställer varandras sparade värde. Händelsen stoppas, inget stilvärde ändras.
+ */
+export function useBlockScroll(active: boolean): void {
+  useEffect(() => {
+    if (!active) return;
+    const stop = (e: Event) => e.preventDefault();
+    const keys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
+    const stopKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (keys.has(e.key) && !(el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(el.tagName)))) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener("touchmove", stop, { passive: false });
+    document.addEventListener("wheel", stop, { passive: false });
+    document.addEventListener("keydown", stopKey);
+    return () => {
+      document.removeEventListener("touchmove", stop);
+      document.removeEventListener("wheel", stop);
+      document.removeEventListener("keydown", stopKey);
+    };
+  }, [active]);
+}
+
+/**
  * Följer målet: letar tills det finns, scrollar fram det en gång och mäter varje
  * bildruta (scroll, animationer). Dröjer det längre än `waitMs` anropas `onMissing`
  * — en mörk skärm utan hål och bubbla är värre än ett överhoppat steg.

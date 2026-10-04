@@ -352,10 +352,10 @@ function CenteringButton(props: {
       type="button"
       onClick={props.onMeasure}
       className={cn(
-        "flex w-full items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors",
+        "flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors",
         outcome
           ? "border-holo-cyan/40 bg-holo-cyan/5 text-holo-cyan hover:bg-holo-cyan/10"
-          : "border-surface-border text-ink-muted hover:border-holo-cyan/50 hover:text-ink"
+          : "border-holo-cyan bg-holo-cyan text-surface hover:bg-holo-cyan/90"
       )}
     >
       <IconCentering size={15} />
@@ -655,19 +655,19 @@ function DefectsPanel(props: {
 
 /**
  * CENTRERINGSRADEN (2026-10-04): mätaren fanns bara som en liten knapp under varje
- * foto och hittades inte. Raden står alltid i uppladdningskortet (turens mål), säger
- * vad mätningen ger och har en tydlig knapp per foto som inte mätts.
+ * foto och hittades inte. Raden står alltid i uppladdningskortet (turens mål) och
+ * säger vad mätningen ger; KNAPPARNA är de under fotona (fyllda tills sidan mätts)
+ * — egna knappar här gav fyra knappar för samma två saker (ägarens skärmdump).
  */
 function CenteringTip(props: {
   front: string | null;
   back: string | null;
   measured: Record<CenteringSide, boolean>;
-  onMeasure: (side: CenteringSide) => void;
 }) {
   const t = useTranslations("Centering");
-  const sides = (["front", "back"] as const).filter((s) => props[s] && !props.measured[s]);
+  const unmeasured = (["front", "back"] as const).filter((s) => props[s] && !props.measured[s]);
   // Båda fotona mätta ⇒ sammanfattningen under tar över.
-  if (props.front && props.back && sides.length === 0) return null;
+  if (props.front && props.back && unmeasured.length === 0) return null;
   return (
     <div
       data-tour="grading-centering"
@@ -678,21 +678,9 @@ function CenteringTip(props: {
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-ink">{t("tipTitle")}</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">{t("tipBody")}</p>
-        {sides.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {sides.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => props.onMeasure(s)}
-                className="flex items-center gap-1.5 rounded-full bg-holo-cyan px-3 py-1.5 text-xs font-semibold text-surface transition-colors hover:bg-holo-cyan/90"
-              >
-                <IconCentering size={14} /> {s === "front" ? t("measureFront") : t("measureBack")}
-              </button>
-            ))}
-          </div>
-        )}
+        <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">
+          {t("tipBody")} {props.front || props.back ? t("tipWhereButtons") : t("tipAfterPhoto")}
+        </p>
       </div>
     </div>
   );
@@ -825,9 +813,7 @@ function CardIdentityBox(props: {
             {t("identifyKeep")}
           </button>
         )}
-        {!chosen && options.length > 0 && (
-          <span className="text-[11px] text-ink-faint">{t("identifySkipHint")}</span>
-        )}
+        {!chosen && <span className="text-[11px] text-ink-faint">{t("identifySkipHint")}</span>}
       </div>
     </div>
   );
@@ -1238,7 +1224,6 @@ export default function GraderaPage() {
             front={front}
             back={back}
             measured={{ front: !!centering.front, back: !!centering.back }}
-            onMeasure={setToolSide}
           />
           {front && !cardIdHint && idState !== "idle" && (
             <CardIdentityBox

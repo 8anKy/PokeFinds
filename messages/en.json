@@ -1688,7 +1688,7 @@
     "identifyYourCard": "Your card",
     "identifyChange": "Change",
     "identifyQuestion": "Which card is it?",
-    "identifyNone": "Couldn't find the card in the photo.",
+    "identifyNone": "We don't recognise the card in the photo. Search for it, or measure centering — the cut-out card matches better.",
     "identifySearch": "Search for the card",
     "identifyKeep": "Keep my choice",
     "identifySkipHint": "Or grade right away — the AI will try to read the card itself.",
@@ -2918,8 +2918,6 @@
     "corner3": "Bottom left corner",
     "tipTitle": "Measure centering yourself (optional)",
     "tipBody": "Takes about half a minute: place lines on the card edge and the inside of the border. A measured value gives a more reliable grade than the AI's eye.",
-    "measureFront": "Measure front",
-    "measureBack": "Measure back",
     "helpOpen": "Show how the tool works",
     "nextLine": "Next line",
     "lineHelpOuter": "place the white line exactly on the card's {edge} edge.",
@@ -2939,7 +2937,9 @@
     "helpLines1": "WHITE line = the card's outer edge. TURQUOISE line = the inside of the border.",
     "helpLines2": "One line is always selected. Drag it, or fine-tune with the arrows. The magnifier shows while you drag.",
     "helpLines3": "Tap Next line until all are placed. Equal borders on both sides means perfectly centered.",
-    "helpGotIt": "Got it"
+    "helpGotIt": "Got it",
+    "tipWhereButtons": "Tap Measure centering under the photo.",
+    "tipAfterPhoto": "The button appears under the photo once you've added it."
   },
   "LocalStores": {
     "browseStores": "Expand store list",

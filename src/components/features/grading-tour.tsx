@@ -3,7 +3,7 @@
 /** Graderingsturen — stegen och reglerna i `lib/grading-tour.ts`. */
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Spotlight, useTourTarget } from "@/components/features/spotlight";
+import { Spotlight, useBlockScroll, useTourTarget } from "@/components/features/spotlight";
 import { GRADING_TOUR_STEPS, markGradingTourSeen } from "@/lib/grading-tour";
 
 export function GradingTour(props: { open: boolean; onClose: () => void }) {
@@ -27,6 +27,7 @@ export function GradingTour(props: { open: boolean; onClose: () => void }) {
 
   const current = open ? GRADING_TOUR_STEPS[step] : null;
   const rect = useTourTarget(current?.target ?? null, next);
+  useBlockScroll(open);
 
   useEffect(() => {
     if (!open) return;

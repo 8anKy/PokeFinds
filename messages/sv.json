@@ -1688,7 +1688,7 @@
     "identifyYourCard": "Ditt kort",
     "identifyChange": "Byt",
     "identifyQuestion": "Vilket kort är det?",
-    "identifyNone": "Hittade inte kortet på bilden.",
+    "identifyNone": "Vi känner inte igen kortet på bilden. Sök det, eller mät centreringen — det utskurna kortet ger en bättre träff.",
     "identifySearch": "Sök kortet",
     "identifyKeep": "Behåll valet",
     "identifySkipHint": "Eller gradera direkt — AI:n försöker läsa kortet själv.",
@@ -2918,8 +2918,6 @@
     "corner3": "Nedre vänstra hörnet",
     "tipTitle": "Mät centreringen själv (valfritt)",
     "tipBody": "Tar ungefär en halv minut: lägg linjer på kortets kant och ramens insida. Ett uppmätt värde ger en säkrare grad än AI:ns ögonmått.",
-    "measureFront": "Mät framsidan",
-    "measureBack": "Mät baksidan",
     "helpOpen": "Visa hur mätaren fungerar",
     "nextLine": "Nästa linje",
     "lineHelpOuter": "lägg den vita linjen exakt på kortets {edge} kant.",
@@ -2939,7 +2937,9 @@
     "helpLines1": "VIT linje = kortets yttre kant. TURKOS linje = ramens insida.",
     "helpLines2": "En linje är alltid vald. Dra den, eller finjustera med pilarna. Förstoringsglaset visas medan du drar.",
     "helpLines3": "Tryck Nästa linje tills alla sitter. Lika breda ramar på båda sidor betyder perfekt centrerat.",
-    "helpGotIt": "Jag förstår"
+    "helpGotIt": "Jag förstår",
+    "tipWhereButtons": "Tryck på Mät centrering under fotot.",
+    "tipAfterPhoto": "Knappen dyker upp under fotot när du lagt till det."
   },
   "LocalStores": {
     "browseStores": "Visa större lista",

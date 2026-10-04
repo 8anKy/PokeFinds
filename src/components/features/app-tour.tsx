@@ -27,7 +27,7 @@ import { usePathname } from "@/i18n/navigation";
 import { useAuthHint } from "@/lib/auth-hint";
 import { onProductOverlayOpen } from "@/lib/product-overlay-open";
 import { BrandLogo } from "@/components/layout/brand-logo";
-import { Spotlight, useTourTarget } from "@/components/features/spotlight";
+import { Spotlight, useBlockScroll, useTourTarget } from "@/components/features/spotlight";
 import {
   TOUR_RESTART_PARAM,
   TOUR_START_PATH,
@@ -116,6 +116,7 @@ export function AppTour() {
   // ── Följ målet: leta tills det finns, mät varje bildruta (scroll, animationer) ──
   const rect = useTourTarget(current?.target ?? null, next, current?.waitMs ?? TARGET_TIMEOUT_MS);
   const infoOnly = !!current && (current.advance.kind === "next" || (guest && !!current.guestInfoOnly));
+  useBlockScroll(current != null);
 
   // ── Gå vidare när användaren gjort det steget ber om ──
   useEffect(() => {

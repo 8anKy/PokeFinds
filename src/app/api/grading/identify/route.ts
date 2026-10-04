@@ -18,7 +18,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
-import { identifyCardArt } from "@/services/scanner";
+import { ART_TRUST_SCORE, identifyCardArt } from "@/services/scanner";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +26,14 @@ const schema = z.object({
   fingerprints: z.array(z.string().min(1).max(1024)).min(1).max(8),
   structFingerprints: z.array(z.string().min(1).max(2048)).max(8).optional(),
 });
+
+/**
+ * FÖRSLAGSGOLVET (2026-10-04, ägarens fältrapport: Pikachu i toploader gav tre
+ * Charmander/Mew-förslag). Rätta bildträffar mäter 0,56–0,95 (scanner/index.ts,
+ * ART_TRUST_SCORE); under golvet är en träff praktiskt taget alltid fel, och tre fel
+ * kort under "Vilket kort är det?" är värre än "hittade inte kortet — sök".
+ */
+const SUGGEST_MIN_SCORE = ART_TRUST_SCORE;
 
 export interface GradingIdentifyCandidate {
   cardId: string;
@@ -41,7 +49,10 @@ export async function POST(req: Request) {
     const { ok } = await rateLimit(`grading-identify:${user.id}`, 30, 60 * 1000);
     if (!ok) throw new ServiceError(429, "För många förfrågningar.");
     const art = await identifyCardArt(schema.parse(await req.json()));
-    const ids = art.candidates.slice(0, 5).map((c) => c.cardId);
+    const ids = art.candidates
+      .filter((c) => c.score >= SUGGEST_MIN_SCORE)
+      .slice(0, 5)
+      .map((c) => c.cardId);
     const rows = ids.length
       ? await prisma.card.findMany({
           where: { id: { in: ids } },
