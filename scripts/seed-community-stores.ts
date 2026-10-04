@@ -3,6 +3,8 @@
  * Källor + adresskoordinater är frysta i JSON-filen; ingen geokodning i appen.
  * --dry är standard. --apply skapar saknade filialer, ändrar ALDRIG befintliga
  * förslag, ägarens modereringsbeslut eller senare adressrättningar.
+ * --fill-positions (med --apply) sätter position på BEFINTLIGA källfilialer som
+ * saknar en — bara där databasen har null, en satt position skrivs aldrig över.
  */
 import { PrismaClient } from "@prisma/client";
 import stores from "../src/data/community-stores-curated.json";
@@ -17,6 +19,18 @@ async function main() {
   const missing = stores.filter(s => !keys.has(storeIdentity(s.name, s.address, s.city)));
   console.log(`${apply ? "APPLY" : "DRY"}: ${missing.length} saknade av ${stores.length} källkontrollerade butiker.`);
   for (const store of missing) console.log(`${store.name} · ${store.address} · ${store.city}`);
+  if (process.argv.includes("--fill-positions")) {
+    const positioned = new Map(stores.filter(s => s.latitude != null && s.longitude != null)
+      .map(s => [storeIdentity(s.name, s.address, s.city), s]));
+    const rows = await db.communityStore.findMany({ where: { latitude: null }, select: { id: true, identityKey: true, name: true } });
+    const fill = rows.filter(r => positioned.has(r.identityKey));
+    console.log(`${apply ? "APPLY" : "DRY"}: ${fill.length} befintliga filialer får position.`);
+    for (const r of fill) console.log(`  ${r.name}`);
+    if (apply) for (const r of fill) {
+      const s = positioned.get(r.identityKey)!;
+      await db.communityStore.updateMany({ where: { id: r.id, latitude: null }, data: { latitude: s.latitude, longitude: s.longitude } });
+    }
+  }
   if (!apply || !missing.length) return;
   await db.$transaction(missing.map(s => {
     const identityKey = storeIdentity(s.name, s.address, s.city);

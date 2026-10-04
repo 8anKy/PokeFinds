@@ -55,7 +55,13 @@ describe("community store map", () => {
         expect(s.longitude).not.toBeNull();
         expect(s.coordinateSource).toMatch(/^https:\/\//);
         if (!s.coordinateSource?.includes("openstreetmap.org")) expect(s.coordinateLabel).toContain(s.address);
-        else expect(s.coordinateLabel.toLowerCase()).toContain(s.address.match(/\d+/)?.[0]);
+        else {
+          // Adress utan husnummer (köpcentrum/torg): punkten måste då vara köpcentret eller
+          // butikens egen OSM-nod, och etiketten säga vilket — aldrig en gatu-/ortsmittpunkt.
+          const num = s.address.match(/\d+/)?.[0];
+          if (num) expect(s.coordinateLabel.toLowerCase()).toContain(num);
+          else expect(s.coordinateLabel.toLowerCase()).toMatch(/köpcentrum|butiksnod/);
+        }
       }
     }
   });

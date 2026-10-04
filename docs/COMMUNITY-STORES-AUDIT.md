@@ -2,6 +2,10 @@
 
 253 frysta filialer: 62 tidigare, 124 svenska Lekia-filialer, 12 aktuella Webhallen-filialer, 44 Kandyz-filialer och 11 specialistbutiker ur befintlig återförsäljarkatalog. 248 har källkontrollerad position; fem väntar på exakt position och visas med adress i kataloglistan.
 
+## Positionspass 2026-10-05
+
+13 av 26 filialer utan position fick en: butikens egen OSM-nod (Playoteket, Swepoke, Hemmakväll Uppsala/Växjö Marketenterivägen/Kungsbacka/Falun — noden ligger på eller ≤ 30 m från den officiella gatan), OSM-adresspunkt/byggnad med husnumret (Speltrollet 9 G i samma byggnad som 9 H, Röda Goblinen 35, Hemmakväll Karlshamn 27A–C, Mariestad Nya torget 1) eller köpcentret butiken ligger i (Kista Galleria, Frölunda Torg, Asecs). Kvar utan position: Leksaksaffären Hallsberg och Hemmakväll Nässjö, Höllviken, Falkenberg, Trelleborg, Västervik, Norrtälje, Piteå, Varberg, Mölnlycke, Lidköping, Trollhättan, Lerum — OSM har bara gatan där, och en gatumittpunkt sätts aldrig. Produktion fylls med `--fill-positions --apply` (rör bara null-positioner).
+
 ## Tillägg 2026-10-04: Costco, Hemmakväll, Gekås Ullared
 
 74 filialer till (327 totalt, 301 med position).
