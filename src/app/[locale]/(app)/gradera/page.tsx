@@ -47,6 +47,7 @@ import {
   IconShare,
   IconShield,
   IconTrendingUp,
+  IconX,
 } from "@/components/ui/icons";
 
 interface SubScores {
@@ -822,6 +823,7 @@ export default function GraderaPage() {
   const userPickedRef = useRef(false);
   const [picking, setPicking] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef<HTMLElement>(null);
   /** Graderingsturen (lib/grading-tour.ts): första besöket, eller "?" i huvudet. */
   const [tourOpen, setTourOpen] = useState(false);
   /** Slabbens bild (ägarönskan 2026-10-04): katalogbilden eller användarens eget foto. */
@@ -1113,6 +1115,15 @@ export default function GraderaPage() {
     }
   }
 
+  /** Stäng en öppnad tidigare gradering och visa listan med de andra. */
+  function closeHistory() {
+    setResult(null);
+    setShareOpen(false);
+    window.requestAnimationFrame(() =>
+      historyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    );
+  }
+
   async function pickCard(jobId: string, c: CardSearchCandidate) {
     if (picking) return;
     setPicking(true);
@@ -1282,12 +1293,29 @@ export default function GraderaPage() {
       {result && (
         <div ref={resultRef} className="scroll-mt-4">
         <Card key={result.jobId} className="animate-scale-in">
-          <CardHeader>
-            <CardTitle>{result.historyAt ? t("historyResultTitle") : t("step2")}</CardTitle>
-            {result.historyAt && (
-              <p className="text-xs text-ink-faint">{new Date(result.historyAt).toLocaleString(locale)}</p>
-            )}
-          </CardHeader>
+          {result.historyAt ? (
+            // En öppnad tidigare gradering STÄNGS med ett tryck på rubriken (ägarönskan
+            // 2026-10-04) — listan med de andra graderingarna kommer fram direkt i
+            // stället för att man ska behöva scrolla förbi hela resultatet.
+            <button
+              type="button"
+              onClick={closeHistory}
+              aria-label={t("historyClose")}
+              className="flex w-full items-center gap-3 border-b border-surface-border px-5 py-4 text-left transition-colors hover:bg-surface-overlay/40"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-lg font-semibold text-ink">{t("historyResultTitle")}</span>
+                <span className="block text-xs text-ink-faint">{new Date(result.historyAt).toLocaleString(locale)}</span>
+              </span>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-overlay text-ink-muted ring-1 ring-surface-border">
+                <IconX size={17} />
+              </span>
+            </button>
+          ) : (
+            <CardHeader>
+              <CardTitle>{t("step2")}</CardTitle>
+            </CardHeader>
+          )}
           <CardContent className="flex flex-col gap-5">
             <div className="flex items-center gap-5">
               <div className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-2xl border border-surface-border bg-surface">
@@ -1466,7 +1494,7 @@ export default function GraderaPage() {
       )}
 
       {/* Historik — en rubrik och en lista, ingen ram. */}
-      <section data-tour="grading-history" className="flex flex-col gap-2">
+      <section ref={historyRef} data-tour="grading-history" className="flex scroll-mt-16 flex-col gap-2">
         <h2 className="text-base font-semibold text-ink">{t("historyTitle")}</h2>
         <div>
           {jobs === null ? (

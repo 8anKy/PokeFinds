@@ -1739,7 +1739,8 @@
     },
     "gradeAnother": "Gradera ett nytt kort",
     "quotaLeft": "{left} av {limit} graderingar kvar denna månad",
-    "disclaimerShort": "AI-uppskattning, inte en officiell PSA- eller BGS-gradering."
+    "disclaimerShort": "AI-uppskattning, inte en officiell PSA- eller BGS-gradering.",
+    "historyClose": "Stäng graderingen"
   },
   "PostCategory": {
     "PULLS": "Pulls",

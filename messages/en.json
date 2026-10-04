@@ -1739,7 +1739,8 @@
     },
     "gradeAnother": "Grade another card",
     "quotaLeft": "{left} of {limit} gradings left this month",
-    "disclaimerShort": "AI estimate, not an official PSA or BGS grade."
+    "disclaimerShort": "AI estimate, not an official PSA or BGS grade.",
+    "historyClose": "Close the grading"
   },
   "PostCategory": {
     "PULLS": "Pulls",
