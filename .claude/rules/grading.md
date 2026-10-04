@@ -18,11 +18,12 @@ paths:
   PROMPTER i stället för MODELLER (samma skäl som skannerns och fynd-verifierarens kontrakt). `GRADE_REQUIRED`
   HÄRLEDS ur fältspecen så de inte kan glida isär. Strukturerat svar via tvingat verktyg (`report_grade`).
   ⛔ **`maxOutputTokens` är taket för TÄNKANDE + SVAR på Gemini 3** och tänkandet går inte att stänga av — Claudes
-  1024 rakt över trunkerar tyst verktygsanropet. 2048 + `thinkingLevel: "minimal"`.
+  1024 rakt över trunkerar tyst verktygsanropet. 4096 (sedan skadelistan 2026-10-04) + `thinkingLevel: "minimal"`.
   ⛔ **GIF avvisas explicit**: delade `parseDataUrl` accepterar gif för Claudes skull, Google gör det inte.
   Byte sker med `GRADING_PROVIDER` på RAILWAY (ingen deploy); `GRADING_PROVIDER=claude` är rollback.
-  ⏭️ KVAR: bilderna skalas INTE ner (två foton à upp till 5 MB) — största kostnadsspaken, medvetet lämnad utanför
-  leverantörsbytet så kostnadsdeltat går att tillskriva. Det är en UPPSKATTNING, aldrig en officiell PSA/BGS-grad.
+  Fotona förbereds på telefonen sedan 2026-10-04 (`lib/grading-photo.ts`): orienteringen bakas in och längsta sidan
+  kapas till 2400 px — över vad modellerna själva skalar till, så kostnad/bedömning är oförändrade. Det är en
+  UPPSKATTNING, aldrig en officiell PSA/BGS-grad.
 - **GRADERINGSHISTORIKEN VISAR KATALOGBILDEN, OCH BARA NÄR NUMRET STYRKT KORTET (2026-08-05)**: användarens foton
   sparas ALDRIG (`frontImageUrl = INLINE_UPLOAD`, dataminimering), så katalogbilden är den enda bild som finns.
   Kopplingen görs EN gång vid graderingen (`resolveGradedCard`, `services/grading/card-link.ts`) och lagras i
@@ -55,3 +56,16 @@ paths:
   räknas om via `/api/grading/jobs/[id]/worth` (aldrig sparat — priserna rör sig). Delningen tar mätningen ur
   `result.centering` (samma väg för färsk och historik); fotona finns aldrig kvar ⇒ katalogbilden ur historiken.
   Slabben ritas platt (pärlemoetikett, folieremsa, nedsänkt brunn) och lutas i 3D med synlig tjocklek.
+- **SKADEMARKERINGAR + KAMERARULLE + SLABBILD + HJÄLP (2026-10-04, ägarönskan)**: modellen returnerar `defects`
+  (obligatorisk lista, får vara TOM): sida, kategori (corners/edges/surface), allvar, kort text på användarens språk
+  och en ruta i Geminis konvention (ymin, xmin, ymax, xmax 0–1000). `parseDefects` (contract.ts, testad) kastar allt
+  otolkbart och sparar rutan som andelar i `result.defects`. ⛔ Rutorna gäller FOTOT modellen fick — därför bakas
+  EXIF-orienteringen in i klienten innan uppladdning; utan det hamnar rutorna fel på en iPhone-bild. ⛔ Fotona sparas
+  aldrig ⇒ historiken visar bara listan. Rutorna är modellens PEKANDE, inte en mätning — UI:t säger "ungefärliga".
+  `maxOutputTokens` 4096 (Gemini) / `max_tokens` 2048 (Claude) för listan; merkostnad ≈ 300–600 ut-tokens per gradering.
+  Uppladdningen har TVÅ inputs: kamera (`capture`) och kamerarulle (utan) — en input med `capture` stängde galleriet
+  på Android. Delningsarket väljer slabbens bild: katalogbild eller "Mitt foto" (mätarens utsnitt, annars
+  `autoCropCard` med skannerns hörnsökare, annars råfotot). Centreringsmätaren visar en ritad hjälp första gången
+  per steg ("?" tar fram den), linjesteget har ALLTID en vald linje med en mening + "Nästa linje".
+  Graderingsturen (`lib/grading-tour.ts`, fem info-steg, localStorage) delar ritningen med appturen
+  (`components/features/spotlight.tsx`).

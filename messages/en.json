@@ -1651,7 +1651,6 @@
     "step1": "1. Add images",
     "front": "Front",
     "back": "Back",
-    "tapToCapture": "Tap to photograph or choose",
     "previewAlt": "Preview: {label}",
     "gradeBtn": "Grade card",
     "analyzing": "Analyzing condition…",
@@ -1676,7 +1675,7 @@
     "wrongFileType": "Wrong file type",
     "chooseImage": "Choose an image file.",
     "tooLarge": "The image is too large",
-    "tooLargeDesc": "Max 5 MB. Try compressing the image.",
+    "tooLargeDesc": "Max 40 MB per image.",
     "gradeFailTitle": "Couldn't grade the card",
     "unknownError": "Unknown error.",
     "gradeFailMsg": "The grading failed.",
@@ -1710,7 +1709,27 @@
     "worthUnlock": "See graded prices with Pro",
     "worthNote": "Median of copies sold in the last year. Allow for grading fees and shipping.",
     "worthAll": "All graded prices",
-    "historyResultTitle": "Earlier grading"
+    "historyResultTitle": "Earlier grading",
+    "takePhoto": "Take photo",
+    "chooseFromLibrary": "Choose image",
+    "dropHint": "or drop an image here",
+    "retakePhoto": "Retake {label}",
+    "replaceFromLibrary": "Choose another image for {label}",
+    "photoReadFail": "Couldn't read the image",
+    "photoReadFailDesc": "Try a JPG or PNG image, or photograph the card directly.",
+    "tourOpen": "How it works",
+    "slabImage": "Image on the slab",
+    "slabImageCatalog": "Catalog image",
+    "slabImagePhoto": "My photo",
+    "defectsTitle": "{count, plural, one {The AI found # flaw} other {The AI found # flaws}}",
+    "defectsApprox": "The boxes are approximate — tap a flaw to see where it is.",
+    "defectsNoPhotos": "Photos aren't stored, so the markings only show right after grading.",
+    "defectsNone": "The AI found no clear flaws in the photos.",
+    "severity": {
+      "minor": "Minor",
+      "moderate": "Noticeable",
+      "major": "Clear"
+    }
   },
   "PostCategory": {
     "PULLS": "Pulls",
@@ -2896,7 +2915,31 @@
     "corner0": "Top left corner",
     "corner1": "Top right corner",
     "corner2": "Bottom right corner",
-    "corner3": "Bottom left corner"
+    "corner3": "Bottom left corner",
+    "tipTitle": "Measure centering yourself (optional)",
+    "tipBody": "Takes about half a minute: place lines on the card edge and the inside of the border. A measured value gives a more reliable grade than the AI's eye.",
+    "measureFront": "Measure front",
+    "measureBack": "Measure back",
+    "helpOpen": "Show how the tool works",
+    "nextLine": "Next line",
+    "lineHelpOuter": "place the white line exactly on the card's {edge} edge.",
+    "lineHelpInner": "place the turquoise line where the yellow border ends at the {edge} edge — where the art/text box begins.",
+    "lineHelpInnerBack": "place the turquoise line where the blue border ends at the {edge} edge.",
+    "edge": {
+      "left": "left",
+      "right": "right",
+      "top": "top",
+      "bottom": "bottom"
+    },
+    "helpCornersTitle": "Put the dots on the card's corners",
+    "helpCorners1": "Drag the four turquoise dots to the card's four corners.",
+    "helpCorners2": "Follow the straight edges — on rounded corners, place the dot where the edges would meet.",
+    "helpCorners3": "Tap Next and we straighten the photo, even if it was taken at an angle.",
+    "helpLinesTitle": "Two lines per edge",
+    "helpLines1": "WHITE line = the card's outer edge. TURQUOISE line = the inside of the border.",
+    "helpLines2": "One line is always selected. Drag it, or fine-tune with the arrows. The magnifier shows while you drag.",
+    "helpLines3": "Tap Next line until all are placed. Equal borders on both sides means perfectly centered.",
+    "helpGotIt": "Got it"
   },
   "LocalStores": {
     "browseStores": "Expand store list",
@@ -3016,7 +3059,11 @@
     "chooseCatalogProduct": "Choose from the product catalog",
     "moreDetails": "More details (optional)",
     "citySuggestions": "City suggestions",
-    "statusShort": { "SEEN": "Available", "SOLD_OUT": "Sold out", "NOT_CARRIED": "Not sold" },
+    "statusShort": {
+      "SEEN": "Available",
+      "SOLD_OUT": "Sold out",
+      "NOT_CARRIED": "Not sold"
+    },
     "assortmentUnconfirmed": "The card selection is not confirmed for this branch. Help with a visit report.",
     "sharePost": "Share post",
     "linkCopied": "Link copied",
@@ -3026,5 +3073,22 @@
     "positionPending": "Map position pending",
     "latitude": "Latitude",
     "longitude": "Longitude"
+  },
+  "GradingTour": {
+    "label": "Grading guide",
+    "progress": "Step {step} of {total}",
+    "skip": "End guide",
+    "next": "Next",
+    "done": "Done",
+    "frontTitle": "The front",
+    "frontBody": "Photograph the card or choose an image from your camera roll. Lay it on a dark, smooth surface in even light and shoot straight from above — no flash.",
+    "backTitle": "The back",
+    "backBody": "Same for the back. The AI needs both sides to see edges and corners.",
+    "centeringTitle": "Measure centering",
+    "centeringBody": "Optional but worth it: put dots on the corners and lines on the borders, and we calculate centering exactly instead of the AI guessing.",
+    "gradeTitle": "Grade",
+    "gradeBody": "The AI assesses centering, corners, edges and surface — and circles the flaws it finds in your photos.",
+    "historyTitle": "Your gradings",
+    "historyBody": "Everything you've graded is saved here. Open a grading to see it again or share it as a slab."
   }
 }

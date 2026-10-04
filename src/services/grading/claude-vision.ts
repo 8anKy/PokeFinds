@@ -28,8 +28,27 @@ import {
   resolveGradingLocale,
   buildGradeResult,
   parseGradingImage,
+  type GradeField,
 } from "@/services/grading/contract";
 import type { GradeResult, GradingAdapter, GradingContext } from "./types";
+
+/** Fältspecen i JSON Schema-form. Listor (skadorna) blir array av object, rekursivt. */
+function claudeField(f: GradeField): Record<string, unknown> {
+  if (f.type === "array" && f.items) {
+    return {
+      type: "array",
+      description: f.description,
+      items: {
+        type: "object",
+        properties: Object.fromEntries(f.items.map((i) => [i.name, claudeField(i)])),
+        required: f.items.filter((i) => !i.optional).map((i) => i.name),
+      },
+    };
+  }
+  return f.enum
+    ? { type: f.type, enum: f.enum, description: f.description }
+    : { type: f.type, description: f.description };
+}
 
 const GRADE_TOOL: Anthropic.Tool = {
   name: GRADE_TOOL_NAME,
@@ -39,14 +58,7 @@ const GRADE_TOOL: Anthropic.Tool = {
     // ⛔ Fälten byggs ur den DELADE specen (contract.ts) — aldrig en egen kopia
     // här. Två leverantörer med var sin fältbeskrivning gör en A/B-mätning
     // meningslös: då jämför man prompter, inte modeller.
-    properties: Object.fromEntries(
-      GRADE_FIELDS.map((f) => [
-        f.name,
-        f.enum
-          ? { type: f.type, enum: f.enum, description: f.description }
-          : { type: f.type, description: f.description },
-      ])
-    ),
+    properties: Object.fromEntries(GRADE_FIELDS.map((f) => [f.name, claudeField(f)])),
     required: GRADE_REQUIRED,
   },
 };
@@ -74,7 +86,8 @@ export class ClaudeVisionGradingAdapter implements GradingAdapter {
 
     const response = await client.messages.create({
       model: this.model,
-      max_tokens: 1024,
+      // Skadelistan (2026-10-04) rymdes inte säkert i 1024.
+      max_tokens: 2048,
       system: buildSystem(resolveGradingLocale(context?.locale)),
       tools: [GRADE_TOOL],
       tool_choice: { type: "tool", name: GRADE_TOOL_NAME },

@@ -23,6 +23,7 @@ import {
   buildClosingInstruction,
   buildGradeResult,
   buildSystem,
+  parseDefects,
   resolveGradingLocale,
 } from "@/services/grading/contract";
 import { getGradingAdapter } from "@/services/grading";
@@ -98,7 +99,8 @@ describe("fältspec ↔ required", () => {
       "cardName",
     ]);
     expect(GRADE_REQUIRED).not.toContain("cardName");
-    expect(GRADE_REQUIRED).toHaveLength(7);
+    expect(GRADE_REQUIRED).toHaveLength(8);
+    expect(GRADE_REQUIRED).toContain("defects");
   });
 });
 
@@ -187,8 +189,8 @@ describe("graderingens språk", () => {
   it("byter BARA motiveringens språk — instruktionen står kvar", () => {
     // Byttes hela promptspråket skulle en leverantörsjämförelse mäta prompt,
     // inte modell. Allt utom språkfrasen ska vara identiskt.
-    const sv = buildSystem("sv").replace("på svenska", "SPRÅK");
-    const en = buildSystem("en").replace("på engelska", "SPRÅK");
+    const sv = buildSystem("sv").replaceAll("på svenska", "SPRÅK");
+    const en = buildSystem("en").replaceAll("på engelska", "SPRÅK");
     expect(sv).toBe(en);
   });
 
@@ -208,5 +210,46 @@ describe("språket har EN källa", () => {
     for (const f of GRADE_FIELDS) {
       expect(f.description.toLowerCase()).not.toMatch(/svenska|engelska|swedish|english/);
     }
+  });
+});
+
+describe("parseDefects", () => {
+  const ok = { side: "front", category: "corners", severity: "major", note: "Vitt hörn", ymin: 100, xmin: 50, ymax: 200, xmax: 150 };
+
+  it("0–1000 (y före x) blir andelar x/y/w/h", () => {
+    expect(parseDefects([ok])).toEqual([
+      { side: "front", category: "corners", severity: "major", note: "Vitt hörn", x: 0.05, y: 0.1, w: 0.1, h: 0.1 },
+    ]);
+  });
+
+  it("kastar poster med okänd sida/kategori, utan text eller utan koordinater — aldrig en gissning", () => {
+    expect(
+      parseDefects([
+        { ...ok, side: "middle" },
+        { ...ok, category: "holo" },
+        { ...ok, note: "  " },
+        { ...ok, xmax: "200" },
+        null,
+        "skada",
+      ])
+    ).toEqual([]);
+  });
+
+  it("okänt allvar blir minor, omvända hörn rättas, för små rutor växer till synlig storlek", () => {
+    const [d] = parseDefects([{ ...ok, severity: "x", xmin: 500, xmax: 500, ymin: 900, ymax: 800 }]);
+    expect(d.severity).toBe("minor");
+    expect(d.y).toBe(0.8);
+    expect(d.w).toBe(0.03);
+    expect(d.x).toBeCloseTo(0.485, 3);
+  });
+
+  it("hela bilden är ingen markering, och listan kapas", () => {
+    expect(parseDefects([{ ...ok, ymin: 0, xmin: 0, ymax: 1000, xmax: 1000 }])).toEqual([]);
+    expect(parseDefects(Array.from({ length: 20 }, () => ok))).toHaveLength(8);
+    expect(parseDefects(undefined)).toEqual([]);
+  });
+
+  it("buildGradeResult tar alltid med en lista", () => {
+    expect(buildGradeResult({ overall: 8 }, "m").defects).toEqual([]);
   });
 });

@@ -19,11 +19,9 @@
  * sätts därför i `index.ts` till 3.x — kontrollera tillgängligheten INNAN en
  * modell sätts som default.
  *
- * ⛔ BILDSTORLEKEN ÄR MEDVETET ORÖRD I DET HÄR BYTET. Graderingen laddar upp två
- * foton i full upplösning (upp till 5 MB styck) utan nedskalning, och det ÄR
- * värt att fixa — men i en EGEN ändring. Ändras bilderna samtidigt som modellen
- * går varken kostnaden eller kvaliteten att tillskriva någondera (samma varning
- * som står i scanner/gemini-vision.ts).
+ * BILDSTORLEKEN: sedan 2026-10-04 förbereds fotona på telefonen (lib/grading-photo.ts)
+ * — orienteringen bakas in och längsta sidan kapas till 2400 px. Det ligger över
+ * vad modellen själv skalar till, så kostnaden och bedömningen är oförändrade.
  */
 import { ServiceError } from "@/lib/errors";
 import {
@@ -38,6 +36,7 @@ import {
   resolveGradingLocale,
   buildGradeResult,
   parseGradingImage,
+  type GradeField,
 } from "@/services/grading/contract";
 import type { GradeResult, GradingAdapter, GradingContext } from "./types";
 
@@ -70,17 +69,27 @@ interface GeminiPart {
   functionCall?: { name?: string; args?: Record<string, unknown> };
 }
 
-/** Fältspecens typer i OpenAPI-form (Gemini), t.ex. "boolean" → "BOOLEAN". */
-function geminiSchema() {
-  const properties: Record<string, unknown> = {};
-  for (const f of GRADE_FIELDS) {
-    properties[f.name] = {
-      type: f.type.toUpperCase(),
-      description: f.description,
-      ...(f.enum ? { enum: f.enum } : {}),
-    };
+/** Fältspecens typer i OpenAPI-form (Gemini), t.ex. "boolean" → "BOOLEAN".
+ *  Listor (skadorna) blir ARRAY av OBJECT, rekursivt ur samma spec. */
+function geminiField(f: GradeField): Record<string, unknown> {
+  if (f.type === "array" && f.items) {
+    return { type: "ARRAY", description: f.description, items: geminiObject(f.items) };
   }
-  return { type: "OBJECT", properties, required: GRADE_REQUIRED };
+  return {
+    type: f.type.toUpperCase(),
+    description: f.description,
+    ...(f.enum ? { enum: f.enum } : {}),
+  };
+}
+
+function geminiObject(fields: GradeField[], required = fields.filter((f) => !f.optional).map((f) => f.name)) {
+  const properties: Record<string, unknown> = {};
+  for (const f of fields) properties[f.name] = geminiField(f);
+  return { type: "OBJECT", properties, required };
+}
+
+function geminiSchema() {
+  return geminiObject(GRADE_FIELDS, GRADE_REQUIRED);
 }
 
 /** Data-URL → inlineData-part, med formatkontrollen ovan. */
@@ -162,9 +171,10 @@ export class GeminiVisionGradingAdapter implements GradingAdapter {
           // tänker (hela 3-serien), och Gemini 3 tillåter inte att tänkandet
           // stängs av — ett snålt tak klipper alltså verktygsanropet TYST. Att
           // bära över Claude-vägens 1024 rakt av hade varit precis det felet.
-          // Graderingen är ~150 tokens (sju tal + en kort svensk motivering);
-          // 2048 är marginal, inte behov.
-          maxOutputTokens: 2048,
+          // Graderingen är ~150 tokens (sju tal + en kort svensk motivering) plus
+          // skadelistan sedan 2026-10-04 (≤ 8 poster à ~60 tokens). 4096 är
+          // marginal, inte behov — taket kostar ingenting som inte används.
+          maxOutputTokens: 4096,
           ...(thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {}),
         },
       }),

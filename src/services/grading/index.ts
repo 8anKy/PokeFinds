@@ -197,6 +197,9 @@ export async function runGradingJob(
           overall: result.overall,
           confidence: result.confidence,
           rationale: result.rationale,
+          // Skademarkeringarna (2026-10-04): rutorna gäller fotona, som aldrig
+          // sparas — historiken visar därför bara listan.
+          defects: result.defects.map((d) => ({ ...d })),
           modelUsed: result.modelUsed,
           // KOSTNADSAVTRYCK (2026-08-14): API:ts egna tokental, för ALLA
           // användare. Adminpanelens kostnad-per-användare summerar dem

@@ -43,6 +43,11 @@ export class MockGradingAdapter implements GradingAdapter {
         "(GRADING_PROVIDER=gemini eller claude) för en faktisk bedömning.",
       modelUsed: "mock",
       cardName: context?.cardName ?? "Demokort 001/100 · Mockset",
+      // Fasta demorutor så skademarkeringarna går att se utan en riktig modell.
+      defects: [
+        { side: "front", category: "corners", severity: "minor", note: "Demo: lätt vitning i övre vänstra hörnet.", x: 0.08, y: 0.06, w: 0.1, h: 0.08 },
+        { side: "back", category: "edges", severity: "moderate", note: "Demo: nötning längs högerkanten.", x: 0.84, y: 0.35, w: 0.08, h: 0.25 },
+      ],
     };
   }
 }

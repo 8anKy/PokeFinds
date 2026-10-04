@@ -472,3 +472,21 @@ export const IconRotate = (p: IconProps) => (
     <path d="M20 4v7h-7" />
   </svg>
 );
+
+/** Bildbibliotek / kamerarulle — "Välj bild" bredvid "Fota". */
+export const IconImage = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+    <circle cx="8.5" cy="9.5" r="1.75" />
+    <path d="m21 16-5-5-9 9" />
+  </svg>
+);
+
+/** Frågetecken i cirkel — "hur gör jag?"-hjälp. */
+export const IconHelp = (p: IconProps) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.6 9.3a2.5 2.5 0 0 1 4.85.85c0 1.65-2.45 2.2-2.45 3.6" />
+    <path d="M12 17h.01" />
+  </svg>
+);

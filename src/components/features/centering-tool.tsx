@@ -13,6 +13,12 @@
  *     TURKOSA på ramens innerkant. Förstoringsglas under draget, pilknappar för
  *     pixelfinjustering, V/H och Ö/N plus PSA-taket live (lib/centering.ts).
  *
+ * HJÄLPEN (2026-10-04, "folk förstår inte hur mätaren används"): varje steg öppnas
+ * första gången med en bild som VISAR vad man gör (`CenteringHelp`, "?" tar fram den
+ * igen), och i linjesteget är alltid EN linje vald med en mening om var just den ska
+ * ligga — "Nästa linje" går igenom alla åtta. Förut var ingen linje vald, pilarna var
+ * döda och instruktionen stod i liten text längst ned.
+ *
  * ⛔ Ingen AI och inget nätverk — allt räknas på telefonen.
  * ⛔ Portal till body + `data-drag-surface` + `touch-none`, precis som bildläsaren:
  *    utan portalen klipper en transform hos en förälder `fixed`, och utan de två
@@ -39,6 +45,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconChevronUp,
+  IconHelp,
   IconRotate,
   IconX,
 } from "@/components/ui/icons";
@@ -83,6 +90,31 @@ const LOUPE_SIZE = 132;
 const LOUPE_ZOOM = 4;
 
 type Step = "corners" | "lines";
+
+/** Hjälpbilden visas själv FÖRSTA gången per steg (per enhet). */
+const HELP_KEY = (step: Step) => `foilio:centering-help:${step}:v1`;
+function helpSeen(step: Step): boolean {
+  try {
+    return window.localStorage.getItem(HELP_KEY(step)) === "1";
+  } catch {
+    return true;
+  }
+}
+function markHelpSeen(step: Step): void {
+  try {
+    window.localStorage.setItem(HELP_KEY(step), "1");
+  } catch {
+    // privat läge — hjälpen kan visas igen, ofarligt
+  }
+}
+
+/** Kanten en linje hör till — meningen "lägg linjen på kortets VÄNSTRA kant". */
+function edgeOf(key: CenteringLineKey): "left" | "right" | "top" | "bottom" {
+  if (key.endsWith("Left")) return "left";
+  if (key.endsWith("Right")) return "right";
+  if (key.endsWith("Top")) return "top";
+  return "bottom";
+}
 interface Img {
   url: string;
   w: number;
@@ -307,9 +339,19 @@ export function CenteringTool(props: {
   const [quad, setQuad] = useState<Quad | null>(props.initial?.quad ?? null);
   const [lines, setLines] = useState<CenteringLines>(props.initial?.lines ?? defaultLines());
   const [mode, setMode] = useState<CenteringMode>(props.initial?.mode ?? props.defaultMode);
-  const [selected, setSelected] = useState<CenteringLineKey | null>(null);
+  const [selected, setSelected] = useState<CenteringLineKey | null>(props.initial ? "outerLeft" : null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [fingerLeft, setFingerLeft] = useState(true);
+  const [help, setHelp] = useState<Step | null>(null);
+
+  // Första gången ett steg öppnas visas bilden som förklarar det.
+  useEffect(() => {
+    if (!helpSeen(step)) setHelp(step);
+  }, [step]);
+  const closeHelp = () => {
+    if (help) markHelpSeen(help);
+    setHelp(null);
+  };
 
   const stageRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -436,7 +478,8 @@ export function CenteringTool(props: {
     const ok = await buildStraight(quad, null).catch(() => false);
     setBusy(false);
     if (ok) {
-      setSelected(null);
+      // En linje är alltid vald: pilarna fungerar direkt och meningen säger var den ska ligga.
+      setSelected("outerLeft");
       setStep("lines");
     }
   }
@@ -517,6 +560,14 @@ export function CenteringTool(props: {
     },
     [selected, straight]
   );
+
+  /** Nästa linje i tur (ytterlinjerna först, sedan innerlinjerna); e-Readerns döda hoppas över. */
+  const nextLine = () => {
+    const usable = LINE_KEYS.filter((k) => !(mode === "ereader" && side === "front" && (k === "innerLeft" || k === "innerBottom")));
+    const order = [...usable.filter((k) => k.startsWith("outer")), ...usable.filter((k) => k.startsWith("inner"))];
+    const i = selected ? order.indexOf(selected) : -1;
+    setSelected(order[(i + 1) % order.length]);
+  };
 
   function done() {
     const w = straightRef.current;
@@ -641,7 +692,7 @@ export function CenteringTool(props: {
                     className={cn(
                       "absolute",
                       inner ? "bg-holo-cyan" : "bg-white",
-                      dimmed ? "opacity-30" : "opacity-95",
+                      dimmed ? "opacity-30" : selected && !active ? "opacity-60" : "opacity-95",
                       active ? "shadow-[0_0_8px_rgba(45,212,191,0.9)]" : "",
                       vertical ? "left-1/2 top-0 h-full -translate-x-1/2" : "left-0 top-1/2 w-full -translate-y-1/2"
                     )}
@@ -677,7 +728,8 @@ export function CenteringTool(props: {
                     className={cn(
                       "flex h-5 w-5 items-center justify-center rounded-full border-2 bg-black shadow-lg transition-transform",
                       inner ? "border-holo-cyan" : "border-white",
-                      active && "scale-125"
+                      active && "scale-125",
+                      active && !drag && "motion-safe:animate-pulse"
                     )}
                   >
                     <span className={cn("h-1.5 w-1.5 rounded-full", inner ? "bg-holo-cyan" : "bg-white")} />
@@ -713,6 +765,9 @@ export function CenteringTool(props: {
             {side === "front" ? t("front") : t("back")} · {step === "corners" ? t("stepCorners") : t("stepLines")}
           </p>
         </div>
+        <CircleButton label={t("helpOpen")} onClick={() => setHelp(step)}>
+          <IconHelp size={19} />
+        </CircleButton>
         {step === "corners" ? (
           <Button size="sm" onClick={() => void toLines()} disabled={!quad || !base} loading={busy}>
             {t("next")}
@@ -728,6 +783,7 @@ export function CenteringTool(props: {
       <div ref={stageRef} className="relative min-h-0 flex-1 touch-none select-none px-3">
         {stageContent}
         {loupe}
+        {help && <CenteringHelp step={help} side={side} onClose={closeHelp} />}
       </div>
 
       {/* Kontroller */}
@@ -737,6 +793,16 @@ export function CenteringTool(props: {
         ) : (
           <>
             <Readout result={result} side={side} />
+            {selected && (
+              <p className="rounded-lg bg-surface-overlay/60 px-3 py-2 text-[12px] leading-relaxed text-ink">
+                <span className={cn("font-semibold", selected.startsWith("inner") ? "text-holo-cyan" : "text-white")}>
+                  {t(`line.${selected}`)}:
+                </span>{" "}
+                {t(selected.startsWith("inner") ? (side === "front" ? "lineHelpInner" : "lineHelpInnerBack") : "lineHelpOuter", {
+                  edge: t(`edge.${edgeOf(selected)}`),
+                })}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1 rounded-full border border-surface-border p-1">
                 <button
@@ -761,6 +827,13 @@ export function CenteringTool(props: {
                   {verticalSelected ? <IconChevronRight size={16} /> : <IconChevronDown size={16} />}
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={nextLine}
+                className="flex items-center gap-1 rounded-full bg-holo-cyan px-3 py-2 text-xs font-semibold text-surface hover:bg-holo-cyan/90"
+              >
+                {t("nextLine")} <IconChevronRight size={14} />
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -829,5 +902,115 @@ function Readout({ result, side }: { result: CenteringResult | null; side: Cente
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * HJÄLPBILDEN — en ritad förklaring per steg ovanpå scenen. Animerad med SMIL (ingen
+ * JS), statisk under "reducerad rörelse" eftersom animationen bara förtydligar.
+ */
+function CenteringHelp({ step, side, onClose }: { step: Step; side: CenteringSide; onClose: () => void }) {
+  const t = useTranslations("Centering");
+  const reduced =
+    typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  return (
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/85 px-4">
+      <div className="w-full max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-2xl">
+        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-holo-cyan">
+          {step === "corners" ? t("stepCorners") : t("stepLines")}
+        </p>
+        <h2 className="mt-1 text-base font-bold text-ink">
+          {step === "corners" ? t("helpCornersTitle") : t("helpLinesTitle")}
+        </h2>
+        <div className="mt-3 overflow-hidden rounded-xl bg-black ring-1 ring-surface-border">
+          {step === "corners" ? <CornersDiagram animate={!reduced} /> : <LinesDiagram animate={!reduced} back={side === "back"} />}
+        </div>
+        <ol className="mt-3 list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-ink-muted">
+          {(step === "corners" ? ["helpCorners1", "helpCorners2", "helpCorners3"] : ["helpLines1", "helpLines2", "helpLines3"]).map(
+            (k) => (
+              <li key={k}>{t(k)}</li>
+            )
+          )}
+        </ol>
+        <Button className="mt-4 w-full" onClick={onClose}>
+          {t("helpGotIt")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Steg 1: ett snett kort, hörnen glider ut till kortets hörn, sedan det upprätade kortet. */
+function CornersDiagram({ animate }: { animate: boolean }) {
+  // Det sneda kortets hörn (ÖV, ÖH, NH, NV) och startlägena handtagen glider från.
+  const card = [
+    [38, 30],
+    [104, 22],
+    [114, 118],
+    [44, 128],
+  ];
+  const start = [
+    [26, 18],
+    [118, 14],
+    [126, 132],
+    [30, 140],
+  ];
+  const pts = card.map((p) => p.join(",")).join(" ");
+  return (
+    <svg viewBox="0 0 220 150" className="block h-auto w-full" aria-hidden="true">
+      <rect width="220" height="150" fill="#111114" />
+      <polygon points={pts} fill="#d6b13a" />
+      <polygon points="45,37 101,30 106,74 50,80" fill="#2a2a30" />
+      <polygon points={pts} fill="none" stroke="#2dd4bf" strokeWidth="1.5" strokeDasharray="4 3" />
+      {card.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r="5" fill="rgba(0,0,0,0.7)" stroke="#2dd4bf" strokeWidth="2">
+          {animate && (
+            <>
+              <animate attributeName="cx" values={`${start[i][0]};${x};${x}`} keyTimes="0;0.45;1" dur="2.6s" repeatCount="indefinite" />
+              <animate attributeName="cy" values={`${start[i][1]};${y};${y}`} keyTimes="0;0.45;1" dur="2.6s" repeatCount="indefinite" />
+            </>
+          )}
+        </circle>
+      ))}
+      <path d="M134 75h22m-6-6 6 6-6 6" stroke="#9ca3af" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <rect x="166" y="34" width="44" height="82" rx="3" fill="#d6b13a" />
+      <rect x="171" y="40" width="34" height="34" fill="#2a2a30" />
+    </svg>
+  );
+}
+
+/** Steg 2: vit linje på kortets kant, turkos linje på ramens insida — den turkosa glider på plats. */
+function LinesDiagram({ animate, back }: { animate: boolean; back: boolean }) {
+  // Kortet 70–150 × 18–132; ramen ojämn (vänster 7, höger 11) = ett snett centrerat kort.
+  const frame = back ? "#2b5fb4" : "#d6b13a";
+  const innerL = 77;
+  const innerR = 139;
+  return (
+    <svg viewBox="0 0 220 150" className="block h-auto w-full" aria-hidden="true">
+      <rect width="220" height="150" fill="#111114" />
+      <rect x="70" y="18" width="80" height="114" rx="3" fill={frame} />
+      <rect x={innerL} y="26" width={innerR - innerL} height="98" fill="#2a2a30" />
+      {/* Vita: kortets kant */}
+      <line x1="70" y1="6" x2="70" y2="144" stroke="#fff" strokeWidth="1.5" />
+      <line x1="150" y1="6" x2="150" y2="144" stroke="#fff" strokeWidth="1.5" />
+      {/* Turkosa: ramens insida */}
+      <line x1={innerL} y1="6" x2={innerL} y2="144" stroke="#2dd4bf" strokeWidth="1.5">
+        {animate && (
+          <>
+            <animate attributeName="x1" values={`${innerL + 16};${innerL};${innerL}`} keyTimes="0;0.45;1" dur="2.6s" repeatCount="indefinite" />
+            <animate attributeName="x2" values={`${innerL + 16};${innerL};${innerL}`} keyTimes="0;0.45;1" dur="2.6s" repeatCount="indefinite" />
+          </>
+        )}
+      </line>
+      <line x1={innerR} y1="6" x2={innerR} y2="144" stroke="#2dd4bf" strokeWidth="1.5" />
+      {/* Rambredderna jämförs */}
+      <path d={`M70 140H${innerL}`} stroke="#fff" strokeWidth="1" />
+      <path d={`M${innerR} 140H150`} stroke="#fff" strokeWidth="1" />
+      <text x="40" y="78" fill="#fff" fontSize="10" fontWeight="700" textAnchor="middle">7</text>
+      <text x="182" y="78" fill="#fff" fontSize="10" fontWeight="700" textAnchor="middle">11</text>
+      <path d="M50 75h16m-5-4 5 4-5 4" stroke="#9ca3af" strokeWidth="1.5" fill="none" />
+      <path d="M170 75h-16m5-4-5 4 5 4" stroke="#9ca3af" strokeWidth="1.5" fill="none" />
+      <text x="110" y="12" fill="#2dd4bf" fontSize="9" fontWeight="700" textAnchor="middle">39/61</text>
+    </svg>
   );
 }

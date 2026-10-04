@@ -16,7 +16,7 @@
  */
 import { ServiceError } from "@/lib/errors";
 import { parseDataUrl } from "@/services/scanner/vision-contract";
-import type { GradeResult, TokenUsage } from "@/services/grading/types";
+import type { GradeDefect, GradeResult, TokenUsage } from "@/services/grading/types";
 
 /** Språken appen kan visa. `rationale` är MODELLGENERERAD prosa, så den kan
  *  aldrig översättas via messages/*.json — språket måste följa med förfrågan. */
@@ -55,6 +55,12 @@ export function buildSystem(locale: GradingLocale): string {
     "Ange också vilket kort du ser i fältet cardName, kort och utan meningsbyggnad:",
     "namn, kortnummer och set, t.ex. \"Torchic 65/100 · EX Crystal Guardians\".",
     "Är du osäker på kortet — utelämna cardName helt hellre än att gissa.",
+    "Lista sedan varje SYNLIG skada i fältet defects (högst " + MAX_DEFECTS + "): vilken bild (front/back),",
+    "kategori (corners/edges/surface), allvar (minor/moderate/major), en kort beskrivning",
+    `${RATIONALE_LANGUAGE[locale]} (t.ex. "Vitt slitage i övre vänstra hörnet") och en tät ruta runt skadan`,
+    "som ymin, xmin, ymax, xmax i heltal 0–1000 relativt just den bilden (0,0 = övre vänstra hörnet).",
+    "Ta BARA med skador du faktiskt ser på bilderna — en tom lista är bättre än en påhittad skada,",
+    "och reflexer, damm på kameran eller bordet runt kortet är inga skador.",
     "Detta är en UPPSKATTNING, inte en officiell PSA-/BGS-gradering.",
   ].join(" ");
 }
@@ -92,12 +98,33 @@ export function buildClosingInstruction(cardNameHint?: string, centeringNote?: s
  *  eget schemaspråk (Anthropic: gemener; Gemini/OpenAPI: VERSALER). */
 export interface GradeField {
   name: string;
-  type: "boolean" | "string" | "integer" | "number";
+  type: "boolean" | "string" | "integer" | "number" | "array";
   description: string;
   enum?: string[];
   /** Fältet hamnar INTE i required-listan. Se cardName nedan. */
   optional?: true;
+  /** `type: "array"`: varje element är ett objekt med de här fälten (alla obligatoriska). */
+  items?: GradeField[];
 }
+
+/** Högst så många skademarkeringar sparas — fler blir brus på ett litet foto. */
+export const MAX_DEFECTS = 8;
+export const DEFECT_SIDES = ["front", "back"] as const;
+export const DEFECT_CATEGORIES = ["corners", "edges", "surface"] as const;
+export const DEFECT_SEVERITIES = ["minor", "moderate", "major"] as const;
+
+/** En skadas fält. Rutan är Geminis egen konvention (0–1000, y före x) — den
+ *  konvention modellen är tränad på att peka med; Claude följer den lika gärna. */
+const DEFECT_FIELDS: GradeField[] = [
+  { name: "side", type: "string", enum: [...DEFECT_SIDES], description: "Bilden skadan syns på." },
+  { name: "category", type: "string", enum: [...DEFECT_CATEGORIES], description: "Kriteriet skadan drar ned." },
+  { name: "severity", type: "string", enum: [...DEFECT_SEVERITIES], description: "Hur allvarlig skadan är." },
+  { name: "note", type: "string", description: "Kort beskrivning av skadan." },
+  { name: "ymin", type: "integer", description: "0–1000" },
+  { name: "xmin", type: "integer", description: "0–1000" },
+  { name: "ymax", type: "integer", description: "0–1000" },
+  { name: "xmax", type: "integer", description: "0–1000" },
+];
 
 export const GRADE_FIELDS: GradeField[] = [
   { name: "centering", type: "number", description: "1–10" },
@@ -119,6 +146,14 @@ export const GRADE_FIELDS: GradeField[] = [
     name: "rationale",
     type: "string",
     description: "Kort motivering.",
+  },
+  {
+    // OBLIGATORISK men får vara TOM: modellen ska alltid ta ställning till
+    // skadorna, och "inga synliga" är ett giltigt svar (2026-10-04).
+    name: "defects",
+    type: "array",
+    description: "Synliga skador med en ruta runt varje. Tom lista om inga syns.",
+    items: DEFECT_FIELDS,
   },
   {
     // MEDVETET optional: hellre inget kortnamn än ett gissat. Ett fel namn på en
@@ -169,6 +204,52 @@ export const clamp = (
   return Math.min(hi, Math.max(lo, v));
 };
 
+const DEFECT_NOTE_MAX = 140;
+/** Minsta rutans sida (andel av bilden) — en punkt går inte att se på en telefon. */
+const DEFECT_MIN_SIZE = 0.03;
+
+const inSet = <T extends string>(set: readonly T[], v: unknown): v is T =>
+  typeof v === "string" && (set as readonly string[]).includes(v);
+
+/**
+ * Modellens skadelista → validerade markeringar med rutan som ANDELAR (0–1) av
+ * bilden. Allt som inte går att tolka kastas tyst — en trasig post ska aldrig
+ * fälla en gradering, och en gissad sida/kategori vore en påhittad skada.
+ */
+export function parseDefects(input: unknown): GradeDefect[] {
+  if (!Array.isArray(input)) return [];
+  const out: GradeDefect[] = [];
+  for (const raw of input) {
+    if (out.length >= MAX_DEFECTS) break;
+    if (!raw || typeof raw !== "object") continue;
+    const d = raw as Record<string, unknown>;
+    if (!inSet(DEFECT_SIDES, d.side) || !inSet(DEFECT_CATEGORIES, d.category)) continue;
+    const severity = inSet(DEFECT_SEVERITIES, d.severity) ? d.severity : "minor";
+    const note = typeof d.note === "string" ? d.note.trim().slice(0, DEFECT_NOTE_MAX) : "";
+    if (!note) continue;
+    const coords = [d.ymin, d.xmin, d.ymax, d.xmax];
+    if (!coords.every((n) => typeof n === "number" && Number.isFinite(n))) continue;
+    const [y0, x0, y1, x1] = (coords as number[]).map((n) => Math.min(1000, Math.max(0, n)) / 1000);
+    let x = Math.min(x0, x1);
+    let y = Math.min(y0, y1);
+    let w = Math.abs(x1 - x0);
+    let h = Math.abs(y1 - y0);
+    // Hela bilden är ingen markering.
+    if (w > 0.95 && h > 0.95) continue;
+    if (w < DEFECT_MIN_SIZE) {
+      x = Math.min(1 - DEFECT_MIN_SIZE, Math.max(0, x + w / 2 - DEFECT_MIN_SIZE / 2));
+      w = DEFECT_MIN_SIZE;
+    }
+    if (h < DEFECT_MIN_SIZE) {
+      y = Math.min(1 - DEFECT_MIN_SIZE, Math.max(0, y + h / 2 - DEFECT_MIN_SIZE / 2));
+      h = DEFECT_MIN_SIZE;
+    }
+    const r3 = (n: number) => Math.round(n * 1000) / 1000;
+    out.push({ side: d.side, category: d.category, severity, note, x: r3(x), y: r3(y), w: r3(w), h: r3(h) });
+  }
+  return out;
+}
+
 /** Kortnamnet är fritext från en modell och hamnar i GradingJob.result. */
 const CARD_NAME_MAX = 120;
 
@@ -211,6 +292,7 @@ export function buildGradeResult(
       typeof input.cardName === "string" && input.cardName.trim()
         ? input.cardName.trim().slice(0, CARD_NAME_MAX)
         : undefined,
+    defects: parseDefects(input.defects),
     usage,
   };
 }

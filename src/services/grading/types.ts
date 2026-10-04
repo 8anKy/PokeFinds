@@ -30,6 +30,23 @@ export interface TokenUsage {
   outputTokens: number;
 }
 
+/**
+ * En skada modellen pekar ut (2026-10-04). Rutan är ANDELAR (0–1) av den bild
+ * modellen fick — samma bild användaren ser, för fotot förbereds på telefonen
+ * med inbakad orientering (lib/grading-photo.ts).
+ */
+export interface GradeDefect {
+  side: "front" | "back";
+  category: "corners" | "edges" | "surface";
+  severity: "minor" | "moderate" | "major";
+  /** Modellens korta beskrivning, på användarens språk. */
+  note: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 /** Resultat av en gradering. */
 export interface GradeResult {
   /** Sammanvägd PSA-liknande gradering 1–10 (en decimal). */
@@ -48,6 +65,8 @@ export interface GradeResult {
    * (det är en bildtolkning, inte en matchning).
    */
   cardName?: string;
+  /** Synliga skador med rutor. Tom = inga synliga (eller inga tolkbara). */
+  defects: GradeDefect[];
   /**
    * Tokentalen anropet förbrukade. Undefined för mocken och för adaptrar som
    * inte rapporterar dem — då räknas graderingen som OMÄTT i kostnadsvyn,

@@ -1651,7 +1651,6 @@
     "step1": "1. Lägg till bilder",
     "front": "Framsida",
     "back": "Baksida",
-    "tapToCapture": "Tryck för att fota eller välja",
     "previewAlt": "Förhandsvisning: {label}",
     "gradeBtn": "Gradera kort",
     "analyzing": "Analyserar skicket…",
@@ -1676,7 +1675,7 @@
     "wrongFileType": "Fel filtyp",
     "chooseImage": "Välj en bildfil.",
     "tooLarge": "Bilden är för stor",
-    "tooLargeDesc": "Max 5 MB. Prova att komprimera bilden.",
+    "tooLargeDesc": "Max 40 MB per bild.",
     "gradeFailTitle": "Kunde inte gradera kortet",
     "unknownError": "Okänt fel.",
     "gradeFailMsg": "Graderingen misslyckades.",
@@ -1710,7 +1709,27 @@
     "worthUnlock": "Se graderade priser med Pro",
     "worthNote": "Median av sålda exemplar det senaste året. Räkna med graderingsavgift och frakt.",
     "worthAll": "Alla graderade priser",
-    "historyResultTitle": "Tidigare gradering"
+    "historyResultTitle": "Tidigare gradering",
+    "takePhoto": "Fota",
+    "chooseFromLibrary": "Välj bild",
+    "dropHint": "eller släpp en bild här",
+    "retakePhoto": "Fota om {label}",
+    "replaceFromLibrary": "Välj en annan bild för {label}",
+    "photoReadFail": "Bilden gick inte att läsa",
+    "photoReadFailDesc": "Prova en JPG- eller PNG-bild, eller fota kortet direkt.",
+    "tourOpen": "Så funkar det",
+    "slabImage": "Bild på slabben",
+    "slabImageCatalog": "Katalogbild",
+    "slabImagePhoto": "Mitt foto",
+    "defectsTitle": "{count, plural, one {AI:n hittade # skada} other {AI:n hittade # skador}}",
+    "defectsApprox": "Rutorna är ungefärliga — tryck på en skada för att se var den sitter.",
+    "defectsNoPhotos": "Fotona sparas inte, så markeringarna syns bara direkt efter graderingen.",
+    "defectsNone": "AI:n hittade inga tydliga skador på bilderna.",
+    "severity": {
+      "minor": "Lätt",
+      "moderate": "Märkbar",
+      "major": "Tydlig"
+    }
   },
   "PostCategory": {
     "PULLS": "Pulls",
@@ -2896,7 +2915,31 @@
     "corner0": "Övre vänstra hörnet",
     "corner1": "Övre högra hörnet",
     "corner2": "Nedre högra hörnet",
-    "corner3": "Nedre vänstra hörnet"
+    "corner3": "Nedre vänstra hörnet",
+    "tipTitle": "Mät centreringen själv (valfritt)",
+    "tipBody": "Tar ungefär en halv minut: lägg linjer på kortets kant och ramens insida. Ett uppmätt värde ger en säkrare grad än AI:ns ögonmått.",
+    "measureFront": "Mät framsidan",
+    "measureBack": "Mät baksidan",
+    "helpOpen": "Visa hur mätaren fungerar",
+    "nextLine": "Nästa linje",
+    "lineHelpOuter": "lägg den vita linjen exakt på kortets {edge} kant.",
+    "lineHelpInner": "lägg den turkosa linjen där den gula ramen slutar vid {edge} kanten — där bilden/textrutan börjar.",
+    "lineHelpInnerBack": "lägg den turkosa linjen där den blå ramen slutar vid {edge} kanten.",
+    "edge": {
+      "left": "vänstra",
+      "right": "högra",
+      "top": "övre",
+      "bottom": "nedre"
+    },
+    "helpCornersTitle": "Lägg prickarna på kortets hörn",
+    "helpCorners1": "Dra de fyra turkosa prickarna till kortets fyra hörn.",
+    "helpCorners2": "Följ de raka kanterna — vid rundade hörn lägger du pricken där kanterna skulle mötas.",
+    "helpCorners3": "Tryck Nästa så rätar vi upp fotot, även om det är taget snett.",
+    "helpLinesTitle": "Två linjer per kant",
+    "helpLines1": "VIT linje = kortets yttre kant. TURKOS linje = ramens insida.",
+    "helpLines2": "En linje är alltid vald. Dra den, eller finjustera med pilarna. Förstoringsglaset visas medan du drar.",
+    "helpLines3": "Tryck Nästa linje tills alla sitter. Lika breda ramar på båda sidor betyder perfekt centrerat.",
+    "helpGotIt": "Jag förstår"
   },
   "LocalStores": {
     "browseStores": "Visa större lista",
@@ -3016,7 +3059,11 @@
     "chooseCatalogProduct": "Välj från produktkatalogen",
     "moreDetails": "Fler detaljer (valfritt)",
     "citySuggestions": "Ortförslag",
-    "statusShort": { "SEEN": "Finns", "SOLD_OUT": "Slut", "NOT_CARRIED": "Säljs inte" },
+    "statusShort": {
+      "SEEN": "Finns",
+      "SOLD_OUT": "Slut",
+      "NOT_CARRIED": "Säljs inte"
+    },
     "assortmentUnconfirmed": "Kortsortimentet är inte bekräftat för den här filialen. Hjälp till med en besöksrapport.",
     "sharePost": "Dela inlägg",
     "linkCopied": "Länken är kopierad",
@@ -3026,5 +3073,22 @@
     "positionPending": "Kartposition saknas ännu",
     "latitude": "Latitud",
     "longitude": "Longitud"
+  },
+  "GradingTour": {
+    "label": "Guide till graderingen",
+    "progress": "Steg {step} av {total}",
+    "skip": "Avsluta guiden",
+    "next": "Nästa",
+    "done": "Klar",
+    "frontTitle": "Framsidan",
+    "frontBody": "Fota kortet eller välj en bild från kamerarullen. Lägg det på en mörk, slät yta i jämnt ljus och fota rakt ovanifrån — utan blixt.",
+    "backTitle": "Baksidan",
+    "backBody": "Samma sak med baksidan. AI:n behöver båda sidorna för att se kanter och hörn.",
+    "centeringTitle": "Mät centreringen",
+    "centeringBody": "Valfritt men värt det: lägg prickar på hörnen och linjer på ramarna, så räknar vi ut centreringen exakt i stället för att AI:n gissar.",
+    "gradeTitle": "Gradera",
+    "gradeBody": "AI:n bedömer centrering, hörn, kanter och yta — och ringar in skadorna den hittar på dina foton.",
+    "historyTitle": "Dina graderingar",
+    "historyBody": "Allt du graderat sparas här. Öppna en gradering för att se den igen eller dela den som en slab."
   }
 }

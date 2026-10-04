@@ -21,10 +21,14 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { CenteringTool, type CenteringOutcome } from "@/components/features/centering-tool";
 import { ShareCardPanel } from "@/components/features/share-card-panel";
 import { CardSearch, type CardSearchCandidate } from "@/components/features/card-search";
+import { GradingTour } from "@/components/features/grading-tour";
+import { CircleButton } from "@/components/ui/back-circle";
 import { Link } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
 import { takeGradePrefill } from "@/lib/grade-prefill";
 import { photoFingerprints } from "@/lib/photo-fingerprints";
+import { autoCropCard, GRADING_RAW_MAX_BYTES, prepareGradingPhoto } from "@/lib/grading-photo";
+import { gradingTourSeen } from "@/lib/grading-tour";
 import { prepareGradeSpinLayers, renderGradeShareCard } from "@/lib/share-card";
 import {
   combinedPsaCap,
@@ -39,6 +43,8 @@ import {
   IconCamera,
   IconCentering,
   IconCheck,
+  IconHelp,
+  IconImage,
   IconShare,
   IconShield,
   IconSparkle,
@@ -73,12 +79,26 @@ interface GradeResultDto {
   /** Katalogens språk ("JP" …) — slabvideons kortbaksida. */
   cardLanguage?: string | null;
   cardId?: string | null;
+  /** Skadorna modellen pekade ut (services/grading/contract.ts). Saknas i äldre graderingar. */
+  defects?: GradeDefectDto[];
   /** Användarens uppmätta centrering, sparad på jobbet (services/grading/extras.ts). */
   centering?: {
     front: StoredSide | null;
     back: StoredSide | null;
     psaCap: number | null;
   } | null;
+}
+
+/** En skada med ruta som andelar (0–1) av fotot modellen fick. */
+interface GradeDefectDto {
+  side: "front" | "back";
+  category: "corners" | "edges" | "surface";
+  severity: "minor" | "moderate" | "major";
+  note: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 /** En sidas sparade mätning: den bredare sidans andel per axel, 50..100. */
@@ -125,8 +145,6 @@ interface GradingJobDto {
   createdAt: string;
   result: (Partial<GradeResultDto> & { error?: string }) | null;
 }
-
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 const SUB_LABELS: { key: keyof SubScores; labelKey: string }[] = [
   { key: "centering", labelKey: "subCentering" },
@@ -215,60 +233,108 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
   );
 }
 
+/**
+ * FOTORUTAN — två vägar in (2026-10-04, ägarönskan): KAMERAN (`capture`) och
+ * KAMERARULLEN (utan `capture`). En enda input med `capture` tvingade kameran; på
+ * Android visar Capacitors filväljare då aldrig galleriet. På desktop öppnar båda
+ * filväljaren, så där visas bara "Välj bild" — och en fil kan släppas på rutan.
+ */
 function ImageDropzone({
   label,
   preview,
-  onPick,
-  inputRef,
-  onChange,
+  onFile,
   footer,
+  tour,
 }: {
   label: string;
   preview: string | null;
-  onPick: () => void;
-  inputRef: React.RefObject<HTMLInputElement>;
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  onFile: (file: File) => void;
   /** Under bilden — centreringsknappen. */
   footer?: React.ReactNode;
+  /** `data-tour`-mål för graderingsturen. */
+  tour: string;
 }) {
   const t = useTranslations("Grading");
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const pick = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) onFile(file);
+    e.target.value = "";
+  };
   return (
-    <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        onClick={onPick}
+    <div className="flex flex-col gap-2" data-tour={tour}>
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setOver(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) onFile(file);
+        }}
         className={cn(
-          "flex aspect-[3/4] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed px-4 py-6 text-center transition-all duration-200 active:scale-[0.98]",
-          preview
-            ? "border-holo-cyan/40"
-            : "border-surface-border hover:border-holo-cyan/50 hover:bg-surface-overlay"
+          "relative flex aspect-[3/4] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed px-3 py-4 text-center transition-colors",
+          preview ? "border-holo-cyan/40" : "border-surface-border",
+          over && "border-holo-cyan bg-holo-cyan/5"
         )}
       >
         {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={preview}
-            alt={t("previewAlt", { label })}
-            className="h-full w-full rounded-lg object-contain"
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={preview} alt={t("previewAlt", { label })} className="h-full w-full rounded-lg object-contain" />
+            {/* Byt bild: samma två vägar, som små knappar över fotot. */}
+            <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 bg-gradient-to-t from-black/80 to-transparent px-2 pb-2 pt-6">
+              <button
+                type="button"
+                onClick={() => cameraRef.current?.click()}
+                aria-label={t("retakePhoto", { label })}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-overlay/90 text-ink ring-1 ring-surface-border backdrop-blur hover:text-holo-cyan lg:hidden"
+              >
+                <IconCamera size={17} />
+              </button>
+              <button
+                type="button"
+                onClick={() => libraryRef.current?.click()}
+                aria-label={t("replaceFromLibrary", { label })}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-overlay/90 text-ink ring-1 ring-surface-border backdrop-blur hover:text-holo-cyan"
+              >
+                <IconImage size={17} />
+              </button>
+            </div>
+          </>
         ) : (
           <>
             <span aria-hidden="true" className="text-ink-faint">
-              <IconCamera size={30} />
+              <IconCamera size={28} />
             </span>
             <p className="text-sm font-medium text-ink">{label}</p>
-            <p className="text-xs text-ink-faint">{t("tapToCapture")}</p>
+            <div className="mt-1 flex w-full flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => cameraRef.current?.click()}
+                className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg bg-holo-cyan px-2 text-xs font-semibold text-surface transition-colors hover:bg-holo-cyan/90 lg:hidden"
+              >
+                <IconCamera size={15} /> {t("takePhoto")}
+              </button>
+              <button
+                type="button"
+                onClick={() => libraryRef.current?.click()}
+                className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink ring-1 ring-surface-border transition-colors hover:bg-surface-overlay"
+              >
+                <IconImage size={15} /> {t("chooseFromLibrary")}
+              </button>
+            </div>
+            <p className="hidden text-[11px] text-ink-faint lg:block">{t("dropHint")}</p>
           </>
         )}
-      </button>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={onChange}
-      />
+      </div>
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pick} />
+      <input ref={libraryRef} type="file" accept="image/*" className="hidden" onChange={pick} />
       {footer}
     </div>
   );
@@ -417,6 +483,221 @@ function GradingWorthPanel({ worth, overall }: { worth: GradingWorthDto; overall
   );
 }
 
+const SEVERITY_TONE: Record<GradeDefectDto["severity"], { ring: string; badge: string; text: string }> = {
+  major: { ring: "border-fall", badge: "bg-fall text-white", text: "text-fall" },
+  moderate: { ring: "border-amber-400", badge: "bg-amber-400 text-black", text: "text-amber-400" },
+  minor: { ring: "border-holo-cyan", badge: "bg-holo-cyan text-surface", text: "text-holo-cyan" },
+};
+
+const CATEGORY_LABEL: Record<GradeDefectDto["category"], string> = {
+  corners: "subCorners",
+  edges: "subEdges",
+  surface: "subSurface",
+};
+
+/** Fotot med numrerade rutor. Omslaget krymper till bilden så procenten stämmer. */
+function DefectPhoto(props: {
+  src: string;
+  alt: string;
+  items: { d: GradeDefectDto; n: number }[];
+  active: number | null;
+  onSelect: (n: number) => void;
+}) {
+  return (
+    <div className="flex justify-center">
+      <div className="relative inline-block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={props.src} alt={props.alt} className="block max-h-[60vh] w-auto max-w-full rounded-lg" />
+        {props.items.map(({ d, n }) => {
+          const tone = SEVERITY_TONE[d.severity];
+          const on = props.active === n;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => props.onSelect(n)}
+              aria-label={`${n}. ${d.note}`}
+              className={cn(
+                "absolute rounded-md border-2 transition-all",
+                tone.ring,
+                on ? "z-10 bg-white/10 shadow-[0_0_0_3px_rgba(0,0,0,0.55)]" : "opacity-80"
+              )}
+              style={{ left: `${d.x * 100}%`, top: `${d.y * 100}%`, width: `${d.w * 100}%`, height: `${d.h * 100}%` }}
+            >
+              <span
+                className={cn(
+                  "absolute -left-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold tabular-nums shadow",
+                  tone.badge,
+                  on && "scale-110"
+                )}
+              >
+                {n}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "VAD AI:N SÅG" (2026-10-04) — skadorna modellen pekade ut, numrerade på fotot och
+ * listade under. Rutorna är UNGEFÄRLIGA (modellens pekande, inte en mätning) och
+ * står så. Ur historiken finns inga foton (de sparas aldrig) — då bara listan.
+ */
+function DefectsPanel(props: {
+  defects: GradeDefectDto[];
+  front: string | null;
+  back: string | null;
+}) {
+  const t = useTranslations("Grading");
+  const numbered = props.defects.map((d, i) => ({ d, n: i + 1 }));
+  const photo = { front: props.front, back: props.back };
+  const hasPhotos = !!(props.front || props.back);
+  const firstSide = numbered[0]?.d.side ?? "front";
+  const [side, setSide] = useState<"front" | "back">(photo[firstSide] ? firstSide : "front");
+  const [active, setActive] = useState<number | null>(null);
+
+  if (numbered.length === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl bg-rise/5 px-3 py-2.5 text-sm text-ink-muted ring-1 ring-rise/25">
+        <span className="shrink-0 text-rise">
+          <IconCheck size={16} />
+        </span>
+        {t("defectsNone")}
+      </div>
+    );
+  }
+
+  const select = (n: number) => {
+    const hit = numbered.find((x) => x.n === n);
+    if (hit && photo[hit.d.side]) setSide(hit.d.side);
+    setActive((a) => (a === n ? null : n));
+  };
+  const onSide = numbered.filter((x) => x.d.side === side);
+  const count = (s: "front" | "back") => numbered.filter((x) => x.d.side === s).length;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <p className="text-sm font-semibold text-ink">{t("defectsTitle", { count: numbered.length })}</p>
+        <p className="text-[11px] text-ink-faint">{hasPhotos ? t("defectsApprox") : t("defectsNoPhotos")}</p>
+      </div>
+
+      {hasPhotos && (
+        <>
+          <div className="flex gap-1 self-start rounded-full bg-surface-overlay/60 p-1 ring-1 ring-surface-border">
+            {(["front", "back"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                disabled={!photo[s]}
+                onClick={() => setSide(s)}
+                aria-pressed={side === s}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-40",
+                  side === s ? "bg-holo-cyan text-surface" : "text-ink-muted hover:text-ink"
+                )}
+              >
+                {t(s)} · {count(s)}
+              </button>
+            ))}
+          </div>
+          {photo[side] && (
+            <DefectPhoto
+              src={photo[side]!}
+              alt={t("previewAlt", { label: t(side) })}
+              items={onSide}
+              active={active}
+              onSelect={select}
+            />
+          )}
+        </>
+      )}
+
+      <ul className="flex flex-col gap-1.5">
+        {numbered.map(({ d, n }) => {
+          const tone = SEVERITY_TONE[d.severity];
+          return (
+            <li key={n}>
+              <button
+                type="button"
+                onClick={() => select(n)}
+                className={cn(
+                  "flex w-full items-start gap-2.5 rounded-xl px-2.5 py-2 text-left ring-1 transition-colors",
+                  active === n ? "bg-surface-overlay ring-holo-cyan/40" : "ring-surface-border hover:bg-surface-overlay/50"
+                )}
+              >
+                <span
+                  className={cn(
+                    "mt-0.5 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1 text-[11px] font-bold tabular-nums",
+                    tone.badge
+                  )}
+                >
+                  {n}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm text-ink">{d.note}</span>
+                  <span className="mt-0.5 block text-[11px] text-ink-faint">
+                    {t(CATEGORY_LABEL[d.category])} · {t(d.side)} ·{" "}
+                    <span className={cn("font-semibold", tone.text)}>{t(`severity.${d.severity}`)}</span>
+                  </span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * CENTRERINGSRADEN (2026-10-04): mätaren fanns bara som en liten knapp under varje
+ * foto och hittades inte. Raden står alltid i uppladdningskortet (turens mål), säger
+ * vad mätningen ger och har en tydlig knapp per foto som inte mätts.
+ */
+function CenteringTip(props: {
+  front: string | null;
+  back: string | null;
+  measured: Record<CenteringSide, boolean>;
+  onMeasure: (side: CenteringSide) => void;
+}) {
+  const t = useTranslations("Centering");
+  const sides = (["front", "back"] as const).filter((s) => props[s] && !props.measured[s]);
+  // Båda fotona mätta ⇒ sammanfattningen under tar över.
+  if (props.front && props.back && sides.length === 0) return null;
+  return (
+    <div
+      data-tour="grading-centering"
+      className="flex items-start gap-3 rounded-xl bg-surface-overlay/40 p-3 ring-1 ring-surface-border"
+    >
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-holo-cyan ring-1 ring-holo-cyan/30">
+        <IconCentering size={16} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-ink">{t("tipTitle")}</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">{t("tipBody")}</p>
+        {sides.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {sides.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => props.onMeasure(s)}
+                className="flex items-center gap-1.5 rounded-full bg-holo-cyan px-3 py-1.5 text-xs font-semibold text-surface transition-colors hover:bg-holo-cyan/90"
+              >
+                <IconCentering size={14} /> {s === "front" ? t("measureFront") : t("measureBack")}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Ett kort ur bildmatchningen eller sökningen — se /api/grading/identify. */
 interface IdentifiedCard {
   cardId: string;
@@ -556,8 +837,6 @@ export default function GraderaPage() {
   const t = useTranslations("Grading");
   const locale = useLocale();
   const { toast } = useToast();
-  const frontRef = useRef<HTMLInputElement>(null);
-  const backRef = useRef<HTMLInputElement>(null);
 
   const [front, setFront] = useState<string | null>(null);
   const [back, setBack] = useState<string | null>(null);
@@ -586,6 +865,12 @@ export default function GraderaPage() {
   const userPickedRef = useRef(false);
   const [picking, setPicking] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  /** Graderingsturen (lib/grading-tour.ts): första besöket, eller "?" i huvudet. */
+  const [tourOpen, setTourOpen] = useState(false);
+  /** Slabbens bild (ägarönskan 2026-10-04): katalogbilden eller användarens eget foto. */
+  const [slabImage, setSlabImage] = useState<"catalog" | "photo">("catalog");
+  /** Kortet utskuret ur framsidan när centreringen inte mätts. undefined = inte försökt. */
+  const [autoCrop, setAutoCrop] = useState<string | null | undefined>(undefined);
   const tc = useTranslations("Centering");
   const ts = useTranslations("ShareCard");
 
@@ -652,44 +937,61 @@ export default function GraderaPage() {
     void loadJobs();
   }, [loadJobs]);
 
-  function handleFile(file: File, side: "front" | "back") {
-    if (!file.type.startsWith("image/")) {
+  // Turen en gång per enhet, när sidan hunnit rita (historiken laddad).
+  useEffect(() => {
+    if (jobs === null || gradingTourSeen()) return;
+    const id = window.setTimeout(() => setTourOpen(true), 600);
+    return () => window.clearTimeout(id);
+    // Bara första gången listan finns — inte vid varje omladdning efter en gradering.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs === null]);
+
+  // "Mitt foto" på slabben utan mätning: skär ut kortet ur framsidan (en gång per foto).
+  const ownCrop = centering.front?.cropDataUrl ?? null;
+  useEffect(() => {
+    setAutoCrop(undefined);
+  }, [front]);
+  useEffect(() => {
+    if (!shareOpen || !front || ownCrop || autoCrop !== undefined || result?.historyAt) return;
+    let alive = true;
+    void autoCropCard(front).then((c) => alive && setAutoCrop(c));
+    return () => {
+      alive = false;
+    };
+  }, [shareOpen, front, ownCrop, autoCrop, result?.historyAt]);
+
+  async function handleFile(file: File, side: "front" | "back") {
+    // HEIC kan sakna typ i vissa filväljare — släpp igenom en tom typ och låt
+    // avkodningen avgöra.
+    if (file.type && !file.type.startsWith("image/")) {
       toast({ title: t("wrongFileType"), description: t("chooseImage"), variant: "error" });
       return;
     }
-    if (file.size > MAX_FILE_BYTES) {
-      toast({
-        title: t("tooLarge"),
-        description: t("tooLargeDesc"),
-        variant: "error",
-      });
+    if (file.size > GRADING_RAW_MAX_BYTES) {
+      toast({ title: t("tooLarge"), description: t("tooLargeDesc"), variant: "error" });
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === "string" ? reader.result : null;
-      if (side === "front") {
-        setFront(dataUrl);
-        // Ett nytt foto kan vara ett annat kort — bildmatchningen tar över.
-        setCardHint(null);
-        setSetHint(null);
-        setCardIdHint(null);
-        setIdentified(null);
-        userPickedRef.current = false;
-      } else setBack(dataUrl);
-      // En ny bild gör den gamla mätningen meningslös.
-      setCentering((c) => ({ ...c, [side]: null }));
-      setResult(null);
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function onChange(side: "front" | "back") {
-    return (e: ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) handleFile(file, side);
-      e.target.value = "";
-    };
+    // Orienteringen bakas in och storleken kapas (lib/grading-photo.ts) — så går
+    // kamerarullens stora bilder igenom och skadornas rutor hamnar rätt.
+    let dataUrl: string;
+    try {
+      dataUrl = await prepareGradingPhoto(file);
+    } catch {
+      toast({ title: t("photoReadFail"), description: t("photoReadFailDesc"), variant: "error" });
+      return;
+    }
+    if (side === "front") {
+      setFront(dataUrl);
+      // Ett nytt foto kan vara ett annat kort — bildmatchningen tar över.
+      setCardHint(null);
+      setSetHint(null);
+      setCardIdHint(null);
+      setIdentified(null);
+      userPickedRef.current = false;
+    } else setBack(dataUrl);
+    // En ny bild gör den gamla mätningen meningslös.
+    setCentering((c) => ({ ...c, [side]: null }));
+    setResult(null);
   }
 
   async function gradeNow() {
@@ -736,7 +1038,7 @@ export default function GraderaPage() {
   const centeringCap = combinedPsaCap([centering.front?.result, centering.back?.result]);
 
   /** Delningsbildens indata ur resultatet + mätningen. */
-  function gradeShareInput(r: GradeResponse, domain: string) {
+  function gradeShareInput(r: GradeResponse, domain: string, image: "catalog" | "photo" = "catalog") {
     const label = r.result.cardLabel
       ? splitLabel(r.result.cardLabel, true)
       : splitLabel(r.result.cardName);
@@ -747,12 +1049,15 @@ export default function GraderaPage() {
     const parts: string[] = [];
     if (stored?.front) parts.push(`${t("frontShort")} ${storedRatiosText(stored.front, topRight)}`);
     if (stored?.back) parts.push(`${t("backShort")} ${storedRatiosText(stored.back, topRight)}`);
-    const own = r.historyAt ? null : centering.front?.cropDataUrl ?? null;
+    // Användarens kort: utskuret längs stödlinjerna, annars hittat automatiskt.
+    const own = r.historyAt ? null : ownCrop ?? autoCrop ?? null;
+    const photo = image === "photo" && !r.historyAt;
     return {
-      // Katalogbilden när kortet är styrkt (skarpast i en story); annars användarens
-      // kort utskuret längs stödlinjerna; sist råfotot. Ur historiken: bara katalogen.
-      imageUrl: r.result.cardImageUrl ?? own,
-      fallbackImageUrl: r.historyAt ? null : own ?? front,
+      // Standard: katalogbilden när kortet är styrkt (skarpast i en story); annars
+      // användarens kort; sist råfotot. "Mitt foto" vänder på ordningen. Ur
+      // historiken finns bara katalogen — fotona sparas aldrig.
+      imageUrl: photo ? own ?? front : r.result.cardImageUrl ?? own,
+      fallbackImageUrl: r.historyAt ? null : photo ? r.result.cardImageUrl ?? null : own ?? front,
       name: label?.name ?? t("shareUnknownCard"),
       subtitle: label?.subtitle ?? "",
       overall: r.result.overall,
@@ -854,7 +1159,20 @@ export default function GraderaPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div>
-        <SubpageHeader title={t("h1")} desktopTitleClassName="font-semibold" />
+        <SubpageHeader
+          title={t("h1")}
+          desktopTitleClassName="font-semibold"
+          action={
+            <CircleButton label={t("tourOpen")} onClick={() => setTourOpen(true)}>
+              <IconHelp size={19} />
+            </CircleButton>
+          }
+          desktopAction={
+            <Button variant="outline" size="sm" onClick={() => setTourOpen(true)}>
+              <IconHelp size={15} /> {t("tourOpen")}
+            </Button>
+          }
+        />
         <p className="text-sm text-ink-muted lg:mt-1">{t("intro")}</p>
       </div>
 
@@ -895,9 +1213,8 @@ export default function GraderaPage() {
             <ImageDropzone
               label={t("front")}
               preview={front}
-              onPick={() => frontRef.current?.click()}
-              inputRef={frontRef}
-              onChange={onChange("front")}
+              onFile={(f) => void handleFile(f, "front")}
+              tour="grading-front"
               footer={
                 front ? (
                   <CenteringButton outcome={centering.front} onMeasure={() => setToolSide("front")} />
@@ -907,9 +1224,8 @@ export default function GraderaPage() {
             <ImageDropzone
               label={t("back")}
               preview={back}
-              onPick={() => backRef.current?.click()}
-              inputRef={backRef}
-              onChange={onChange("back")}
+              onFile={(f) => void handleFile(f, "back")}
+              tour="grading-back"
               footer={
                 back ? (
                   <CenteringButton outcome={centering.back} onMeasure={() => setToolSide("back")} />
@@ -918,6 +1234,12 @@ export default function GraderaPage() {
             />
           </div>
           {cardHint && <p className="text-xs text-ink-muted">{t("fromScanner", { card: cardHint })}</p>}
+          <CenteringTip
+            front={front}
+            back={back}
+            measured={{ front: !!centering.front, back: !!centering.back }}
+            onMeasure={setToolSide}
+          />
           {front && !cardIdHint && idState !== "idle" && (
             <CardIdentityBox
               state={idState === "loading" ? "loading" : "done"}
@@ -946,6 +1268,7 @@ export default function GraderaPage() {
           )}
           <div className="flex flex-wrap items-center gap-3">
             <Button
+              data-tour="grading-grade"
               onClick={() => void gradeNow()}
               disabled={!front || !back || limitReached}
               loading={grading}
@@ -1016,6 +1339,15 @@ export default function GraderaPage() {
               ))}
             </div>
 
+            {result.result.defects && (
+              <DefectsPanel
+                key={result.jobId}
+                defects={result.result.defects}
+                front={result.historyAt ? null : front}
+                back={result.historyAt ? null : back}
+              />
+            )}
+
             {/* Modellnamnet visas inte (ägarbeslut 2026-07-21) — vilken leverantör
                 och modell som gör bedömningen är en implementationsdetalj, inte
                 något användaren ska förhålla sig till. `modelUsed` loggas fortfarande
@@ -1043,18 +1375,45 @@ export default function GraderaPage() {
           onClose={() => setShareOpen(false)}
           panelClassName="sm:mx-auto sm:max-w-md"
         >
-          {shareOpen && (
+          {shareOpen && !result.historyAt && result.result.cardImageUrl && front && (
+            <div className="flex items-center justify-between gap-3 px-4 pb-1 pt-1 sm:px-5">
+              <span className="text-xs font-medium text-ink-muted">{t("slabImage")}</span>
+              <div className="flex gap-1 rounded-full bg-surface-overlay/60 p-1 ring-1 ring-surface-border">
+                {(["catalog", "photo"] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={slabImage === k}
+                    onClick={() => setSlabImage(k)}
+                    className={cn(
+                      "flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                      slabImage === k ? "bg-holo-cyan text-surface" : "text-ink-muted hover:text-ink"
+                    )}
+                  >
+                    {k === "photo" ? <IconImage size={13} /> : <IconSparkle size={13} />}
+                    {k === "photo" ? t("slabImagePhoto") : t("slabImageCatalog")}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {shareOpen && (!result.historyAt && front && !ownCrop && autoCrop === undefined ? (
+            <div className="flex justify-center py-16">
+              <Spinner />
+            </div>
+          ) : (
             <ShareCardPanel
+              key={result.historyAt ? "history" : slabImage}
               source="grade"
               previewMax="50dvh"
               safeBottom
               name={splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ?? t("shareUnknownCard")}
               // Slabben bär aldrig den personliga länken (ägarbeslut 2026-10-01).
               printLink={false}
-              render={(domain) => renderGradeShareCard(gradeShareInput(result, domain))}
-              spin={(domain) => prepareGradeSpinLayers(gradeShareInput(result, domain))}
+              render={(domain) => renderGradeShareCard(gradeShareInput(result, domain, slabImage))}
+              spin={(domain) => prepareGradeSpinLayers(gradeShareInput(result, domain, slabImage))}
             />
-          )}
+          ))}
         </BottomSheet>
       )}
 
@@ -1126,7 +1485,7 @@ export default function GraderaPage() {
       )}
 
       {/* Historik */}
-      <Card>
+      <Card data-tour="grading-history">
         <CardHeader>
           <CardTitle>{t("historyTitle")}</CardTitle>
         </CardHeader>
@@ -1223,6 +1582,8 @@ export default function GraderaPage() {
           )}
         </CardContent>
       </Card>
+
+      <GradingTour open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
 }
