@@ -15,6 +15,8 @@ import { rateLimit } from "@/lib/rate-limit";
 import { getScannerQuota, identifyCard, isIntroScan, recordScanUsage } from "@/services/scanner";
 import { buildFoilDiagnostics } from "@/services/scanner/foil";
 import { buildScanPhotoKey, putImage, sniffImageType, storageEnabled } from "@/lib/object-storage";
+import { scanPhotoConsent } from "@/lib/scan-photo-consent";
+import { prisma } from "@/lib/db";
 import { callEngine, engineModeFor, recordShadow, runEngineShadow, shadowRecord } from "@/lib/scanner-engine-shadow";
 
 export const dynamic = "force-dynamic";
@@ -340,16 +342,26 @@ export async function POST(req: Request) {
     // en bildmatchare utan AI kan mätas mot riktiga fångster offline
     // (scripts/scanner-photo-export.ts). Nyckeln härleds ur jobbet. Fire-and-
     // forget: ett uppladdningsfel får aldrig fälla eller fördröja skanningen.
-    // ⛔ Aldrig för vanliga användare — policyn lovar att bilden inte sparas.
-    if (isAdmin && jobId && storageEnabled()) {
-      const key = buildScanPhotoKey(user!.id, jobId);
-      const bytes = Buffer.from(image.slice(image.indexOf(",") + 1), "base64");
-      const type = sniffImageType(bytes);
-      if (key && type === "image/jpeg") {
-        void putImage(key, bytes, type).catch((err) =>
-          console.warn("[scanner-facit] uppladdning misslyckades:", (err as Error).message)
-        );
-      }
+    // Sedan 2026-10-04 även för den som SJÄLV slagit på "Hjälp till att förbättra
+    // skannern" (lib/scan-photo-consent.ts). ⛔ Aldrig utan samtycket — policyn lovar det.
+    // Samtycket läses bara när det kan spela roll (inloggad, inte admin, bucket finns);
+    // Neon är redan vaken av jobbraden.
+    if (user && jobId && storageEnabled()) {
+      const owner = user.id;
+      const job = jobId;
+      // Fire-and-forget hela vägen — samtyckesläsningen får inte fördröja svaret.
+      void (async () => {
+        const allowed =
+          isAdmin ||
+          scanPhotoConsent(
+            (await prisma.user.findUnique({ where: { id: owner }, select: { preferences: true } }))?.preferences
+          );
+        if (!allowed) return;
+        const key = buildScanPhotoKey(owner, job);
+        const bytes = Buffer.from(image.slice(image.indexOf(",") + 1), "base64");
+        const type = sniffImageType(bytes);
+        if (key && type === "image/jpeg") await putImage(key, bytes, type);
+      })().catch((err) => console.warn("[scanner-facit] uppladdning misslyckades:", (err as Error).message));
     }
 
     // SKANNERMOTORN UTAN AI, SKUGGLÄGE (2026-09-30): samma fångst till motorn, svaret bokförs

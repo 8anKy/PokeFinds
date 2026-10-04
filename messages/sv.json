@@ -180,7 +180,13 @@
     "summaryNone": "Inget påslaget",
     "planPrice": "49 kr/mån",
     "searchPlaceholder": "Sök inställning",
-    "searchEmpty": "Ingen inställning matchar \"{query}\"."
+    "searchEmpty": "Ingen inställning matchar \"{query}\".",
+    "scanPhotoTitle": "Förbättra skannern",
+    "scanPhotoLabel": "Dela mina skanningsbilder",
+    "scanPhotoHint": "Bilden från varje skanning sparas tillsammans med kortet du valde, så att vi kan mäta och förbättra hur bra skannern känner igen kort.",
+    "scanPhotoFooter": "Frivilligt och avstängt från början. Bara Foilio ser bilderna, de används aldrig för att träna AI-modeller, och när du stänger av reglaget eller raderar kontot raderas de.",
+    "scanPhotoOnToast": "Tack! Dina skanningar hjälper skannern att bli bättre.",
+    "scanPhotoOffToast": "Avstängt — dina sparade skanningsbilder har raderats."
   },
   "Nav": {
     "explore": "Utforska",
@@ -1258,11 +1264,15 @@
       },
       {
         "lead": "Kortbilder vid skanning och gradering:",
-        "text": "när du skannar eller laddar upp ett kort skickas bilden till vår AI-leverantör för identifiering eller bedömning; leverantören sparar inte bilden efter bearbetningen. Skanningsbilder sparas inte hos oss. Fram- och baksidesfotona du graderar sparas i vår objektlagring (Railway Buckets, EU-region) så att du kan öppna graderingen igen med dina foton och de markerade skadorna; bara du kan se dem, och de raderas när du raderar ditt konto. Vi använder inte dina bilder för att träna AI-modeller."
+        "text": "när du skannar eller laddar upp ett kort skickas bilden till vår AI-leverantör för identifiering eller bedömning; leverantören sparar inte bilden efter bearbetningen. Skanningsbilder sparas inte hos oss, om du inte själv slagit på ”Dela mina skanningsbilder” (se nedan). Fram- och baksidesfotona du graderar sparas i vår objektlagring (Railway Buckets, EU-region) så att du kan öppna graderingen igen med dina foton och de markerade skadorna; bara du kan se dem, och de raderas när du raderar ditt konto. Vi använder inte dina bilder för att träna AI-modeller."
       },
       {
         "lead": "Skannerdiagnostik:",
-        "text": "för att kunna mäta och förbättra skannerns träffsäkerhet sparas per skanning vilka kort som föreslogs och vilket du valde, samt ett litet numeriskt bildavtryck (cirka 1 kB: medelfärger i ett rutnät och ett strukturhistogram). Avtrycket går inte att återskapa en bild ur, visas aldrig och används bara för att skannern ska känna igen kort bättre i riktiga fångster. I appen sparas också det samlarnummer som läses lokalt på din enhet ur kortets nederkant (bara numret, ingen bild). Själva bilden sparas inte. Uppgifterna raderas tillsammans med ditt konto."
+        "text": "för att kunna mäta och förbättra skannerns träffsäkerhet sparas per skanning vilka kort som föreslogs och vilket du valde, samt ett litet numeriskt bildavtryck (cirka 1 kB: medelfärger i ett rutnät och ett strukturhistogram). Avtrycket går inte att återskapa en bild ur, visas aldrig och används bara för att skannern ska känna igen kort bättre i riktiga fångster. I appen sparas också det samlarnummer som läses lokalt på din enhet ur kortets nederkant (bara numret, ingen bild). Själva bilden sparas inte, om du inte slagit på ”Dela mina skanningsbilder”. Uppgifterna raderas tillsammans med ditt konto."
+      },
+      {
+        "lead": "Skanningsbilder du delar frivilligt:",
+        "text": "om du slår på ”Dela mina skanningsbilder” (Inställningar → Konto) sparas bilden från varje skanning tillsammans med kortet du valde, i vår objektlagring (Railway Buckets, EU-region). Vi använder dem bara för att mäta och förbättra skannerns bildmatchning, aldrig för att träna AI-modeller, och bara Foilio ser dem. Reglaget är avstängt från början; stänger du av det eller raderar kontot raderas bilderna."
       },
       {
         "lead": "Användningsstatistik:",
@@ -1286,6 +1296,10 @@
       {
         "lead": "Tillhandahålla tjänsten",
         "text": "(konto, bevakningar, samling, notiser, skanning, gradering). Rättslig grund: fullgörande av avtal (art. 6.1 b GDPR)."
+      },
+      {
+        "lead": "Förbättra skannern med skanningsbilder du själv delar",
+        "text": ": samtycke (art. 6.1 a GDPR). Du kan när som helst ta tillbaka samtycket i Inställningar → Konto, och då raderas bilderna."
       },
       {
         "lead": "Hantera betalningar och prenumerationer",

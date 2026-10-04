@@ -589,6 +589,37 @@ export function PlanRow({ user }: { user: SettingsUser }) {
   );
 }
 
+// ------------------------------------------------- Förbättra skannern
+
+/**
+ * "Hjälp till att förbättra skannern" (2026-10-04) — frivilligt, AV som standard.
+ * Av ⇒ servern raderar redan sparade skanningsbilder (lib/scan-photo-consent.ts).
+ */
+export function ScanPhotoConsentSection({ user }: { user: SettingsUser }) {
+  const t = useTranslations("Settings");
+  const consent = useOptimisticToggle(user.scanPhotoConsent, {
+    on: t("scanPhotoOnToast"),
+    off: t("scanPhotoOffToast"),
+  });
+  if (user.isAdmin) return null;
+  return (
+    <SettingsSection title={t("scanPhotoTitle")} footer={t("scanPhotoFooter")}>
+      <SettingsRow
+        label={t("scanPhotoLabel")}
+        hint={t("scanPhotoHint")}
+        control={
+          <Toggle
+            checked={consent.value}
+            disabled={consent.saving}
+            label={t("scanPhotoLabel")}
+            onChange={(next) => void consent.set(next, { scanPhotoConsent: next })}
+          />
+        }
+      />
+    </SettingsSection>
+  );
+}
+
 // ----------------------------------------------------------------- Konto
 
 export function AccountSection() {

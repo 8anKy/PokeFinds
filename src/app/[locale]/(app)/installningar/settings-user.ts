@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 // ⛔ Delad läsare — se src/lib/notification-settings.ts. Skriv ingen lokal kopia.
 import { parseNotificationSettings } from "@/lib/notification-settings";
 import { allowsPurchaseRequests } from "@/lib/purchase-requests";
+import { scanPhotoConsent } from "@/lib/scan-photo-consent";
 import type { NotificationSettings } from "@/lib/notification-settings";
 
 export interface SettingsUser {
@@ -30,6 +31,10 @@ export interface SettingsUser {
   portfolios: { id: string; name: string; isPublic: boolean; isDefault: boolean; itemCount: number }[];
   /** "Tillåt köpförfrågningar" — knappen "Är den till salu?" på rutorna (preferences-JSON). */
   allowPurchaseRequests: boolean;
+  /** "Hjälp till att förbättra skannern" — frivilligt samtycke (lib/scan-photo-consent.ts). */
+  scanPhotoConsent: boolean;
+  /** Admins skanningar sparas alltid (skannerfacit) — reglaget visas inte för dem. */
+  isAdmin: boolean;
   /** Community v2 (forum/meddelanden/Tradera på profilen) synligt för den här besökaren? */
   communityV2: boolean;
   /** Discord-visningsnamnet när kontot är länkat, annars null. */
@@ -100,6 +105,8 @@ export async function loadSettingsUser(): Promise<SettingsUser> {
     isPublicCollection: user.isPublicCollection,
     portfolios: await listPortfolios(session.user.id),
     allowPurchaseRequests: allowsPurchaseRequests(user.preferences),
+    scanPhotoConsent: scanPhotoConsent(user.preferences),
+    isAdmin: user.role === "ADMIN" || user.role === "SUPERADMIN",
     // Community v2-grinden (Tradera-annonser på profilen bor bakom den). Sidorna
     // är force-dynamic, så UA + roll läses per besök precis som env-spakarna.
     communityV2: await communityV2Request(session.user.role),

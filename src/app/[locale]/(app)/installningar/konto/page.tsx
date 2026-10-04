@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { loadSettingsUser } from "../settings-user";
-import { AccountSection } from "../sections";
+import { AccountSection, ScanPhotoConsentSection } from "../sections";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +13,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Page() {
-  const [, t] = await Promise.all([loadSettingsUser(), getTranslations("Settings")]);
+  const [user, t] = await Promise.all([loadSettingsUser(), getTranslations("Settings")]);
   return (
     <div className="mx-auto max-w-md space-y-6">
       {/* ⛔ Bakåt landar på registret, aldrig på /mer: undersidan nåddes DÄRIFRÅN. */}
       <SubpageHeader title={t("gdprTitle")} fallback="/installningar" />
+      <ScanPhotoConsentSection user={user} />
       <Suspense>
         <AccountSection />
       </Suspense>

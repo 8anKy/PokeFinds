@@ -6,7 +6,8 @@ import { requireUser, AuthError } from "@/lib/auth";
 import { isPro, proSource } from "@/lib/plan";
 import { revokeDiscordRoles } from "@/services/discord-sync";
 import { getStripe, stripeEnabled } from "@/lib/stripe";
-import { deleteUserImages } from "@/lib/object-storage";
+import { deleteUserImages, deleteUserScanPhotos } from "@/lib/object-storage";
+import { SCAN_PHOTO_CONSENT_KEY } from "@/lib/scan-photo-consent";
 import { revalidateTag } from "next/cache";
 import { TRADERA_SELLER_ITEMS_TAG } from "@/lib/tradera-seller-items";
 import { setAllPortfoliosPublic } from "@/services/portfolios";
@@ -74,6 +75,9 @@ const patchSchema = z.object({
   name: z.string().trim().min(4, "Namnet måste vara 4–12 tecken.").max(12, "Namnet måste vara 4–12 tecken.").optional(),
   notificationSettings: notificationSettingsSchema.optional(),
   preferences: z.record(z.unknown()).optional(),
+  // "Hjälp till att förbättra skannern" (lib/scan-photo-consent.ts) — servern sätter
+  // tidsstämpeln; av ⇒ sparade skanningsbilder raderas.
+  scanPhotoConsent: z.boolean().optional(),
   isPublicCollection: z.boolean().optional(),
   // "Visa mina Tradera-annonser på min profil" — samtycket för profilens
   // Tradera-kort. Nollas av /api/tradera DELETE när kopplingen bryts.
@@ -147,9 +151,24 @@ export async function PATCH(req: Request) {
         ...input.notificationSettings,
       } as Prisma.InputJsonValue;
     }
-    if (input.preferences !== undefined) {
+    if (input.preferences !== undefined || input.scanPhotoConsent !== undefined) {
       const existing = (current.preferences ?? {}) as Record<string, unknown>;
-      data.preferences = { ...existing, ...input.preferences } as Prisma.InputJsonValue;
+      // ⛔ Samtycket sätts BARA av `scanPhotoConsent` nedan, aldrig ur det fria objektet.
+      const { [SCAN_PHOTO_CONSENT_KEY]: _ignored, ...free } = input.preferences ?? {};
+      const next: Record<string, unknown> = { ...existing, ...free };
+      if (input.scanPhotoConsent === true && !next[SCAN_PHOTO_CONSENT_KEY]) {
+        next[SCAN_PHOTO_CONSENT_KEY] = new Date().toISOString();
+      }
+      if (input.scanPhotoConsent === false) delete next[SCAN_PHOTO_CONSENT_KEY];
+      data.preferences = next as Prisma.InputJsonValue;
+    }
+    // Samtycket draget ⇒ redan sparade skanningsbilder raderas (art. 7.3). Admins
+    // egna fångster (skannerfacit) rörs inte — de sparas oavsett reglaget.
+    const isAdminUser = current.role === "ADMIN" || current.role === "SUPERADMIN";
+    if (input.scanPhotoConsent === false && !isAdminUser) {
+      await deleteUserScanPhotos(sessionUser.id).catch((err) =>
+        console.error(`[users/me PATCH] kunde inte radera skanningsbilder för ${sessionUser.id}:`, err)
+      );
     }
 
     const user = await prisma.user.update({

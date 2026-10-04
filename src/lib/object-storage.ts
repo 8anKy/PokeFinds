@@ -100,9 +100,10 @@ export function isForumImageKey(key: string): boolean {
  * annars bara ett 264-byte avtryck, och ett nytt avtryck går inte att räkna ur
  * ett gammalt). `scanner-facit/<användar-id>/<job-id>.jpg` — nyckeln HÄRLEDS ur
  * jobbet, så ingen DB-kolumn behövs och exporten hittar fotot själv.
- * ⛔ Bara admin: policyn lovar vanliga användare att bilden inte sparas.
+ * ⛔ Bara admin + den som själv slagit på "Hjälp till att förbättra skannern".
  */
 export function buildScanPhotoKey(userId: string, jobId: string): string | null {
+  // Sedan 2026-10-04 även för användare som SAMTYCKT (lib/scan-photo-consent.ts).
   const safeUser = userId.replace(/[^A-Za-z0-9_-]/g, "");
   const safeJob = jobId.replace(/[^A-Za-z0-9_-]/g, "");
   if (!safeUser || !safeJob) return null;
@@ -221,14 +222,25 @@ export async function deleteImage(key: string): Promise<void> {
 
 /** Radera allt en användare laddat upp (GDPR-radering). Best effort, loggar aldrig nycklar. */
 export async function deleteUserImages(userId: string): Promise<number> {
+  const safeUser = userId.replace(/[^A-Za-z0-9_-]/g, "");
+  if (!safeUser) return 0;
+  // Forumbilder + skannerfacit (admin + samtyckta skanningar) + graderingsfoton — samma användarprefix.
+  return deletePrefixes([`forum/${safeUser}/`, `scanner-facit/${safeUser}/`, `grading/${safeUser}/`]);
+}
+
+/** Skanningsbilderna en användare samtyckt till (lib/scan-photo-consent.ts) — när samtycket dras tillbaka. */
+export async function deleteUserScanPhotos(userId: string): Promise<number> {
+  const safeUser = userId.replace(/[^A-Za-z0-9_-]/g, "");
+  if (!safeUser) return 0;
+  return deletePrefixes([`scanner-facit/${safeUser}/`]);
+}
+
+async function deletePrefixes(prefixes: string[]): Promise<number> {
   const cfg = storageConfig();
   if (!cfg) return 0;
   const { client, s3 } = await getClient(cfg);
-  const safeUser = userId.replace(/[^A-Za-z0-9_-]/g, "");
-  if (!safeUser) return 0;
   let removed = 0;
-  // Forumbilder + skannerfacit (admins egna fångster) + graderingsfoton — samma användarprefix.
-  for (const prefix of [`forum/${safeUser}/`, `scanner-facit/${safeUser}/`, `grading/${safeUser}/`]) {
+  for (const prefix of prefixes) {
   let token: string | undefined;
   do {
     const page = await client.send(

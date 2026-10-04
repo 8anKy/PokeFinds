@@ -459,3 +459,10 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   0,62 ⇒ tom lista + `noCard` ("Inget kort i bilden"), `recall.nc`. Mätt: alla 31 sådana enkelskanningar sedan 08-01
   låg 0,41–0,60 med marginal ≤ 0,02; enda riktiga kortet i hinken var en Mewtwo V-UNION-bit (0,463).
   ⛔ Gäller inte art-avgjorda skanningar (tomma textfält per konstruktion).
+- **"DELA MINA SKANNINGSBILDER" — FRIVILLIGT SAMTYCKE (ägarbeslut 2026-10-04)**: utöver admins skannerfacit sparas
+  skanningsbilden (`scanner-facit/<user>/<job>.jpg`, samma export) för den som slagit på reglaget i Inställningar → Konto.
+  ⛔ AV som standard; samtycket är en SERVERTIDSSTÄMPEL `preferences.scanPhotoConsentAt` (`lib/scan-photo-consent.ts`),
+  satt BARA av `PATCH /api/users/me { scanPhotoConsent }` — det fria preferences-objektet kan inte sätta den. Av ⇒
+  `deleteUserScanPhotos` raderar prefixet (art. 7.3); admins rörs inte (reglaget visas inte för dem). Samtyckesläsningen
+  i identify-rutten är fire-and-forget (fördröjer aldrig svaret). Policyn (s2Items + s3Items, art. 6.1 a) säger exakt
+  detta — ⛔ använd ALDRIG bilderna till något annat än att mäta/förbättra bildmatchningen, och aldrig AI-träning.
