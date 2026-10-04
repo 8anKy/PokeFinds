@@ -1215,7 +1215,7 @@
     "metaTitle": "Privacy policy",
     "metaDescription": "How Foilio processes your personal data, in accordance with GDPR.",
     "h1": "Privacy policy",
-    "updated": "3 October 2026",
+    "updated": "4 October 2026",
     "s1Title": "1. Data controller",
     "s1Body": "The data controller for the processing of your personal data is {entity}, which operates Foilio. Full company details are available in our terms of service. If you have questions about how we handle your data, reach us at <email>hej@foilio.se</email>.",
     "s2Title": "2. What data we process",
@@ -1258,7 +1258,7 @@
       },
       {
         "lead": "Card images when scanning and grading:",
-        "text": "when you scan or upload a card, the image is sent to our AI provider for identification or assessment. The image is processed temporarily and is not stored long-term, neither by us nor by the provider. We do not use your images to train AI models."
+        "text": "when you scan or upload a card, the image is sent to our AI provider for identification or assessment; the provider does not keep the image after processing. Scan images are not stored by us. The front and back photos you grade are stored in our object storage (Railway Buckets, EU region) so you can open the grading again with your photos and the marked flaws; only you can see them, and they are deleted when you delete your account. We do not use your images to train AI models."
       },
       {
         "lead": "Scanner diagnostics:",
@@ -1723,7 +1723,7 @@
     "slabImagePhoto": "My photo",
     "defectsTitle": "{count, plural, one {The AI found # flaw} other {The AI found # flaws}}",
     "defectsApprox": "The boxes are approximate — tap a flaw to see where it is.",
-    "defectsNoPhotos": "Photos aren't stored, so the markings only show right after grading.",
+    "defectsNoPhotos": "The photos weren't saved for this grading, so the flaws are shown as a list only.",
     "defectsNone": "The AI found no clear flaws in the photos.",
     "severity": {
       "minor": "Minor",

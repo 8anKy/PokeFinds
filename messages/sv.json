@@ -1215,7 +1215,7 @@
     "metaTitle": "Integritetspolicy",
     "metaDescription": "Så behandlar Foilio dina personuppgifter, i enlighet med GDPR.",
     "h1": "Integritetspolicy",
-    "updated": "3 oktober 2026",
+    "updated": "4 oktober 2026",
     "s1Title": "1. Personuppgiftsansvarig",
     "s1Body": "Personuppgiftsansvarig för behandlingen av dina personuppgifter är {entity}, som driver Foilio. Fullständiga företagsuppgifter finns i våra användarvillkor. Har du frågor om hur vi hanterar dina uppgifter når du oss på <email>hej@foilio.se</email>.",
     "s2Title": "2. Vilka uppgifter vi behandlar",
@@ -1258,7 +1258,7 @@
       },
       {
         "lead": "Kortbilder vid skanning och gradering:",
-        "text": "när du skannar eller laddar upp ett kort skickas bilden till vår AI-leverantör för identifiering eller bedömning. Bilden behandlas tillfälligt och sparas inte långsiktigt, varken hos oss eller hos leverantören. Vi använder inte dina bilder för att träna AI-modeller."
+        "text": "när du skannar eller laddar upp ett kort skickas bilden till vår AI-leverantör för identifiering eller bedömning; leverantören sparar inte bilden efter bearbetningen. Skanningsbilder sparas inte hos oss. Fram- och baksidesfotona du graderar sparas i vår objektlagring (Railway Buckets, EU-region) så att du kan öppna graderingen igen med dina foton och de markerade skadorna; bara du kan se dem, och de raderas när du raderar ditt konto. Vi använder inte dina bilder för att träna AI-modeller."
       },
       {
         "lead": "Skannerdiagnostik:",
@@ -1723,7 +1723,7 @@
     "slabImagePhoto": "Mitt foto",
     "defectsTitle": "{count, plural, one {AI:n hittade # skada} other {AI:n hittade # skador}}",
     "defectsApprox": "Rutorna är ungefärliga — tryck på en skada för att se var den sitter.",
-    "defectsNoPhotos": "Fotona sparas inte, så markeringarna syns bara direkt efter graderingen.",
+    "defectsNoPhotos": "Fotona sparades inte för den här graderingen, så skadorna visas bara som lista.",
     "defectsNone": "AI:n hittade inga tydliga skador på bilderna.",
     "severity": {
       "minor": "Lätt",

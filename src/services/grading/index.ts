@@ -19,6 +19,7 @@ import { ServiceError } from "@/lib/errors";
 // samma gräns överallt. Se src/lib/utils.ts.
 import { startOfMonthUtc } from "@/lib/utils";
 import { resolveGradedCard } from "@/services/grading/card-link";
+import { storeGradingPhotos } from "@/services/grading/photos";
 import { ClaudeVisionGradingAdapter } from "@/services/grading/claude-vision";
 import { GeminiVisionGradingAdapter } from "@/services/grading/gemini-vision";
 import { MockGradingAdapter } from "@/services/grading/mock";
@@ -179,10 +180,14 @@ export async function runGradingJob(
     // `null` när numret saknas eller är tvetydigt; se card-link.ts för varför ett
     // namn ensamt inte duger.
     const cardName = result.cardName ?? context?.cardName ?? null;
-    const linked = await resolveGradedCard(cardName, context?.cardId, {
-      confirmed: context?.cardConfirmed === true,
-      artCardIds: context?.artCardIds,
-    }).catch(() => null);
+    // Fotona sparas parallellt med katalogkopplingen (photos.ts) — bästa försök.
+    const [linked, photoKeys] = await Promise.all([
+      resolveGradedCard(cardName, context?.cardId, {
+        confirmed: context?.cardConfirmed === true,
+        artCardIds: context?.artCardIds,
+      }).catch(() => null),
+      storeGradingPhotos(userId, job.id, frontDataUrl, backDataUrl).catch(() => null),
+    ]);
 
     const updated = await prisma.gradingJob.update({
       where: { id: job.id },
@@ -225,6 +230,9 @@ export async function runGradingJob(
           // Användaren bekräftade kortet ⇒ worth-rutten kopplar aldrig om det.
           cardPicked: context?.cardConfirmed === true && linked?.cardId === context?.cardId ? true : undefined,
           centering: centering ?? null,
+          // Bucket-nycklarna för fotona (2026-10-04). null = inga sparade (äldre
+          // graderingar, eller bucketen svarade inte).
+          photoKeys: photoKeys ?? null,
         } as unknown as Prisma.InputJsonObject,
       },
     });

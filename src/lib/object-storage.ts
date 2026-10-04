@@ -110,6 +110,23 @@ export function buildScanPhotoKey(userId: string, jobId: string): string | null 
 }
 
 /**
+ * GRADERINGSFOTON (ägarbeslut 2026-10-04): fram- och baksidan sparas så att en
+ * tidigare gradering kan visas med användarens EGNA foton och skademarkeringar.
+ * `grading/<användar-id>/<job-id>_<front|back>.jpg` — härledd ur jobbet, raderas
+ * med kontot (prefixet nedan). Visas bara för ägaren, via `/api/grading/jobs/[id]/photo`.
+ */
+export function buildGradingPhotoKey(userId: string, jobId: string, side: "front" | "back", ext: string): string | null {
+  const safeUser = userId.replace(/[^A-Za-z0-9_-]/g, "");
+  const safeJob = jobId.replace(/[^A-Za-z0-9_-]/g, "");
+  if (!safeUser || !safeJob || !/^(jpg|png|webp)$/.test(ext)) return null;
+  return `grading/${safeUser}/${safeJob}_${side}.${ext}`;
+}
+
+export function isGradingPhotoKey(key: string): boolean {
+  return /^grading\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+_(front|back)\.(jpg|png|webp)$/.test(key);
+}
+
+/**
  * Miniatyrens nyckel HÄRLEDS ur originalets (`…uuid.jpg` → `…uuid_t.jpg`) så
  * att servern kan verifiera den i stället för att lita på klienten: en klient
  * som hittar på en nyckel kan annars peka en tråds miniatyr på någon annans
@@ -210,8 +227,8 @@ export async function deleteUserImages(userId: string): Promise<number> {
   const safeUser = userId.replace(/[^A-Za-z0-9_-]/g, "");
   if (!safeUser) return 0;
   let removed = 0;
-  // Forumbilder + skannerfacit (admins egna fångster) — samma användarprefix.
-  for (const prefix of [`forum/${safeUser}/`, `scanner-facit/${safeUser}/`]) {
+  // Forumbilder + skannerfacit (admins egna fångster) + graderingsfoton — samma användarprefix.
+  for (const prefix of [`forum/${safeUser}/`, `scanner-facit/${safeUser}/`, `grading/${safeUser}/`]) {
   let token: string | undefined;
   do {
     const page = await client.send(

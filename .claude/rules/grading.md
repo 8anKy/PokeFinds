@@ -24,8 +24,14 @@ paths:
   Fotona förbereds på telefonen sedan 2026-10-04 (`lib/grading-photo.ts`): orienteringen bakas in och längsta sidan
   kapas till 2400 px — över vad modellerna själva skalar till, så kostnad/bedömning är oförändrade. Det är en
   UPPSKATTNING, aldrig en officiell PSA/BGS-grad.
-- **GRADERINGSHISTORIKEN VISAR KATALOGBILDEN, OCH BARA NÄR NUMRET STYRKT KORTET (2026-08-05)**: användarens foton
-  sparas ALDRIG (`frontImageUrl = INLINE_UPLOAD`, dataminimering), så katalogbilden är den enda bild som finns.
+- **GRADERINGSFOTONA SPARAS SEDAN 2026-10-04 (ägarbeslut, ersätter "sparas aldrig")**: fram + bak läggs i den privata
+  bucketen (`grading/<user>/<job>_<side>.<ext>`, `services/grading/photos.ts`, bästa försök parallellt med
+  katalogkopplingen) och nycklarna i `result.photoKeys`; visas BARA för ägaren via `/api/grading/jobs/[id]/photo`
+  (egen origin — en signerad bucket-URL hade smutsat ned canvasen för slabben/utskärningen). Raderas med kontot
+  (`deleteUserImages`-prefixet). Policyn (Privacy.s2Items) säger exakt det — ⛔ aldrig AI-träning utan nytt samtycke.
+  Äldre jobb har inga foton ⇒ historiken visar listan + katalogbilden som förut.
+- **GRADERINGSHISTORIKEN VISAR KATALOGBILDEN, OCH BARA NÄR NUMRET STYRKT KORTET (2026-08-05)**: före 2026-10-04 sparades
+  användarens foton ALDRIG (`frontImageUrl = INLINE_UPLOAD`, dataminimering), så katalogbilden var den enda bild som fanns.
   Kopplingen görs EN gång vid graderingen (`resolveGradedCard`, `services/grading/card-link.ts`) och lagras i
   `result` (cardId/cardImageUrl/cardSlug/cardLabel — ingen migration), aldrig per historikvisning.
   ⚠️ `result.cardName` är INTE ett bart kortnamn. Mätt i prod: `"Camerupt 028/217 · Scarlet & Violet: Obsidian
@@ -61,7 +67,7 @@ paths:
   och en ruta i Geminis konvention (ymin, xmin, ymax, xmax 0–1000). `parseDefects` (contract.ts, testad) kastar allt
   otolkbart och sparar rutan som andelar i `result.defects`. ⛔ Rutorna gäller FOTOT modellen fick — därför bakas
   EXIF-orienteringen in i klienten innan uppladdning; utan det hamnar rutorna fel på en iPhone-bild. ⛔ Fotona sparas
-  aldrig ⇒ historiken visar bara listan. Rutorna är modellens PEKANDE, inte en mätning — UI:t säger "ungefärliga".
+  i bucketen sedan samma dag ⇒ historiken visar rutorna på de sparade fotona. Rutorna är modellens PEKANDE, inte en mätning — UI:t säger "ungefärliga".
   `maxOutputTokens` 4096 (Gemini) / `max_tokens` 2048 (Claude) för listan; merkostnad ≈ 300–600 ut-tokens per gradering.
   Uppladdningen har TVÅ inputs: kamera (`capture`) och kamerarulle (utan) — en input med `capture` stängde galleriet
   på Android. Delningsarket väljer slabbens bild: katalogbild eller "Mitt foto" (mätarens utsnitt, annars

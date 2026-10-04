@@ -81,6 +81,8 @@ interface GradeResultDto {
   cardId?: string | null;
   /** Skadorna modellen pekade ut (services/grading/contract.ts). Saknas i äldre graderingar. */
   defects?: GradeDefectDto[];
+  /** Sparade foton i bucketen (services/grading/photos.ts) — sedan 2026-10-04. */
+  photoKeys?: { front: string | null; back: string | null } | null;
   /** Användarens uppmätta centrering, sparad på jobbet (services/grading/extras.ts). */
   centering?: {
     front: StoredSide | null;
@@ -855,11 +857,8 @@ export default function GraderaPage() {
   const [tourOpen, setTourOpen] = useState(false);
   /** Slabbens bild (ägarönskan 2026-10-04): katalogbilden eller användarens eget foto. */
   const [slabImage, setSlabImage] = useState<"catalog" | "photo">("catalog");
-  /** Kortet utskuret ur fotot när centreringen inte mätts. undefined = inte försökt. */
-  const [autoCrop, setAutoCrop] = useState<Record<CenteringSide, string | null | undefined>>({
-    front: undefined,
-    back: undefined,
-  });
+  /** Kortet utskuret ur ett foto (nyckel = fotots källa) när centreringen inte mätts. Saknas = inte försökt. */
+  const [crops, setCrops] = useState<Map<string, string | null>>(() => new Map());
   const tc = useTranslations("Centering");
   const ts = useTranslations("ShareCard");
 
@@ -935,27 +934,36 @@ export default function GraderaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobs === null]);
 
-  // "Mitt foto" på slabben utan mätning: skär ut kortet ur fotot (en gång per foto).
-  // Baksidan behövs för videon — slabben snurrar med kortets riktiga baksida.
-  const photos: Record<CenteringSide, string | null> = { front, back };
-  useEffect(() => setAutoCrop((a) => ({ ...a, front: undefined })), [front]);
-  useEffect(() => setAutoCrop((a) => ({ ...a, back: undefined })), [back]);
-  const cropFor = (s: CenteringSide) => centering[s]?.cropDataUrl ?? autoCrop[s] ?? null;
-  const cropsPending = (["front", "back"] as const).some(
-    (s) => photos[s] && !centering[s]?.cropDataUrl && autoCrop[s] === undefined
-  );
+  // FOTONA SOM HÖR TILL RESULTATET: de nyss uppladdade, eller — för en tidigare
+  // gradering — de sparade (services/grading/photos.ts, via vår egen rutt så att
+  // canvasen inte smutsas ned). Äldre graderingar utan sparade foton: inga.
+  const shown: Record<CenteringSide, string | null> = result?.historyAt
+    ? {
+        front: result.result.photoKeys?.front ? `/api/grading/jobs/${result.jobId}/photo?side=front` : null,
+        back: result.result.photoKeys?.back ? `/api/grading/jobs/${result.jobId}/photo?side=back` : null,
+      }
+    : { front, back };
+  // "Mitt foto" på slabben: mätarens utsnitt (bara färska), annars kortet utskuret
+  // automatiskt (en gång per foto). Baksidan behövs för videon.
+  const cropFor = (s: CenteringSide) =>
+    (!result?.historyAt ? centering[s]?.cropDataUrl : null) ?? (shown[s] ? crops.get(shown[s]!) : null) ?? null;
+  const needsCrop = (s: CenteringSide) =>
+    !!shown[s] && !(!result?.historyAt && centering[s]?.cropDataUrl) && !crops.has(shown[s]!);
+  const cropsPending = needsCrop("front") || needsCrop("back");
   useEffect(() => {
-    if (!shareOpen || result?.historyAt) return;
+    if (!shareOpen) return;
     let alive = true;
     for (const s of ["front", "back"] as const) {
-      const src = s === "front" ? front : back;
-      if (!src || centering[s]?.cropDataUrl || autoCrop[s] !== undefined) continue;
-      void autoCropCard(src).then((c) => alive && setAutoCrop((a) => ({ ...a, [s]: c })));
+      const src = shown[s];
+      if (!src || !needsCrop(s)) continue;
+      void autoCropCard(src).then((c) => alive && setCrops((m) => new Map(m).set(src, c)));
     }
     return () => {
       alive = false;
     };
-  }, [shareOpen, front, back, centering, autoCrop, result?.historyAt]);
+    // `shown` och `needsCrop` härleds ur beroendena nedan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareOpen, front, back, centering, crops, result?.jobId, result?.historyAt]);
 
   /** Börja om: nya foton, ny gradering (resultatet ligger kvar i historiken). */
   function startOver() {
@@ -970,6 +978,7 @@ export default function GraderaPage() {
     setSuggestions([]);
     userPickedRef.current = false;
     setSlabImage("catalog");
+    setCrops(new Map());
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1063,14 +1072,14 @@ export default function GraderaPage() {
     if (stored?.front) parts.push(`${t("frontShort")} ${storedRatiosText(stored.front, topRight)}`);
     if (stored?.back) parts.push(`${t("backShort")} ${storedRatiosText(stored.back, topRight)}`);
     // Användarens kort: utskuret längs stödlinjerna, annars hittat automatiskt.
-    const own = r.historyAt ? null : cropFor("front");
-    const photo = image === "photo" && !r.historyAt;
+    const own = cropFor("front");
+    const photo = image === "photo" && !!shown.front;
     return {
       // Standard: katalogbilden när kortet är styrkt (skarpast i en story); annars
-      // användarens kort; sist råfotot. "Mitt foto" vänder på ordningen. Ur
-      // historiken finns bara katalogen — fotona sparas aldrig.
-      imageUrl: photo ? own ?? front : r.result.cardImageUrl ?? own,
-      fallbackImageUrl: r.historyAt ? null : photo ? r.result.cardImageUrl ?? null : own ?? front,
+      // användarens kort; sist råfotot. "Mitt foto" vänder på ordningen. Äldre
+      // graderingar utan sparade foton har bara katalogen.
+      imageUrl: photo ? own ?? shown.front : r.result.cardImageUrl ?? own,
+      fallbackImageUrl: photo ? r.result.cardImageUrl ?? null : own ?? shown.front,
       name: label?.name ?? t("shareUnknownCard"),
       subtitle: label?.subtitle ?? "",
       overall: r.result.overall,
@@ -1083,7 +1092,7 @@ export default function GraderaPage() {
       // Videons kortbaksida: japansk för japanska kort, annars den internationella.
       // Äldre graderingar saknar språket — katalognamnens "(JP)" säger samma sak.
       // "Mitt foto": videon snurrar med användarens egen baksida.
-      backImageUrl: photo ? cropFor("back") ?? back : null,
+      backImageUrl: photo ? cropFor("back") ?? shown.back : null,
       cardBack:
         r.result.cardLanguage === "JP" || /\(JP\)/.test(r.result.cardLabel ?? r.result.cardName ?? "")
           ? ("jp" as const)
@@ -1094,7 +1103,8 @@ export default function GraderaPage() {
   /**
    * ÖPPNA EN TIDIGARE GRADERING (ägarönskan 2026-10-01): resultatkortet visar den
    * sparade bedömningen, "Lönar det sig?" räknas om på begäran (priserna rör sig)
-   * och delningen fungerar — med katalogbilden, för fotona sparas aldrig.
+   * och delningen fungerar. Fotona finns sedan 2026-10-04 (sparade i bucketen);
+   * äldre graderingar har bara katalogbilden.
    */
   async function openJob(job: GradingJobDto) {
     const r = job.result as GradeResultDto | null;
@@ -1366,8 +1376,8 @@ export default function GraderaPage() {
               <DefectsPanel
                 key={result.jobId}
                 defects={result.result.defects}
-                front={result.historyAt ? null : front}
-                back={result.historyAt ? null : back}
+                front={shown.front}
+                back={shown.back}
               />
             )}
 
@@ -1398,22 +1408,22 @@ export default function GraderaPage() {
           onClose={() => setShareOpen(false)}
           panelClassName="sm:mx-auto sm:max-w-md"
         >
-          {shareOpen && (!result.historyAt && cropsPending ? (
+          {shareOpen && (cropsPending ? (
             <div className="flex justify-center py-16">
               <Spinner />
             </div>
           ) : (
             <ShareCardPanel
-              key={result.historyAt ? "history" : "fresh"}
+              key={result.jobId}
               source="grade"
               previewMax="50dvh"
               safeBottom
               name={splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ?? t("shareUnknownCard")}
               // Slabben bär aldrig den personliga länken (ägarbeslut 2026-10-01).
               printLink={false}
-              // Katalogbild eller eget foto — bara när båda finns (ur historiken finns inga foton).
+              // Katalogbild eller eget foto — bara när båda finns.
               choice={
-                !result.historyAt && result.result.cardImageUrl && front
+                result.result.cardImageUrl && shown.front
                   ? {
                       value: slabImage,
                       options: [

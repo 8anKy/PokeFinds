@@ -1,16 +1,28 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildGradingPhotoKey,
   buildImageKey,
   buildScanPhotoKey,
   buildThumbKey,
   extensionFor,
   isForumImageKey,
   isForumThumbKey,
+  isGradingPhotoKey,
   sniffImageType,
   storageConfig,
 } from "@/lib/object-storage";
 
 describe("object-storage (rena delar)", () => {
+  it("graderingsfoton: nyckeln härleds ur användare + jobb + sida och kan inte fly prefixet", () => {
+    expect(buildGradingPhotoKey("cm12abc", "job9", "front", "jpg")).toBe("grading/cm12abc/job9_front.jpg");
+    expect(buildGradingPhotoKey("../x", "../../y", "back", "png")).toBe("grading/x/y_back.png");
+    expect(buildGradingPhotoKey("u1", "job", "front", "gif")).toBeNull();
+    expect(buildGradingPhotoKey("", "job", "front", "jpg")).toBeNull();
+    expect(isGradingPhotoKey("grading/cm12abc/job9_back.webp")).toBe(true);
+    expect(isGradingPhotoKey("forum/cm12abc/job9_back.jpg")).toBe(false);
+    expect(isGradingPhotoKey("grading/../job9_front.jpg")).toBe(false);
+  });
+
   it("skannerfacit: nyckeln härleds ur användare + jobb och kan inte fly prefixet", () => {
     expect(buildScanPhotoKey("cm12abc", "cmjob9")).toBe("scanner-facit/cm12abc/cmjob9.jpg");
     expect(buildScanPhotoKey("../x", "../../y")).toBe("scanner-facit/x/y.jpg");
