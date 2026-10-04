@@ -74,12 +74,16 @@ describe("butikslarm från communityrapporter", () => {
     expect(JSON.stringify(e)).not.toMatch(/verifierat besök/i);
   });
 
-  it("visar bekräftelser med levande relativ tid när någon bekräftat", () => {
-    const at = new Date(NOW - 60_000);
-    const e = buildStoreReportEmbed(post({ confirmCount: 2, lastConfirmedAt: at }));
-    const field = e.fields.find((f) => f.name === "Bekräftad")!.value;
-    expect(field).toBe(`✅ 2 medlemmar till · senast <t:${Math.floor(at.getTime() / 1000)}:R>`);
-    expect(buildStoreReportEmbed(post({ confirmCount: 1 })).fields.find((f) => f.name === "Bekräftad")!.value).toBe("✅ 1 medlem till");
+  it("visar medlemmarnas röster med levande relativ tid, och gul kant när senaste säger emot", () => {
+    const at = new Date(NOW - 60_000).toISOString();
+    const e = buildStoreReportEmbed(post({ confirmCount: 2, disputeCount: 1, lastVote: { kind: "DISPUTE", at } }));
+    const field = e.fields.find((f) => f.name === "Från andra medlemmar")!.value;
+    expect(field).toBe(`✅ 2 finns kvar · ❌ 1 inte kvar
+Senast: ❌ inte kvar <t:${Math.floor(Date.parse(at) / 1000)}:R>`);
+    expect(e.color).toBe(0xf59e0b);
+    const soldOut = buildStoreReportEmbed(post({ observation: "SOLD_OUT", confirmCount: 1, disputeCount: 0, lastVote: { kind: "CONFIRM", at } }));
+    expect(soldOut.fields.find((f) => f.name === "Från andra medlemmar")!.value).toContain("✅ 1 fortfarande slut");
+    expect(soldOut.color).toBe(0xef4444);
   });
 
   it("vägbeskrivningen använder koordinater och faller tillbaka på adressen", () => {

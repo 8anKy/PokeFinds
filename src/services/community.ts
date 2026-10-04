@@ -8,6 +8,7 @@
  */
 import { deleteStoreReportFromDiscord } from "@/lib/discord-store-report";
 import { reportIsFresh } from "@/lib/community-stores";
+import { tallyVotes, type StoreReportVote, type VoteTally } from "@/lib/store-report-votes";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { hasRole } from "@/lib/auth";
@@ -116,32 +117,43 @@ export interface StoreReportDto {
   observation: string;
   observedAt: string;
   nearbyAtSubmit: boolean;
-  /** Andra medlemmar som bekräftat rapporten ("jag ser den också"). */
+  /** Andra medlemmars röster: stämmer fortfarande / inte längre (lib/store-report-votes.ts). */
   confirmCount: number;
-  lastConfirmedAt: string | null;
+  disputeCount: number;
+  lastVote: VoteTally["lastVote"];
+  /** Katalogens bild för produkten (relativ /api/cm-image/… eller absolut). */
+  productImageUrl: string | null;
 }
 
 const STORE_REPORT_INCLUDE = { include: {
   store: { select: { id: true, name: true, address: true, city: true } },
-  _count: { select: { confirmations: true } },
-  confirmations: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+  // Rösterna är få per rapport (bara under 12 h) — räkna i minnet i stället för två aggregat.
+  confirmations: { select: { kind: true, createdAt: true } },
 } } as const;
 
 type StoreReportRow = {
   store: StoreReportDto["store"]; productLabel: string; productSlug: string | null; priceOre: number | null;
   currency: string; observation: string; observedAt: Date; nearbyAtSubmit: boolean;
-  _count: { confirmations: number }; confirmations: { createdAt: Date }[];
+  confirmations: { kind: string; createdAt: Date }[];
 };
 
 /** Explicit fältlista — `discordMessageId` och andra interna kolumner lämnar aldrig servern. */
-function toStoreReportDto(r: StoreReportRow | null | undefined): StoreReportDto | null {
+function toStoreReportDto(r: StoreReportRow | null | undefined, images: Map<string, string | null>): StoreReportDto | null {
   if (!r) return null;
   return {
     store: r.store, productLabel: r.productLabel, productSlug: r.productSlug, priceOre: r.priceOre,
     currency: r.currency, observation: r.observation, observedAt: r.observedAt.toISOString(),
-    nearbyAtSubmit: r.nearbyAtSubmit, confirmCount: r._count.confirmations,
-    lastConfirmedAt: r.confirmations[0]?.createdAt.toISOString() ?? null,
+    nearbyAtSubmit: r.nearbyAtSubmit, ...tallyVotes(r.confirmations),
+    productImageUrl: r.productSlug ? images.get(r.productSlug) ?? null : null,
   };
+}
+
+/** EN fråga för sidans alla rapportprodukter — bilden gör kortet läsbart på ett ögonkast. */
+async function reportProductImages(slugs: (string | null | undefined)[]): Promise<Map<string, string | null>> {
+  const unique = [...new Set(slugs.filter((s): s is string => !!s))];
+  if (!unique.length) return new Map();
+  const rows = await prisma.product.findMany({ where: { slug: { in: unique } }, select: { slug: true, imageUrl: true } });
+  return new Map(rows.map((r) => [r.slug, r.imageUrl]));
 }
 
 export interface ThreadAuthor extends ForumAuthor {
@@ -222,7 +234,10 @@ async function signImages(images: StoredImage[], opts: { thumb?: boolean } = {})
 async function toFeedItems(rows: FeedRow[]): Promise<FeedItem[]> {
   // EN signeringsrunda för hela sidan (ren kryptografi, men håll den samlad).
   const flat = rows.flatMap((r) => r.images);
-  const signed = await signImages(flat, { thumb: true });
+  const [signed, productImages] = await Promise.all([
+    signImages(flat, { thumb: true }),
+    reportProductImages(rows.map((r) => r.storeReport?.productSlug)),
+  ]);
   let cursor = 0;
   return rows.map((r) => {
     const images = signed.slice(cursor, cursor + r.images.length);
@@ -244,7 +259,7 @@ async function toFeedItems(rows: FeedRow[]): Promise<FeedItem[]> {
       images,
       commentCount: r._count.comments,
       likeCount: r._count.likes,
-      storeReport: toStoreReportDto(r.storeReport),
+      storeReport: toStoreReportDto(r.storeReport, productImages),
     };
   });
 }
@@ -392,7 +407,7 @@ export async function getPost(postId: string): Promise<ThreadDetail> {
     images,
     commentCount: post._count.comments,
     likeCount: post._count.likes,
-    storeReport: toStoreReportDto(post.storeReport),
+    storeReport: toStoreReportDto(post.storeReport, await reportProductImages([post.storeReport?.productSlug])),
   };
 }
 
@@ -636,7 +651,7 @@ export async function postCounts(postIds: string[]): Promise<Record<string, Post
 
 /** Vad DEN HÄR användaren gillat/sparat bland `postIds` — två små läsningar. */
 export async function personalPostState(userId: string, postIds: string[]) {
-  if (postIds.length === 0) return { likedIds: [] as string[], savedIds: [] as string[], confirmedIds: [] as string[] };
+  if (postIds.length === 0) return { likedIds: [] as string[], savedIds: [] as string[], reportVotes: {} as Record<string, StoreReportVote> };
   const [likes, saved, confirmed] = await prisma.$transaction([
     prisma.like.findMany({ where: { userId, postId: { in: postIds } }, select: { postId: true } }),
     prisma.savedPost.findMany({
@@ -645,22 +660,25 @@ export async function personalPostState(userId: string, postIds: string[]) {
     }),
     prisma.communityStoreReportConfirmation.findMany({
       where: { userId, postId: { in: postIds } },
-      select: { postId: true },
+      select: { postId: true, kind: true },
     }),
   ]);
   return {
     likedIds: likes.map((l) => l.postId),
     savedIds: saved.map((s) => s.postId),
-    confirmedIds: confirmed.map((c) => c.postId),
+    reportVotes: Object.fromEntries(
+      confirmed.map((c) => [c.postId, c.kind === "DISPUTE" ? "DISPUTE" : "CONFIRM"])
+    ) as Record<string, StoreReportVote>,
   };
 }
 
 /**
- * "Jag ser den också" på en butiksrapport. Bara ANDRAS rapporter, bara medan
- * rapporten är färsk (en bekräftelse av gårdagens hylla säger ingenting) och
- * aldrig på ett dolt inlägg.
+ * En medlems röst på en butiksrapport: CONFIRM ("stämmer fortfarande") eller DISPUTE
+ * ("inte längre"). Samma knapp igen tar bort rösten, den andra knappen byter den.
+ * Bara ANDRAS rapporter, bara medan rapporten är färsk (en röst om gårdagens hylla
+ * säger ingenting) och aldrig på ett dolt inlägg. Att ta bort sin röst går alltid.
  */
-export async function toggleStoreReportConfirm(postId: string, userId: string) {
+export async function voteStoreReport(postId: string, userId: string, kind: StoreReportVote) {
   const report = await prisma.communityStoreReport.findUnique({
     where: { postId },
     select: { observedAt: true, post: { select: { userId: true, isHidden: true } } },
@@ -671,19 +689,26 @@ export async function toggleStoreReportConfirm(postId: string, userId: string) {
   }
   const key = { postId_userId: { postId, userId } };
   const existing = await prisma.communityStoreReportConfirmation.findUnique({ where: key });
-  if (existing) {
+  let vote: StoreReportVote | null;
+  if (existing && existing.kind === kind) {
     await prisma.communityStoreReportConfirmation.delete({ where: key });
+    vote = null;
   } else {
     if (!reportIsFresh(report.observedAt.toISOString())) {
       throw new ServiceError(400, "Rapporten är för gammal för att bekräftas.");
     }
-    await prisma.communityStoreReportConfirmation.create({ data: { postId, userId } }).catch((e) => {
-      // Dubbeltryck: den andra skrivningen krockar på primärnyckeln — samma utfall.
-      if ((e as { code?: string }).code !== "P2002") throw e;
+    await prisma.communityStoreReportConfirmation.upsert({
+      where: key,
+      create: { postId, userId, kind },
+      update: { kind, createdAt: new Date() },
     });
+    vote = kind;
   }
-  const confirmCount = await prisma.communityStoreReportConfirmation.count({ where: { postId } });
-  return { confirmed: !existing, confirmCount };
+  const votes = await prisma.communityStoreReportConfirmation.findMany({
+    where: { postId },
+    select: { kind: true, createdAt: true },
+  });
+  return { vote, ...tallyVotes(votes) };
 }
 
 export async function reportPost(postId: string, reporterId: string, reason: string) {

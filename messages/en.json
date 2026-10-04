@@ -3076,11 +3076,15 @@
     "positionPending": "Map position pending",
     "latitude": "Latitude",
     "longitude": "Longitude",
-    "confirm": "Confirm",
-    "confirmed": "Confirmed",
-    "confirmHint": "Confirm that you see this in the store too",
-    "confirmThanks": "Thanks! The report is confirmed.",
-    "confirmCount": "Confirmed by {count}"
+    "storeReportLabel": "Store report",
+    "priceInStore": "in store",
+    "voteQuestion": "Are you there? Is it still there?",
+    "voteQuestionSoldOut": "Are you there? Is it still sold out?",
+    "voteStillThere": "Still there",
+    "voteGone": "Gone",
+    "voteStillSoldOut": "Still sold out",
+    "voteBackInStock": "Back in stock",
+    "voteThanks": "Thanks! Everyone can see your update."
   },
   "GradingTour": {
     "label": "Grading guide",

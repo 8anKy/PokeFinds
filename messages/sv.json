@@ -3076,11 +3076,15 @@
     "positionPending": "Kartposition saknas ännu",
     "latitude": "Latitud",
     "longitude": "Longitud",
-    "confirm": "Bekräfta",
-    "confirmed": "Bekräftad",
-    "confirmHint": "Bekräfta att du också ser det här i butiken",
-    "confirmThanks": "Tack! Rapporten är bekräftad.",
-    "confirmCount": "Bekräftad av {count}"
+    "storeReportLabel": "Butiksrapport",
+    "priceInStore": "i butiken",
+    "voteQuestion": "Är du där? Finns den kvar?",
+    "voteQuestionSoldOut": "Är du där? Är den fortfarande slut?",
+    "voteStillThere": "Finns kvar",
+    "voteGone": "Inte kvar",
+    "voteStillSoldOut": "Fortfarande slut",
+    "voteBackInStock": "Finns igen",
+    "voteThanks": "Tack! Alla ser din uppdatering."
   },
   "GradingTour": {
     "label": "Guide till graderingen",

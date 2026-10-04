@@ -24,10 +24,12 @@ import { formatPercent, formatPrice } from "@/lib/format";
 import { localeUrl } from "@/lib/canonical";
 import { msrpDelta } from "@/lib/msrp";
 import { reportIsFresh, type StoreObservation } from "@/lib/community-stores";
+import { voteLabelSv, type VoteTally } from "@/lib/store-report-votes";
 
 const DEFAULT_CHANNEL_ID = "1551982852378337422";
 const SEEN_COLOR = 0x22c55e;
 const SOLD_OUT_COLOR = 0xef4444;
+const DISPUTED_COLOR = 0xf59e0b;
 const MAX_TITLE = 256;
 const MAX_DESCRIPTION = 400;
 const MAX_FIELD_VALUE = 1024;
@@ -49,9 +51,10 @@ export interface StoreReportPost {
   photoUrl: string | null;
   authorName: string;
   nearbyAtSubmit: boolean;
-  /** Andra medlemmar som bekräftat rapporten — inlägget REDIGERAS när talet ändras. */
+  /** Andra medlemmars röster — inlägget REDIGERAS när de ändras (lib/store-report-votes.ts). */
   confirmCount?: number;
-  lastConfirmedAt?: Date | null;
+  disputeCount?: number;
+  lastVote?: VoteTally["lastVote"];
   store: {
     id: string;
     name: string;
@@ -147,14 +150,18 @@ export function buildStoreReportEmbed(post: StoreReportPost) {
     ),
     inline: true,
   });
-  if (post.confirmCount && post.confirmCount > 0) {
+  const confirms = post.confirmCount ?? 0;
+  const disputes = post.disputeCount ?? 0;
+  if (confirms + disputes > 0) {
+    const parts = [
+      ...(confirms ? [`✅ ${confirms} ${voteLabelSv(post.observation, "CONFIRM")}`] : []),
+      ...(disputes ? [`❌ ${disputes} ${voteLabelSv(post.observation, "DISPUTE")}`] : []),
+    ];
     // <t:…:R> renderas av Discord som levande relativ tid ("för 3 minuter sedan").
-    const last = post.lastConfirmedAt ? ` · senast <t:${Math.floor(post.lastConfirmedAt.getTime() / 1000)}:R>` : "";
-    fields.push({
-      name: "Bekräftad",
-      value: `✅ ${post.confirmCount} ${post.confirmCount === 1 ? "medlem till" : "medlemmar till"}${last}`,
-      inline: true,
-    });
+    const last = post.lastVote
+      ? `\nSenast: ${post.lastVote.kind === "CONFIRM" ? "✅" : "❌"} ${voteLabelSv(post.observation, post.lastVote.kind)} <t:${Math.floor(Date.parse(post.lastVote.at) / 1000)}:R>`
+      : "";
+    fields.push({ name: "Från andra medlemmar", value: parts.join(" · ") + last, inline: false });
   }
   const links = [
     `[Butikens status](${storeUrl})`,
@@ -181,7 +188,9 @@ export function buildStoreReportEmbed(post: StoreReportPost) {
     // Ingen titellänk (ägarbeslut 2026-10-05): länkarna står i "På Foilio".
     title: clamp(`${seen ? "Finns på hyllan" : "Slut i butiken"}: ${post.productLabel}`, MAX_TITLE),
     description: clamp(comment ? `${lead}\n> ${comment}` : lead, MAX_DESCRIPTION),
-    color: seen ? SEEN_COLOR : SOLD_OUT_COLOR,
+    // Senaste rösten säger emot rapporten ⇒ gul kant: läsaren ska se direkt att
+    // hyllan kanske inte ser ut så längre.
+    color: post.lastVote?.kind === "DISPUTE" ? DISPUTED_COLOR : seen ? SEEN_COLOR : SOLD_OUT_COLOR,
     fields,
     // Medlemmens foto av hyllan är det mest övertygande i inlägget — stort. Katalogbilden
     // blir då miniatyr, och står ensam när inget foto finns.

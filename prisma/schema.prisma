@@ -1376,11 +1376,13 @@ model CommunityStoreReport {
   @@index([observedAt])
 }
 
-// "Jag ser den också": en annan medlem bekräftar en FÄRSK rapport. Personrelation ⇒
-// raderas med kontot (Cascade) och följer med i dataexporten.
+// En annan medlems röst på en FÄRSK rapport: CONFIRM ("stämmer fortfarande") eller
+// DISPUTE ("inte längre"). Personrelation ⇒ raderas med kontot (Cascade) och följer
+// med i dataexporten. `createdAt` = senaste röstbytet.
 model CommunityStoreReportConfirmation {
   postId    String
   userId    String
+  kind      String   @default("CONFIRM")
   createdAt DateTime @default(now())
   report    CommunityStoreReport @relation(fields: [postId], references: [postId], onDelete: Cascade)
   user      User @relation(fields: [userId], references: [id], onDelete: Cascade)

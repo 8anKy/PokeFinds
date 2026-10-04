@@ -17,6 +17,7 @@ import {
   type StoreReportPost,
 } from "@/lib/discord-store-report";
 import { storeLogoUrl } from "@/services/community-stores";
+import { tallyVotes } from "@/lib/store-report-votes";
 
 /** Statusarkets standardtext när kommentaren lämnas tom — då finns ingen kommentar att citera. */
 async function isDefaultReportText(content: string): Promise<boolean> {
@@ -40,8 +41,7 @@ async function loadStoreReportPost(postId: string): Promise<{ post: StoreReportP
           images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } },
         },
       },
-      _count: { select: { confirmations: true } },
-      confirmations: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+      confirmations: { select: { kind: true, createdAt: true } },
     },
   });
   // Ett dolt inlägg får aldrig (åter)publiceras i Discord.
@@ -68,8 +68,7 @@ async function loadStoreReportPost(postId: string): Promise<{ post: StoreReportP
       photoUrl: firstKey ? await imageUrl(firstKey).catch(() => null) : null,
       authorName: r.post.user.name,
       nearbyAtSubmit: r.nearbyAtSubmit,
-      confirmCount: r._count.confirmations,
-      lastConfirmedAt: r.confirmations[0]?.createdAt ?? null,
+      ...tallyVotes(r.confirmations),
       store: { ...r.store, logoUrl: storeLogoUrl(r.store) },
     },
   };

@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     const empty = {
       likedIds: [],
       savedIds: [],
-      confirmedIds: [],
+      reportVotes: {},
       joinedGroupIds: [],
       blockedIds: [],
       rulesAccepted: null as boolean | null,
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     return jsonOk({
       likedIds: state.likedIds,
       savedIds: state.savedIds,
-      confirmedIds: state.confirmedIds,
+      reportVotes: state.reportVotes,
       joinedGroupIds: groups,
       blockedIds: blocked,
       rulesAccepted,
