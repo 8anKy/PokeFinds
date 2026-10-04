@@ -128,22 +128,22 @@ export interface StoreReportDto {
 const STORE_REPORT_INCLUDE = { include: {
   store: { select: { id: true, name: true, address: true, city: true } },
   // Rösterna är få per rapport (bara under 12 h) — räkna i minnet i stället för två aggregat.
-  confirmations: { select: { kind: true, createdAt: true } },
+  confirmations: { select: { kind: true, createdAt: true, userId: true } },
 } } as const;
 
 type StoreReportRow = {
   store: StoreReportDto["store"]; productLabel: string; productSlug: string | null; priceOre: number | null;
   currency: string; observation: string; observedAt: Date; nearbyAtSubmit: boolean;
-  confirmations: { kind: string; createdAt: Date }[];
+  confirmations: { kind: string; createdAt: Date; userId: string }[];
 };
 
 /** Explicit fältlista — `discordMessageId` och andra interna kolumner lämnar aldrig servern. */
-function toStoreReportDto(r: StoreReportRow | null | undefined, images: Map<string, string | null>): StoreReportDto | null {
+function toStoreReportDto(r: StoreReportRow | null | undefined, images: Map<string, string | null>, authorId: string): StoreReportDto | null {
   if (!r) return null;
   return {
     store: r.store, productLabel: r.productLabel, productSlug: r.productSlug, priceOre: r.priceOre,
     currency: r.currency, observation: r.observation, observedAt: r.observedAt.toISOString(),
-    nearbyAtSubmit: r.nearbyAtSubmit, ...tallyVotes(r.confirmations),
+    nearbyAtSubmit: r.nearbyAtSubmit, ...tallyVotes(r.confirmations, authorId),
     productImageUrl: r.productSlug ? images.get(r.productSlug) ?? null : null,
   };
 }
@@ -259,7 +259,7 @@ async function toFeedItems(rows: FeedRow[]): Promise<FeedItem[]> {
       images,
       commentCount: r._count.comments,
       likeCount: r._count.likes,
-      storeReport: toStoreReportDto(r.storeReport, productImages),
+      storeReport: toStoreReportDto(r.storeReport, productImages, r.userId),
     };
   });
 }
@@ -407,7 +407,7 @@ export async function getPost(postId: string): Promise<ThreadDetail> {
     images,
     commentCount: post._count.comments,
     likeCount: post._count.likes,
-    storeReport: toStoreReportDto(post.storeReport, await reportProductImages([post.storeReport?.productSlug])),
+    storeReport: toStoreReportDto(post.storeReport, await reportProductImages([post.storeReport?.productSlug]), post.userId),
   };
 }
 
@@ -674,9 +674,14 @@ export async function personalPostState(userId: string, postIds: string[]) {
 
 /**
  * En medlems röst på en butiksrapport: CONFIRM ("stämmer fortfarande") eller DISPUTE
- * ("inte längre"). Samma knapp igen tar bort rösten, den andra knappen byter den.
- * Bara ANDRAS rapporter, bara medan rapporten är färsk (en röst om gårdagens hylla
- * säger ingenting) och aldrig på ett dolt inlägg. Att ta bort sin röst går alltid.
+ * ("inte längre"). Samma knapp igen tar bort rösten, den andra byter den.
+ *
+ * RAPPORTÖREN röstar också — rapporten är redan deras CONFIRM. Trycker de på andra
+ * sidan FLYTTAS rösten dit (en DISPUTE-rad med deras id), trycker de tillbaka tas
+ * raden bort. Aldrig en extra röst, aldrig båda sidor (ägarbeslut 2026-10-05).
+ *
+ * Bara medan rapporten är färsk (en röst om gårdagens hylla säger ingenting) och
+ * aldrig på ett dolt inlägg. Att ta bort sin röst går alltid.
  */
 export async function voteStoreReport(postId: string, userId: string, kind: StoreReportVote) {
   const report = await prisma.communityStoreReport.findUnique({
@@ -684,31 +689,34 @@ export async function voteStoreReport(postId: string, userId: string, kind: Stor
     select: { observedAt: true, post: { select: { userId: true, isHidden: true } } },
   });
   if (!report || report.post.isHidden) throw new ServiceError(404, "Rapporten hittades inte.");
-  if (report.post.userId === userId) {
-    throw new ServiceError(403, "Du kan inte bekräfta din egen rapport.");
-  }
+  const isAuthor = report.post.userId === userId;
   const key = { postId_userId: { postId, userId } };
   const existing = await prisma.communityStoreReportConfirmation.findUnique({ where: key });
-  let vote: StoreReportVote | null;
-  if (existing && existing.kind === kind) {
-    await prisma.communityStoreReportConfirmation.delete({ where: key });
-    vote = null;
-  } else {
-    if (!reportIsFresh(report.observedAt.toISOString())) {
-      throw new ServiceError(400, "Rapporten är för gammal för att bekräftas.");
+  // Rapportörens utgångsläge är CONFIRM (rapporten själv), alla andras är "ingen röst".
+  const current: StoreReportVote | null = existing ? (existing.kind === "DISPUTE" ? "DISPUTE" : "CONFIRM") : isAuthor ? "CONFIRM" : null;
+  const next: StoreReportVote | null = isAuthor
+    ? (current === kind ? "CONFIRM" : kind) // rapportören kan bara flytta, aldrig stå utan sida
+    : current === kind ? null : kind;
+  if (next !== current) {
+    const removeRow = next === null || (isAuthor && next === "CONFIRM");
+    if (removeRow) {
+      await prisma.communityStoreReportConfirmation.deleteMany({ where: { postId, userId } });
+    } else {
+      if (!reportIsFresh(report.observedAt.toISOString())) {
+        throw new ServiceError(400, "Rapporten är för gammal för att bekräftas.");
+      }
+      await prisma.communityStoreReportConfirmation.upsert({
+        where: key,
+        create: { postId, userId, kind: next! },
+        update: { kind: next!, createdAt: new Date() },
+      });
     }
-    await prisma.communityStoreReportConfirmation.upsert({
-      where: key,
-      create: { postId, userId, kind },
-      update: { kind, createdAt: new Date() },
-    });
-    vote = kind;
   }
   const votes = await prisma.communityStoreReportConfirmation.findMany({
     where: { postId },
-    select: { kind: true, createdAt: true },
+    select: { kind: true, createdAt: true, userId: true },
   });
-  return { vote, ...tallyVotes(votes) };
+  return { vote: next, ...tallyVotes(votes, report.post.userId) };
 }
 
 export async function reportPost(postId: string, reporterId: string, reason: string) {

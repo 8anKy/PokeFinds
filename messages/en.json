@@ -1089,7 +1089,6 @@
     "storeSuggestionLimit": "Too many store suggestions. Try again tomorrow.",
     "storeVisitTime": "Enter a visit within the past seven days, not in the future.",
     "storeFollowLimit": "Too many requests. Try again shortly.",
-    "storeReportOwnConfirm": "You can't confirm your own report.",
     "storeReportConfirmStale": "This report is too old to confirm."
   },
   "Cookies": {
@@ -3084,7 +3083,8 @@
     "voteGone": "Gone",
     "voteStillSoldOut": "Still sold out",
     "voteBackInStock": "Back in stock",
-    "voteThanks": "Thanks! Everyone can see your update."
+    "voteThanks": "Thanks! Everyone can see your update.",
+    "voteQuestionOwn": "Has anything changed since you were there?"
   },
   "GradingTour": {
     "label": "Grading guide",

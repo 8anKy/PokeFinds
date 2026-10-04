@@ -36,15 +36,16 @@ export function FeedActions({ post, personal, href, onComments, commentCount }: 
   // är färska (servern dömer likadant). Klockan läses efter mount så SSR och klient är lika.
   const [fresh, setFresh] = useState(false);
   useEffect(() => { if (report) setFresh(reportIsFresh(report.observedAt)); }, [report]);
-  useEffect(() => { setVote(personal.state.reportVotes[post.id] ?? null); }, [personal.state, post.id]);
+  const ownReport = !!report && personal.viewer?.id === post.user.id;
+  // Rapportörens utgångsläge är rapporten själv (CONFIRM); servern har ingen rad för det.
+  useEffect(() => { setVote(personal.state.reportVotes[post.id] ?? (ownReport ? "CONFIRM" : null)); }, [personal.state, post.id, ownReport]);
   useEffect(() => {
     const local = recallPostToggle(post.id);
     setLiked(local.liked ?? personal.state.likedIds.includes(post.id));
     setSaved(local.saved ?? personal.state.savedIds.includes(post.id));
     setCount(local.likeCount ?? personal.state.counts[post.id]?.likeCount ?? post.likeCount);
   }, [personal.state, post.id, post.likeCount]);
-  const ownReport = !!report && personal.viewer?.id === post.user.id;
-  const canVote = !!report && fresh && !ownReport;
+  const canVote = !!report && fresh;
 
   function requireLogin(): boolean {
     if (personal.loggedIn) return false;
@@ -69,19 +70,21 @@ export function FeedActions({ post, personal, href, onComments, commentCount }: 
   }
   async function castVote(kind: StoreReportVote) {
     if (busy || requireLogin()) return;
+    // Optimistiskt: samma knapp igen tar bort rösten, den andra byter den. Rapportören
+    // FLYTTAR sin röst (rapporten är redan en CONFIRM) och står aldrig utan sida.
+    const next = ownReport ? (vote === kind ? "CONFIRM" : kind) : vote === kind ? null : kind;
+    if (next === vote) return;
     setBusy(true); setError("");
     const previous = { vote, tally };
-    // Optimistiskt: samma knapp igen tar bort rösten, den andra byter den.
-    const next = vote === kind ? null : kind;
     const delta = (k: StoreReportVote) => (next === k ? 1 : 0) - (vote === k ? 1 : 0);
     setVote(next);
     setTally({ confirmCount: Math.max(0, tally.confirmCount + delta("CONFIRM")), disputeCount: Math.max(0, tally.disputeCount + delta("DISPUTE")) });
     try {
       const data = await apiFetch<{ vote: StoreReportVote | null; confirmCount: number; disputeCount: number }>(
-        `/api/community/posts/${post.id}/confirm`, { method: "POST", body: JSON.stringify({ kind }) });
+        `/api/community/posts/${post.id}/confirm`, { method: "POST", body: { kind } });
       setVote(data.vote);
       setTally({ confirmCount: data.confirmCount, disputeCount: data.disputeCount });
-      if (data.vote) toast({ title: tStores("voteThanks"), variant: "success" });
+      if (data.vote && !ownReport) toast({ title: tStores("voteThanks"), variant: "success" });
     } catch (e) {
       setVote(previous.vote); setTally(previous.tally);
       setError(e instanceof Error ? e.message : t("somethingWrong"));
@@ -124,7 +127,7 @@ export function FeedActions({ post, personal, href, onComments, commentCount }: 
     const hasVotes = tally.confirmCount + tally.disputeCount > 0;
     return <div className="space-y-2">
       {(canVote || hasVotes) && <div>
-        {canVote && <p className="mb-1.5 text-xs font-medium text-ink-muted">{tStores(report.observation === "SOLD_OUT" ? "voteQuestionSoldOut" : "voteQuestion")}</p>}
+        {canVote && <p className="mb-1.5 text-xs font-medium text-ink-muted">{tStores(ownReport ? "voteQuestionOwn" : report.observation === "SOLD_OUT" ? "voteQuestionSoldOut" : "voteQuestion")}</p>}
         <div className="grid grid-cols-2 gap-2">{voteButton("CONFIRM")}{voteButton("DISPUTE")}</div>
       </div>}
       <div className="flex items-center gap-1 text-ink">

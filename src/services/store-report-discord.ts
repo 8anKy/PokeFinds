@@ -37,11 +37,12 @@ async function loadStoreReportPost(postId: string): Promise<{ post: StoreReportP
         select: {
           content: true,
           isHidden: true,
+          userId: true,
           user: { select: { name: true } },
           images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } },
         },
       },
-      confirmations: { select: { kind: true, createdAt: true } },
+      confirmations: { select: { kind: true, createdAt: true, userId: true } },
     },
   });
   // Ett dolt inlägg får aldrig (åter)publiceras i Discord.
@@ -68,7 +69,7 @@ async function loadStoreReportPost(postId: string): Promise<{ post: StoreReportP
       photoUrl: firstKey ? await imageUrl(firstKey).catch(() => null) : null,
       authorName: r.post.user.name,
       nearbyAtSubmit: r.nearbyAtSubmit,
-      ...tallyVotes(r.confirmations),
+      ...tallyVotes(r.confirmations, r.post.userId),
       store: { ...r.store, logoUrl: storeLogoUrl(r.store) },
     },
   };

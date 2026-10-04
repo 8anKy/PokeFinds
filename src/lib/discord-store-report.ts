@@ -152,7 +152,9 @@ export function buildStoreReportEmbed(post: StoreReportPost) {
   });
   const confirms = post.confirmCount ?? 0;
   const disputes = post.disputeCount ?? 0;
-  if (confirms + disputes > 0) {
+  // Rapportören räknas in (tallyVotes) — fältet visas först när någon annan röstat
+  // eller rapportören bytt sida, annars säger det bara "1 finns kvar" om rapporten själv.
+  if (post.lastVote) {
     const parts = [
       ...(confirms ? [`✅ ${confirms} ${voteLabelSv(post.observation, "CONFIRM")}`] : []),
       ...(disputes ? [`❌ ${disputes} ${voteLabelSv(post.observation, "DISPUTE")}`] : []),
@@ -161,7 +163,7 @@ export function buildStoreReportEmbed(post: StoreReportPost) {
     const last = post.lastVote
       ? `\nSenast: ${post.lastVote.kind === "CONFIRM" ? "✅" : "❌"} ${voteLabelSv(post.observation, post.lastVote.kind)} <t:${Math.floor(Date.parse(post.lastVote.at) / 1000)}:R>`
       : "";
-    fields.push({ name: "Från andra medlemmar", value: parts.join(" · ") + last, inline: false });
+    fields.push({ name: "Medlemmarna säger", value: parts.join(" · ") + last, inline: false });
   }
   const links = [
     `[Butikens status](${storeUrl})`,

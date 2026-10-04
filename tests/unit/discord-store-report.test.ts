@@ -60,7 +60,7 @@ describe("butikslarm från communityrapporter", () => {
     expect(byName["På Foilio"]).toContain("/produkter/mega-evolution-etb");
     expect(byName["På Foilio"]).toContain("Butikens status");
     expect(byName["På Foilio"]).not.toContain("Se rapporten");
-    expect(byName["Bekräftad"]).toBeUndefined();
+    expect(byName["Medlemmarna säger"]).toBeUndefined();
     expect(e.footer.text).toMatch(/inget garanterat lager/);
   });
 
@@ -77,12 +77,12 @@ describe("butikslarm från communityrapporter", () => {
   it("visar medlemmarnas röster med levande relativ tid, och gul kant när senaste säger emot", () => {
     const at = new Date(NOW - 60_000).toISOString();
     const e = buildStoreReportEmbed(post({ confirmCount: 2, disputeCount: 1, lastVote: { kind: "DISPUTE", at } }));
-    const field = e.fields.find((f) => f.name === "Från andra medlemmar")!.value;
+    const field = e.fields.find((f) => f.name === "Medlemmarna säger")!.value;
     expect(field).toBe(`✅ 2 finns kvar · ❌ 1 inte kvar
 Senast: ❌ inte kvar <t:${Math.floor(Date.parse(at) / 1000)}:R>`);
     expect(e.color).toBe(0xf59e0b);
     const soldOut = buildStoreReportEmbed(post({ observation: "SOLD_OUT", confirmCount: 1, disputeCount: 0, lastVote: { kind: "CONFIRM", at } }));
-    expect(soldOut.fields.find((f) => f.name === "Från andra medlemmar")!.value).toContain("✅ 1 fortfarande slut");
+    expect(soldOut.fields.find((f) => f.name === "Medlemmarna säger")!.value).toContain("✅ 1 fortfarande slut");
     expect(soldOut.color).toBe(0xef4444);
   });
 

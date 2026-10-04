@@ -1089,7 +1089,6 @@
     "storeSuggestionLimit": "För många butiksförslag. Försök igen i morgon.",
     "storeVisitTime": "Ange ett besök under de senaste sju dagarna, inte i framtiden.",
     "storeFollowLimit": "För många förfrågningar. Försök igen om en stund.",
-    "storeReportOwnConfirm": "Du kan inte bekräfta din egen rapport.",
     "storeReportConfirmStale": "Rapporten är för gammal för att bekräftas."
   },
   "Cookies": {
@@ -3084,7 +3083,8 @@
     "voteGone": "Inte kvar",
     "voteStillSoldOut": "Fortfarande slut",
     "voteBackInStock": "Finns igen",
-    "voteThanks": "Tack! Alla ser din uppdatering."
+    "voteThanks": "Tack! Alla ser din uppdatering.",
+    "voteQuestionOwn": "Har något ändrats sedan du var där?"
   },
   "GradingTour": {
     "label": "Guide till graderingen",

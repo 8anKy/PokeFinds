@@ -16,16 +16,28 @@ export interface VoteTally {
   lastVote: { kind: StoreReportVote; at: string } | null;
 }
 
-export function tallyVotes(votes: { kind: string; createdAt: Date }[]): VoteTally {
+/**
+ * Räknar rösterna INKLUSIVE rapportören: rapporten är själv en röst på CONFIRM-sidan
+ * ("jag såg det här"). Byter rapportören sida (en DISPUTE-rad med sitt eget userId)
+ * FLYTTAS den rösten — rapportören står aldrig på båda sidor (ägarbeslut 2026-10-05).
+ * `lastVote` gäller bara faktiska röstbyten, aldrig själva rapporten.
+ */
+export function tallyVotes(
+  votes: { kind: string; createdAt: Date; userId?: string }[],
+  authorId?: string | null
+): VoteTally {
   let confirmCount = 0;
   let disputeCount = 0;
+  let authorVoted = false;
   let last: { kind: StoreReportVote; createdAt: Date } | null = null;
   for (const v of votes) {
     const kind: StoreReportVote = v.kind === "DISPUTE" ? "DISPUTE" : "CONFIRM";
+    if (authorId && v.userId === authorId) authorVoted = true;
     if (kind === "DISPUTE") disputeCount++;
     else confirmCount++;
     if (!last || v.createdAt > last.createdAt) last = { kind, createdAt: v.createdAt };
   }
+  if (authorId && !authorVoted) confirmCount++;
   return { confirmCount, disputeCount, lastVote: last ? { kind: last.kind, at: last.createdAt.toISOString() } : null };
 }
 
