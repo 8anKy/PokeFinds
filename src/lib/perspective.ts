@@ -203,3 +203,23 @@ export function makeProjector(rxDeg: number, ryDeg: number, focal: number, cente
     return { x: center.x + x1 * s, y: center.y + y2 * s };
   };
 }
+
+/** Ytterlinjernas rektangel på den raka bilden → kortets hörn i originalfotot (andelar). */
+export function cardQuadInPhoto(
+  l: { outerLeft: number; outerRight: number; outerTop: number; outerBottom: number },
+  straight: { w: number; h: number },
+  base: { w: number; h: number },
+  dstToSrc: number[]
+): Quad {
+  const pts: Pt[] = [
+    { x: l.outerLeft, y: l.outerTop },
+    { x: l.outerRight, y: l.outerTop },
+    { x: l.outerRight, y: l.outerBottom },
+    { x: l.outerLeft, y: l.outerBottom },
+  ];
+  const r = (n: number) => Math.round(n * 10000) / 10000;
+  return pts.map((p) => {
+    const q = applyH(dstToSrc, { x: p.x * straight.w, y: p.y * straight.h });
+    return { x: r(q.x / base.w), y: r(q.y / base.h) };
+  }) as Quad;
+}

@@ -85,3 +85,9 @@ paths:
   är Mät centrering-knappen under fotot FYLLD turkos med glöd och Gradera-knappen KONTUR tills någon sida mätts — så
   centreringen är det som lyser. Kvot + "AI-uppskattning, inte en officiell gradering" står som EN tyst rad under
   knappen (⛔ uppskattningsraden får inte tas bort — den är ärligheten). Historiken är rubrik + lista, ingen ram.
+- **SLABBENS "MITT FOTO" = KORTET, ALDRIG RÅFOTOT (ägarens skärmdump 2026-10-04)**: mätaren räknar kortets fyra hörn i
+  ORIGINALFOTOT (de vita ytterlinjerna tillbaka genom homografin, `cardQuadInPhoto` i `lib/perspective.ts`, testad) och de
+  följer med mätningen till servern (`centering.<sida>.cardQuad`). Färsk gradering: mätarens utsnitt; tidigare gradering:
+  `cropCardWithQuad` ur det SPARADE fotot; omätt: skannerns hörnsökning (hittar ofta plasten i en toploader). ⛔ Utan
+  utsnitt visas inte "Mitt foto" alls och videon får den vanliga kortbaksidan — ett foto med bordet runt hör inte hemma
+  i slabben. Graderingar före 2026-10-04 saknar hörnen.

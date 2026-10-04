@@ -64,7 +64,7 @@ import {
   type CenteringResult,
   type CenteringSide,
 } from "@/lib/centering";
-import { homography, quadWidth, straightLayout, warpPerspective, type Pt, type Quad } from "@/lib/perspective";
+import { cardQuadInPhoto, homography, quadWidth, straightLayout, warpPerspective, type Pt, type Quad } from "@/lib/perspective";
 
 export interface CenteringOutcome {
   side: CenteringSide;
@@ -76,6 +76,12 @@ export interface CenteringOutcome {
   result: CenteringResult;
   /** Kortet utskuret längs ytterlinjerna (JPEG data-URL) — delningsbildens reserv. */
   cropDataUrl: string | null;
+  /**
+   * Kortets fyra hörn i ORIGINALFOTOT (andelar, medsols från övre vänster): de vita
+   * ytterlinjerna avbildade tillbaka genom homografin. Sparas med graderingen så att
+   * slabben kan skära ut kortet ur det sparade fotot (2026-10-04).
+   */
+  cardQuad: Quad | null;
 }
 
 /** Arbetsbildens längsta sida. 1 px = ~0,06 % av kortet — gott om precision. */
@@ -178,7 +184,10 @@ function guessQuad(base: HTMLCanvasElement): Quad {
 }
 
 /** Räta upp: kortets fyrhörn i originalet → en rak rektangel med marginal. */
-function straighten(base: HTMLCanvasElement, quad: Quad): { canvas: HTMLCanvasElement; rect: Rect } | null {
+function straighten(
+  base: HTMLCanvasElement,
+  quad: Quad
+): { canvas: HTMLCanvasElement; rect: Rect; dstToSrc: number[] } | null {
   const srcQuad = quad.map((p) => ({ x: p.x * base.width, y: p.y * base.height })) as Quad;
   const cardW = Math.min(STRAIGHT_MAX, Math.max(STRAIGHT_MIN, quadWidth(srcQuad)));
   const layout = straightLayout(cardW);
@@ -209,8 +218,9 @@ function straighten(base: HTMLCanvasElement, quad: Quad): { canvas: HTMLCanvasEl
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, c.width, c.height);
   ctx.drawImage(tmp, 0, 0);
-  return { canvas: c, rect: layout.rect };
+  return { canvas: c, rect: layout.rect, dstToSrc: H };
 }
+
 
 /** Linjernas startläge på den raka bilden: ytterlinjerna EXAKT på kortet, innerlinjerna gissade. */
 function linesForStraight(c: HTMLCanvasElement, rect: Rect): CenteringLines {
@@ -328,6 +338,8 @@ export function CenteringTool(props: {
 
   const baseRef = useRef<HTMLCanvasElement | null>(null);
   const straightRef = useRef<HTMLCanvasElement | null>(null);
+  /** Den raka bildens pixlar → originalets (arbetsbildens) pixlar. */
+  const straightHRef = useRef<number[] | null>(null);
   const [base, setBase] = useState<Img | null>(null);
   const [straight, setStraight] = useState<Img | null>(null);
   const [failed, setFailed] = useState(false);
@@ -411,6 +423,7 @@ export function CenteringTool(props: {
     const s = straighten(b, q);
     if (!s) return false;
     straightRef.current = s.canvas;
+    straightHRef.current = s.dstToSrc;
     const img = await canvasToImg(s.canvas);
     urls.current.push(img.url);
     setLines(keepLines ?? linesForStraight(s.canvas, s.rect));
@@ -558,6 +571,15 @@ export function CenteringTool(props: {
       mode: side === "front" ? mode : "standard",
       result,
       cropDataUrl: cropCard(w, lines),
+      cardQuad:
+        straightHRef.current && baseRef.current
+          ? cardQuadInPhoto(
+              lines,
+              { w: w.width, h: w.height },
+              { w: baseRef.current.width, h: baseRef.current.height },
+              straightHRef.current
+            )
+          : null,
     });
     requestClose();
   }

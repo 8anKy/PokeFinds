@@ -9,11 +9,18 @@ import { estimateCardValue } from "@/services/scanner";
 
 /** En sidas mätning. Talen är den BREDARE sidans andel per axel, 50..100. */
 const share = z.number().min(50).max(100);
+const corner = z.object({ x: z.number().min(-0.25).max(1.25), y: z.number().min(-0.25).max(1.25) });
 const sideSchema = z.object({
   mode: z.enum(["standard", "ereader"]),
   leftRight: share.optional(),
   topBottom: share.optional(),
   topRight: share.optional(),
+  /**
+   * Kortets fyra hörn i FOTOT (andelar, medsols från övre vänster) — kortets kant
+   * så som användaren lade den i mätaren (2026-10-04). Sparas så att slabbens "Mitt
+   * foto" kan skära ut exakt kortet även ur en sparad gradering.
+   */
+  cardQuad: z.array(corner).length(4).optional(),
 });
 export const centeringInputSchema = z
   .object({ front: sideSchema.optional(), back: sideSchema.optional() })

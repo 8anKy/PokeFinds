@@ -26,7 +26,7 @@ import { Link } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
 import { takeGradePrefill } from "@/lib/grade-prefill";
 import { photoFingerprints } from "@/lib/photo-fingerprints";
-import { autoCropCard, GRADING_RAW_MAX_BYTES, prepareGradingPhoto } from "@/lib/grading-photo";
+import { autoCropCard, cropCardWithQuad, GRADING_RAW_MAX_BYTES, prepareGradingPhoto } from "@/lib/grading-photo";
 import { gradingTourSeen } from "@/lib/grading-tour";
 import { prepareGradeSpinLayers, renderGradeShareCard } from "@/lib/share-card";
 import {
@@ -104,6 +104,8 @@ interface GradeDefectDto {
 
 /** En sidas sparade mätning: den bredare sidans andel per axel, 50..100. */
 interface StoredSide {
+  /** Kortets hörn i fotot (andelar) — slabbens utsnitt ur ett sparat foto. */
+  cardQuad?: { x: number; y: number }[];
   mode: "standard" | "ereader";
   leftRight?: number;
   topBottom?: number;
@@ -190,6 +192,7 @@ function centeringPayload(o: CenteringOutcome | null) {
     leftRight: r.leftRight ? worstShare(r.leftRight) : undefined,
     topBottom: r.topBottom ? worstShare(r.topBottom) : undefined,
     topRight: r.topRight ? worstShare(r.topRight) : undefined,
+    cardQuad: o.cardQuad ?? undefined,
   };
 }
 
@@ -914,10 +917,12 @@ export default function GraderaPage() {
         back: result.result.photoKeys?.back ? `/api/grading/jobs/${result.jobId}/photo?side=back` : null,
       }
     : { front, back };
-  // "Mitt foto" på slabben: mätarens utsnitt (bara färska), annars kortet utskuret
-  // automatiskt (en gång per foto). Baksidan behövs för videon.
+  // "Mitt foto" på slabben: mätarens utsnitt (färska), annars kortet utskuret längs
+  // hörnen som SPARADES med mätningen (tidigare graderingar), sist den automatiska
+  // hörnsökningen (omätt — hittar ofta plasten i en toploader). Baksidan behövs för videon.
   const cropFor = (s: CenteringSide) =>
     (!result?.historyAt ? centering[s]?.cropDataUrl : null) ?? (shown[s] ? crops.get(shown[s]!) : null) ?? null;
+  const savedQuad = (s: CenteringSide) => (result?.historyAt ? result.result.centering?.[s]?.cardQuad : undefined);
   const needsCrop = (s: CenteringSide) =>
     !!shown[s] && !(!result?.historyAt && centering[s]?.cropDataUrl) && !crops.has(shown[s]!);
   const cropsPending = needsCrop("front") || needsCrop("back");
@@ -927,7 +932,10 @@ export default function GraderaPage() {
     for (const s of ["front", "back"] as const) {
       const src = shown[s];
       if (!src || !needsCrop(s)) continue;
-      void autoCropCard(src).then((c) => alive && setCrops((m) => new Map(m).set(src, c)));
+      const quad = savedQuad(s);
+      void (quad ? cropCardWithQuad(src, quad) : autoCropCard(src)).then(
+        (c) => alive && setCrops((m) => new Map(m).set(src, c))
+      );
     }
     return () => {
       alive = false;
@@ -1044,7 +1052,8 @@ export default function GraderaPage() {
     if (stored?.back) parts.push(`${t("backShort")} ${storedRatiosText(stored.back, topRight)}`);
     // Användarens kort: utskuret längs stödlinjerna, annars hittat automatiskt.
     const own = cropFor("front");
-    const photo = image === "photo" && !!shown.front;
+    // "Mitt foto" kräver ett utskuret kort — annars katalogbilden (valet visas då inte heller).
+    const photo = image === "photo" && !!own;
     return {
       // Standard: katalogbilden när kortet är styrkt (skarpast i en story); annars
       // användarens kort; sist råfotot. "Mitt foto" vänder på ordningen. Äldre
@@ -1063,7 +1072,9 @@ export default function GraderaPage() {
       // Videons kortbaksida: japansk för japanska kort, annars den internationella.
       // Äldre graderingar saknar språket — katalognamnens "(JP)" säger samma sak.
       // "Mitt foto": videon snurrar med användarens egen baksida.
-      backImageUrl: photo ? cropFor("back") ?? shown.back : null,
+      // Bara ett UTSKURET kort — ett råfoto med bordet runt hör inte hemma i slabben;
+      // utan utsnitt snurrar den med den vanliga kortbaksidan.
+      backImageUrl: photo ? cropFor("back") : null,
       cardBack:
         r.result.cardLanguage === "JP" || /\(JP\)/.test(r.result.cardLabel ?? r.result.cardName ?? "")
           ? ("jp" as const)
@@ -1406,9 +1417,11 @@ export default function GraderaPage() {
               name={splitLabel(result.result.cardLabel ?? result.result.cardName)?.name ?? t("shareUnknownCard")}
               // Slabben bär aldrig den personliga länken (ägarbeslut 2026-10-01).
               printLink={false}
-              // Katalogbild eller eget foto — bara när båda finns.
+              // Katalogbild eller eget foto — bara när båda finns OCH kortet gick att skära ut
+              // (mätarens hörn, eller den automatiska hörnsökningen). Ett råfoto med allt runt
+              // kortet i slabben är inget "eget foto" (ägarens skärmdump 2026-10-04).
               choice={
-                result.result.cardImageUrl && shown.front
+                result.result.cardImageUrl && cropFor("front")
                   ? {
                       value: slabImage,
                       options: [

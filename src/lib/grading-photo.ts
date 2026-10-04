@@ -71,45 +71,72 @@ const CROP_ANALYSIS_MAX = 1200;
 /** Utsnittets bredd — skarpt nog för en story-bild. */
 const CROP_WIDTH = 720;
 
+/** Fotot som pixlar i analysstorlek. */
+async function photoPixels(dataUrl: string, max: number): Promise<ImageData | null> {
+  const img = await loadImg(dataUrl);
+  const { w, h } = fitWithin(img.naturalWidth, img.naturalHeight, max);
+  if (!w || !h) return null;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0, w, h);
+  return ctx.getImageData(0, 0, w, h);
+}
+
 /** Kortet ur fotot, uträtat till 63:88. null = inget säkert fyrhörn. */
 export async function autoCropCard(dataUrl: string): Promise<string | null> {
   try {
-    const img = await loadImg(dataUrl);
-    const { w, h } = fitWithin(img.naturalWidth, img.naturalHeight, CROP_ANALYSIS_MAX);
-    if (!w || !h) return null;
-    const c = document.createElement("canvas");
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return null;
-    ctx.drawImage(img, 0, 0, w, h);
-    const src = ctx.getImageData(0, 0, w, h);
-    const quad = detectCardQuad(src.data, w, h, 4);
+    const src = await photoPixels(dataUrl, CROP_ANALYSIS_MAX);
+    if (!src) return null;
+    const quad = detectCardQuad(src.data, src.width, src.height, 4);
     if (!quad) return null;
-    const outW = CROP_WIDTH;
-    const outH = Math.round(CROP_WIDTH / CARD_ASPECT);
-    const dst = [
-      { x: 0, y: 0 },
-      { x: outW, y: 0 },
-      { x: outW, y: outH },
-      { x: 0, y: outH },
-    ];
-    const H = homography(
-      dst,
-      quad.corners.map(([x, y]) => ({ x, y }))
-    );
-    if (!H) return null;
-    const out = warpPerspective({ data: src.data, width: w, height: h }, H, outW, outH);
-    const o = document.createElement("canvas");
-    o.width = outW;
-    o.height = outH;
-    const octx = o.getContext("2d");
-    if (!octx) return null;
-    const id = octx.createImageData(outW, outH);
-    id.data.set(out);
-    octx.putImageData(id, 0, 0);
-    return o.toDataURL("image/jpeg", JPEG_QUALITY);
+    return warpToCard(src, quad.corners.map(([x, y]) => ({ x, y })));
   } catch {
     return null;
   }
+}
+
+/**
+ * Kortet ur fotot längs hörn ANVÄNDAREN lade i centreringsmätaren (andelar av
+ * fotot, medsols från övre vänster) — exakt kortet, även i en toploader där den
+ * automatiska hörnsökningen hittar plasten i stället.
+ */
+export async function cropCardWithQuad(dataUrl: string, quad: { x: number; y: number }[]): Promise<string | null> {
+  if (quad.length !== 4) return null;
+  try {
+    // Högre upplösning än analysen: utsnittet ÄR bilden på slabben.
+    const src = await photoPixels(dataUrl, GRADING_PHOTO_MAX);
+    if (!src) return null;
+    return warpToCard(
+      src,
+      quad.map((p) => ({ x: p.x * src.width, y: p.y * src.height }))
+    );
+  } catch {
+    return null;
+  }
+}
+
+function warpToCard(src: ImageData, corners: { x: number; y: number }[]): string | null {
+  const outW = CROP_WIDTH;
+  const outH = Math.round(CROP_WIDTH / CARD_ASPECT);
+  const dst = [
+    { x: 0, y: 0 },
+    { x: outW, y: 0 },
+    { x: outW, y: outH },
+    { x: 0, y: outH },
+  ];
+  const H = homography(dst, corners);
+  if (!H) return null;
+  const out = warpPerspective({ data: src.data, width: src.width, height: src.height }, H, outW, outH);
+  const o = document.createElement("canvas");
+  o.width = outW;
+  o.height = outH;
+  const octx = o.getContext("2d");
+  if (!octx) return null;
+  const id = octx.createImageData(outW, outH);
+  id.data.set(out);
+  octx.putImageData(id, 0, 0);
+  return o.toDataURL("image/jpeg", JPEG_QUALITY);
 }
