@@ -20,8 +20,20 @@ import { postMarketThreadToDiscord } from "@/lib/discord-market";
 import { createPost, getFeed } from "@/services/community";
 import { getGroupBySlug } from "@/services/community-groups";
 import { revalidateForum } from "../_shared/revalidate";
-import { storeReportSchema, validVisitTime, nearbyAtSubmit } from "@/lib/community-stores";
-import { reportableStore } from "@/services/community-stores";
+import { storeReportSchema, validVisitTime, nearbyAtSubmit, STORE_OBSERVATIONS } from "@/lib/community-stores";
+import { reportableStore, storeLogoUrl } from "@/services/community-stores";
+import { postStoreReportToDiscord, deleteStoreReportFromDiscord } from "@/lib/discord-store-report";
+import { resolveMsrpOre } from "@/lib/msrp";
+import { getTranslations } from "next-intl/server";
+
+/** Statusarkets standardtext när kommentaren lämnas tom — då finns ingen kommentar att citera. */
+async function isDefaultReportText(content: string): Promise<boolean> {
+  for (const locale of ["sv", "en"]) {
+    const t = await getTranslations({ locale, namespace: "LocalStores" });
+    if (STORE_OBSERVATIONS.some((o) => t(`observation.${o}`) === content.trim())) return true;
+  }
+  return false;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -135,15 +147,17 @@ export async function POST(req: Request) {
     if (!group) throw new ServiceError(404, "Gruppen hittades inte.");
 
     let storeReport;
+    let reportDiscord: { store: Awaited<ReturnType<typeof reportableStore>>; imageUrl: string | null; msrpOre: number | null } | null = null;
     if (input.storeReport) {
       if (group.isMarketplace || input.listingKind) throw new ServiceError(400, "Ogiltig indata.");
       if (!validVisitTime(input.storeReport.observedAt)) throw new ServiceError(400, "Ange ett besök under de senaste sju dagarna, inte i framtiden.");
       const store = await reportableStore(input.storeReport.storeId);
       // ⛔ Rapporter kräver en katalogprodukt; fri text kan inte kopplas säkert till framtida larm.
       // Namnet hämtas från katalogen, aldrig från klientens etikett.
-      const product = await prisma.product.findFirst({ where: { slug: input.storeReport.productSlug, hiddenAt: null }, select: { title: true } });
+      const product = await prisma.product.findFirst({ where: { slug: input.storeReport.productSlug, hiddenAt: null }, select: { title: true, imageUrl: true, msrpOre: true, category: true, language: true } });
       if (!product) throw new ServiceError(404, "Produkten hittades inte.");
       const productLabel = product.title;
+      reportDiscord = { store, imageUrl: product.imageUrl, msrpOre: resolveMsrpOre(product) };
       const dirtyLabel = findProfanity(productLabel);
       if (dirtyLabel) {
         logModerationEvent(user.id, "POST", dirtyLabel);
@@ -229,6 +243,38 @@ export async function POST(req: Request) {
             imageUrl: thumb,
           })
         );
+    }
+
+    if (storeReport && reportDiscord) {
+      // Fire-and-forget till butikslarm-kanalen; id:t sparas så spegeln kan raderas
+      // med inlägget (lib/discord-store-report.ts).
+      const { store, imageUrl: productImageUrl, msrpOre } = reportDiscord;
+      const report = storeReport;
+      const firstKey = post.images[0]?.key;
+      void (async () => {
+        const photoUrl = firstKey ? await imageUrl(firstKey).catch(() => null) : null;
+        const messageId = await postStoreReportToDiscord({
+          postId: post.id,
+          observation: report.observation,
+          observedAt: report.observedAt,
+          productLabel: report.productLabel,
+          productSlug: report.productSlug,
+          productImageUrl,
+          msrpOre,
+          priceOre: report.priceOre,
+          comment: (await isDefaultReportText(post.content)) ? null : post.content,
+          photoUrl,
+          authorName: post.user.name,
+          nearbyAtSubmit: report.nearbyAtSubmit,
+          store: { ...store, logoUrl: storeLogoUrl(store) },
+        });
+        if (!messageId) return;
+        // Raderades inlägget medan Discord svarade finns ingen rad att skriva på —
+        // då ska spegeln bort också.
+        await prisma.communityStoreReport
+          .update({ where: { postId: post.id }, data: { discordMessageId: messageId } })
+          .catch(() => deleteStoreReportFromDiscord([messageId]));
+      })().catch((err) => console.error("[community] butikslarm misslyckades:", err));
     }
 
     return jsonOk({ id: post.id, groupSlug: group.slug }, { status: 201 });

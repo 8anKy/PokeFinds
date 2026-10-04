@@ -2,6 +2,15 @@
 
 253 frysta filialer: 62 tidigare, 124 svenska Lekia-filialer, 12 aktuella Webhallen-filialer, 44 Kandyz-filialer och 11 specialistbutiker ur befintlig återförsäljarkatalog. 248 har källkontrollerad position; fem väntar på exakt position och visas med adress i kataloglistan.
 
+## Tillägg 2026-10-04: Costco, Hemmakväll, Gekås Ullared
+
+74 filialer till (327 totalt, 301 med position).
+
+- Costco: officiellt butiks-API `https://www.costco.se/rest/v2/sweden/stores?fields=FULL` (2 lagerhus, `geoPoint`). Arninges gatuadress (Saluvägen 5) står inte i API:t utan i Täby kommuns tillståndsregister.
+- Hemmakväll: kedjans officiella butikssök (`/hitta-butik/`, PinMeTo, 72 poster; huvudkontoret i Landskrona utelämnat). Källan publicerar inga koordinater. Position sattes bara när OSM gav (a) exakt gata + husnummer + rätt postnummerprefix, eller (b) en Hemmakväll-taggad butiksnod på samma gata och postnummerprefix. Första passet utan postnummerkontroll hamnade i fel stad (Uddevalla → Vänersborg) — kontrollen är obligatorisk. 50 av 71 har position; 21 visas med adress.
+- Gekås Ullared: officiell besökssida + OSM-ytan `way/41687713` (Danska vägen 13).
+- Ingen av de tre publicerar Pokémon-sortiment per varuhus/filial ⇒ alla märks med obekräftat sortiment.
+
 ## Källor och avgränsning
 
 - Lekia: officiell `/butiker` och varje filials ToyStore/PostalAddress/GeoCoordinates. Babya utan Lekia och Åland är utelämnade. Karlskronafilialen saknar publicerad adress i källan och är utelämnad tills den kan verifieras.

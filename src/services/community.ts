@@ -6,6 +6,7 @@
  * exakt en definition av "en tråd i listan". Bild-URL:er SIGNERAS här
  * (`imageUrls`) och lagras aldrig — nyckeln är sanningen, URL:en är färskvara.
  */
+import { deleteStoreReportFromDiscord } from "@/lib/discord-store-report";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { hasRole } from "@/lib/auth";
@@ -452,6 +453,7 @@ export async function deletePost(postId: string, userId: string, userRole: Role)
       userId: true,
       images: { select: { key: true, thumbKey: true } },
       group: { select: { slug: true } },
+      storeReport: { select: { discordMessageId: true } },
     },
   });
   if (!post) throw new ServiceError(404, "Tråden hittades inte.");
@@ -464,6 +466,8 @@ export async function deletePost(postId: string, userId: string, userRole: Role)
     // Miniatyren är en egen fil i bucketen — den måste med i städningen.
     imageKeys: post.images.flatMap((i) => (i.thumbKey ? [i.key, i.thumbKey] : [i.key])),
     groupSlug: post.group?.slug ?? null,
+    // Butikslarmets spegel i Discord ska bort med inlägget (lib/discord-store-report.ts).
+    discordMessageIds: [post.storeReport?.discordMessageId ?? null],
   };
 }
 
@@ -634,9 +638,10 @@ export async function reportPost(postId: string, reporterId: string, reason: str
 export async function hidePost(postId: string, hidden = true) {
   const post = await prisma.communityPost.findUnique({
     where: { id: postId },
-    select: { id: true },
+    select: { id: true, storeReport: { select: { discordMessageId: true } } },
   });
   if (!post) throw new ServiceError(404, "Tråden hittades inte.");
+  if (hidden) await deleteStoreReportFromDiscord([post.storeReport?.discordMessageId]);
   return prisma.communityPost.update({
     where: { id: postId },
     data: { isHidden: hidden },
@@ -648,7 +653,10 @@ export async function resolveReport(
   status: ReportStatus,
   opts: { hidePost?: boolean } = {}
 ) {
-  const report = await prisma.report.findUnique({ where: { id: reportId } });
+  const report = await prisma.report.findUnique({
+    where: { id: reportId },
+    include: { post: { select: { storeReport: { select: { discordMessageId: true } } } } },
+  });
   if (!report) throw new ServiceError(404, "Rapporten hittades inte.");
 
   const [updated] = await prisma.$transaction([
@@ -668,5 +676,7 @@ export async function resolveReport(
         ]
       : []),
   ]);
+  // Ett dolt inlägg får inte leva kvar som butikslarm i Discord.
+  if (opts.hidePost) await deleteStoreReportFromDiscord([report.post?.storeReport?.discordMessageId]);
   return updated;
 }

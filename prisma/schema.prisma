@@ -1365,6 +1365,9 @@ model CommunityStoreReport {
   // ⛔ Spara aldrig besökarens koordinater. Detta är en ungefärlig signal från
   // enhetens platsuppgift, INTE ett verifierat besök eller en lagergaranti.
   nearbyAtSubmit  Boolean @default(false)
+  // Speglingen i Discords butikslarm-kanal (lib/discord-store-report.ts). Tas bort
+  // tillsammans med inlägget: radering, moderering och GDPR får aldrig lämna den kvar.
+  discordMessageId String?
   post            CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   store           CommunityStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
   @@index([storeId, observedAt])

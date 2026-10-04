@@ -49,6 +49,10 @@ type Override = {
 };
 
 const OVERRIDES: Record<string, Override> = {
+  // Communitykartans fysiska varuhus (--site): faviconen är en .ico utan användbar storlek.
+  "Gekås Ullared": {
+    url: "https://www.gekas.se/wp-content/themes/gekas-new/assets/frontend/media/gekas-logo.svg",
+  },
   // Ägaren levererade märkesfilen 2026-09-08 (deras header-logga); butikens favicon är
   // en tom platta, så nätet erbjuder inget användbart. Ordmärket är ~950×360 och
   // "contain" ger en LÄSBAR platta trots det: mätt på den riktiga 44 px-rutan står
@@ -303,7 +307,23 @@ async function buildChip(src: Sharp, forceMark = false): Promise<{ png: Buffer; 
   return { png, bg, cover };
 }
 
+/**
+ * `--site "<namn>" <url>`: en platta för en FYSISK kedja som inte är en `Retailer`
+ * (communitykartans Costco/Hemmakväll/Gekås). Rör ingen databas.
+ */
+async function siteOnly(name: string, site: string) {
+  await fs.mkdir(OUT_DIR, { recursive: true });
+  const src = await loadSource(name, site);
+  if (!src) throw new Error(`${name}: ingen användbar logga på ${site}`);
+  const { png, bg, cover } = await buildChip(src.img, OVERRIDES[name]?.forceMark);
+  const file = `${slugify(name)}.png`;
+  await fs.writeFile(path.join(OUT_DIR, file), png);
+  console.log(`${name} ${src.from} ${bg} ${cover ? "cover" : "contain"} → /retailer-logos/${file}`);
+}
+
 async function main() {
+  const siteIdx = process.argv.indexOf("--site");
+  if (siteIdx >= 0) return siteOnly(process.argv[siteIdx + 1], process.argv[siteIdx + 2]);
   const apply = process.argv.includes("--apply");
   const onlyIdx = process.argv.indexOf("--only");
   const only = onlyIdx >= 0 ? process.argv[onlyIdx + 1] : null;

@@ -19,6 +19,11 @@ export const listCommunityStores = cachedRead(async (): Promise<CommunityStoreDt
   });
 }, "community-store-directory-v4", 86400, [COMMUNITY_STORES_TAG]);
 
+/** Kedjans logga ur den källkontrollerade katalogen; null för medlemsförslag. */
+export function storeLogoUrl(s: { name: string; address: string; city: string }): string | null {
+  return sources.get(storeIdentity(s.name, s.address, s.city))?.logoUrl ?? null;
+}
+
 export async function suggestCommunityStore(userId: string, input: z.infer<typeof storeSuggestionSchema>) {
   return prisma.communityStore.create({ data: { ...input, identityKey: storeIdentity(input.name, input.address, input.city), createdById: userId }, select: { id: true } });
 }

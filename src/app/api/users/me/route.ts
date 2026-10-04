@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { deleteStoreReportFromDiscord } from "@/lib/discord-store-report";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser, AuthError } from "@/lib/auth";
 import { isPro, proSource } from "@/lib/plan";
@@ -238,8 +239,16 @@ export async function DELETE() {
       console.error(`[users/me DELETE] Kunde inte radera forumbilder för ${sessionUser.id}:`, storageErr);
     }
 
+    // Butiksrapporternas speglar i Discord bär användarens namn och text — Cascade
+    // når dem inte. Hämtas FÖRE raderingen, tas bort efter (best effort, kastar aldrig).
+    const discordReports = await prisma.communityStoreReport.findMany({
+      where: { post: { userId: sessionUser.id }, discordMessageId: { not: null } },
+      select: { discordMessageId: true },
+    });
+
     // Övriga relationer hanteras via onDelete: Cascade i schemat.
     await prisma.user.delete({ where: { id: sessionUser.id } });
+    await deleteStoreReportFromDiscord(discordReports.map((r) => r.discordMessageId));
     // ⛔ Cascade når databasen, inte cachad text. Rapporter/inlägg från ett
     // raderat konto ska försvinna även ur de delade läsvyerna direkt.
     revalidateForum({ group: true, thread: true });
