@@ -10,23 +10,21 @@
  *    desktop-tabellen — och utan köppris kan ingen vinst räknas.
  *
  * POSTER (LOTS): samma vara köpt flera gånger till olika pris ligger som FLERA rader i
- * databasen. Rutnätet visar EN ruta per vara med totalantal + snittpris och en
- * utfällare för de enskilda köpen. Grupper med ETT köp — den absoluta merparten —
- * renderas exakt som förut: ingen chevron, ingen snittrad, ingen extra krom.
+ * databasen. Rutnätet visar EN ruta per vara med totalantal + snittpris. De enskilda
+ * köpen visas INTE i rutan (ägarbeslut 2026-10-05: utfällaren med en Sälj-knapp per köp
+ * var ful) — snitt-/vinstraden öppnar exemplararket, där varje exemplars pris står.
  */
-import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
-import { formatPrice, formatPercent, formatDate } from "@/lib/format";
+import { formatPrice, formatPercent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import {
-  IconCheck,
-  IconChevronDown,
   IconEdit,
   IconPackage,
   IconTrash,
@@ -136,6 +134,13 @@ function copyDiffers(copy: CopyRow, lot: CollectionRow | undefined): boolean {
 }
 
 /** Chip — samma form som säljarkets val (skick, gradering). */
+/** Äldsta köpet i en grupp (FIFO): inköpsdatum, saknat datum sist. */
+function oldestLot(lots: readonly CollectionRow[]): CollectionRow {
+  return lots.reduce((a, b) =>
+    (b.purchaseDate ?? "￿") < (a.purchaseDate ?? "￿") ? b : a
+  );
+}
+
 function Chip({
   active,
   onClick,
@@ -179,7 +184,6 @@ export function MobileCollectionGrid({
 }) {
   const t = useTranslations("Collection");
   const tp = useTranslations("Portfolios");
-  const locale = useLocale();
   const tc = useTranslations("Common");
   const tCond = useTranslations("Condition");
   const router = useRouter();
@@ -213,10 +217,6 @@ export function MobileCollectionGrid({
   const [priceError, setPriceError] = useState<string | null>(null);
   const [savingPrice, setSavingPrice] = useState(false);
 
-  // Utfällda grupper (nyckel från groupLots). Rent lokalt state — INGA URL-parametrar:
-  // sidan får inte bli beroende av searchParams (se Caching/ISR i CLAUDE.md).
-  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
-
   // Sök + sortering. Samma regel: lokalt state, ingen URL, ingen ny hämtning —
   // raderna finns redan i minnet (se collection-filter.ts).
   const [query, setQuery] = useState("");
@@ -224,7 +224,6 @@ export function MobileCollectionGrid({
 
   const pressTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
-  const panelIdBase = useId();
 
   // En ruta per VARA. Poster utan pris räknas aldrig in i snittet — groupLots
   // rapporterar costedQuantity så gränssnittet kan säga hur många snittet gäller.
@@ -259,15 +258,6 @@ export function MobileCollectionGrid({
         if (allOn) next.delete(id);
         else next.add(id);
       }
-      return next;
-    });
-  }, []);
-
-  const toggleGroup = useCallback((key: string) => {
-    setOpenKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
       return next;
     });
   }, []);
@@ -722,22 +712,21 @@ export function MobileCollectionGrid({
       {/* Rutnätet renderas alltid; är listan tom ritas ingenting (tomläget ovan
           bär beskedet), så resten av filen står kvar orörd. */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">
-        {groups.map((g, index) => {
+        {groups.map((g) => {
           const r = g.lots[0];
           const multi = g.lots.length > 1;
           const ids = g.lots.map((l) => l.id);
+          // Markeringen är allt-eller-inget per ruta (toggleMany), så "alla" räcker.
           const isSelected = ids.every((id) => selected.has(id));
-          const anySelected = ids.some((id) => selected.has(id));
           // Ensam post → EXAKT dagens siffror (groupUnitValue/groupProfit reducerar
           // till rowProfit när gruppen bara har ett köp), så den vanliga rutan är
           // oförändrad. Flera köp → gruppens tal.
           const unitValue = groupUnitValue(g.lots);
           const profit = multi ? groupProfit(g.lots) : rowProfit(r);
           const quantity = multi ? g.quantity : r.quantity;
-          // I väljläget vecklas grupper ALLTID ut: markeringen gäller enskilda poster
-          // och en hopfälld grupp hade dolt vad man faktiskt raderar.
-          const open = openKeys.has(g.key) || (multi && selectMode);
-          const panelId = `${panelIdBase}-lots-${index}`;
+          // Sälj ur ÄLDSTA köpet (FIFO) — arket säljer en post, och utan utfällaren
+          // finns inget per-köp-val i rutan. Annat köp: välj det i exemplararket.
+          const sellLot = multi ? oldestLot(g.lots) : r;
           // Snittet får ALDRIG läsas som att det gäller alla exemplar. Täcker det bara
           // en del av dem säger etiketten det rakt ut ("snitt 400 kr · 1 av 4"), och
           // saknas pris helt står det att priset saknas — aldrig "0 kr".
@@ -775,21 +764,11 @@ export function MobileCollectionGrid({
               onPointerLeave={cancelPress}
               onContextMenu={(e) => e.preventDefault()}
               className={`card-surface relative flex cursor-pointer flex-col gap-2 p-3 text-left transition-colors lg:p-4 lg:hover:border-holo-cyan/40 ${
-                anySelected ? "border-holo-cyan ring-1 ring-holo-cyan" : ""
+                isSelected ? "border-holo-cyan ring-1 ring-holo-cyan" : ""
               }`}
             >
-              {/* Markering i väljläget */}
-              {selectMode && (
-                <span
-                  className={`absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full border ${
-                    isSelected
-                      ? "border-holo-cyan bg-holo-cyan text-black"
-                      : "border-surface-border bg-surface/80 text-transparent"
-                  }`}
-                >
-                  <IconCheck size={14} />
-                </span>
-              )}
+              {/* Markeringen är BARA den lysande kanten (ägarbeslut 2026-10-05) —
+                  ingen bock-cirkel i hörnet. */}
               {/* Bildbrunnen är SVART som resten av kortet — exakt samma behandling som
                   Utforska-kortet (product-card.tsx). `surface-overlay` är en INTERAKTIV
                   fyllning (hover, flikar, skeletons), inte en bakgrund: som brunn lyste
@@ -824,30 +803,40 @@ export function MobileCollectionGrid({
               </div>
               {/* Snittraden finns BARA när varan köpts flera gånger — en ensam post har
                   inget snitt att tala om, och kortet ska då se ut precis som förut. */}
-              {avgLabel && !selectMode && (
-                <p className="truncate text-xs text-ink-muted">{avgLabel}</p>
+              {multi && !selectMode && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openCopySheet(g.lots);
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="-mx-1 flex flex-col gap-0.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-surface-overlay/50"
+                >
+                  <span className="truncate text-xs text-ink-muted">{avgLabel}</span>
+                  {profit && (
+                    <span
+                      className={`text-xs font-semibold tabular-nums ${profitToneClass(profit.amount)}`}
+                      title={
+                        g.costedQuantity < g.quantity
+                          ? t("lotProfitPartialHint", { costed: g.costedQuantity, total: g.quantity })
+                          : undefined
+                      }
+                    >
+                      {profit.amount > 0 ? "+" : ""}
+                      {formatPrice(profit.amount)}
+                      {profit.percent != null && (
+                        <span className="ml-1 font-normal opacity-80">({formatPercent(profit.percent)})</span>
+                      )}
+                    </span>
+                  )}
+                </button>
               )}
               {/* Vinst/förlust — belopp först, procent som stöd. Saknas köppris visas en
                   uppmaning i stället: det är enda sättet posten kan komma med i totalen.
                   Knappen stoppar bubblingen så kortets "öppna produkt"-tryck inte utlöses.
                   ⛔ För en GRUPP är knappen en ren text: "sätt köppris" är en åtgärd på
                   EN post, och gruppen vet inte vilken — köpen redigeras i utfällningen. */}
-              {!selectMode && multi && profit && (
-                <span
-                  className={`text-xs font-semibold tabular-nums ${profitToneClass(profit.amount)}`}
-                  title={
-                    g.costedQuantity < g.quantity
-                      ? t("lotProfitPartialHint", { costed: g.costedQuantity, total: g.quantity })
-                      : undefined
-                  }
-                >
-                  {profit.amount > 0 ? "+" : ""}
-                  {formatPrice(profit.amount)}
-                  {profit.percent != null && (
-                    <span className="ml-1 font-normal opacity-80">({formatPercent(profit.percent)})</span>
-                  )}
-                </span>
-              )}
               {!selectMode && !multi && (
                 <button
                   type="button"
@@ -875,102 +864,17 @@ export function MobileCollectionGrid({
                   )}
                 </button>
               )}
-              {/* Sälj-knappen gäller EN post (annonsen får ett köppris ur just den).
-                  Med flera köp flyttar den därför in i utfällningen, en per post. */}
-              {!selectMode && !multi && (
+              {/* Sälj gäller EN post (annonsen får ett köppris ur just den). */}
+              {!selectMode && (
                 <span
+                  className="mt-auto"
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
-                  <SellButton item={toSellItem(r)} className="w-full" />
+                  <SellButton item={toSellItem(sellLot)} className="w-full" />
                 </span>
               )}
 
-              {/* Utfällaren — bara flera köp får den. Riktig <button> med aria-expanded
-                  /aria-controls så den går att nå och förstå med tangentbord och skärmläsare. */}
-              {multi && !selectMode && (
-                <button
-                  type="button"
-                  aria-expanded={open}
-                  aria-controls={panelId}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleGroup(g.key);
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="-mx-1 flex items-center justify-between gap-1 rounded px-1 py-0.5 text-xs font-semibold text-ink-muted transition-colors hover:bg-surface-overlay/50 hover:text-ink"
-                >
-                  <span className="truncate">{t("lotCount", { count: g.lots.length })}</span>
-                  <IconChevronDown
-                    size={14}
-                    className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-                  />
-                </button>
-              )}
-
-              {/* Köpen, ett per rad. Ligger kvar i DOM:en även hopfälld så aria-controls
-                  alltid pekar på något — det är utfällaren som byter tillstånd, inte
-                  målet som försvinner. */}
-              {multi && (
-                <ul
-                  id={panelId}
-                  className={`${open ? "" : "hidden"} space-y-2 border-t border-surface-border pt-2`}
-                >
-                  {g.lots.map((lot) => {
-                    const lotSelected = selected.has(lot.id);
-                    return (
-                      <li key={lot.id} className="flex flex-col gap-1">
-                        <button
-                          type="button"
-                          aria-pressed={selectMode ? lotSelected : undefined}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Väljläge → markera just den här posten. Annars → sätt/ändra
-                            // DESS köppris (aldrig gruppens: priserna är olika, det är
-                            // hela poängen med poster).
-                            if (selectMode) toggleMany([lot.id]);
-                            else openPriceEditor(lot);
-                          }}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          className={`-mx-1 flex items-center gap-1 rounded px-1 py-0.5 text-left text-[11px] leading-tight tabular-nums transition-colors hover:bg-surface-overlay/50 ${
-                            selectMode && lotSelected ? "bg-holo-cyan/10 text-ink" : ""
-                          }`}
-                        >
-                          {selectMode && (
-                            <IconCheck
-                              size={12}
-                              className={`shrink-0 ${lotSelected ? "text-holo-cyan" : "text-ink-faint"}`}
-                            />
-                          )}
-                          <span className="min-w-0 flex-1">
-                            <span className="text-ink">{t("pieces", { count: lot.quantity })}</span>
-                            <span className="text-ink-muted"> · </span>
-                            {/* Saknat pris är "–", ALDRIG 0 kr: noll betyder "fick gratis". */}
-                            <span
-                              className={
-                                lot.purchasePrice != null ? "font-semibold text-ink" : "text-ink-faint"
-                              }
-                            >
-                              {lot.purchasePrice != null ? formatPrice(lot.purchasePrice) : "–"}
-                            </span>
-                            <span className="block truncate text-ink-faint">
-                              {formatDate(lot.purchaseDate, locale)}
-                            </span>
-                          </span>
-                        </button>
-                        {!selectMode && (
-                          <span
-                            onClick={(e) => e.stopPropagation()}
-                            onPointerDown={(e) => e.stopPropagation()}
-                          >
-                            <SellButton item={toSellItem(lot)} className="w-full" />
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
             </div>
           );
         })}
