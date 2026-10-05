@@ -137,6 +137,14 @@ jobs:
         continue-on-error: true
         run: npx tsx scripts/merge-store-stubs-into-cm.ts --apply
 
+      # ── FRYS SAMLINGSVÄRDET (ägarbeslut 2026-10-05) ──────────────────────────
+      # Portföljen ska röra sig EN gång per dygn, EFTER Cardmarket-priserna — inte när
+      # hot-card-refresh/JP/butikssvep skriver. Implicit success(): blev prissteget rött
+      # behålls gårdagens värde hellre än att frysa ett halvt uppdaterat dygn.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Frys samlingsvärdet (portföljen följer CM-priserna)
+        run: npx tsx scripts/settle-collection-values.ts
+
       # ── SLÄNG DEN CACHADE BILDEN AV PRISERNA ─────────────────────────────────
       # Publika sidor är ISR-cachade 1h OCH läser genom cachedRead. Utan det här
       # steget visar första besökaren efter varje jobb gårdagens graf (Next serverar

@@ -418,7 +418,13 @@
     "moveTitle": "{count, plural, one {Flytta 1 post till} other {Flytta # poster till}}",
     "moveConfirm": "Flytta",
     "movedToast": "{count, plural, one {1 post flyttad till {name}} other {# poster flyttade till {name}}}",
-    "movedPartialToast": "{ok} av {total} flyttade till {name}"
+    "movedPartialToast": "{ok} av {total} flyttade till {name}",
+    "publicEmptyHint": "Pärmen är tom — din profil visar inget förrän det finns kort i den. Flytta kort hit eller gör pärmen där korten ligger offentlig.",
+    "visibilityTitle": "Visa på min profil",
+    "visibilityAria": "Välj vilka pärmar som visas på din profil",
+    "close": "Klar",
+    "itemCount": "{count, plural, =0 {Tom pärm} one {1 post} other {# poster}}",
+    "publicSome": "{count}/{total} offentliga"
   },
   "Collection": {
     "sellImageReadFailed": "Kunde inte läsa en av bilderna. Prova en annan fil.",

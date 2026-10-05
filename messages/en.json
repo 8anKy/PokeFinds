@@ -418,7 +418,13 @@
     "moveTitle": "{count, plural, one {Move 1 item to} other {Move # items to}}",
     "moveConfirm": "Move",
     "movedToast": "{count, plural, one {1 item moved to {name}} other {# items moved to {name}}}",
-    "movedPartialToast": "{ok} of {total} moved to {name}"
+    "movedPartialToast": "{ok} of {total} moved to {name}",
+    "publicEmptyHint": "This binder is empty — your profile shows nothing until it has cards. Move cards here or make the binder that holds them public.",
+    "visibilityTitle": "Show on my profile",
+    "visibilityAria": "Choose which binders show on your profile",
+    "close": "Done",
+    "itemCount": "{count, plural, =0 {Empty binder} one {1 entry} other {# entries}}",
+    "publicSome": "{count}/{total} public"
   },
   "Collection": {
     "sellImageReadFailed": "Couldn't read one of the images. Try another file.",

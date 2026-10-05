@@ -3,6 +3,7 @@ import {
   CARDMARKET_RETAILER_NAME,
   pickCardValue,
   productMarketValue,
+  settledMarketValue,
   type ValuedOffer,
 } from "@/lib/market-value";
 
@@ -104,5 +105,37 @@ describe("pickCardValue — CM-produkter jämförs bara med varandra", () => {
   it("tomt in ⇒ inget värde", () => {
     expect(pickCardValue([]).price).toBeNull();
     expect(pickCardValue([{ price: null, fromCardmarket: false }]).price).toBeNull();
+  });
+});
+
+describe("settledMarketValue — portföljen följer nattens frysning (2026-10-05)", () => {
+  const offers = [offer(CARDMARKET_RETAILER_NAME, 50_000)];
+
+  it("läser det frysta värdet även när offern rört sig sedan natten", () => {
+    expect(
+      settledMarketValue({
+        offers,
+        settledValueOre: 32_700,
+        settledValueFromCm: true,
+        settledValueAt: new Date("2026-10-05T02:10:00Z"),
+      })
+    ).toEqual({ price: 32_700, fromCardmarket: true });
+  });
+
+  it("ett fryst null är ett svar, inte en signal att gå live", () => {
+    expect(
+      settledMarketValue({
+        offers,
+        settledValueOre: null,
+        settledValueFromCm: false,
+        settledValueAt: new Date("2026-10-05T02:10:00Z"),
+      }).price
+    ).toBeNull();
+  });
+
+  it("aldrig fryst (ny produkt sedan natten) ⇒ live", () => {
+    expect(
+      settledMarketValue({ offers, settledValueOre: null, settledValueFromCm: false, settledValueAt: null })
+    ).toEqual({ price: 50_000, fromCardmarket: true });
   });
 });

@@ -872,6 +872,8 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
   397 singlar värderades av CardTrader, 243 av Tradera, och 380 produkter låg under sin egen CM-offer
   (Brock's Rhydon 67 kr mot CM 327 kr). Det gjorde också att värdet rörde sig vid varje butiksskrapning i
   stället för vid prisjobben. ⛔ CM-produkter jämförs BARA med varandra — annars vinner ett syskons utrop.
+  ⛔ Värdet FRYSES EN GÅNG PER NATT efter CM-jobbet (2026-10-05, `Product.settledValue*`, steg i
+  cardmarket-refresh.yml) — läs via `settledMarketValue`, aldrig `productMarketValue` direkt i en läsväg.
   Detaljer + mätning: `.claude/rules/collection-portfolio.md`.
 - ⛔ **ETT GRADERAT KORT ÄR EN ANNAN VARA ÄN DET OGRADERADE** (2026-09-04): en PSA 10 och det lösa kortet
   delar namn men inte pris, och de får aldrig dela kurva, offer eller skena. Domen tas på ANNONSEN

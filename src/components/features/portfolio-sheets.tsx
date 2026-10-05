@@ -265,27 +265,131 @@ export function PortfolioManageSheet({
           <span className="block text-sm font-medium text-ink">{t("publicLabel")}</span>
           <span className="block text-xs text-ink-faint">{t("publicHint")}</span>
         </span>
-        <span
-          aria-hidden
-          className={cn(
-            "relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors duration-200",
-            isPublic ? "bg-holo-cyan" : "bg-surface-overlay ring-1 ring-inset ring-surface-border"
-          )}
-        >
-          <span
-            className={cn(
-              "absolute top-[3px] h-5 w-5 rounded-full transition-[left,background-color] duration-200",
-              isPublic ? "left-[21px] bg-[#04211e]" : "left-[3px] bg-ink-faint"
-            )}
-          />
-        </span>
+        <SwitchKnob on={isPublic} />
       </button>
+      {/* En tom offentlig pärm visar ingenting på profilen — hände 2026-10-02: en
+          medlem publicerade en ny tom pärm medan alla 41 kort låg kvar i den privata
+          standardpärmen, och vännen såg "inga objekt". Säg det där valet görs. */}
+      {isPublic && portfolio?.itemCount === 0 && (
+        <p className="mt-2 text-xs text-ink-muted">{t("publicEmptyHint")}</p>
+      )}
 
       {confirmDelete && (
         <p className="mt-4 text-sm text-ink-muted" role="alert">
           {t("deleteExplain", { count: portfolio?.itemCount ?? 0 })}
         </p>
       )}
+    </BottomSheet>
+  );
+}
+
+function SwitchKnob({ on }: { on: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors duration-200",
+        on ? "bg-holo-cyan" : "bg-surface-overlay ring-1 ring-inset ring-surface-border"
+      )}
+    >
+      <span
+        className={cn(
+          "absolute top-[3px] h-5 w-5 rounded-full transition-[left,background-color] duration-200",
+          on ? "left-[21px] bg-[#04211e]" : "left-[3px] bg-ink-faint"
+        )}
+      />
+    </span>
+  );
+}
+
+/**
+ * "Visa på min profil" för ALLA pärmar på en gång — kugghjulet på "Alla".
+ * Förut fanns reglaget bara i den VALDA pärmens ark, så på "Alla" syntes det
+ * inte alls och det var oklart vilken pärm profilen visade. Varje rad sparas
+ * direkt (PATCH per pärm), samma regel på servern som hanteringsarket.
+ */
+export function PortfolioVisibilitySheet({
+  portfolios,
+  open,
+  onClose,
+  onChanged,
+}: {
+  portfolios: PortfolioSummary[];
+  open: boolean;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const t = useTranslations("Portfolios");
+  const { toast } = useToast();
+  const [state, setState] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) setState(Object.fromEntries(portfolios.map((p) => [p.id, p.isPublic])));
+  }, [open, portfolios]);
+
+  async function toggle(p: PortfolioSummary) {
+    if (busy) return;
+    const next = !(state[p.id] ?? p.isPublic);
+    setBusy(p.id);
+    setState((s) => ({ ...s, [p.id]: next }));
+    try {
+      await apiFetch(`/api/portfolios/${p.id}`, { method: "PATCH", body: { isPublic: next } });
+      invalidatePortfolios();
+      onChanged();
+      toast({
+        title: next ? t("nowPublicToast", { name: p.name }) : t("nowPrivateToast", { name: p.name }),
+        variant: "success",
+      });
+    } catch (e) {
+      setState((s) => ({ ...s, [p.id]: !next }));
+      toast({
+        title: t("saveFailed"),
+        description: e instanceof Error ? e.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <BottomSheet
+      open={open}
+      title={t("visibilityTitle")}
+      onClose={onClose}
+      closeLabel={t("close")}
+      panelClassName="sm:mx-auto sm:max-w-md"
+    >
+      <p className="text-xs text-ink-faint">{t("publicHint")}</p>
+      <div className="mt-3 space-y-2">
+        {portfolios.map((p) => {
+          const on = state[p.id] ?? p.isPublic;
+          return (
+            <div key={p.id}>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={on}
+                disabled={busy === p.id}
+                onClick={() => void toggle(p)}
+                className="flex w-full items-center justify-between gap-3 rounded-lg border border-surface-border bg-surface px-3.5 py-3 text-left disabled:opacity-60"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-ink">{p.name}</span>
+                  <span className="block text-xs text-ink-faint">
+                    {t("itemCount", { count: p.itemCount })}
+                  </span>
+                </span>
+                <SwitchKnob on={on} />
+              </button>
+              {on && p.itemCount === 0 && (
+                <p className="mt-1 px-1 text-xs text-ink-muted">{t("publicEmptyHint")}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </BottomSheet>
   );
 }

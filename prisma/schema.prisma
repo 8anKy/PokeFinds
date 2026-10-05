@@ -600,6 +600,13 @@ model Product {
   // paginering (infinite scroll) utan att läsa in alla offers. Räknas om av
   // recomputeProductPriceCache() efter scrape/refresh.
   lowestPriceOre     Int?
+  // SAMLINGSVÄRDET, FRUSET EN GÅNG PER NATT (ägarbeslut 2026-10-05): productMarketValue()
+  // ur offers, skrivet av settle-collection-values som steg EFTER cardmarket-refresh.
+  // Samlingen/profilen/skannerns värde läser detta, så hot-card-refresh och butikssvep
+  // flyttar inte portföljen mitt på dagen. settledValueAt null = aldrig fruset ⇒ live.
+  settledValueOre    Int?
+  settledValueFromCm Boolean         @default(false)
+  settledValueAt     DateTime?
   // Rekommenderat pris (MSRP) i öre, satt av ägaren (scripts/set-msrp.ts). null =
   // okänt ⇒ kategoridefault ur src/lib/msrp.ts, annars ingen jämförelse alls.
   // ⛔ En JÄMFÖRELSEPUNKT för Discord-inlägget — rör aldrig rubrikpris/Lägst/larm.

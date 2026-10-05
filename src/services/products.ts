@@ -8,7 +8,7 @@ import { normalizeTitle, utcDaysAgo, utcToday } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { visibleListings } from "@/lib/listing-plausibility";
-import { pickCardValue, productMarketValue, type MarketValue } from "@/lib/market-value";
+import { pickCardValue, settledMarketValue, type MarketValue } from "@/lib/market-value";
 import { compareCardNumbers } from "@/lib/card-number-order";
 import { NOT_REVERSE_PRINTING, PRINT_VARIANT_LABELS } from "@/lib/print-variant";
 import { favoriteSetIds } from "@/lib/user-preferences";
@@ -2024,6 +2024,13 @@ const VALUE_OFFER_SELECT = {
   retailer: { select: { name: true } },
 } as const;
 
+/** Nattens frysta värde (`settledMarketValue`) — portföljen rör sig EN gång/dygn, efter CM-jobbet. */
+export const SETTLED_VALUE_SELECT = {
+  settledValueOre: true,
+  settledValueFromCm: true,
+  settledValueAt: true,
+} as const;
+
 /**
  * Aktuellt marknadsvärde (öre) per produkt-id — **Cardmarket först**, lägsta
  * direkta offer som reserv (`productMarketValue`, src/lib/market-value.ts).
@@ -2040,10 +2047,10 @@ export async function getProductValues(
   if (productIds.length === 0) return map;
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, offers: { select: VALUE_OFFER_SELECT } },
+    select: { id: true, ...SETTLED_VALUE_SELECT, offers: { select: VALUE_OFFER_SELECT } },
   });
   for (const p of products) {
-    const { price } = productMarketValue(p.offers);
+    const { price } = settledMarketValue(p);
     if (price != null) map.set(p.id, price);
   }
   return map;
@@ -2081,12 +2088,12 @@ export async function getCardValues(
     // kortprodukter). Upptäckt 2026-10-01: graderingens "Ograderat" visade "–" för
     // Greninja ex SVP 132 trots en CM-offer på 509,85 kr. Vaktat i print-variant-where.test.ts.
     where: { cardId: { in: cardIds }, ...NOT_REVERSE_PRINTING },
-    select: { cardId: true, offers: { select: VALUE_OFFER_SELECT } },
+    select: { cardId: true, ...SETTLED_VALUE_SELECT, offers: { select: VALUE_OFFER_SELECT } },
   });
   const byCard = new Map<string, MarketValue[]>();
   for (const p of products) {
     if (!p.cardId) continue;
-    const v = productMarketValue(p.offers);
+    const v = settledMarketValue(p);
     if (v.price == null) continue;
     const bucket = byCard.get(p.cardId);
     if (bucket) bucket.push(v);

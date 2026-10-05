@@ -22,6 +22,11 @@ paths:
   `/samling` visar när den väljs (`?parm=<id>`: värde, graf, vinst, topplista och rutnät följer valet, set-fliken
   aldrig) och (2) om posterna syns på den publika profilen (`PortfolioPane` visar bara offentliga pärmar, en
   sektion per pärm; `ask-item` kräver att POSTENS pärm är offentlig).
+- **OFFENTLIG/PRIVAT-REGLAGET SITTER I RUBRIKRADEN (2026-10-05)** (`PortfolioManageButton`): mål = vald pärm,
+  eller den ENDA pärmen när kontot bara har en (ingen "Alla"-chip ⇒ inget valt; förut syntes knappen inte alls
+  och en medlem skapade en tom pärm bara för att nå reglaget — hans 41 kort låg kvar i den privata standardpärmen
+  och vännen såg "inga objekt"). På "Alla" öppnar den `PortfolioVisibilitySheet` (ett reglage per pärm). En tom
+  pärm som slås offentlig får en rad om att profilen inte visar något.
 - ⛔ **STANDARDPÄRMEN ÄR `portfolioId = NULL` PÅ POSTEN.** Raden med `isDefault` finns (kan döpas om och
   publiceras, aldrig raderas) men dess poster bär null. Därför fick inga skrivvägar (CSV-import, skanner-confirm,
   publikt API, seed) ändras och ingen backfill göras. `portfolioItemWhere()` / `portfolioIdForWrite()` i
@@ -81,8 +86,14 @@ paths:
   produkter fanns en CM-offer som inte var lägst (Brock's Rhydon · Gym Heroes: 67 kr Tradera mot CM 327 kr;
   30th Celebration ETB: 799 kr Goblinen mot CM 1 500 kr). Utfallet avgjordes av vilken marknadsplats som råkade
   vara billigast. Det förklarade också takten ägaren såg: värdet räknas live per request ur `Offer`, så varje
-  butiksskrapning och Tradera-svep flyttade det — nu rör det sig med prisjobben (cardmarket-refresh 13:00,
-  hot-card-refresh 21:00, jp-singles-refresh). ⛔ **CM-produkterna jämförs BARA med varandra** (`pickCardValue`)
+  butiksskrapning och Tradera-svep flyttade det.
+  ⛔ **FRUSET EN GÅNG PER NATT SEDAN 2026-10-05 (ägarbeslut: "portföljen ska uppdateras EFTER CM-refreshen")**:
+  `settleCollectionValues` (`src/jobs/settle-collection-values.ts`) är ett steg i `cardmarket-refresh.yml` efter
+  prissteget (implicit success — rött prissteg ⇒ gårdagens värde står kvar) och skriver `productMarketValue` till
+  `Product.settledValueOre/FromCm/At` (bara ändrade rader). Läsarna går via `settledMarketValue`; `settledValueAt`
+  null (ny produkt sedan natten) ⇒ live. Nattkörningen landar ~04–04:30 svensk tid och följer JOBBET, inte en
+  klocka. Täcker samling, profil, graf-ankaret OCH skannerns uppskattning (samma tal överallt). Grafens HISTORIK
+  skalas fortfarande med senaste snapshot, som hot-card-refresh kan skriva om på kvällen. ⛔ **CM-produkterna jämförs BARA med varandra** (`pickCardValue`)
   — "lägst av alla efter värdering" hade smugit tillbaka samma fel en nivå upp, via en syskonprodukt.
   ⛔ Reserven tas aldrig bort (nya set/JP utan CM-länk saknar CM-offer helt). Effekt vid påslaget: 505 av 3 002
   poster (16,8 %) bytte värde, totalvärdet över alla användare +12,3 %, 85 av 119 användare påverkade.

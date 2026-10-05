@@ -2,8 +2,8 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
-import { getCardValues, getProductValues } from "@/services/products";
-import { pickCardValue, productMarketValue, type MarketValue } from "@/lib/market-value";
+import { getCardValues, getProductValues, SETTLED_VALUE_SELECT } from "@/services/products";
+import { pickCardValue, settledMarketValue, type MarketValue } from "@/lib/market-value";
 import { normalizePrinting, parseImportNumber } from "@/lib/import-normalize";
 import type { ImportDraftRow } from "@/lib/import-rows";
 import { resolveImportRows } from "@/services/collection-import";
@@ -385,7 +385,7 @@ export async function computeCollectionValue(
       cardIds.length
         ? prisma.product.findMany({
             where: { cardId: { in: cardIds } },
-            select: { cardId: true, offers: { select: SNAP_OFFER_SELECT }, priceSnapshots: snapSelect },
+            select: { cardId: true, ...SETTLED_VALUE_SELECT, offers: { select: SNAP_OFFER_SELECT }, priceSnapshots: snapSelect },
           })
         : Promise.resolve([]),
       productIds.length
@@ -403,7 +403,7 @@ export async function computeCollectionValue(
     const cardCandidates = new Map<string, { value: MarketValue; snaps: Snap[] }[]>();
     for (const p of cardProducts) {
       if (!p.cardId) continue;
-      const value = productMarketValue(p.offers);
+      const value = settledMarketValue(p);
       if (value.price == null) continue;
       const bucket = cardCandidates.get(p.cardId);
       if (bucket) bucket.push({ value, snaps: p.priceSnapshots });

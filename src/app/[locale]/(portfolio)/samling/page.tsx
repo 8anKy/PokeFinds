@@ -31,7 +31,7 @@ import { collectionImportPublic } from "@/lib/collection-import-gate";
 import { listPortfolios, portfolioAllowance } from "@/services/portfolios";
 import { portfolioItemWhere } from "@/lib/portfolio-limit";
 import { isSealedCollectionItem } from "@/lib/collection-labels";
-import { PortfolioBar } from "./portfolio-bar";
+import { PortfolioBar, PortfolioManageButton } from "./portfolio-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -176,12 +176,18 @@ export default async function CollectionPage({
     <div className="space-y-8">
       <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
-        {importEnabled && (
-          <LinkButton href="/samling/importera" variant="secondary" size="sm" className="lg:hidden">
-            <IconUpload size={15} />
-            {t("importCsv")}
-          </LinkButton>
-        )}
+        <div className="flex items-center gap-2">
+          {importEnabled && (
+            <LinkButton href="/samling/importera" variant="secondary" size="sm" className="lg:hidden">
+              <IconUpload size={15} />
+              {t("importCsv")}
+            </LinkButton>
+          )}
+          <PortfolioManageButton
+            portfolios={portfolios}
+            selectedId={selectedPortfolio?.id ?? null}
+          />
+        </div>
       </div>
 
       <PortfolioBar

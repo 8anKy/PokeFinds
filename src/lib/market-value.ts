@@ -43,8 +43,8 @@ const NO_VALUE: MarketValue = { price: null, fromCardmarket: false };
  *
  * Det förklarar också takten ägaren såg: värdet räknas live per request ur
  * `Offer`-tabellen, så varje butiksskrapning, Tradera-svep och CardTrader-körning
- * flyttade samlingsvärdet. Med CM först rör det sig med prisjobben
- * (cardmarket-refresh 13:00, hot-card-refresh 21:00, jp-singles-refresh).
+ * flyttade samlingsvärdet. Sedan 2026-10-05 fryses det dessutom en gång per natt
+ * efter cardmarket-refresh (`settledMarketValue` nedan).
  *
  * ⛔ Reserven tas ALDRIG bort: nya set, JP-singlar utan CM-länk och rena butiksvaror
  * saknar CM-offer helt, och "–" på ett kort användaren faktiskt äger är sämre än ett
@@ -86,4 +86,22 @@ export function pickCardValue(values: MarketValue[]): MarketValue {
   const cm = withPrice.filter((v) => v.fromCardmarket);
   const pool = cm.length > 0 ? cm : withPrice;
   return pool.reduce((a, b) => (b.price < a.price ? b : a));
+}
+
+export interface SettledValueFields {
+  settledValueOre: number | null;
+  settledValueFromCm: boolean;
+  settledValueAt: Date | null;
+}
+
+/**
+ * Värdet SAMLINGEN visar: nattens frysta `productMarketValue` (ägarbeslut 2026-10-05,
+ * "portföljen ska uppdateras EFTER Cardmarket-refreshen"). Skrivet av
+ * `settleCollectionValues` som steg efter cardmarket-refresh ⇒ hot-card-refresh,
+ * jp-singles-refresh och butikssvep flyttar inte längre värdet mitt på dagen.
+ * Aldrig fryst (`settledValueAt` null — ny produkt sedan natten) ⇒ live, hellre än "–".
+ */
+export function settledMarketValue(p: SettledValueFields & { offers: ValuedOffer[] }): MarketValue {
+  if (p.settledValueAt == null) return productMarketValue(p.offers);
+  return { price: p.settledValueOre, fromCardmarket: p.settledValueFromCm };
 }
