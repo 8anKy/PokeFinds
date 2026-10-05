@@ -82,3 +82,30 @@ export function lowestOfferSource(
   if (best.price !== shownLowestOre) return null;
   return { name: best.retailer.name, live: best.stockStatus === "IN_STOCK" };
 }
+
+/**
+ * Lagerbrickan att VISA för en offer (2026-10-05, ägarens klagomål: "Cardmarket har
+ * nästan alltid kort i lager").
+ *
+ * Prisjobben märker en Cardmarket-offer OUT_OF_STOCK när siffran är en UPPSKATTNING
+ * (`lowest_near_mint` saknades, eller JP-leverantören gav bara ett snitt) — inte för att
+ * marknadsplatsen är slutsåld. Feeden säger ofta motsatsen (Snorlax VMAX · SSH 206:
+ * `lowest_near_mint: null` men `available_items: 114`). "Slut" var alltså ett påstående
+ * vi inte har grund för. DB-värdet rörs inte (larm, rubrik och värdering läser det med
+ * uppskattnings-betydelsen); bara VISNINGEN byter ord.
+ *
+ * "ESTIMATE" = Cardmarket-offer med pris som inte är en levande annons; null = ingen
+ * bricka alls (Cardmarket utan pris: vi vet ingenting om lagret).
+ */
+export type ShownStockStatus = "IN_STOCK" | "OUT_OF_STOCK" | "PREORDER" | "LIMITED" | "UNKNOWN" | "ESTIMATE";
+
+export function shownStockStatus<S extends string>(
+  o: { stockStatus: S; url?: string | null; price?: number | null }
+): S | "ESTIMATE" | null {
+  if (o.stockStatus === "IN_STOCK" || !isCardmarketOfferUrl(o.url)) return o.stockStatus;
+  return o.price != null && o.price > 0 ? "ESTIMATE" : null;
+}
+
+function isCardmarketOfferUrl(url: string | null | undefined): boolean {
+  return !!url && url.toLowerCase().includes("cardmarket.com");
+}

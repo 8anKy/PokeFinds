@@ -225,8 +225,10 @@ async function main() {
 
   // ⛔ Bara ENGELSKA set: importen är EN-only (se kommentaren om JP ovan) och
   // japanska set delar latinska namn med sina engelska motsvarigheter.
-  const sets = await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true } });
+  const sets = await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true, series: true } });
   const setMap = new Map(sets.map((s) => [norm(s.name), s.id]));
+  // EX-eran: CM:s episod heter "EX Ruby & Sapphire", vårt set "Ruby & Sapphire" (se cmSetNameKeys).
+  for (const s of sets) if (s.series === "EX" && !setMap.has(norm(`EX ${s.name}`))) setMap.set(norm(`EX ${s.name}`), s.id);
 
   // Gratis-katalogen laddas ALLTID (S3, ingen RapidAPI-kvot): den bär både
   // dateAdded (RECENT_DAYS-läget) och namn→idProduct-nyckeln nedan.

@@ -3,6 +3,7 @@ import {
   cmNumberKey,
   cmNumberKeyNoSetCode,
   cmSetNameKey,
+  cmSetNameKeys,
   cmCardNameAgrees,
 } from "../../src/jobs/cardmarket-refresh";
 
@@ -196,5 +197,16 @@ describe("pickSubsetCandidate", () => {
   it("fel namn ⇒ ingen match oavsett nummer", () => {
     expect(pick("Blastoise", "4")).toBeNull();
     expect(pickSubsetCandidate([], "Charizard", "4")).toBeNull();
+  });
+});
+
+// 2026-10-05: CM:s episod "EX Ruby & Sapphire" missade vårt "Ruby & Sapphire" och
+// set-etiketten skapade 16 kortlösa EX-tvillingar.
+describe("cmSetNameKeys", () => {
+  it("EX-serien nås även med CM:s prefix", () => {
+    expect(cmSetNameKeys({ name: "Ruby & Sapphire", series: "EX" })).toContain(cmSetNameKey("EX Ruby & Sapphire"));
+  });
+  it("andra serier får inget alias", () => {
+    expect(cmSetNameKeys({ name: "Dragon Majesty", series: "Sun & Moon" })).toEqual([cmSetNameKey("Dragon Majesty")]);
   });
 });

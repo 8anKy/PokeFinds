@@ -125,6 +125,12 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   `{name, live}`, `src/lib/offer-source.ts` — samma urvalsregel som servern, och namnger källan bara om den bevisligen gav den
   visade siffran). En OUT_OF_STOCK CM-offer bär per definition en uppskattning, och "lägst bland NM-engelska annonser" är då ett
   påstående om annonser som inte finns — samma sorts fel som taket 07-27 gjorde med själva talet.
+  ⛔ **BRICKAN SÄGER "UPPSKATTAT", ALDRIG "SLUT" (2026-10-05)**: OUT_OF_STOCK på en CM-offer betyder
+  "priset är en uppskattning", inte "slutsåld" — feeden har ofta annonser (Snorlax VMAX SSH 206:
+  `lowest_near_mint: null`, `available_items: 114`). DB-värdet behåller sin betydelse (rubrik, larm,
+  värdering läser det); bara VISNINGEN översätts i `shownStockStatus` (`lib/offer-source.ts`): pris ⇒
+  "Uppskattat", utan pris ⇒ ingen bricka. Rubriken är "Uppskattat värde ({källa})" utan påståendet
+  "ingen aktiv annons". Mätt: 267 EN + 1 605 JP singlar.
   Rubriken stod förut hårdkodad på varje singel: 2 751 singlar visade en Tradera-annons under rubriken "Cardmarket", och tre
   hela set hade ingen CM-offer alls. Samma sak i grafens underrubrik — den följer nu `trendSource` även för singlar
   (`rawSubtitleTradera`/`rawSubtitleStores`), tom serie = "Ingen prishistorik ännu". **MATCHNINGEN FÅR INTE HÄNGA PÅ `tcgid`**:

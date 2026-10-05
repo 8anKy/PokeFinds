@@ -65,7 +65,8 @@
     "OUT_OF_STOCK": "Slut",
     "PREORDER": "Förhandsboka",
     "LIMITED": "Begränsat",
-    "UNKNOWN": "Okänt"
+    "UNKNOWN": "Okänt",
+    "ESTIMATE": "Uppskattat"
   },
   "LocaleSwitcher": {
     "label": "Språk",
@@ -2393,7 +2394,7 @@
     "priceLabelSingle": "Lägsta pris · NM engelska (Cardmarket)",
     "priceLabelSingleJp": "Lägsta pris · NM japanska (Cardmarket)",
     "priceLabelSingleSource": "Lägsta pris · {source}",
-    "priceLabelEstimate": "Uppskattat värde · ingen aktiv annons ({source})",
+    "priceLabelEstimate": "Uppskattat värde ({source})",
     "priceLabelDefault": "Lägsta pris just nu",
     "watchers": "{count, plural, =1 {1 samlare bevakar denna produkt} other {# samlare bevakar denna produkt}}",
     "restockHistory": "Restock-historik",

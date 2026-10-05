@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { lowestOfferSource } from "../../src/lib/offer-source";
+import { lowestOfferSource, shownStockStatus } from "../../src/lib/offer-source";
 
 // Regression 2026-07-26: produktsidans prisrubrik stod hårdkodad som
 // "Lägsta pris · NM engelska (Cardmarket)" på ALLA singlar — även de 2 751 där
@@ -82,5 +82,21 @@ describe("lowestOfferSource", () => {
       name: "Cardmarket",
       live: true,
     });
+  });
+});
+
+// 2026-10-05: Cardmarket-uppskattningar visades som "Slut" fast CM hade annonser
+// (feeden: lowest_near_mint null, available_items 114). Brickan säger "Uppskattat".
+describe("shownStockStatus", () => {
+  const cm = "https://www.cardmarket.com/en/Pokemon/Products?idProduct=437119&language=1";
+  it("Cardmarket-uppskattning med pris → ESTIMATE, aldrig OUT_OF_STOCK", () => {
+    expect(shownStockStatus({ stockStatus: "OUT_OF_STOCK", url: cm, price: 63422 })).toBe("ESTIMATE");
+  });
+  it("Cardmarket utan pris → ingen bricka", () => {
+    expect(shownStockStatus({ stockStatus: "OUT_OF_STOCK", url: cm, price: null })).toBeNull();
+  });
+  it("Cardmarket i lager och butikers slutsålt rörs inte", () => {
+    expect(shownStockStatus({ stockStatus: "IN_STOCK", url: cm, price: 100 })).toBe("IN_STOCK");
+    expect(shownStockStatus({ stockStatus: "OUT_OF_STOCK", url: "https://www.webhallen.com/se/product/1", price: 100 })).toBe("OUT_OF_STOCK");
   });
 });

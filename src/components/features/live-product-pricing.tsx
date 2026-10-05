@@ -24,7 +24,7 @@ import { RetailerLogo } from "@/components/features/retailer-logo";
 import { IconStore, IconChevronDown } from "@/components/ui/icons";
 import { hapticTick } from "@/lib/haptics";
 import { isCardmarketJpSearchUrl, isDirectOfferUrl } from "@/lib/marketplace-urls";
-import { lowestOfferSource } from "@/lib/offer-source";
+import { lowestOfferSource, shownStockStatus } from "@/lib/offer-source";
 import { pickSponsoredOffer } from "@/lib/sponsored-offer";
 
 const CARD_SHOP_SWEDEN = "Cardshop Sweden";
@@ -278,7 +278,13 @@ export function LivePricePanel({
         >
           {formatPrice(stats.lowestPrice)}
         </p>
-        {stats.lowestPriceStockStatus && <StockBadge stockStatus={stats.lowestPriceStockStatus} />}
+        {/* Vann en Cardmarket-uppskattning är brickan "Uppskattat", aldrig "Slut" —
+            se shownStockStatus. Källan är redan räknad för rubriken ovan. */}
+        {source?.name === "Cardmarket" && !source.live ? (
+          <StockBadge stockStatus="ESTIMATE" />
+        ) : (
+          stats.lowestPriceStockStatus && <StockBadge stockStatus={stats.lowestPriceStockStatus} />
+        )}
       </div>
       {change && (
         <p className="mt-1 flex items-center gap-1.5 text-xs text-ink-muted">
@@ -476,7 +482,7 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
                         <span className="font-semibold tabular-nums">
                           {sponsoredOffer.price != null ? formatPrice(sponsoredOffer.price) : "–"}
                         </span>
-                        <StockBadge stockStatus={sponsoredOffer.stockStatus} />
+                        <OfferStockBadge offer={sponsoredOffer} />
                       </div>
                       {sponsoredOffer.retailer.name === CARD_SHOP_SWEDEN && (
                         <p className="mt-1 text-xs text-holo-cyan">{t("cardshopProOffer")}</p>
@@ -532,7 +538,7 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
                             <span className="font-semibold tabular-nums">
                               {offer.price != null ? formatPrice(offer.price) : "–"}
                             </span>
-                            <StockBadge stockStatus={offer.stockStatus} />
+                            <OfferStockBadge offer={offer} />
                           </div>
                           {offer.retailer.name === CARD_SHOP_SWEDEN && (
                             <p className="mt-1 text-xs text-holo-cyan">{t("cardshopProOffer")}</p>
@@ -598,7 +604,7 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
                             {offer.price != null ? formatPrice(offer.price) : "–"}
                           </TD>
                           <TD>
-                            <StockBadge stockStatus={offer.stockStatus} />
+                            <OfferStockBadge offer={offer} />
                           </TD>
                           <TD className="text-right">
                             <div className="inline-flex items-center gap-2">
@@ -677,4 +683,11 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
       </section>
     </>
   );
+}
+
+/** Butiksradens bricka. Cardmarket utan levande annons = "Uppskattat" (eller ingen bricka
+ *  utan pris) — aldrig "Slut", se shownStockStatus i lib/offer-source.ts. */
+function OfferStockBadge({ offer }: { offer: LiveOffer }) {
+  const status = shownStockStatus(offer);
+  return status ? <StockBadge stockStatus={status} /> : null;
 }

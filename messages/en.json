@@ -65,7 +65,8 @@
     "OUT_OF_STOCK": "Sold out",
     "PREORDER": "Preorder",
     "LIMITED": "Limited",
-    "UNKNOWN": "Unknown"
+    "UNKNOWN": "Unknown",
+    "ESTIMATE": "Estimated"
   },
   "LocaleSwitcher": {
     "label": "Language",
@@ -2393,7 +2394,7 @@
     "priceLabelSingle": "Lowest price · NM English (Cardmarket)",
     "priceLabelSingleJp": "Lowest price · NM Japanese (Cardmarket)",
     "priceLabelSingleSource": "Lowest price · {source}",
-    "priceLabelEstimate": "Estimated value · no active listing ({source})",
+    "priceLabelEstimate": "Estimated value ({source})",
     "priceLabelDefault": "Lowest price right now",
     "watchers": "{count, plural, =1 {1 collector is watching this product} other {# collectors are watching this product}}",
     "restockHistory": "Restock history",

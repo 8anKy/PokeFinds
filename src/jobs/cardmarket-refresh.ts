@@ -402,6 +402,20 @@ export function cmSetNameKey(name: string | null | undefined): string {
   return String(name ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "");
 }
 
+/**
+ * ALLA nycklar ett av VÅRA set ska nås på från ett CM-episodnamn (2026-10-05).
+ * pokemontcg.io döper EX-erans set utan prefix ("Ruby & Sapphire", serie "EX") medan
+ * CM/RapidAPI kallar episoden "EX Ruby & Sapphire". Nyckeln missade, och set-etiketten
+ * SKAPADE då ett nytt, kortlöst "EX Ruby & Sapphire" åt varje EX-set (16 st) och hängde
+ * sealed-produkterna där — setsidan visade ett set utan kort bredvid det riktiga.
+ * Aliaset är serie-grindat: bara set vars serie ÄR "EX" får prefixnyckeln.
+ */
+export function cmSetNameKeys(set: { name: string; series?: string | null }): string[] {
+  const key = cmSetNameKey(set.name);
+  if (!key) return [];
+  return set.series === "EX" && !key.startsWith("ex") ? [key, `ex${key}`] : [key];
+}
+
 // ── UNDERSET-RESERVEN (2026-09-20) ────────────────────────────────────────────
 // pokemontcg.io delar upp ett släpp i ett HUVUDSET och ett UNDERSET med kolon i
 // namnet ("30th Celebration" + "30th Celebration: Classic Collection"), medan
@@ -1684,9 +1698,8 @@ export async function runCardmarketRefresh(
     // Episodnamn → UNDERSET (setnamn med kolon, prefixet = episoden). Se
     // cmSubsetParentKey; uppslaget i processCards kräver namn + nummer ändå.
     const subsetsByParent = new Map<string, string[]>();
-    for (const s of await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true } })) {
-      const key = cmSetNameKey(s.name);
-      if (key) setsByName.set(key, setsByName.has(key) ? null : s.id);
+    for (const s of await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true, series: true } })) {
+      for (const key of cmSetNameKeys(s)) setsByName.set(key, setsByName.has(key) ? null : s.id);
       const parent = cmSubsetParentKey(s.name);
       if (parent) subsetsByParent.set(parent, [...(subsetsByParent.get(parent) ?? []), s.id]);
     }

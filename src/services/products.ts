@@ -7,6 +7,7 @@ import { cachedRead, cachedReadTagged, productCacheTag, singleFlight, STATIC_CAC
 import { normalizeTitle, utcDaysAgo, utcToday } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { shownStockStatus, type ShownStockStatus } from "@/lib/offer-source";
 import { visibleListings } from "@/lib/listing-plausibility";
 import { pickCardValue, settledMarketValue, type MarketValue } from "@/lib/market-value";
 import { compareCardNumbers } from "@/lib/card-number-order";
@@ -118,7 +119,7 @@ export interface ProductListItem {
   cardRarity: string | null;
   variantLabel: string | null;
   lowestPrice: number | null; // öre, IN_STOCK prioriteras
-  lowestPriceStockStatus: StockStatus | null;
+  lowestPriceStockStatus: ShownStockStatus | null;
   offerCount: number;
   inStockCount: number;
   watchCount: number;
@@ -206,8 +207,8 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
 }>;
 
 export function computeLowestPrice(
-  offers: { price: number | null; stockStatus: StockStatus }[]
-): { price: number | null; stockStatus: StockStatus | null } {
+  offers: { price: number | null; stockStatus: StockStatus; url?: string | null }[]
+): { price: number | null; stockStatus: ShownStockStatus | null } {
   // Länk-offers utan pris (null) eller 0 öre (€0,00 = inget riktigt pris) räknas
   // inte in i lägsta pris.
   const priced = offers.filter(
@@ -217,7 +218,8 @@ export function computeLowestPrice(
   const inStock = priced.filter((o) => o.stockStatus === "IN_STOCK");
   const pool = inStock.length > 0 ? inStock : priced;
   const best = pool.reduce((a, b) => (b.price < a.price ? b : a));
-  return { price: best.price, stockStatus: best.stockStatus };
+  // Brickan, inte DB-värdet: en Cardmarket-uppskattning är inte "Slut" (shownStockStatus).
+  return { price: best.price, stockStatus: shownStockStatus(best) };
 }
 
 /** Prisförändring senaste 7 dagarna utifrån dagliga snapshots (öre + procent). */
@@ -1062,7 +1064,7 @@ async function getProductBySlugRaw(slug: string) {
   const lowest = computeLowestPrice(
     product.offers
       .filter((o) => isDirectOfferUrl(o.url))
-      .map((o) => ({ price: o.price, stockStatus: o.stockStatus }))
+      .map((o) => ({ price: o.price, stockStatus: o.stockStatus, url: o.url }))
   );
   const change = computePriceChange7d(product.priceSnapshots);
 
@@ -1401,7 +1403,7 @@ export interface ProductDetailData {
     cardRarity: string | null;
     variantLabel: string | null;
     lowestPrice: number | null;
-    lowestPriceStockStatus: StockStatus | null;
+    lowestPriceStockStatus: ShownStockStatus | null;
   }[];
   /** Andra Cardmarket-versioner av samma kort (common ↔ special-variant). */
   variants: {
@@ -1439,7 +1441,7 @@ export interface ProductDetailData {
 
 interface LiveOfferStats {
   lowestPrice: number | null;
-  lowestPriceStockStatus: StockStatus | null;
+  lowestPriceStockStatus: ShownStockStatus | null;
   highestPrice: number | null;
   avgPrice: number | null;
   offerCount: number;

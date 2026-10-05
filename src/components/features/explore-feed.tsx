@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { CardLanguage, ProductCategory, StockStatus } from "@prisma/client";
+import type { CardLanguage, ProductCategory } from "@prisma/client";
+import type { ShownStockStatus } from "@/lib/offer-source";
 import { ProductCard } from "@/components/features/product-card";
 
 /** Det feed-API:t returnerar per produkt (delmängd av ProductListItem). */
@@ -21,7 +22,7 @@ export interface FeedItem {
   cardRarity: string | null;
   variantLabel: string | null;
   lowestPrice: number | null;
-  lowestPriceStockStatus: StockStatus | null;
+  lowestPriceStockStatus: ShownStockStatus | null;
   inStockCount: number;
   priceChange7dPercent: number | null;
   dealPercent?: number | null;

@@ -30,7 +30,9 @@ export function Badge({ variant = "default", className, ...props }: BadgeProps) 
   );
 }
 
-export type StockStatus = "IN_STOCK" | "OUT_OF_STOCK" | "PREORDER" | "LIMITED" | "UNKNOWN";
+// ESTIMATE är bara en VISNING (aldrig ett DB-värde): Cardmarket-offer vars pris är en
+// uppskattning — se shownStockStatus i lib/offer-source.ts.
+export type StockStatus = "IN_STOCK" | "OUT_OF_STOCK" | "PREORDER" | "LIMITED" | "UNKNOWN" | "ESTIMATE";
 
 const stockVariants: Record<StockStatus, BadgeVariant> = {
   IN_STOCK: "success", // grön
@@ -38,6 +40,7 @@ const stockVariants: Record<StockStatus, BadgeVariant> = {
   PREORDER: "info",
   LIMITED: "warning",
   UNKNOWN: "default",
+  ESTIMATE: "default",
 };
 
 export interface StockBadgeProps extends HTMLAttributes<HTMLSpanElement> {

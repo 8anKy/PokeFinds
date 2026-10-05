@@ -17,6 +17,7 @@ import { IconPackage } from "@/components/ui/icons";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { SwipeBack } from "@/components/ui/swipe-back";
 import { guideForSet } from "@/content/guides";
+import { shownStockStatus } from "@/lib/offer-source";
 
 // Set-data ändras ~en gång/dygn → cacha per set (ISR). Sparar Vercel CPU + Neon.
 export const revalidate = 3600;
@@ -53,7 +54,7 @@ async function getSet(id: string) {
           // från /api/sets/[id]/completion är KORT-id:n, inte produkt-id:n.
           cardId: true,
           card: { select: { name: true, number: true, rarity: true } },
-          offers: { select: { price: true, stockStatus: true } },
+          offers: { select: { price: true, stockStatus: true, url: true } },
         },
         orderBy: { viewCount: "desc" },
       },
@@ -101,7 +102,7 @@ export default async function SetPage({ params }: PageProps) {
     return {
       ...p,
       lowestPrice: best?.price ?? null,
-      lowestPriceStockStatus: best?.stockStatus ?? null,
+      lowestPriceStockStatus: best ? shownStockStatus(best) : null,
       inStockCount: p.offers.filter((o) => o.stockStatus === "IN_STOCK").length,
     };
   });

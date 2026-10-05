@@ -22,7 +22,7 @@
  * senare. Vi flyttar beslutet, vi sänker inte ribban.
  */
 import { prisma } from "@/lib/db";
-import { cmSetNameKey } from "@/jobs/cardmarket-refresh";
+import { cmSetNameKey, cmSetNameKeys } from "@/jobs/cardmarket-refresh";
 
 // ⛔ LÄS NYCKELN VID ANROPET, inte vid modulinläsningen. En modul-konstant fryser
 // värdet vid första import: jobbet läser sin .env innan det anropar oss, men i ett
@@ -102,10 +102,8 @@ export async function createSetLabeler(createMissing: boolean): Promise<SetLabel
   // latinska namn — "Black Bolt", "151". Utan språkgrinden hade en engelsk
   // förhandsbox kunnat få det japanska setets etikett.
   const byName = new Map<string, string | null>();
-  for (const s of await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true } })) {
-    const key = cmSetNameKey(s.name);
-    if (!key) continue;
-    byName.set(key, byName.has(key) ? null : s.id);
+  for (const s of await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true, series: true } })) {
+    for (const key of cmSetNameKeys(s)) byName.set(key, byName.has(key) ? null : s.id);
   }
 
   // Episodlistan hämtas BARA när vi kan komma att skapa set — annars är den ren
