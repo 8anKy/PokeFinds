@@ -81,13 +81,25 @@ function writeState(s: State) {
   fs.writeFileSync(stateFile, JSON.stringify(s));
 }
 
+/**
+ * Setnamnen till filtret: ruttabellens set + katalogens nya/kommande set
+ * (`set-names.json`, skrivs bredvid av export-restock-routes.ts). Saknas en fil
+ * används den andra; saknas båda bär produktorden ensamma domen.
+ */
 function setTerms(): string[] {
+  const names: (string | null | undefined)[] = [];
   try {
     const routes = JSON.parse(fs.readFileSync(routesFile, "utf8")) as Record<string, { setName?: string | null }>;
-    return pokemonTermsFromSetNames(Object.values(routes).map((r) => r.setName));
+    names.push(...Object.values(routes).map((r) => r.setName));
   } catch {
-    return [];
+    /* ingen ruttabell */
   }
+  try {
+    names.push(...(JSON.parse(fs.readFileSync(path.join(path.dirname(routesFile), "set-names.json"), "utf8")) as string[]));
+  } catch {
+    /* ingen setlista än — skrivs nattligen */
+  }
+  return pokemonTermsFromSetNames(names);
 }
 
 /** Metas förbrukning i procent (högst av app- och kontonivå). ≥ 90 ⇒ sluta för den här gången. */

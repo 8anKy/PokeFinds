@@ -20,6 +20,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   vårt IG-konto @bostkie + Page-token som inte går ut, `META_ACCESS_TOKEN`-secret) och postar Pokémon-släppbesked
   till kanalen `STORE_SOCIAL_CHANNEL_ID`. ⛔ Facebook och TikTok ingår INTE (inget läs-API vi får), Stories syns inte.
   ⛔ Ingen AI (ägarbeslut): domen är `classifyStorePost` (`lib/store-social-filter.ts`, fixturer = riktiga inlägg).
+  ⛔ Bara SET och FÖRSEGLAT (ägarbeslut 2026-10-06): kräver setnamn (katalogens nya + kommande set, `set-names.json`
+  bredvid ruttabellen) eller produktord; Pokémon-merch (Polaroid, plush, figurer, kläder, spel) fälls alltid.
   ⛔ DB-fri; Metas tak 200 anrop/h, scriptet slutar vid 90 %. Handtagen: `src/data/store-instagram.json` — ⛔ BARA
   ägarens utvalda (2026-10-06): billiga butiker med direktleverantör som FAKTISKT postar om Pokémon (Swepoke,
   Speltrollet, Fantasia North, Manatörsk, Spelexperten, Alphaspel, Lekia + filialer). Döda konton (Goblinen,

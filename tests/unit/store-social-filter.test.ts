@@ -6,14 +6,15 @@ import { captionBody, classifyStorePost, pokemonTermsFromSetNames } from "@/lib/
  * förkortade. Lägg till det riktiga inlägget här när en regel ändras — annars vet ingen
  * vad regeln skulle fånga eller släppa.
  */
-const SHOULD_POST: [string, string][] = [
-  ["delay", "Pokemon som skulle släppas idag är försenat och kommer troligen nästa vecka. Vi går ut på facebook och instagram så fort det kommer in."],
+const SHOULD_POST: [string, string, string?][] = [
+  ["delay", "God kväll! Tyvärr kommer vi inte att kunna sälja morgondagens releaser av Pokémon 30th Celebration (Bundles & Mini Tins), i och med att de inte dykt upp ännu."],
+  ["set named only in a tag", "Nu är den här! Släpps i butiken på fredag kl 10 #pokemon #deltareign", "Delta Reign"],
   ["delay without release word", "Tyvärr måste vi skjuta på Pokémon 30th Celebration till onsdag den 23:e september. #fantasianorth #pokemon"],
   ["store release time", "Pokemon 30 år släpp 5! Efter 15:30 idag tisdag 22 sept #pokemon #spelexperten #sistachansen"],
   ["preorder opening", "Pokémon 30-årsjubileum – Mini Tins släpps för förhandsbokning!\nNu på lördag kl. 15:00 öppnar vi förhandsbokningen #pokemon #tcg"],
   ["arrived", "Vi fick en överraskning! Pokémon 30th Celebration har anlänt och eftersom ingen gillar att vänta så släpper vi produkterna i butiken imorgon"],
   ["pokemon only in tag block", "Lite info om #30th #celebration #pokemon bundle och mini tin ! Glöm nu inte följa för vara uppgraderad när vi släpper dom #fyp"],
-  ["restock by set name, tag says pokemon", "Lite påfyllning av MEGA Dream EX och Inferno X! 🔥✨\n#pokemon #pokemontcg #megadream #infernox"],
+  ["restock by set name, tag says pokemon", "Lite påfyllning av MEGA Dream EX och Inferno X! 🔥✨\n#pokemon #pokemontcg #megadream #infernox", "Inferno X (M2)"],
   ["in stock + purchase limit", "Pokémon TCG: Pitch Black Booster Bundle finns nu i lager – begränsat antal! Max 1 per person."],
   ["contest mentioned late, release first", "30th Celebratjons i Speltrollet butiken! 🥳🎉 På fredag smäller det! Då landar 30th Celebration hos oss och det blir fika, musik och fest hela dagen. Dessutom kör vi en liten tävling bland alla som handlar!"],
   ["noise hashtag must not kill a stock post", "151 BINDER COLLECTION NOW IN STOCK!🔥 WWW.THESWEDISHFISH.SE #pokemon #packopening"],
@@ -33,21 +34,32 @@ const SHOULD_SKIP: [string, string, string][] = [
   ["other game, pokemon only in tags", "no-pokemon", "OP 17 Release idag! Finns i butiken! Max 4 st per person #onepiececardgame #onepiece #op17"],
   ["mixed tags with another game", "no-pokemon", "Missa inte denna restock #onepiece #pokémon"],
   ["mixed post in body", "other-tcg", "It’s fascinating to follow the price development of Magic: The Gathering vs Pokémon. Today's release shows it."],
-  ["greeting", "no-release", "Hoppas vi ses imorgon gott folk #pokemon #fyp #swepoke #tcg #malmö"],
-  ["teaser without news", "no-release", "👀 Vi har tydligen gått och köpt 10 stycken av den här… En liten ledtråd till vad vi har på gång under hösten #Pokémon"],
+  ["greeting", "no-product", "Hoppas vi ses imorgon gott folk #pokemon #fyp #swepoke #tcg #malmö"],
+  ["teaser without news", "no-product", "👀 Vi har tydligen gått och köpt 10 stycken av den här… En liten ledtråd till vad vi har på gång under hösten #Pokémon"],
   ["joke about the website", "no-release", "Sverige står inför ett vägval 🇸🇪 Högkostnadsskydd för Pokémonkort och mer Pokémon åt folket! Läs mer på vår hemsida."],
+  ["Pokémon merch, not cards (owner: nobody cares)", "merch", "POKÉMON X POLAROID! 🤩 Release idag den 5 oktober, snart även i vår fysiska butik i Hammarby Sjöstad 🥰✨ pokemon polaroid #pokemon #fyp"],
+  ["Pokémon merch preorder", "merch", "CAPTURE IT ALL 📸 Vi kan äntligen avslöja att vi blivit exklusiv fysisk återförsäljare för lanseringen av samarbetet mellan Pokémon och Polaroid! Förköp online: Startar 25 augusti"],
+  ["plushies", "merch", "Ni har väl inte missat att vi har fått in nya pokemon 30th anniversary plushies? Kom in och kika!"],
+  ["release party without a product", "no-product", "LYSSNA NOGA! Fredag den 25/9 kommer vi att ha fest i butiken, mer info kommer, men förvänta er DRESSCODE, RELEASE-FEST, KANSKE LITE FIKA! #pokemon #pokemoncommunity"],
   ["prerelease of another game", "noise", "Vi kör prerelease för Homeworlds på måndag 5/10 kl. 18:00. #starwarsunlimited #tcg"],
 ];
 
 describe("classifyStorePost", () => {
-  it.each(SHOULD_POST)("posts: %s", (_name, caption) => {
-    expect(classifyStorePost(caption).relevant).toBe(true);
+  it.each(SHOULD_POST)("posts: %s", (_name, caption, setName) => {
+    const terms = setName ? pokemonTermsFromSetNames([setName]) : [];
+    expect(classifyStorePost(caption, terms)).toMatchObject({ relevant: true });
   });
 
   it.each(SHOULD_SKIP)("skips: %s", (_name, reason, caption) => {
     const v = classifyStorePost(caption);
     expect(v.relevant).toBe(false);
     if (!v.relevant) expect(v.reason).toBe(reason);
+  });
+
+  it("an upcoming set is recognised by name even without a product word", () => {
+    const caption = "Delta Reign släpps på fredag! Vi öppnar kl 10.";
+    expect(classifyStorePost(caption).relevant).toBe(false);
+    expect(classifyStorePost(caption, pokemonTermsFromSetNames(["Delta Reign"])).relevant).toBe(true);
   });
 
   it("uses set names from the route table as Pokémon signals", () => {
@@ -69,5 +81,11 @@ describe("pokemonTermsFromSetNames", () => {
       "ascended heroes",
       "inferno x",
     ]);
+  });
+
+  it("strips set codes and drops generic catalogue names", () => {
+    expect(
+      pokemonTermsFromSetNames(["Abyss Eye (M5)", "Expansion", "MEP Black Star Promos", "Mega Evolution Energy", "Gold, Silver, to a New World..."])
+    ).toEqual(["abyss eye", "gold, silver, to a new world"]);
   });
 });

@@ -14,14 +14,34 @@
  * den med en egen nyckel. Blir filen gammal (butiker byter sortiment) märks det som
  * "okänd URL" i snabbfilens logg, aldrig som fel data — okända URL:er postas inte.
  *
+ * + SETNAMNEN (set-names.json bredvid): butiksnyhetslanen (store-social) känner igen
+ *   ett inlägg om "Delta Reign" på setnamnet, även för set som ännu inte har en enda
+ *   butiksrutt. Nya + kommande set (senaste 18 mån, eller utan släppdatum).
+ *
  * Kör: node scripts/with-prod-db.mjs npx tsx scripts/export-restock-routes.ts
  */
+import fs from "node:fs";
+import path from "node:path";
 import { prisma } from "@/lib/db";
 import { exportRestockRoutes } from "./lib/restock-routes";
 
 const OUT = process.env.RESTOCK_ROUTES_FILE ?? ".restock-routes/routes.json";
+const SET_NAMES_MONTHS = 18;
+
+async function exportSetNames(file: string) {
+  const since = new Date(Date.now() - SET_NAMES_MONTHS * 30.5 * 864e5);
+  const sets = await prisma.cardSet.findMany({
+    where: { OR: [{ releaseDate: { gte: since } }, { releaseDate: null }] },
+    select: { name: true },
+  });
+  const names = [...new Set(sets.map((s) => s.name.trim()).filter(Boolean))].sort();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(names));
+  console.log(`Setnamn: ${names.length} → ${file}`);
+}
 
 exportRestockRoutes(OUT)
+  .then(() => exportSetNames(path.join(path.dirname(OUT), "set-names.json")))
   .catch((e) => {
     console.error("Misslyckades:", e);
     process.exitCode = 1;
