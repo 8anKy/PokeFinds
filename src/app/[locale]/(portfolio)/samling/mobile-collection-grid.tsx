@@ -134,11 +134,10 @@ function copyDiffers(copy: CopyRow, lot: CollectionRow | undefined): boolean {
 }
 
 /** Chip — samma form som säljarkets val (skick, gradering). */
-/** Äldsta köpet i en grupp (FIFO): inköpsdatum, saknat datum sist. */
-function oldestLot(lots: readonly CollectionRow[]): CollectionRow {
-  return lots.reduce((a, b) =>
-    (b.purchaseDate ?? "￿") < (a.purchaseDate ?? "￿") ? b : a
-  );
+/** Köpen äldst först (FIFO): inköpsdatum, annars när posten lades in, okänt sist. */
+function lotsOldestFirst(lots: readonly CollectionRow[]): CollectionRow[] {
+  const when = (l: CollectionRow) => l.purchaseDate ?? l.addedAt ?? "￿";
+  return [...lots].sort((a, b) => (when(a) < when(b) ? -1 : when(a) > when(b) ? 1 : 0));
 }
 
 function Chip({
@@ -724,9 +723,9 @@ export function MobileCollectionGrid({
           const unitValue = groupUnitValue(g.lots);
           const profit = multi ? groupProfit(g.lots) : rowProfit(r);
           const quantity = multi ? g.quantity : r.quantity;
-          // Sälj ur ÄLDSTA köpet (FIFO) — arket säljer en post, och utan utfällaren
-          // finns inget per-köp-val i rutan. Annat köp: välj det i exemplararket.
-          const sellLot = multi ? oldestLot(g.lots) : r;
+          // Sälj: arket listar köpen (pris + datum) och förväljer det ÄLDSTA (FIFO).
+          const sellLots = multi ? lotsOldestFirst(g.lots) : null;
+          const sellLot = sellLots ? sellLots[0] : r;
           // Snittet får ALDRIG läsas som att det gäller alla exemplar. Täcker det bara
           // en del av dem säger etiketten det rakt ut ("snitt 400 kr · 1 av 4"), och
           // saknas pris helt står det att priset saknas — aldrig "0 kr".
@@ -871,7 +870,7 @@ export function MobileCollectionGrid({
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
-                  <SellButton item={toSellItem(sellLot)} className="w-full" />
+                  <SellButton item={toSellItem(sellLot, sellLots ?? undefined)} className="w-full" />
                 </span>
               )}
 

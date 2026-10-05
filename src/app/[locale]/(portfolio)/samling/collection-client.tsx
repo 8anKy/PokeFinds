@@ -64,6 +64,8 @@ export interface CollectionRow {
   language: string;
   purchasePrice: number | null; // öre
   purchaseDate: string | null; // ISO
+  /** När posten lades in (createdAt, ISO) — datumet när inköpsdatum saknas. */
+  addedAt?: string | null;
   estimatedValue: number | null; // öre
   gradingCompany: string | null;
   grade: string | null;

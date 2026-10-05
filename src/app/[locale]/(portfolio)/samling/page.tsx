@@ -122,6 +122,7 @@ export default async function CollectionPage({
     language: item.language,
     purchasePrice: item.purchasePrice,
     purchaseDate: item.purchaseDate ? item.purchaseDate.toISOString() : null,
+    addedAt: item.createdAt.toISOString(),
     // Live Cardmarket-trend (faller tillbaka på lagrad ögonblicksbild).
     estimatedValue: value.itemValues[item.id] ?? item.estimatedValue,
     gradingCompany: item.gradingCompany,

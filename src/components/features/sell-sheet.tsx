@@ -30,7 +30,7 @@ import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { Input, Textarea, Label, FieldError, Checkbox } from "@/components/ui/input";
 import { IconCheck, IconPackage } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/spinner";
-import { formatPrice } from "@/lib/format";
+import { formatDate, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useCommunityV2 } from "@/lib/use-community-v2";
 import {
@@ -99,6 +99,22 @@ export interface SellItem {
    * att be om samma arbete två gånger.
    */
   photo?: string | null;
+  /**
+   * Samma vara köpt flera gånger (portföljens stapel): arket visar köpen med
+   * inköpspris + datum och säljer ur det VALDA (ägarbeslut 2026-10-05). Förvalt =
+   * `collectionItemId`. Utelämnat/ett köp = ingen väljare.
+   */
+  lots?: SellLot[];
+}
+
+export interface SellLot {
+  collectionItemId: string;
+  quantity: number;
+  /** öre; null = okänt (aldrig 0 kr). */
+  purchasePrice: number | null;
+  purchaseDate: string | null;
+  /** createdAt — visas när inköpsdatum saknas. */
+  addedAt: string | null;
 }
 
 /** Det som är KORTETS eget i formuläret (allt annat gäller hela högen). */
@@ -297,6 +313,13 @@ export function SellSheet({
    */
   const drafts = useRef<Map<string, ItemDraft>>(new Map());
   const row = items[Math.min(index, Math.max(0, items.length - 1))] ?? null;
+  /** Valt köp ur stapeln (`row.lots`); null = förvalet `row.collectionItemId`. */
+  const [lotPick, setLotPick] = useState<string | null>(null);
+  const lots = row?.lots && row.lots.length > 1 ? row.lots : null;
+  const sellItemId =
+    lots && lotPick && lots.some((l) => l.collectionItemId === lotPick)
+      ? lotPick
+      : row?.collectionItemId;
 
   /** En LÖS singel eller en förseglad produkt — styr skick-valen och graderingen. */
   const isSingle = row?.isSingle ?? true;
@@ -473,6 +496,7 @@ export function SellSheet({
     setVatRate(DEFAULT_VAT_RATE);
     setAlsoForum(false);
     setForumPostId(null);
+    setLotPick(null);
     loadItem(items[0] ?? null);
     // ⛔ BARA `open` I BEROENDENA. `items` är typiskt en array-literal hos
     // anroparen och byter identitet vid varje rendering — med den i listan
@@ -697,7 +721,7 @@ export function SellSheet({
       // Posten skapas här när anroparen inte redan har en (skannern) — se
       // ensureCollectionItemId. Kastar den fångas felet av catch nedan.
       const collectionItemId =
-        row.collectionItemId ?? (row.ensureCollectionItemId ? await row.ensureCollectionItemId() : null);
+        sellItemId ?? (row.ensureCollectionItemId ? await row.ensureCollectionItemId() : null);
       if (!collectionItemId) throw new Error(t("genericFail"));
 
       const { url } = await apiFetch<{ url: string }>("/api/tradera/sell", {
@@ -900,6 +924,52 @@ export function SellSheet({
                 {row?.setName && <p className="truncate text-xs text-ink-muted">{row.setName}</p>}
               </div>
             </div>
+
+            {/* VILKET KÖP — bara när varan ligger i flera köp i samlingen. Annonsen
+                (och försäljningens köppris) tas ur just det köpet. */}
+            {lots && (
+              <div>
+                <SectionLabel>{t("sellSectionLot")}</SectionLabel>
+                <div role="radiogroup" className="space-y-2">
+                  {lots.map((l) => {
+                    const on = l.collectionItemId === sellItemId;
+                    const date = l.purchaseDate ?? l.addedAt;
+                    return (
+                      <button
+                        key={l.collectionItemId}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        onClick={() => setLotPick(l.collectionItemId)}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition-colors",
+                          on
+                            ? "border-holo-cyan bg-holo-cyan/10"
+                            : "border-surface-border bg-surface hover:border-holo-cyan/40"
+                        )}
+                      >
+                        <span className="min-w-0">
+                          {/* Saknat pris är "inget inköpspris", ALDRIG 0 kr. */}
+                          <span className="block text-sm font-semibold tabular-nums text-ink">
+                            {l.purchasePrice != null ? formatPrice(l.purchasePrice) : t("sellLotNoPrice")}
+                          </span>
+                          {date && (
+                            <span className="block text-xs text-ink-muted">
+                              {l.purchaseDate
+                                ? t("sellLotBought", { date: formatDate(date, locale) })
+                                : t("sellLotAdded", { date: formatDate(date, locale) })}
+                            </span>
+                          )}
+                        </span>
+                        <span className="shrink-0 text-xs text-ink-muted">
+                          {t("pieces", { count: l.quantity })}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* BILDER */}
             <div>
