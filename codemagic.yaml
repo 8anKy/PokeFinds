@@ -111,6 +111,11 @@ workflows:
           # Developer-portalen; entitlementen här är appens halva. Det nativa
           # SocialLogin-pluginet (lib/social-login.ts) kräver den, annars svarar
           # ASAuthorizationController med error 1000 utan förklaring.
+          # Universal links (2026-10-06): foilio.se-länkar (mejlknappar, Discord) öppnar
+          # APPEN. Kräver capabilityn "Associated Domains" på App ID:t i Developer-portalen
+          # och en provisioneringsprofil som bär den; siddelen är
+          # public/.well-known/apple-app-site-association, sidnavigeringen app-link-handler.tsx.
+          # Bara apex: www 301:as av Cloudflare och Apple följer inga omdirigeringar.
           cat > ios/App/App/App.entitlements <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -122,10 +127,15 @@ workflows:
             <array>
               <string>Default</string>
             </array>
+            <key>com.apple.developer.associated-domains</key>
+            <array>
+              <string>applinks:foilio.se</string>
+            </array>
           </dict>
           </plist>
           PLIST
           grep -q applesignin ios/App/App/App.entitlements
+          grep -q "applinks:foilio.se" ios/App/App/App.entitlements
           # Google-inloggning (nativt GoogleSignIn-SDK via @capgo/capacitor-social-login):
           # GIDClientID = iOS-klient-id:t (Google Cloud → Clients → "Foilio iOS", bundle
           # se.foilio.app) och URL-schemat är SAMMA id BAKLÄNGES — dit återvänder Googles

@@ -27,6 +27,7 @@ import { AppBoot } from "@/components/app-boot";
 import { AppResumeRefresh } from "@/components/app-resume-refresh";
 import { OfflineBanner } from "@/components/offline-banner";
 import { UpdateBanner } from "@/components/update-banner";
+import { AppLinkHandler } from "@/components/app-link-handler";
 
 export async function generateMetadata({
   params,
@@ -171,6 +172,9 @@ export default async function LocaleLayout({
                 Utforska (/produkter). Capacitor retainar tap-eventet tills en lyssnare
                 finns → tidigare gick det förlorat på de routerna. */}
             <PushManager />
+            {/* Universella länkar (mejlknappar, Discord): öppnar rätt sida när appen
+                startas eller väcks av en foilio.se-länk — lib/app-links.ts. */}
+            <AppLinkHandler />
             <CookieBanner />
             <ServiceWorkerRegister />
             <ScrollReset />

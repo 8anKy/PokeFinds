@@ -19,6 +19,16 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- App Links (2026-10-06): foilio.se-länkar (mejlknappar, Discord) öppnar
+                 appen. autoVerify kräver public/.well-known/assetlinks.json med
+                 Play-signeringsnyckelns SHA-256 — utan den öppnas länkarna i webbläsaren.
+                 Sidnavigeringen: src/components/app-link-handler.tsx. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="foilio.se" />
+            </intent-filter>
         </activity>
 
         <provider
