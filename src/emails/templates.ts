@@ -32,43 +32,169 @@ function formatSek(ore: number): string {
   return `${(ore / 100).toLocaleString("sv-SE", { minimumFractionDigits: 2 })} kr`;
 }
 
+/** "949 kr" — rubrikpriset i larmen. Ören visas bara när de finns ("1 299,50 kr"). */
+function formatSekShort(ore: number): string {
+  return ore % 100 === 0 ? `${(ore / 100).toLocaleString("sv-SE")} kr` : formatSek(ore);
+}
+
+// ---------------------------------------------------------------------------
+// GEMENSAMT UTSEENDE (riktning "Svart holo", ägarbeslut 2026-10-06)
+// ---------------------------------------------------------------------------
+//
+// Som appen: SVART yta, turkos signatur och en foliekant överst i kortet. Larmen och
+// veckobrevet delar PALETT och SIDHUVUD men inte skal — se veckobrevets egen kommentar.
+//
+// ⛔ **E-POST-HTML ÄR INTE WEBB-HTML.** Tabeller, inline-stilar, absoluta URL:er,
+// max 600 px. Ingen flexbox, inget `<style>`-block, inga `%`-breddade `<div>`-ar.
+// ⛔ **VARJE CELL SÄTTER SIN EGEN BAKGRUNDS- OCH TEXTFÄRG.** Gmail och Outlook
+// tvingar ofta ljust läge och ärver inte färg nedåt.
+// ⛔ **INGA PILAR** ("→") i knappar eller länkar (ägarbeslut 2026-10-06).
+
+/** Palett. SVART yta, turkos signatur — aldrig blått. */
+const D_PAGE = "#000000";
+const D_CARD = "#0b0d12";
+const D_PANEL = "#12171f";
+const D_LINE = "#1f2430";
+const D_TEXT = "#e5e7eb";
+const D_MUTED = "#9ca3af";
+const D_FAINT = "#6b7280";
+const D_WHITE = "#ffffff";
+const D_ACCENT = "#2dd4bf";
+const D_UP = "#34d399";
+const D_DOWN = "#f87171";
+const D_FONT = "'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+/** Foliekanten. `bgcolor` är reserven för klienter som stryker gradienter (Outlook). */
+const HOLO_GRADIENT = "linear-gradient(90deg,#2dd4bf,#5cc468,#a78bfa,#f0abfc,#2dd4bf)";
+
 /**
- * Gemensamt skal för alla mejl. `footerReason` finns för mejl till adresser
- * UTAN konto (registreringskoden) — standardraden "du har ett konto" vore
+ * HTML-escape för allt som kommer ur databasen. Produkttitlar är SKRAPADE ur
+ * butiksfeedar — ett `&` eller ett `<` i en titel får aldrig kunna stänga en
+ * attributsträng i ett massutskick.
+ */
+function esc(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Bild-URL:er ur databasen är ofta RELATIVA ("/api/cm-image/895551",
+ * "/retailer-logos/alphaspel.png"). En mejlklient har ingen bas-URL — relativ = trasig
+ * ruta. Mot APP_URL-KONSTANTEN, aldrig miljön (se ⛔ ovan). Okänt format ⇒ ingen bild.
+ */
+function absUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^https:\/\//.test(url)) return url;
+  if (url.startsWith("/") && !url.startsWith("//")) return `${APP_URL}${url}`;
+  return null;
+}
+
+/**
+ * Sidhuvudet: märket som bild + "Foilio" som TEXT bredvid.
+ *
+ * ⛔ Texten bär namnet. Outlook blockerar bilder som standard och veckobrevet fick en
+ * trasig logoruta 2026-08-16 (då av en tom bas-URL). Bilden har därför `alt=""` och
+ * pekar på APP_URL-konstanten — blockeras den står "Foilio" kvar som text.
+ */
+function brandHeader(label?: string): string {
+  const suffix = label
+    ? `<td style="padding-left:10px;font-family:${D_FONT};font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:${D_MUTED};">${label}</td>`
+    : "";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+            <tr>
+              <td width="34" style="width:34px;"><img src="${APP_URL}/brand/foilio-logo.png" alt="" width="34" height="34" style="display:block;width:34px;height:34px;border:0;"></td>
+              <td style="padding-left:6px;font-family:${D_FONT};font-size:19px;font-weight:700;letter-spacing:-0.3px;color:${D_WHITE};">Foilio</td>
+              ${suffix}
+            </tr>
+          </table>`;
+}
+
+/** Foliekanten överst i kortet. */
+function holoStrip(): string {
+  return `<tr><td height="4" bgcolor="${D_ACCENT}" style="height:4px;line-height:4px;font-size:0;background-color:${D_ACCENT};background-image:${HOLO_GRADIENT};border-radius:16px 16px 0 0;">&nbsp;</td></tr>`;
+}
+
+interface LayoutOptions {
+  /** Liten statusrad ovanför rubriken ("Åter i lager"). */
+  eyebrow?: string;
+  eyebrowColor?: string;
+  /** Block ovanför statusraden — larmens produktbild. */
+  hero?: string;
+}
+
+/**
+ * Gemensamt skal för alla mejl utom veckobrevet. `footerReason` finns för mejl till
+ * adresser UTAN konto (registreringskoden) — standardraden "du har ett konto" vore
  * då osann, och mottagaren kan vara någon vars adress en främling knappade in.
  */
 function layout(
   title: string,
   bodyHtml: string,
-  footerReason = "Du får detta mejl för att du har ett konto på Foilio.<br>Du kan ändra dina aviseringsinställningar i Foilio-appen."
+  footerReason = "Du får detta mejl för att du har ett konto på Foilio.<br>Du kan ändra dina aviseringsinställningar i Foilio-appen.",
+  opts: LayoutOptions = {}
 ): string {
+  const hero = opts.hero ? `${opts.hero}` : "";
+  const eyebrow = opts.eyebrow
+    ? `<p style="margin:0 0 8px;font-family:${D_FONT};font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:${opts.eyebrowColor ?? D_ACCENT};">&#9679; ${opts.eyebrow}</p>`
+    : "";
   return `<!DOCTYPE html>
 <html lang="sv">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#0f1115;font-family:'Segoe UI',Arial,sans-serif;">
-  <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
-    <div style="text-align:center;padding-bottom:24px;">
-      <img src="${APP_URL}/brand/foilio-logo.png" alt="Foilio" width="56" height="56" style="display:inline-block;border:0;width:56px;height:56px;">
-    </div>
-    <div style="background-color:#1a1d24;border:1px solid #2a2e38;border-radius:12px;padding:32px 28px;color:#e5e7eb;">
-      <h1 style="margin:0 0 16px;font-size:20px;color:#ffffff;">${title}</h1>
-      ${bodyHtml}
-    <!--card-end-->
-    </div>
-    <div style="text-align:center;padding-top:24px;font-size:12px;color:#6b7280;line-height:1.6;">
-      ${footerReason}<br>
-      © Foilio · Sveriges marknadsplats för Pokémon TCG
-    </div>
-  </div>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+</head>
+<body style="margin:0;padding:0;background-color:${D_PAGE};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${D_PAGE}" style="width:100%;border-collapse:collapse;background-color:${D_PAGE};">
+    <tr>
+      <td align="center" style="padding:28px 12px;background-color:${D_PAGE};">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;border-collapse:collapse;">
+          <tr><td align="left" style="padding:0 2px 18px;">${brandHeader()}</td></tr>
+          <tr>
+            <td bgcolor="${D_CARD}" style="background-color:${D_CARD};border:1px solid ${D_LINE};border-radius:16px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
+                ${holoStrip()}
+                <tr>
+                  <td style="padding:24px 24px 28px;font-family:${D_FONT};font-size:15px;color:${D_TEXT};background-color:${D_CARD};">
+                    ${hero}${eyebrow}
+                    <h1 style="margin:0 0 14px;font-family:${D_FONT};font-size:22px;line-height:1.3;font-weight:700;color:${D_WHITE};">${title}</h1>
+                    ${bodyHtml}
+                    <!--card-end-->
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:20px 8px 0;font-family:${D_FONT};font-size:12px;line-height:1.6;color:${D_FAINT};background-color:${D_PAGE};">
+              ${footerReason}<br>
+              Foilio · Sveriges marknadsplats för Pokémon TCG
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
 }
 
+/** Den turkosa huvudknappen, hela kortets bredd. Tabell, inte `<a>` med padding — Outlook. */
 function button(url: string, label: string): string {
-  return `<div style="text-align:center;margin:24px 0;">
-    <a href="${url}" style="display:inline-block;background-color:#fbbf24;color:#111827;text-decoration:none;font-weight:700;padding:12px 28px;border-radius:8px;">${label}</a>
-  </div>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;margin:22px 0 0;">
+      <tr>
+        <td align="center" bgcolor="${D_ACCENT}" style="background-color:${D_ACCENT};border-radius:10px;">
+          <a href="${url}" style="display:block;padding:14px 20px;font-family:${D_FONT};font-size:15px;font-weight:700;color:#03110f;text-decoration:none;">${label}</a>
+        </td>
+      </tr>
+    </table>`;
 }
+
+/** Brödtextstycke i larmens grå. */
+const P_STYLE = `margin:0 0 12px;font-family:${D_FONT};font-size:15px;line-height:1.6;color:#cbd5e1;`;
 
 const textFooter =
   "\n\nDu kan ändra dina aviseringsinställningar i Foilio-appen.\nFoilio · Sveriges marknadsplats för Pokémon TCG";
@@ -82,7 +208,7 @@ const textFooter =
 export function withEmailNote(mail: EmailContent, note: string): EmailContent {
   const html = mail.html.replace(
     "<!--card-end-->",
-    `<p style="line-height:1.6;color:#fbbf24;font-size:13px;margin:16px 0 0;border-top:1px solid #2a2e38;padding-top:12px;">${note}</p><!--card-end-->`
+    `<p style="margin:18px 0 0;padding-top:14px;border-top:1px solid ${D_LINE};font-family:${D_FONT};font-size:13px;line-height:1.6;color:${D_ACCENT};">${note}</p><!--card-end-->`
   );
   const idx = mail.text.lastIndexOf(textFooter);
   const text = idx >= 0 ? `${mail.text.slice(0, idx)}
@@ -117,19 +243,36 @@ function setWatchReason(setName?: string | null): { html: string; text: string }
  * folk att komma igång i appen, och en Discord-knapp högst upp hade konkurrerat
  * med precis det. Nämner inte kontokoppling: `DISCORD_ENABLED=false`.
  */
+/** Välkomstmejlets tre steg. ⛔ Lova inget som är Pro (prislarm) — kontot är gratis. */
+const WELCOME_STEPS: [string, string][] = [
+  ["Bevaka", "Tryck Bevaka på en produkt för att följa dess lager och pris."],
+  ["Skanna", "Rikta kameran mot ett kort och se direkt vad det är värt."],
+  ["Samla", "Lägg in din samling och följ värdet vecka för vecka."],
+];
+
 export function welcomeEmail(name: string): EmailContent {
   const subject = "Välkommen till Foilio!";
+  const steps = WELCOME_STEPS.map(
+    ([h, t]) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;margin:0 0 8px;">
+        <tr><td bgcolor="${D_PANEL}" style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-radius:10px;padding:14px 16px;font-family:${D_FONT};">
+          <p style="margin:0;font-size:15px;font-weight:700;color:${D_WHITE};">${h}</p>
+          <p style="margin:3px 0 0;font-size:14px;line-height:1.5;color:${D_MUTED};">${t}</p>
+        </td></tr>
+      </table>`
+  ).join("");
   const html = layout(
-    `Välkommen, ${name}!`,
-    `<p style="line-height:1.6;color:#cbd5e1;">Kul att ha dig här! Med Foilio kan du jämföra priser på Pokémon TCG-produkter, bevaka dina favoriter och få aviseringar när priser sjunker eller produkter kommer tillbaka i lager.</p>
-     <p style="line-height:1.6;color:#cbd5e1;">Öppna Foilio-appen och lägg till produkter i din bevakningslista för att komma igång.</p>
-     <div style="margin:28px 0 0;padding:20px;background-color:#0f1115;border:1px solid #2a2e38;border-radius:10px;">
-       <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:#ffffff;">Häng med oss på Discord 👋</p>
-       <p style="margin:0;line-height:1.6;color:#cbd5e1;font-size:14px;">Restocks postas direkt i egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.</p>
-       <p style="margin:16px 0 0;">
-         <a href="${DISCORD_URL}" style="display:inline-block;background-color:#2dd4bf;color:#08110f;text-decoration:none;font-weight:700;padding:10px 22px;border-radius:8px;font-size:14px;">Gå med i Discord</a>
-       </p>
-     </div>`
+    `Välkommen till Foilio, ${name}`,
+    `<p style="${P_STYLE}margin-bottom:18px;color:${D_MUTED};">Sveriges marknadsplats för Pokémon TCG. Jämför priser i svenska butiker, bevaka det du väntar på och håll koll på din samling. Så kommer du igång:</p>
+     ${steps}
+     ${button(APP_URL, "Öppna Foilio")}
+     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:24px 0 0;">
+       <tr><td style="padding-top:16px;border-top:1px solid ${D_LINE};font-family:${D_FONT};font-size:14px;line-height:1.6;color:${D_MUTED};">
+         <strong style="color:${D_WHITE};">Restocks i Discord.</strong> Egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.
+         <a href="${DISCORD_URL}" style="color:${D_ACCENT};text-decoration:none;font-weight:700;">Gå med i Discord</a>
+       </td></tr>
+     </table>`,
+    undefined,
+    { eyebrow: "Välkommen" }
   );
   const text = `Välkommen, ${name}!\n\nKul att ha dig här! Med Foilio kan du jämföra priser, bevaka produkter och få aviseringar vid prisfall och restocks.\n\nÖppna Foilio-appen för att komma igång.\n\n— Häng med oss på Discord —\nRestocks postas direkt i egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.\nGå med: ${DISCORD_URL}${textFooter}`;
   return { subject, html, text };
@@ -148,14 +291,14 @@ export function signupCodeEmail(code: string, ttlMs: number): EmailContent {
   const subject = "Din verifieringskod – Foilio";
   const footerReason = "Du får detta mejl för att din adress angavs vid registrering på Foilio.";
   const html = layout(
-    "Bekräfta din e-postadress",
-    `<p style="line-height:1.6;color:#cbd5e1;">Ange koden nedan för att slutföra registreringen av ditt Foilio-konto.</p>
-     <div style="text-align:center;margin:24px 0;">
-       <span style="display:inline-block;background-color:#0f1115;border:1px solid #2a2e38;border-radius:8px;padding:14px 24px;font-size:28px;font-weight:700;letter-spacing:8px;color:#ffffff;">${code}</span>
-     </div>
-     <p style="line-height:1.6;color:#cbd5e1;">Koden gäller i ${minutes} minuter.</p>
-     <p style="line-height:1.6;color:#6b7280;font-size:13px;">Försökte du inte skapa ett konto? Då kan du ignorera detta mejl — inget konto skapas utan koden.</p>`,
-    footerReason
+    "Din kod till Foilio",
+    `<p style="${P_STYLE}color:${D_MUTED};margin-bottom:20px;">Skriv in koden för att skapa ditt Foilio-konto. Den gäller i ${minutes} minuter.</p>
+     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;">
+       <tr><td align="center" bgcolor="${D_PANEL}" style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-radius:12px;padding:22px 12px;font-family:${D_FONT};font-size:38px;font-weight:700;letter-spacing:12px;color:${D_WHITE};">${code}</td></tr>
+     </table>
+     <p style="margin:18px 0 0;font-family:${D_FONT};font-size:13px;line-height:1.6;color:${D_FAINT};">Försökte du inte skapa ett konto? Då kan du ignorera mejlet, inget konto skapas utan koden.</p>`,
+    footerReason,
+    { eyebrow: "Verifieringskod" }
   );
   const text = `Din verifieringskod för att skapa ett Foilio-konto: ${code}\n\nKoden gäller i ${minutes} minuter.\n\nFörsökte du inte skapa ett konto? Då kan du ignorera detta mejl — inget konto skapas utan koden.\n\nFoilio · Sveriges marknadsplats för Pokémon TCG`;
   return { subject, html, text };
@@ -211,6 +354,95 @@ export function proExpiringEmail(name: string, until: Date, daysLeft: number): E
 }
 
 /**
+ * Bild + butikslogga till ett produktlarm. Allt valfritt: saknas en bild blir det
+ * ingen tom ruta, saknas Foilio-länken (feed-först-larm utan katalogprodukt) blir
+ * det ingen "Jämför"-rad. URL:erna får vara relativa — `absUrl` gör dem absoluta.
+ */
+export interface AlertMedia {
+  imageUrl?: string | null;
+  storeLogoUrl?: string | null;
+  /** Vår produktsida — "Jämför alla butiker i Foilio". */
+  foilioUrl?: string | null;
+}
+
+/** Produktbilden överst i kortet, på en egen panel. */
+function productHero(imageUrl: string | null): string | undefined {
+  if (!imageUrl) return undefined;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;margin:0 0 20px;">
+      <tr><td align="center" bgcolor="${D_PANEL}" style="background-color:${D_PANEL};border-radius:12px;padding:20px;">
+        <img src="${esc(imageUrl)}" alt="" width="200" style="display:inline-block;width:200px;max-width:100%;height:auto;border:0;">
+      </td></tr>
+    </table>`;
+}
+
+/**
+ * Kroppen i alla produktlarm: pris som rubrik, butiken (med logga), en rad text,
+ * knappen till butiken och länken till alla butiker hos oss. ⛔ Aldrig "0 kr":
+ * saknas priset utelämnas raden.
+ */
+function productAlertBody(p: {
+  priceOre: number | null | undefined;
+  priceNote?: string;
+  storeName: string | null | undefined;
+  storeLogoUrl: string | null;
+  lead: string;
+  ctaUrl: string;
+  ctaLabel: string;
+  foilioUrl: string | null;
+  reasonHtml?: string;
+}): string {
+  const price =
+    p.priceOre != null && p.priceOre > 0
+      ? `<p style="margin:0 0 12px;font-family:${D_FONT};font-size:30px;line-height:1.1;font-weight:800;color:${D_WHITE};">${formatSekShort(p.priceOre)}${
+          p.priceNote ? ` <span style="font-size:13px;font-weight:700;color:${D_UP};">${p.priceNote}</span>` : ""
+        }</p>`
+      : "";
+  const logo = p.storeLogoUrl
+    ? `<td width="22" style="width:22px;padding-right:8px;"><img src="${esc(p.storeLogoUrl)}" alt="" width="22" height="22" style="display:block;width:22px;height:22px;border:0;border-radius:6px;"></td>`
+    : "";
+  const store = p.storeName
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 14px;"><tr>${logo}<td style="font-family:${D_FONT};font-size:14px;font-weight:600;color:${D_TEXT};">${esc(p.storeName)}</td></tr></table>`
+    : "";
+  const compare = p.foilioUrl
+    ? `<p style="margin:14px 0 0;text-align:center;font-family:${D_FONT};font-size:13px;"><a href="${esc(p.foilioUrl)}" style="color:${D_ACCENT};text-decoration:none;font-weight:600;">Jämför alla butiker i Foilio</a></p>`
+    : "";
+  return `${price}${store}
+     <p style="margin:0;font-family:${D_FONT};font-size:14px;line-height:1.6;color:${D_MUTED};">${p.lead}</p>
+     ${button(p.ctaUrl, esc(p.ctaLabel))}
+     ${compare}
+     ${p.reasonHtml ?? ""}`;
+}
+
+/** Lagerlarmens gemensamma bygge (restock / släpp / ny produkt / förhandsbokning). */
+function stockAlertHtml(p: {
+  eyebrow: string;
+  title: string;
+  retailerName: string;
+  url: string;
+  price?: number;
+  lead: string;
+  ctaLabel: string;
+  reasonHtml: string;
+  media?: AlertMedia;
+}): string {
+  return layout(
+    esc(p.title),
+    productAlertBody({
+      priceOre: p.price,
+      storeName: p.retailerName,
+      storeLogoUrl: absUrl(p.media?.storeLogoUrl),
+      lead: p.lead,
+      ctaUrl: p.url,
+      ctaLabel: p.ctaLabel,
+      foilioUrl: absUrl(p.media?.foilioUrl),
+      reasonHtml: p.reasonHtml,
+    }),
+    undefined,
+    { eyebrow: p.eyebrow, eyebrowColor: D_UP, hero: productHero(absUrl(p.media?.imageUrl)) }
+  );
+}
+
+/**
  * Prislarm. `price` är larmets EGET pris (Alert.priceOre) — samma tal som larmraden
  * och pushen; null bara för larm från före 2026-09-06 utan sparat pris, då utan
  * prisrad (⛔ aldrig "0 kr"). `kind`: målpris nått eller tydligt prisfall.
@@ -220,29 +452,29 @@ export function priceAlertEmail(
   productTitle: string,
   price: number | null,
   url: string,
-  opts: { kind: "target" | "drop"; storeName?: string | null } = { kind: "drop" }
+  opts: { kind: "target" | "drop"; storeName?: string | null } & AlertMedia = { kind: "drop" }
 ): EmailContent {
   const target = opts.kind === "target";
   const priceText = price != null ? formatSek(price) : null;
   const subject = target
     ? `Målpris nått: ${productTitle}${priceText ? ` – nu ${priceText}` : ""}`
     : `Prisfall: ${productTitle}${priceText ? ` – nu ${priceText}` : ""}`;
-  const intro = target
-    ? "En produkt i din bevakningslista har nått ditt målpris:"
-    : "En produkt i din bevakningslista har sjunkit i pris:";
-  const priceLine = priceText
-    ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${priceText}</p>`
-    : "";
-  const storeLine = opts.storeName
-    ? `<p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${opts.storeName}</strong></p>`
-    : "";
+  const lead = target
+    ? `Hej ${esc(name)}! En produkt du bevakar har nått ditt målpris${opts.storeName ? ` hos ${esc(opts.storeName)}` : ""}.`
+    : `Hej ${esc(name)}! En produkt du bevakar har sjunkit i pris${opts.storeName ? ` hos ${esc(opts.storeName)}` : ""}.`;
   const html = layout(
-    target ? "Ditt målpris är nått!" : "Prisfall på en bevakad produkt!",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! ${intro}</p>
-     <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
-     ${priceLine}
-     ${storeLine}
-     ${button(url, "Se erbjudandet")}`
+    esc(productTitle),
+    productAlertBody({
+      priceOre: price,
+      storeName: opts.storeName,
+      storeLogoUrl: absUrl(opts.storeLogoUrl),
+      lead,
+      ctaUrl: url,
+      ctaLabel: "Se erbjudandet",
+      foilioUrl: absUrl(opts.foilioUrl),
+    }),
+    undefined,
+    { eyebrow: target ? "Målpris nått" : "Prisfall", hero: productHero(absUrl(opts.imageUrl)) }
   );
   const text =
     `Hej ${name}!\n\n${target ? "Målpris nått på en bevakad produkt" : "Prisfall på en bevakad produkt"}:\n${productTitle}` +
@@ -257,23 +489,22 @@ export function restockAlertEmail(
   retailerName: string,
   url: string,
   price?: number,
-  reasonSetName?: string | null
+  reasonSetName?: string | null,
+  media?: AlertMedia
 ): EmailContent {
   const subject = `Åter i lager: ${productTitle} hos ${retailerName}`;
-  const priceLine = price
-    ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>`
-    : "";
   const reason = setWatchReason(reasonSetName);
-  const html = layout(
-    "Åter i lager!",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En produkt du bevakar finns nu i lager igen:</p>
-     <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
-     ${priceLine}
-     <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
-     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Populära produkter säljer ofta slut snabbt. Skynda dig!</p>
-     ${button(url, "Köp nu")}
-     ${reason.html}`
-  );
+  const html = stockAlertHtml({
+    eyebrow: "Åter i lager",
+    title: productTitle,
+    retailerName,
+    url,
+    price,
+    lead: `Hej ${esc(name)}! En produkt du bevakar finns i lager igen. Populära produkter säljer ofta slut snabbt.`,
+    ctaLabel: `Köp hos ${retailerName}`,
+    reasonHtml: reason.html,
+    media,
+  });
   const text = `Hej ${name}!\n\nÅter i lager: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nKöp nu: ${url}\n\nPopulära produkter säljer ofta slut snabbt!${reason.text}${textFooter}`;
   return { subject, html, text };
 }
@@ -289,23 +520,22 @@ export function releasedEmail(
   retailerName: string,
   url: string,
   price?: number,
-  reasonSetName?: string | null
+  reasonSetName?: string | null,
+  media?: AlertMedia
 ): EmailContent {
   const subject = `Nu släppt: ${productTitle} hos ${retailerName}`;
-  const priceLine = price
-    ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>`
-    : "";
   const reason = setWatchReason(reasonSetName);
-  const html = layout(
-    "Förhandsbokningen är släppt! 🎉",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En produkt du bevakar har gått från förhandsbokning till riktigt lager — den skickas nu:</p>
-     <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
-     ${priceLine}
-     <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
-     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Releasedagar tar slut snabbast av alla. Skynda dig!</p>
-     ${button(url, "Köp nu")}
-     ${reason.html}`
-  );
+  const html = stockAlertHtml({
+    eyebrow: "Nu släppt",
+    title: productTitle,
+    retailerName,
+    url,
+    price,
+    lead: `Hej ${esc(name)}! En produkt du bevakar har gått från förhandsbokning till riktigt lager och skickas nu. Releasedagar tar slut snabbast av alla.`,
+    ctaLabel: `Köp hos ${retailerName}`,
+    reasonHtml: reason.html,
+    media,
+  });
   const text = `Hej ${name}!\n\nNu släppt: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nProdukten har gått från förhandsbokning till riktigt lager och skickas nu.\n\nKöp nu: ${url}\n\nReleasedagar tar slut snabbast av alla!${reason.text}${textFooter}`;
   return { subject, html, text };
 }
@@ -316,23 +546,22 @@ export function newListingEmail(
   retailerName: string,
   url: string,
   price?: number,
-  reasonSetName?: string | null
+  reasonSetName?: string | null,
+  media?: AlertMedia
 ): EmailContent {
   const subject = `Ny produkt i lager: ${productTitle} hos ${retailerName}`;
-  const priceLine = price
-    ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>`
-    : "";
   const reason = setWatchReason(reasonSetName);
-  const html = layout(
-    "Ny produkt i lager! 🎉",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En ny produkt har precis dykt upp i lager:</p>
-     <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
-     ${priceLine}
-     <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
-     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Nya produkter säljer ofta slut snabbt. Skynda dig!</p>
-     ${button(url, "Till produkten")}
-     ${reason.html}`
-  );
+  const html = stockAlertHtml({
+    eyebrow: "Ny i lager",
+    title: productTitle,
+    retailerName,
+    url,
+    price,
+    lead: `Hej ${esc(name)}! En ny produkt har precis dykt upp i lager. Nya produkter säljer ofta slut snabbt.`,
+    ctaLabel: "Till produkten",
+    reasonHtml: reason.html,
+    media,
+  });
   const text = `Hej ${name}!\n\nNy produkt i lager: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nTill produkten: ${url}${reason.text}${textFooter}`;
   return { subject, html, text };
 }
@@ -343,23 +572,22 @@ export function preorderEmail(
   retailerName: string,
   url: string,
   price?: number,
-  reasonSetName?: string | null
+  reasonSetName?: string | null,
+  media?: AlertMedia
 ): EmailContent {
   const subject = `Förhandsboka nu: ${productTitle} hos ${retailerName}`;
-  const priceLine = price
-    ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>`
-    : "";
   const reason = setWatchReason(reasonSetName);
-  const html = layout(
-    "Öppen för förhandsbokning! 📦",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En produkt går nu att förhandsboka:</p>
-     <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
-     ${priceLine}
-     <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
-     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Förhandsbokningar tar ofta slut innan release. Säkra din nu.</p>
-     ${button(url, "Förhandsboka hos " + retailerName)}
-     ${reason.html}`
-  );
+  const html = stockAlertHtml({
+    eyebrow: "Förhandsboka nu",
+    title: productTitle,
+    retailerName,
+    url,
+    price,
+    lead: `Hej ${esc(name)}! En produkt går nu att förhandsboka. Förhandsbokningar tar ofta slut innan release.`,
+    ctaLabel: `Förhandsboka hos ${retailerName}`,
+    reasonHtml: reason.html,
+    media,
+  });
   const text = `Hej ${name}!\n\nÖppen för förhandsbokning: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nFörhandsboka: ${url}\n\nFörhandsbokningar tar ofta slut innan release!${reason.text}${textFooter}`;
   return { subject, html, text };
 }
@@ -415,49 +643,15 @@ Foilio · Sveriges marknadsplats för Pokémon TCG`;
 // ---------------------------------------------------------------------------
 
 /**
- * ⛔ **VECKOBREVET HAR EGEN LAYOUT — DELA ALDRIG `layout()` MED LARMEN.**
+ * ⛔ **VECKOBREVET HAR EGET SKAL — DELA ALDRIG `layout()` MED LARMEN.**
  *
  * Larmen är en enda mening ("den här varan är i lager") och mår bra av ett smalt,
  * textigt skal. Veckobrevet är ett REDAKTIONELLT brev som ska sälja appen: det
  * behöver bilder, avsnitt, progressbar och en egen åtgärd per avsnitt. Ett skal
  * som försöker göra båda blir dåligt på båda — och varje ändring här hade annars
  * riskerat att flytta sig in i restock-larmen, som är det mejl vi minst av allt
- * vill röra.
- *
- * ⛔ **E-POST-HTML ÄR INTE WEBB-HTML.** Tabeller, inline-stilar, absoluta URL:er,
- * max 600 px. Ingen flexbox, inget `<style>`-block, inga externa resurser, inga
- * `%`-breddade `<div>`-ar (progressbaren är en tabellcell just därför).
- *
- * ⛔ **VARJE CELL SÄTTER SIN EGEN BAKGRUNDS- OCH TEXTFÄRG.** Gmail och Outlook
- * tvingar ofta ljust läge och ärver inte färg nedåt — en cell som litar på arv
- * blir svart text på svart yta hos någon.
+ * vill röra. Palett, sidhuvud och foliekant delas (överst i filen) — inte skalet.
  */
-
-/** Brevets palett. SVART yta, turkos signatur — aldrig blått. */
-const D_PAGE = "#000000";
-const D_CARD = "#0b0d12";
-const D_PANEL = "#12171f";
-const D_LINE = "#1f2430";
-const D_TEXT = "#e5e7eb";
-const D_MUTED = "#9ca3af";
-const D_WHITE = "#ffffff";
-const D_ACCENT = "#2dd4bf";
-const D_UP = "#34d399";
-const D_DOWN = "#f87171";
-const D_FONT = "'Segoe UI',Arial,sans-serif";
-
-/**
- * HTML-escape för allt som kommer ur databasen. Produkttitlar är SKRAPADE ur
- * butiksfeedar — ett `&` eller ett `<` i en titel får aldrig kunna stänga en
- * attributsträng i ett massutskick.
- */
-function esc(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 /** Ett kort i samlingen som rört sig mest på sju dagar. */
 export interface DigestMover {
@@ -639,14 +833,14 @@ function digestBlockHtml(block: DigestBlock, lead: boolean): string {
     : "";
   const action = block.action
     ? `<p style="margin:16px 0 0;font-family:${D_FONT};font-size:13px;line-height:1.4;">
-              <a href="${esc(block.action.url)}" style="color:${D_ACCENT};text-decoration:none;font-weight:700;">${esc(block.action.label)} &rarr;</a>
+              <a href="${esc(block.action.url)}" style="color:${D_ACCENT};text-decoration:none;font-weight:700;">${esc(block.action.label)}</a>
             </p>`
     : "";
 
   if (lead) {
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;margin:0 0 4px;">
         <tr>
-          <td bgcolor="${D_PANEL}" style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-left:3px solid ${D_ACCENT};border-radius:12px;padding:20px 18px;color:${D_TEXT};">
+          <td bgcolor="${D_PANEL}" style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-radius:12px;padding:20px 18px;color:${D_TEXT};">
             <p style="margin:0 0 14px;font-family:${D_FONT};font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${D_ACCENT};">${esc(block.title)}</p>
             ${block.inner}${note}${action}
           </td>
@@ -664,13 +858,12 @@ function digestBlockHtml(block: DigestBlock, lead: boolean): string {
 }
 
 /**
- * Brevets skal.
+ * Brevets skal: samma sidhuvud och foliekant som larmen (riktning "Svart holo").
  *
- * ⛔ **INGEN LOGOTYPBILD.** `public/brand/foilio-logo.png` finns (41 kB sedan 2026-09-23, var 800 kB),
- * blockeras av Outlook som standard och blev en trasig ruta i det skarpa utskicket
- * 2026-08-16 (tom bas-URL). En ordbild i text kan inte gå sönder, väger noll och
- * renderas likadant i varje klient. Bilderna i brevet ska vara KORT — det är de
- * som gör mejlet till Foilio.
+ * ⛔ **NAMNET STÅR SOM TEXT.** Logotypen blev en trasig ruta i det skarpa utskicket
+ * 2026-08-16 (tom bas-URL). Märket är nu en bild MED "Foilio" som text bredvid
+ * (`brandHeader`), och bilden pekar på APP_URL-konstanten, aldrig `data.appUrl` —
+ * blockeras den (Outlook) står namnet kvar.
  */
 function digestLayout(preheader: string, headline: string, bodyHtml: string, footerHtml: string): string {
   return `<!DOCTYPE html>
@@ -687,16 +880,18 @@ function digestLayout(preheader: string, headline: string, bodyHtml: string, foo
     <tr>
       <td align="center" style="padding:24px 12px;background-color:${D_PAGE};">
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;border-collapse:collapse;">
+          <tr><td align="left" style="padding:0 2px 18px;background-color:${D_PAGE};">${brandHeader("Veckobrevet")}</td></tr>
           <tr>
-            <td align="left" style="padding:0 4px 18px;font-family:${D_FONT};">
-              <span style="font-size:20px;font-weight:800;letter-spacing:5px;color:${D_ACCENT};text-transform:uppercase;">Foilio</span>
-              <span style="font-size:12px;font-weight:600;letter-spacing:1px;color:${D_MUTED};text-transform:uppercase;">&nbsp;&middot;&nbsp;Veckobrevet</span>
-            </td>
-          </tr>
-          <tr>
-            <td bgcolor="${D_CARD}" style="background-color:${D_CARD};border:1px solid ${D_LINE};border-radius:16px;padding:26px 20px;color:${D_TEXT};font-family:${D_FONT};">
-              <h1 style="margin:0 0 18px;font-family:${D_FONT};font-size:22px;line-height:1.3;font-weight:800;color:${D_WHITE};">${headline}</h1>
-              ${bodyHtml}
+            <td bgcolor="${D_CARD}" style="background-color:${D_CARD};border:1px solid ${D_LINE};border-radius:16px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
+                ${holoStrip()}
+                <tr>
+                  <td style="padding:24px 20px 26px;color:${D_TEXT};font-family:${D_FONT};background-color:${D_CARD};">
+                    <h1 style="margin:0 0 18px;font-family:${D_FONT};font-size:22px;line-height:1.3;font-weight:800;color:${D_WHITE};">${headline}</h1>
+                    ${bodyHtml}
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <tr>
@@ -1168,7 +1363,7 @@ export function restockPausedEmail(name: string): EmailContent {
     "Restock-larmen är pausade",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Restock-larm via mejl och push är pausade tills vidare.</p>
      <p style="line-height:1.6;color:#cbd5e1;">Din bevakningslista ligger kvar. Vi säger till när de är igång igen.</p>
-     <div style="background-color:#111827;border:1px solid #2a2e38;border-radius:10px;padding:20px;margin:24px 0;">
+     <div style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-radius:10px;padding:20px;margin:24px 0;">
        <p style="margin:0;line-height:1.6;color:#cbd5e1;">Vill du ha restock-larm under tiden? De går ut i vår <strong style="color:#2dd4bf;">Discord</strong> — snabbare, och gratis.</p>
      </div>
      ${button(DISCORD_URL, "Gå med i Discord")}
@@ -1200,7 +1395,7 @@ export function appleRelayLinkedEmail(name: string, originalEmail: string): Emai
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}!</p>
      <p style="line-height:1.6;color:#cbd5e1;">Vi såg att du loggade in med Apple den 1 september. Eftersom <strong style="color:#ffffff;">Dölj min e-post</strong> var valt fick vi en anonym adress från Apple i stället för din vanliga, och då kunde vi inte se att det var du. Därför skapades ett nytt, tomt konto i stället för att du hamnade i ditt eget.</p>
      <p style="line-height:1.6;color:#cbd5e1;">Det är fixat nu. Din Apple-inloggning är kopplad till ditt ursprungliga konto (<strong style="color:#ffffff;">${originalEmail}</strong>) och det tomma dubbelkontot är borttaget. Din samling, dina skanningar och dina utmärkelser finns kvar precis som förut.</p>
-     <div style="background-color:#111827;border:1px solid #2a2e38;border-radius:10px;padding:20px;margin:24px 0;">
+     <div style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-radius:10px;padding:20px;margin:24px 0;">
        <p style="margin:0;line-height:1.6;color:#cbd5e1;">Nästa gång du öppnar appen kan du logga in <strong style="color:#2dd4bf;">med Apple</strong> eller <strong style="color:#2dd4bf;">med e-post och lösenord</strong> som tidigare. Båda leder till samma konto, och du behöver inte ändra något i dina Apple-inställningar.</p>
      </div>
      ${button(`${APP_URL}/logga-in`, "Öppna Foilio")}
@@ -1234,7 +1429,7 @@ export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string 
   const { name, unsubscribeUrl } = input;
   const subject = "Nytt i Foilio: japanska singlar, Google-/Apple-inloggning och skanning utan konto";
   const item = (title: string, body: string) =>
-    `<div style="padding:14px 0;border-top:1px solid #2a2e38;">
+    `<div style="padding:14px 0;border-top:1px solid ${D_LINE};">
        <p style="margin:0 0 4px;font-weight:700;color:#ffffff;">${title}</p>
        <p style="margin:0;line-height:1.6;color:#cbd5e1;">${body}</p>
      </div>`;
@@ -1255,7 +1450,7 @@ export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string 
          "Den som laddar ner appen kan prova kortskannern 10 gånger utan att skapa konto. Tipsa gärna en kompis."
        )}
      </div>
-     <div style="background-color:#111827;border:1px solid #2a2e38;border-radius:10px;padding:20px;margin:24px 0 8px;">
+     <div style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-radius:10px;padding:20px;margin:24px 0 8px;">
        <p style="margin:0;line-height:1.6;color:#cbd5e1;"><strong style="color:#2dd4bf;">Har du appen?</strong> Inloggningen och gästskanningen kräver version 1.1. Har du inte automatiska uppdateringar på behöver du uppdatera själv i App Store.</p>
      </div>
      ${button(APP_STORE_URL, "Uppdatera appen")}
@@ -1323,7 +1518,7 @@ export function giveawayEmail(input: { name: string; unsubscribeUrl: string }): 
     "Tack – 100 nya medlemmar den här veckan 🎉",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Den här veckan fick Foilio <strong style="color:#ffffff;">100 nya medlemmar</strong>. Det gick fortare än vi vågade hoppas på, och det är din förtjänst.</p>
      <p style="line-height:1.6;color:#cbd5e1;">Så vi firar på enda rimliga sättet.</p>
-     <div style="background-color:#111827;border:1px solid #2dd4bf;border-radius:10px;padding:22px;margin:24px 0;">
+     <div style="background-color:${D_PANEL};border:1px solid ${D_ACCENT};border-radius:10px;padding:22px;margin:24px 0;">
        <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#2dd4bf;">🎁 Just nu kör vi en giveaway i vår Discord</p>
        <p style="margin:0;line-height:1.6;color:#cbd5e1;">Vi drar en vinnare bland serverns medlemmar <strong style="color:#ffffff;">${drawDate}</strong>. Ingen anmälan, inget köp, inga formulär – är du medlem när vi drar är du med.</p>
      </div>

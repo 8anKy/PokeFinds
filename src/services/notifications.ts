@@ -45,9 +45,11 @@ async function buildAlertEmail(alert: {
   if (alert.storeListingId) {
     const listing = await prisma.storeListing.findUnique({
       where: { id: alert.storeListingId },
-      include: { retailer: { select: { name: true } } },
+      include: { retailer: { select: { name: true, logoUrl: true } } },
     });
     if (listing) {
+      // Ingen Foilio-produktsida finns för en feed-först-annons ⇒ ingen "Jämför"-länk.
+      const media = { imageUrl: listing.imageUrl, storeLogoUrl: listing.retailer.logoUrl };
       const args = [
         alert.user.name,
         listing.title,
@@ -58,15 +60,15 @@ async function buildAlertEmail(alert: {
       // lagras som NEW_LISTING). Köpbar nu, levereras vid release → egen copy.
       const price = listing.price ?? undefined;
       if (listing.stockStatus === "PREORDER") {
-        return preorderEmail(...args, price, alert.reasonSetName);
+        return preorderEmail(...args, price, alert.reasonSetName, media);
       }
       // Släpp: annonsen STOD på förhandsbokning när larmet skapades och är nu i lager.
       if (alert.fromStatus === StockStatus.PREORDER) {
-        return releasedEmail(...args, price, alert.reasonSetName);
+        return releasedEmail(...args, price, alert.reasonSetName, media);
       }
       return alert.type === AlertType.NEW_LISTING
-        ? newListingEmail(...args, price, alert.reasonSetName)
-        : restockAlertEmail(...args, price, alert.reasonSetName);
+        ? newListingEmail(...args, price, alert.reasonSetName, media)
+        : restockAlertEmail(...args, price, alert.reasonSetName, media);
     }
   }
   if (alert.productId) {
@@ -104,6 +106,9 @@ async function buildAlertEmail(alert: {
         return priceAlertEmail(alert.user.name, product.title, price, offer?.url ?? productUrl, {
           kind: alert.type === AlertType.PRICE_TARGET ? "target" : "drop",
           storeName: offer?.retailer.name ?? null,
+          imageUrl: product.imageUrl,
+          storeLogoUrl: offer?.retailer.logoUrl ?? null,
+          foilioUrl: productUrl,
         });
       }
       const bestOffer = product.offers[0];
@@ -142,11 +147,12 @@ async function buildAlertEmail(alert: {
           retailOffer?.url ?? productUrl,
           retailOffer?.price ?? undefined,
         ] as const;
+        const media = { imageUrl: product.imageUrl, storeLogoUrl: retailOffer?.retailer.logoUrl ?? null, foilioUrl: productUrl };
         if (alert.toStatus === StockStatus.PREORDER)
-          return preorderEmail(...args, alert.reasonSetName);
+          return preorderEmail(...args, alert.reasonSetName, media);
         if (alert.fromStatus === StockStatus.PREORDER)
-          return releasedEmail(...args, alert.reasonSetName);
-        return restockAlertEmail(...args, alert.reasonSetName);
+          return releasedEmail(...args, alert.reasonSetName, media);
+        return restockAlertEmail(...args, alert.reasonSetName, media);
       }
       if (alert.type === AlertType.NEW_LISTING) {
         // Ny produkt i lager = butiks-händelse. Mejlet länkar DIREKT till butikens
@@ -171,9 +177,10 @@ async function buildAlertEmail(alert: {
           null;
         const storeName = listingOffer?.retailer.name ?? "en butik";
         const args = [alert.user.name, product.title, storeName, listingOffer?.url ?? productUrl, listingOffer?.price ?? undefined] as const;
+        const media = { imageUrl: product.imageUrl, storeLogoUrl: listingOffer?.retailer.logoUrl ?? null, foilioUrl: productUrl };
         return listingOffer?.stockStatus === StockStatus.PREORDER
-          ? preorderEmail(...args, alert.reasonSetName)
-          : newListingEmail(...args, alert.reasonSetName);
+          ? preorderEmail(...args, alert.reasonSetName, media)
+          : newListingEmail(...args, alert.reasonSetName, media);
       }
     }
   }

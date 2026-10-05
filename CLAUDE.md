@@ -29,6 +29,11 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   Speltrollet, Fantasia North, Manatörsk, Spelexperten, Alphaspel, Lekia + filialer). Döda konton (Goblinen,
   Dragon's Lair) och kedjor som aldrig postar Pokémon (Webhallen, MaxGaming, SF-Bok) är utelämnade med flit. Ny butik
   seedas tyst. Utdrag + länk ut, aldrig hela inlägget. Token dör om ägarens FB-lösen byts ⇒ röd körning (kod 190).
+- **MEJLEN = "SVART HOLO" (ägarbeslut 2026-10-06)**: alla mallar i `src/emails/templates.ts` delar palett, sidhuvud
+  (märket som bild + "Foilio" som TEXT, så en blockerad bild aldrig blir en trasig ruta) och en foliekant överst i kortet.
+  Produktlarmen visar produktbild + butikslogga (`AlertMedia`, skickas in av `services/notifications.ts`; relativa
+  URL:er görs absoluta mot APP_URL-konstanten), knapp till BUTIKEN och "Jämför alla butiker i Foilio" till vår sida.
+  ⛔ Inga pilar ("→") i mejl (ägarbeslut, vaktat i `email-templates.test.ts`). Veckobrevet har kvar sitt EGET skal.
 - **LIVE** på https://foilio.se — **Railway** (`divine-reflection/PokeFinds`) + Neon serverless Postgres
   (Frankfurt). Deploy = `git push origin main` (Dockerfile, node:22-slim). Ingen Vercel. Railway blockar
   SMTP-portar → mejl via Resend HTTP API (`src/lib/mailer.ts`).

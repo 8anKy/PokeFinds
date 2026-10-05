@@ -86,7 +86,9 @@ describe("releasedEmail (förhandsbokning → riktigt lager)", () => {
     expect(email.subject).not.toContain("igen");
     expect(email.text).not.toContain("igen");
     expect(email.html).toContain(`href="${storeUrl}"`);
-    expect(email.html).toMatch(/549,00\s?kr/u);
+    // Rubrikpriset utan ören när de är noll ("549 kr"); textversionen har kvar ",00".
+    expect(email.html).toMatch(/549\s?kr/u);
+    expect(email.text).toMatch(/549,00\s?kr/u);
   });
 
   it("fungerar utan pris", () => {
@@ -106,7 +108,7 @@ describe("newListingEmail", () => {
     expect(email.html).toContain(`href="${storeUrl}"`);
     expect(email.html).toContain("Webhallen");
     expect(email.text).toContain(storeUrl);
-    expect(email.html).toMatch(/249,00\s?kr/u);
+    expect(email.html).toMatch(/249\s?kr/u);
   });
 
   it("fungerar utan pris (feeden saknade pris)", () => {
@@ -125,5 +127,50 @@ describe("passwordResetEmail", () => {
     expect(email.html).toContain(url);
     expect(email.text).toContain(url);
     expect(email.text).toContain("1 timme");
+  });
+});
+
+describe("utseendet (riktning Svart holo, 2026-10-06)", () => {
+  const media = {
+    imageUrl: "/api/cm-image/895551",
+    storeLogoUrl: "/retailer-logos/dragon-s-lair.png",
+    foilioUrl: "https://foilio.se/produkter/30th-celebration-elite-trainer-box",
+  };
+
+  it("relativa bild-URL:er ur databasen blir absoluta — en mejlklient har ingen bas-URL", () => {
+    const email = restockAlertEmail("Milos", "30th Celebration ETB", "Dragon's Lair", "https://dragonslair.se/p", 94900, null, media);
+    expect(email.html).toContain('src="https://foilio.se/api/cm-image/895551"');
+    expect(email.html).toContain('src="https://foilio.se/retailer-logos/dragon-s-lair.png"');
+    expect(email.html).not.toMatch(/src="\//);
+  });
+
+  it("knappen går till butiken, 'Jämför'-länken till vår produktsida", () => {
+    const email = restockAlertEmail("Milos", "30th Celebration ETB", "Dragon's Lair", "https://dragonslair.se/p", 94900, null, media);
+    expect(email.html).toContain('href="https://dragonslair.se/p"');
+    expect(email.html).toContain(`href="${media.foilioUrl}"`);
+    expect(email.html).toContain("Jämför alla butiker i Foilio");
+  });
+
+  it("utan katalogprodukt (feed-först-larm) finns ingen 'Jämför'-rad och ingen tom bildruta", () => {
+    const email = newListingEmail("Milos", "Okänd låda", "Webhallen", "https://webhallen.com/p", 24900);
+    expect(email.html).not.toContain("Jämför alla butiker");
+    expect(email.html).not.toContain("cm-image");
+  });
+
+  it("inga pilar i någon mall (ägarbeslut)", () => {
+    const all = [
+      welcomeEmail("Anna"),
+      restockAlertEmail("Anna", "Box", "Butik", "https://example.test/p", 100, null, media),
+      priceAlertEmail("Anna", "Box", 100, "https://example.test/p", { kind: "target", ...media }),
+      verifyEmail("Anna", "https://example.test/v"),
+      passwordResetEmail("Anna", "https://example.test/r"),
+    ];
+    for (const e of all) expect(e.html).not.toMatch(/→|&rarr;/);
+  });
+
+  it("ett skrapat '<' i titeln kan aldrig bryta HTML:en", () => {
+    const email = restockAlertEmail("Anna", 'Box <script>"x"', "Butik", "https://example.test/p");
+    expect(email.html).not.toContain("<script>");
+    expect(email.html).toContain("Box &lt;script&gt;");
   });
 });
