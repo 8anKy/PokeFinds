@@ -137,6 +137,13 @@ jobs:
         continue-on-error: true
         run: npx tsx scripts/merge-store-stubs-into-cm.ts --apply
 
+      # Sealed utan bild eller med butiksfoto (vit platta) → CM:s friställda render, bara när
+      # CDN:en bekräftar att den finns. Konvergerar: en bytt produkt probas aldrig igen.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Sealed-bilder ikapp Cardmarket
+        continue-on-error: true
+        run: npx tsx scripts/heal-sealed-images.ts --apply
+
       # ── FRYS SAMLINGSVÄRDET (ägarbeslut 2026-10-05) ──────────────────────────
       # Portföljen ska röra sig EN gång per dygn, EFTER Cardmarket-priserna — inte när
       # hot-card-refresh/JP/butikssvep skriver. Implicit success(): blev prissteget rött
