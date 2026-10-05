@@ -4,6 +4,7 @@ import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -43,6 +44,8 @@ async function getSet(id: string) {
     where: { id },
     include: {
       products: {
+        // Dolda produkter (hiddenAt) syns ingen annanstans i katalogen — inte här heller.
+        where: NOT_HIDDEN,
         select: {
           id: true,
           slug: true,

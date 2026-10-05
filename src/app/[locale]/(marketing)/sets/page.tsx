@@ -3,6 +3,7 @@ import { alternatesFor } from "@/lib/canonical";
 import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { prisma } from "@/lib/db";
+import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { formatDate } from "@/lib/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconCards, IconChevronRight } from "@/components/ui/icons";
@@ -35,7 +36,12 @@ export default async function SetsPage({
     // Engelska set + de japanska set som faktiskt HAR kortrader (JP-singlar sedan
     // 2026-08-29). Rena sealed-set på JP hade ritats som tomma brickor med
     // "0 kort" — de finns fortfarande i katalogfiltret (flik "Japanska").
-    where: { OR: [{ language: "EN" }, { language: "JP", cards: { some: {} } }] },
+    // + minst en SYNLIG produkt (2026-10-05): ett set vars produkter alla är dolda
+    // (Mega Evolution Energy, ägarbeslut) ritades annars som en tom bricka.
+    where: {
+      OR: [{ language: "EN" }, { language: "JP", cards: { some: {} } }],
+      products: { some: NOT_HIDDEN },
+    },
     include: { _count: { select: { cards: true, products: true } } },
     // nulls: "last" — annars lägger Postgres datumlösa set FÖRST vid DESC, alltså
     // som om de vore nyast (samma regel som filtrets set-lista).
