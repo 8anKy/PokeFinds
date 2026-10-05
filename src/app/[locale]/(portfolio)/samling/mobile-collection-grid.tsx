@@ -865,7 +865,7 @@ export function MobileCollectionGrid({
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
-                  <SellButton item={toSellItem(sellLot, stacked && sellLots ? sellLots : undefined)} className="w-full" />
+                  <SellButton item={toSellItem(sellLot, sellLots ?? [r])} className="w-full" />
                 </span>
               )}
 

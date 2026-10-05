@@ -174,10 +174,42 @@ export async function POST(req: Request) {
     // aldrig detta fälla svaret. ⛔ Inköpspriset sätts INTE här längre — det är
     // portföljens fält och frågades i säljformuläret bara för att det råkade
     // ligga nära; den som säljer vill ange ett SÄLJpris (ägarbeslut 2026-09-07).
+    // ⛔ EN ANNONS = ETT EXEMPLAR (2026-10-05). Ett köp med flera exemplar delas: det
+    // annonserade exemplaret blir en EGEN post med annonsens nummer, resten står kvar.
+    // Förut skrevs numret på hela köpet — annonserade man exemplar två av samma köp
+    // skrev den andra annonsen över den första, och sålt-synken missade en försäljning.
     if (itemId) {
-      await prisma.collectionItem
-        .update({ where: { id: item.id }, data: { traderaItemId: itemId } })
-        .catch((e) => console.error("[tradera-sell] kunde inte spara annons-metadata:", e));
+      const write =
+        item.quantity > 1
+          ? prisma.$transaction([
+              prisma.collectionItem.update({
+                where: { id: item.id },
+                data: { quantity: { decrement: 1 } },
+              }),
+              prisma.collectionItem.create({
+                data: {
+                  userId: item.userId,
+                  cardId: item.cardId,
+                  productId: item.productId,
+                  quantity: 1,
+                  condition: item.condition,
+                  language: item.language,
+                  purchasePrice: item.purchasePrice,
+                  purchaseDate: item.purchaseDate,
+                  estimatedValue: item.estimatedValue,
+                  gradingCompany: item.gradingCompany,
+                  grade: item.grade,
+                  notes: item.notes,
+                  imageUrl: item.imageUrl,
+                  customTitle: item.customTitle,
+                  importId: item.importId,
+                  portfolioId: item.portfolioId,
+                  traderaItemId: itemId,
+                },
+              }),
+            ])
+          : prisma.collectionItem.update({ where: { id: item.id }, data: { traderaItemId: itemId } });
+      await write.catch((e) => console.error("[tradera-sell] kunde inte spara annons-metadata:", e));
     }
 
     return jsonOk({ url });

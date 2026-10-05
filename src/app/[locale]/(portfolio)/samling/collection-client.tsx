@@ -66,6 +66,8 @@ export interface CollectionRow {
   purchaseDate: string | null; // ISO
   /** När posten lades in (createdAt, ISO) — datumet när inköpsdatum saknas. */
   addedAt?: string | null;
+  /** Posten har en aktiv Tradera-annons (traderaItemId). */
+  traderaListed?: boolean;
   estimatedValue: number | null; // öre
   gradingCompany: string | null;
   grade: string | null;

@@ -6,7 +6,7 @@ import type { CollectionRow } from "./collection-client";
  * `CollectionRow` (skannern har en helt annan datakälla), så översättningen
  * bor här, hos den som faktiskt har raden.
  */
-export function toSellItem(row: CollectionRow, stack?: readonly CollectionRow[]): SellItem {
+export function toSellItem(row: CollectionRow, stack: readonly CollectionRow[] = [row]): SellItem {
   return {
     key: row.id,
     collectionItemId: row.id,
@@ -21,18 +21,19 @@ export function toSellItem(row: CollectionRow, stack?: readonly CollectionRow[])
     gradingCompany: row.gradingCompany,
     grade: row.grade,
     slug: row.slug,
-    // Flera köp av samma vara: arket låter användaren välja VILKET köp som säljs
-    // (pris + datum per köp). Ett ensamt köp har inget att välja.
-    ...(stack && stack.length > 1
-      ? {
-          lots: stack.map((l) => ({
-            collectionItemId: l.id,
-            quantity: l.quantity,
-            purchasePrice: l.purchasePrice,
-            purchaseDate: l.purchaseDate,
-            addedAt: l.addedAt ?? null,
-          })),
-        }
-      : {}),
+    // Ett exemplar per rad (ett köp med antal 2 = två rader): en annons är alltid
+    // ETT exemplar, och arket låter användaren välja vilket.
+    copies: stack.flatMap((l) =>
+      Array.from({ length: l.quantity }, (_, n) => ({
+        key: `${l.id}:${n}`,
+        collectionItemId: l.id,
+        purchasePrice: l.purchasePrice,
+        purchaseDate: l.purchaseDate,
+        addedAt: l.addedAt ?? null,
+        // Ett utlagt köp bär annonsens nummer; sedan 2026-10-05 delas utlagda
+        // exemplar ut till en egen post, så det är just det exemplaret.
+        listed: l.traderaListed === true,
+      }))
+    ),
   };
 }

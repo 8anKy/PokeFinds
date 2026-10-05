@@ -32,6 +32,7 @@ import { IconCheck, IconPackage } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { hapticTick } from "@/lib/haptics";
 import { useCommunityV2 } from "@/lib/use-community-v2";
 import {
   AUCTION_DURATIONS,
@@ -56,6 +57,9 @@ import {
 } from "@/lib/tradera-listing-options";
 import { optionsForPackage } from "@/lib/tradera-shipping";
 import { CONDITION_LABELS, LANGUAGE_LABELS } from "@/lib/collection-labels";
+
+/** Samma tröskel som portföljens rutnät — den som lärt sig ena långtrycket kan det andra. */
+const COPY_LONG_PRESS_MS = 450;
 
 /**
  * Ett objekt att sälja. ⛔ POSTEN I SAMLINGEN ÄR IDENTITETEN: Tradera-annonsen
@@ -100,21 +104,25 @@ export interface SellItem {
    */
   photo?: string | null;
   /**
-   * Samma vara köpt flera gånger (portföljens stapel): arket visar köpen med
-   * inköpspris + datum och säljer ur det VALDA (ägarbeslut 2026-10-05). Förvalt =
-   * `collectionItemId`. Utelämnat/ett köp = ingen väljare.
+   * Alla EXEMPLAR användaren äger av varan, ett per rad (ägaren 2026-10-05: "vad
+   * om jag bara vill sälja ett?"). En annons är alltid ETT exemplar; raden väljer
+   * vilket — dess köp ger annonsen och försäljningens köppris. Färre än två = ingen
+   * väljare.
    */
-  lots?: SellLot[];
+  copies?: SellCopy[];
 }
 
-export interface SellLot {
+export interface SellCopy {
+  /** Unik per exemplar (`<postId>:<n>`) — flera exemplar kan dela post. */
+  key: string;
   collectionItemId: string;
-  quantity: number;
   /** öre; null = okänt (aldrig 0 kr). */
   purchasePrice: number | null;
   purchaseDate: string | null;
   /** createdAt — visas när inköpsdatum saknas. */
   addedAt: string | null;
+  /** Redan utlagt på Tradera — kan inte annonseras igen. */
+  listed: boolean;
 }
 
 /** Det som är KORTETS eget i formuläret (allt annat gäller hela högen). */
@@ -313,13 +321,59 @@ export function SellSheet({
    */
   const drafts = useRef<Map<string, ItemDraft>>(new Map());
   const row = items[Math.min(index, Math.max(0, items.length - 1))] ?? null;
-  /** Valt köp ur stapeln (`row.lots`); null = förvalet `row.collectionItemId`. */
-  const [lotPick, setLotPick] = useState<string | null>(null);
-  const lots = row?.lots && row.lots.length > 1 ? row.lots : null;
-  const sellItemId =
-    lots && lotPick && lots.some((l) => l.collectionItemId === lotPick)
-      ? lotPick
-      : row?.collectionItemId;
+  /** Valt exemplar (`SellCopy.key`); null = första som inte redan är utlagt. */
+  const [copyPick, setCopyPick] = useState<string | null>(null);
+  const copies = row?.copies && row.copies.length > 1 ? row.copies : null;
+  const pickedCopy = copies
+    ? (copies.find((c) => c.key === copyPick && !c.listed) ?? copies.find((c) => !c.listed) ?? null)
+    : null;
+  const sellItemId = pickedCopy?.collectionItemId ?? row?.collectionItemId;
+  /**
+   * MARKERINGSLÄGE för exemplaren (ägaren 2026-10-05): håll in en rad ⇒ den markeras,
+   * sedan markerar varje tryck. "Skapa annons" lägger då upp EN annons per markerat
+   * exemplar med samma pris, frakt och bilder. Läget är HÄRLETT ur markeringarna —
+   * avmarkeras den sista är man tillbaka i vanligt val (samma regel som exemplararket).
+   */
+  const [multiPick, setMultiPick] = useState<Set<string>>(new Set());
+  const selecting = copies != null && multiPick.size > 0;
+  const copyPressTimer = useRef<number | null>(null);
+  const copyLongPressed = useRef(false);
+  const toggleMulti = (key: string) =>
+    setMultiPick((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  function startCopyPress(key: string) {
+    copyLongPressed.current = false;
+    copyPressTimer.current = window.setTimeout(() => {
+      copyLongPressed.current = true;
+      hapticTick();
+      // Första långtrycket tar med det redan valda exemplaret, så man inte
+      // tappar det man stod på.
+      setMultiPick((prev) => {
+        const next = new Set(prev);
+        if (next.size === 0 && pickedCopy && pickedCopy.key !== key) next.add(pickedCopy.key);
+        next.add(key);
+        return next;
+      });
+    }, COPY_LONG_PRESS_MS);
+  }
+  function cancelCopyPress() {
+    if (copyPressTimer.current != null) {
+      clearTimeout(copyPressTimer.current);
+      copyPressTimer.current = null;
+    }
+  }
+  function tapCopy(key: string) {
+    if (copyLongPressed.current) {
+      copyLongPressed.current = false;
+      return;
+    }
+    if (selecting) toggleMulti(key);
+    else setCopyPick(key);
+  }
 
   /** En LÖS singel eller en förseglad produkt — styr skick-valen och graderingen. */
   const isSingle = row?.isSingle ?? true;
@@ -367,6 +421,8 @@ export function SellSheet({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  /** Hur många annonser senaste "Skapa" lade upp (flera vid markerade exemplar). */
+  const [createdCount, setCreatedCount] = useState(1);
   /** Senast skapade forumtråden — dit `onDone` skickar den som är klar. */
   const [forumPostId, setForumPostId] = useState<string | null>(null);
   const [forumNote, setForumNote] = useState<string | null>(null);
@@ -496,7 +552,8 @@ export function SellSheet({
     setVatRate(DEFAULT_VAT_RATE);
     setAlsoForum(false);
     setForumPostId(null);
-    setLotPick(null);
+    setCopyPick(null);
+    setMultiPick(new Set());
     loadItem(items[0] ?? null);
     // ⛔ BARA `open` I BEROENDENA. `items` är typiskt en array-literal hos
     // anroparen och byter identitet vid varje rendering — med den i listan
@@ -720,11 +777,51 @@ export function SellSheet({
     try {
       // Posten skapas här när anroparen inte redan har en (skannern) — se
       // ensureCollectionItemId. Kastar den fångas felet av catch nedan.
-      const collectionItemId =
-        sellItemId ?? (row.ensureCollectionItemId ? await row.ensureCollectionItemId() : null);
-      if (!collectionItemId) throw new Error(t("genericFail"));
+      // Markerade exemplar ⇒ en annons per exemplar, i listans ordning. Sekventiellt:
+      // två annonser ur samma köp delar posten, och servern delar ut ett exemplar
+      // i taget (api/tradera/sell).
+      const targets = selecting
+        ? copies!.filter((c) => multiPick.has(c.key) && !c.listed).map((c) => c.collectionItemId)
+        : [sellItemId ?? (row.ensureCollectionItemId ? await row.ensureCollectionItemId() : null)];
+      if (targets.length === 0 || targets.some((id) => !id)) throw new Error(t("genericFail"));
 
-      const { url } = await apiFetch<{ url: string }>("/api/tradera/sell", {
+      const urls: string[] = [];
+      for (const collectionItemId of targets as string[]) {
+        try {
+          urls.push(await createListing(collectionItemId, priceKr));
+        } catch (e) {
+          // Redan upplagda annonser finns kvar på Tradera — säg hur långt det gick.
+          if (urls.length === 0) throw e;
+          setError(t("sellManyPartial", { done: urls.length, total: targets.length }));
+          break;
+        }
+      }
+      const url = urls[urls.length - 1];
+      setCreatedCount(urls.length);
+      setResultUrl(url);
+      setListed((prev) => new Set(prev).add(row.key));
+      toast({
+        title: urls.length > 1 ? t("sellCreatedManyToast", { count: urls.length }) : t("sellCreatedToast"),
+        variant: "success",
+      });
+
+      if (alsoForum) {
+        try {
+          setForumPostId(await crossPostToForum(urls[0]));
+          setForumNote(t("sellForumPosted"));
+        } catch (e) {
+          setForumNote(e instanceof Error ? e.message : t("sellForumFailed"));
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("genericFail"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createListing(collectionItemId: string, priceKr: number): Promise<string> {
+    const { url } = await apiFetch<{ url: string }>("/api/tradera/sell", {
         method: "POST",
         body: {
           collectionItemId,
@@ -742,23 +839,7 @@ export function SellSheet({
           imagesBase64: images,
         },
       });
-      setResultUrl(url);
-      setListed((prev) => new Set(prev).add(row.key));
-      toast({ title: t("sellCreatedToast"), variant: "success" });
-
-      if (alsoForum) {
-        try {
-          setForumPostId(await crossPostToForum(url));
-          setForumNote(t("sellForumPosted"));
-        } catch (e) {
-          setForumNote(e instanceof Error ? e.message : t("sellForumFailed"));
-        }
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("genericFail"));
-    } finally {
-      setSaving(false);
-    }
+    return url;
   }
 
   async function addFiles(files: File[]) {
@@ -835,7 +916,11 @@ export function SellSheet({
                 </span>
               </div>
               <BottomSheetCta onClick={() => void submit()} disabled={saving}>
-                {saving ? t("sellCreating") : t("sellCreate")}
+                {saving
+                  ? t("sellCreating")
+                  : selecting && multiPick.size > 1
+                    ? t("sellCreateMany", { count: multiPick.size })
+                    : t("sellCreate")}
               </BottomSheetCta>
             </>
           )
@@ -890,10 +975,16 @@ export function SellSheet({
         {resultUrl ? (
           <div className="space-y-3 pb-2">
             <p className="text-sm text-ink-muted">
-              {t.rich("sellResultText", {
-                name: row?.name ?? "",
-                b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
-              })}
+              {createdCount > 1
+                ? t.rich("sellResultMany", {
+                    count: createdCount,
+                    name: row?.name ?? "",
+                    b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
+                  })
+                : t.rich("sellResultText", {
+                    name: row?.name ?? "",
+                    b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
+                  })}
             </p>
             {forumNote && <p className="text-sm text-ink-muted">{forumNote}</p>}
           </div>
@@ -925,24 +1016,35 @@ export function SellSheet({
               </div>
             </div>
 
-            {/* VILKET KÖP — bara när varan ligger i flera köp i samlingen. Annonsen
-                (och försäljningens köppris) tas ur just det köpet. */}
-            {lots && (
+            {/* VILKET EXEMPLAR — ett per rad, så det syns att annonsen gäller ETT.
+                Annonsen (och försäljningens köppris) tas ur det valda exemplarets köp. */}
+            {copies && (
               <div>
-                <SectionLabel>{t("sellSectionLot")}</SectionLabel>
-                <div role="radiogroup" className="space-y-2">
-                  {lots.map((l) => {
-                    const on = l.collectionItemId === sellItemId;
-                    const date = l.purchaseDate ?? l.addedAt;
+                <SectionLabel>{t("sellSectionCopy", { count: copies.length })}</SectionLabel>
+                <p className="-mt-1 mb-2 text-xs text-ink-faint">
+                  {selecting ? t("sellCopySelecting", { count: multiPick.size }) : t("sellCopyHoldHint")}
+                </p>
+                <div role={selecting ? "group" : "radiogroup"} className="select-none space-y-2">
+                  {copies.map((c) => {
+                    const on = selecting ? multiPick.has(c.key) : c.key === pickedCopy?.key;
+                    const date = c.purchaseDate ?? c.addedAt;
                     return (
                       <button
-                        key={l.collectionItemId}
+                        key={c.key}
                         type="button"
-                        role="radio"
+                        role={selecting ? "checkbox" : "radio"}
                         aria-checked={on}
-                        onClick={() => setLotPick(l.collectionItemId)}
+                        disabled={c.listed}
+                        onClick={() => tapCopy(c.key)}
+                        onPointerDown={() => {
+                          if (!c.listed) startCopyPress(c.key);
+                        }}
+                        onPointerUp={cancelCopyPress}
+                        onPointerLeave={cancelCopyPress}
+                        onPointerCancel={cancelCopyPress}
+                        onContextMenu={(e) => e.preventDefault()}
                         className={cn(
-                          "flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition-colors",
+                          "flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition-colors disabled:opacity-50",
                           on
                             ? "border-holo-cyan bg-holo-cyan/10"
                             : "border-surface-border bg-surface hover:border-holo-cyan/40"
@@ -951,19 +1053,19 @@ export function SellSheet({
                         <span className="min-w-0">
                           {/* Saknat pris är "inget inköpspris", ALDRIG 0 kr. */}
                           <span className="block text-sm font-semibold tabular-nums text-ink">
-                            {l.purchasePrice != null ? formatPrice(l.purchasePrice) : t("sellLotNoPrice")}
+                            {c.purchasePrice != null ? formatPrice(c.purchasePrice) : t("sellLotNoPrice")}
                           </span>
                           {date && (
                             <span className="block text-xs text-ink-muted">
-                              {l.purchaseDate
+                              {c.purchaseDate
                                 ? t("sellLotBought", { date: formatDate(date, locale) })
                                 : t("sellLotAdded", { date: formatDate(date, locale) })}
                             </span>
                           )}
                         </span>
-                        <span className="shrink-0 text-xs text-ink-muted">
-                          {t("pieces", { count: l.quantity })}
-                        </span>
+                        {c.listed && (
+                          <span className="shrink-0 text-xs text-ink-muted">{t("sellCopyListed")}</span>
+                        )}
                       </button>
                     );
                   })}
