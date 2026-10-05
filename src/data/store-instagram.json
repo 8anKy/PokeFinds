@@ -4,155 +4,27 @@
     "handle": "alphaspel"
   },
   {
-    "store": "AuroraDex",
-    "handle": "auroradex"
-  },
-  {
-    "store": "Beam Cardshop",
-    "handle": "beamcardshop"
-  },
-  {
-    "store": "Card Club",
-    "handle": "cardclubse"
-  },
-  {
-    "store": "Card Haven",
-    "handle": "cardhaven.se"
-  },
-  {
-    "store": "CardGame",
-    "handle": "cardgame.se"
-  },
-  {
-    "store": "Cardlevels",
-    "handle": "cardlevels"
-  },
-  {
-    "store": "Coolcard",
-    "handle": "coolcard.se"
-  },
-  {
-    "store": "Dragon's Lair",
-    "handle": "dragonslair.se"
-  },
-  {
     "store": "Fantasia North",
     "handle": "fantasianorthsweden"
   },
   {
-    "store": "Firegames",
-    "handle": "firegames.se"
-  },
-  {
-    "store": "Hobbykort",
-    "handle": "hobbykort"
-  },
-  {
-    "store": "Kanto Vault",
-    "handle": "kantovault"
-  },
-  {
-    "store": "Kortarkivet",
-    "handle": "kortarkivet"
-  },
-  {
-    "store": "Leksaksaffären",
-    "handle": "leksaksaffaren_hallsberg"
+    "store": "Lekia",
+    "handle": "lekia.se"
   },
   {
     "store": "Manatörsk",
     "handle": "manatorsk"
   },
   {
-    "store": "MaxGaming",
-    "handle": "wearemaxgaming"
-  },
-  {
-    "store": "Miniature Metropolis",
-    "handle": "miniaturemetropolis"
-  },
-  {
-    "store": "Mystery Shack",
-    "handle": "mysteryshackse"
-  },
-  {
-    "store": "NordicTCG",
-    "handle": "nordictcg.se"
-  },
-  {
-    "store": "Pocketmonsters",
-    "handle": "pocketmonster.dk"
-  },
-  {
-    "store": "Pokétalk",
-    "handle": "poketalkse"
-  },
-  {
-    "store": "RGB Kingz",
-    "handle": "rgbkingz"
-  },
-  {
-    "store": "Samlarhobby",
-    "handle": "samlarhobby"
-  },
-  {
-    "store": "SF-Bok",
-    "handle": "sfbok"
-  },
-  {
-    "store": "Shinycards",
-    "handle": "shinycards.se"
-  },
-  {
-    "store": "Spel & Sånt",
-    "handle": "spelochsant"
-  },
-  {
-    "store": "Spelbutiken",
-    "handle": "spelbutikense"
-  },
-  {
     "store": "Spelexperten",
     "handle": "spelexperten"
-  },
-  {
-    "store": "Spelgalaxen",
-    "handle": "spelgalaxen.se"
   },
   {
     "store": "Speltrollet",
     "handle": "speltrollet"
   },
   {
-    "store": "Sweet Nerds",
-    "handle": "sweetnerds.se"
-  },
-  {
     "store": "Swepoke",
     "handle": "swepokee"
-  },
-  {
-    "store": "TCG Store",
-    "handle": "tcgstore.se"
-  },
-  {
-    "store": "The Swedish Fish",
-    "handle": "fishypokemon"
-  },
-  {
-    "store": "Tiny Misters",
-    "handle": "tinymisters"
-  },
-  {
-    "store": "Toyspace",
-    "handle": "toyspace_se"
-  },
-  {
-    "store": "Webhallen",
-    "handle": "webhallen"
-  },
-  {
-    "store": "World of Board Games",
-    "handle": "worldofboardgames"
   }
 ]

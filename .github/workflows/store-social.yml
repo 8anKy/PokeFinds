@@ -5,7 +5,7 @@ name: Butiksnyheter (Instagram → Discord)
 #
 # TAKT: startas av `kickoff`-jobbet i discord-restock.yml var ~20:e minut (GitHubs
 # `schedule:` är best effort och går timmar sent). Schemat nedan är bara RESERV.
-# ⛔ Metas tak är 200 anrop/timme: 39 butiker × 3 körningar ≈ 120 + reserven 39 = 159.
+# ⛔ Metas tak är 200 anrop/timme: konton × (3 körningar + reserven) måste ligga under det.
 #    Lägg inte till fler triggers utan att räkna om — scriptet slutar vid 90 % förbrukning,
 #    så ett överdrag ger sena inlägg, inte fel.
 # ⛔ Rör ALDRIG databasen (DATABASE_URL är avsiktligt död, samma som restock-lanen).

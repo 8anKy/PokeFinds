@@ -7,7 +7,7 @@
  *
  * KÄLLA: Metas Business Discovery (gratis, officiell) — vårt eget professionella IG-konto
  * läser andra butikskontons senaste inlägg. EN förfrågan per butik och körning.
- * ⛔ Taket är 200 anrop/timme: 39 butiker × 3 körningar/h ≈ 120. Läs `rateLimited()`
+ * ⛔ Taket är 200 anrop/timme: varje konto = ett anrop per körning; ~3 körningar/h. Läs `rateLimited()`
  *    innan takten höjs. 429-motsvarigheten (kod 4/17/32/613) = SLUTA, aldrig retry.
  * ⛔ Facebook och TikTok ingår INTE (ägarbeslut): Facebook-sidor kräver en appgranskning
  *    vi inte klarar, TikTok har inget officiellt läs-API. Stories syns inte i API:t.
