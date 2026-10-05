@@ -325,7 +325,7 @@ export function SellSheet({
   const [copyPick, setCopyPick] = useState<string | null>(null);
   const copies = row?.copies && row.copies.length > 1 ? row.copies : null;
   const pickedCopy = copies
-    ? (copies.find((c) => c.key === copyPick && !c.listed) ?? copies.find((c) => !c.listed) ?? null)
+    ? (copies.find((c) => c.key === copyPick) ?? copies.find((c) => !c.listed) ?? copies[0])
     : null;
   const sellItemId = pickedCopy?.collectionItemId ?? row?.collectionItemId;
   /**
@@ -377,9 +377,11 @@ export function SellSheet({
 
   /** En LÖS singel eller en förseglad produkt — styr skick-valen och graderingen. */
   const isSingle = row?.isSingle ?? true;
-  /** Marknadspriset i hela kronor — förslaget procentknapparna utgår från. */
+  /** Exemplar i annonsen: de markerade, annars ett. */
+  const bundleCount = selecting ? multiPick.size : 1;
+  /** Marknadspriset i hela kronor FÖR HELA ANNONSEN (styck × antal) — procentknapparnas bas. */
   const suggestedKr =
-    row?.estimatedValue != null ? Math.round(row.estimatedValue / 100) : null;
+    row?.estimatedValue != null ? Math.round((row.estimatedValue * bundleCount) / 100) : null;
 
   const [listingType, setListingType] = useState<ListingType>("BUY_NOW");
   const [price, setPrice] = useState("");
@@ -389,6 +391,24 @@ export function SellSheet({
   /** Basen procentknapparna räknar på: marknadspriset, eller talet användaren skrivit. */
   const [baseKr, setBaseKr] = useState<number | null>(null);
   const [step, setStep] = useState<number | null>(null);
+  /**
+   * PRISET FÖLJER ANTALET (ägaren 2026-10-05): väljer man 4 exemplar blir priset ×4,
+   * backar man till 2 blir det ×2. Skalas proportionellt — även ett handskrivet pris,
+   * så "1 200 kr styck" förblir styckpriset oavsett antal.
+   */
+  const prevBundleCount = useRef(1);
+  useEffect(() => {
+    const prev = prevBundleCount.current;
+    prevBundleCount.current = bundleCount;
+    if (prev === bundleCount || prev <= 0) return;
+    const scale = (v: string) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? String(Math.round((n / prev) * bundleCount)) : v;
+    };
+    setPrice(scale);
+    setStartPrice(scale);
+    setBaseKr((b) => (b != null && b > 0 ? Math.round((b / prev) * bundleCount) : b));
+  }, [bundleCount]);
   const [condition, setCondition] = useState(row?.condition ?? "NEAR_MINT");
   /** Gradering — Traderas EGNA termer (attribut 125/126), tomt = ograderat. */
   const [gradeCompany, setGradeCompany] = useState(row?.gradingCompany ?? "");
@@ -554,6 +574,8 @@ export function SellSheet({
     setForumPostId(null);
     setCopyPick(null);
     setMultiPick(new Set());
+    // Annars skalar pris-effekten det nyladdade styckpriset med förra markeringen.
+    prevBundleCount.current = 1;
     loadItem(items[0] ?? null);
     // ⛔ BARA `open` I BEROENDENA. `items` är typiskt en array-literal hos
     // anroparen och byter identitet vid varje rendering — med den i listan
@@ -777,37 +799,32 @@ export function SellSheet({
     try {
       // Posten skapas här när anroparen inte redan har en (skannern) — se
       // ensureCollectionItemId. Kastar den fångas felet av catch nedan.
-      // Markerade exemplar ⇒ en annons per exemplar, i listans ordning. Sekventiellt:
-      // två annonser ur samma köp delar posten, och servern delar ut ett exemplar
-      // i taget (api/tradera/sell).
-      const targets = selecting
-        ? copies!.filter((c) => multiPick.has(c.key) && !c.listed).map((c) => c.collectionItemId)
-        : [sellItemId ?? (row.ensureCollectionItemId ? await row.ensureCollectionItemId() : null)];
-      if (targets.length === 0 || targets.some((id) => !id)) throw new Error(t("genericFail"));
+      // Markerade exemplar ⇒ EN annons för alla (ägaren 2026-10-05: "en annons som
+      // säljer alla fyra"). Servern får posterna + antal per post och delar ut dem.
+      const chosen = selecting ? copies!.filter((c) => multiPick.has(c.key)) : [];
+      const collectionItemId =
+        chosen[0]?.collectionItemId ??
+        sellItemId ??
+        (row.ensureCollectionItemId ? await row.ensureCollectionItemId() : null);
+      if (!collectionItemId) throw new Error(t("genericFail"));
+      const perItem = new Map<string, number>();
+      for (const c of chosen) perItem.set(c.collectionItemId, (perItem.get(c.collectionItemId) ?? 0) + 1);
 
-      const urls: string[] = [];
-      for (const collectionItemId of targets as string[]) {
-        try {
-          urls.push(await createListing(collectionItemId, priceKr));
-        } catch (e) {
-          // Redan upplagda annonser finns kvar på Tradera — säg hur långt det gick.
-          if (urls.length === 0) throw e;
-          setError(t("sellManyPartial", { done: urls.length, total: targets.length }));
-          break;
-        }
-      }
-      const url = urls[urls.length - 1];
-      setCreatedCount(urls.length);
+      const url = await createListing(
+        collectionItemId,
+        priceKr,
+        chosen.length > 1
+          ? [...perItem].map(([id, quantity]) => ({ collectionItemId: id, quantity }))
+          : undefined
+      );
+      setCreatedCount(Math.max(1, chosen.length));
       setResultUrl(url);
       setListed((prev) => new Set(prev).add(row.key));
-      toast({
-        title: urls.length > 1 ? t("sellCreatedManyToast", { count: urls.length }) : t("sellCreatedToast"),
-        variant: "success",
-      });
+      toast({ title: t("sellCreatedToast"), variant: "success" });
 
       if (alsoForum) {
         try {
-          setForumPostId(await crossPostToForum(urls[0]));
+          setForumPostId(await crossPostToForum(url));
           setForumNote(t("sellForumPosted"));
         } catch (e) {
           setForumNote(e instanceof Error ? e.message : t("sellForumFailed"));
@@ -820,11 +837,16 @@ export function SellSheet({
     }
   }
 
-  async function createListing(collectionItemId: string, priceKr: number): Promise<string> {
+  async function createListing(
+    collectionItemId: string,
+    priceKr: number,
+    bundle?: { collectionItemId: string; quantity: number }[]
+  ): Promise<string> {
     const { url } = await apiFetch<{ url: string }>("/api/tradera/sell", {
         method: "POST",
         body: {
           collectionItemId,
+          ...(bundle ? { copies: bundle } : {}),
           listingType,
           ...(isAuction
             ? { startPriceKr: priceKr, durationDays: duration }
@@ -918,8 +940,8 @@ export function SellSheet({
               <BottomSheetCta onClick={() => void submit()} disabled={saving}>
                 {saving
                   ? t("sellCreating")
-                  : selecting && multiPick.size > 1
-                    ? t("sellCreateMany", { count: multiPick.size })
+                  : bundleCount > 1
+                    ? t("sellCreateMany", { count: bundleCount })
                     : t("sellCreate")}
               </BottomSheetCta>
             </>
@@ -1034,17 +1056,14 @@ export function SellSheet({
                         type="button"
                         role={selecting ? "checkbox" : "radio"}
                         aria-checked={on}
-                        disabled={c.listed}
                         onClick={() => tapCopy(c.key)}
-                        onPointerDown={() => {
-                          if (!c.listed) startCopyPress(c.key);
-                        }}
+                        onPointerDown={() => startCopyPress(c.key)}
                         onPointerUp={cancelCopyPress}
                         onPointerLeave={cancelCopyPress}
                         onPointerCancel={cancelCopyPress}
                         onContextMenu={(e) => e.preventDefault()}
                         className={cn(
-                          "flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition-colors disabled:opacity-50",
+                          "flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition-colors",
                           on
                             ? "border-holo-cyan bg-holo-cyan/10"
                             : "border-surface-border bg-surface hover:border-holo-cyan/40"
@@ -1186,7 +1205,13 @@ export function SellSheet({
                 </div>
                 <p className="mt-2 text-xs text-ink-muted">
                   {suggestedKr != null
-                    ? t("sellSuggested", { price: formatPrice(row!.estimatedValue!) })
+                    ? bundleCount > 1
+                      ? t("sellSuggestedMany", {
+                          price: formatPrice(row!.estimatedValue! * bundleCount),
+                          count: bundleCount,
+                          unit: formatPrice(row!.estimatedValue!),
+                        })
+                      : t("sellSuggested", { price: formatPrice(row!.estimatedValue!) })
                     : t("sellNoSuggested")}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">

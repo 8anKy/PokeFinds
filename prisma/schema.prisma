@@ -1229,6 +1229,9 @@ model CollectionItem {
   importId       String?
   // Traderas objektnr när objektet lagts ut till försäljning (för auto-borttagning vid sålt).
   traderaItemId  String?
+  // Hur många av postens exemplar annonsen gäller (2026-10-05, en annons kan sälja flera).
+  // NULL = äldre annons = ETT exemplar. Sålt-synken drar av just så många.
+  traderaQuantity Int?
   /// Vilken pärm posten ligger i. NULL = standardpärmen (se `Portfolio`).
   portfolioId    String?
   createdAt      DateTime      @default(now())

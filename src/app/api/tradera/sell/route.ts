@@ -32,7 +32,18 @@ export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 32 * 1024 * 1024;
 
 const schema = z.object({
+  /** Posten annonsen tas ur (ett exemplar), när `copies` saknas. */
   collectionItemId: z.string().min(1),
+  /**
+   * EN annons, FLERA exemplar (ägaren 2026-10-05): posterna och hur många exemplar ur
+   * var och en. Alla måste vara samma vara som `collectionItemId`. Utelämnat = ett
+   * exemplar ur `collectionItemId` (äldre klienter, skannern).
+   */
+  copies: z
+    .array(z.object({ collectionItemId: z.string().min(1), quantity: z.number().int().min(1).max(500) }))
+    .min(1)
+    .max(50)
+    .optional(),
   /** Köp nu-pris. För en auktion är det ett VALFRITT "köp direkt"-pris. */
   priceKr: z.number().int().positive().optional(),
   /** Auktionens utgångspris. Krävs när listingType = AUCTION. */
@@ -98,6 +109,30 @@ export async function POST(req: Request) {
     });
     if (!item) throw new ServiceError(404, "Objektet hittades inte i din samling.");
 
+    // Exemplaren annonsen gäller. Alla ur samma vara (kort/produkt + skick + språk +
+    // gradering) — en annons med "4 st" får aldrig blanda två olika saker.
+    const wanted = new Map<string, number>();
+    for (const c of input.copies ?? [{ collectionItemId: item.id, quantity: 1 }]) {
+      wanted.set(c.collectionItemId, (wanted.get(c.collectionItemId) ?? 0) + c.quantity);
+    }
+    const bundleRows = await prisma.collectionItem.findMany({
+      where: { id: { in: [...wanted.keys()] }, userId: user.id },
+    });
+    const sameThing = (r: (typeof bundleRows)[number]) =>
+      r.cardId === item.cardId &&
+      r.productId === item.productId &&
+      r.condition === item.condition &&
+      r.language === item.language &&
+      (r.gradingCompany ?? null) === (item.gradingCompany ?? null) &&
+      (r.grade ?? null) === (item.grade ?? null);
+    if (
+      bundleRows.length !== wanted.size ||
+      bundleRows.some((r) => !sameThing(r) || (wanted.get(r.id) ?? 0) > r.quantity)
+    ) {
+      throw new ServiceError(400, "Exemplaren hittades inte i din samling.");
+    }
+    const bundleCount = [...wanted.values()].reduce((a, b) => a + b, 0);
+
     const isSingle = !!item.cardId;
     const name = item.card?.name ?? item.product?.title ?? item.customTitle ?? item.notes ?? "Pokémon-kort";
     const setName = item.card?.set?.name ?? null;
@@ -116,17 +151,18 @@ export async function POST(req: Request) {
     const titleParts = [name, setName, number ? `#${number}` : null, grading]
       .filter(Boolean)
       .join(" · ");
-    const title = `${titleParts} · ${condLabel}`;
+    const title = `${bundleCount > 1 ? `${bundleCount} st · ` : ""}${titleParts} · ${condLabel}`;
 
     const autoDescription = [
       `${name}${setName ? `, ${setName}` : ""}${number ? ` (#${number})` : ""}`,
+      bundleCount > 1 ? `Antal: ${bundleCount} st (säljs tillsammans)` : null,
       grading ? `Gradering: ${grading}` : null,
       `Skick: ${condLabel}`,
       isSingle ? "Språk: " + (traderaLanguageTerm(language) ?? language) : null,
       "",
       // ⛔ Ingen "Säljes av privatperson" (ägarbeslut 2026-09-07): den var varken
       // sann för alla säljare eller något en köpare behöver läsa i varje annons.
-      "Bilden visar det exakta objektet.",
+      bundleCount > 1 ? "Bilderna visar de exakta objekten." : "Bilden visar det exakta objektet.",
     ]
       .filter((l) => l !== null)
       .join("\n");
@@ -174,42 +210,52 @@ export async function POST(req: Request) {
     // aldrig detta fälla svaret. ⛔ Inköpspriset sätts INTE här längre — det är
     // portföljens fält och frågades i säljformuläret bara för att det råkade
     // ligga nära; den som säljer vill ange ett SÄLJpris (ägarbeslut 2026-09-07).
-    // ⛔ EN ANNONS = ETT EXEMPLAR (2026-10-05). Ett köp med flera exemplar delas: det
-    // annonserade exemplaret blir en EGEN post med annonsens nummer, resten står kvar.
-    // Förut skrevs numret på hela köpet — annonserade man exemplar två av samma köp
-    // skrev den andra annonsen över den första, och sålt-synken missade en försäljning.
+    // ⛔ ANNONSENS EXEMPLAR FÅR EGNA POSTER (2026-10-05). Ur ett köp med fler exemplar
+    // än annonsen gäller delas just de ut till en egen post med annonsens nummer; resten
+    // står kvar. `traderaQuantity` säger hur många exemplar posten har i annonsen —
+    // sålt-synken drar av exakt så många. Förut skrevs numret på hela köpet, och annons
+    // två ur samma köp skrev över den förstas (sålt-synken missade då en försäljning).
     if (itemId) {
-      const write =
-        item.quantity > 1
-          ? prisma.$transaction([
-              prisma.collectionItem.update({
-                where: { id: item.id },
-                data: { quantity: { decrement: 1 } },
-              }),
+      await prisma
+        .$transaction(
+          bundleRows.flatMap((r) => {
+            const q = wanted.get(r.id)!;
+            if (q >= r.quantity) {
+              return [
+                prisma.collectionItem.update({
+                  where: { id: r.id },
+                  data: { traderaItemId: itemId, traderaQuantity: r.quantity },
+                }),
+              ];
+            }
+            return [
+              prisma.collectionItem.update({ where: { id: r.id }, data: { quantity: { decrement: q } } }),
               prisma.collectionItem.create({
                 data: {
-                  userId: item.userId,
-                  cardId: item.cardId,
-                  productId: item.productId,
-                  quantity: 1,
-                  condition: item.condition,
-                  language: item.language,
-                  purchasePrice: item.purchasePrice,
-                  purchaseDate: item.purchaseDate,
-                  estimatedValue: item.estimatedValue,
-                  gradingCompany: item.gradingCompany,
-                  grade: item.grade,
-                  notes: item.notes,
-                  imageUrl: item.imageUrl,
-                  customTitle: item.customTitle,
-                  importId: item.importId,
-                  portfolioId: item.portfolioId,
+                  userId: r.userId,
+                  cardId: r.cardId,
+                  productId: r.productId,
+                  quantity: q,
+                  condition: r.condition,
+                  language: r.language,
+                  purchasePrice: r.purchasePrice,
+                  purchaseDate: r.purchaseDate,
+                  estimatedValue: r.estimatedValue,
+                  gradingCompany: r.gradingCompany,
+                  grade: r.grade,
+                  notes: r.notes,
+                  imageUrl: r.imageUrl,
+                  customTitle: r.customTitle,
+                  importId: r.importId,
+                  portfolioId: r.portfolioId,
                   traderaItemId: itemId,
+                  traderaQuantity: q,
                 },
               }),
-            ])
-          : prisma.collectionItem.update({ where: { id: item.id }, data: { traderaItemId: itemId } });
-      await write.catch((e) => console.error("[tradera-sell] kunde inte spara annons-metadata:", e));
+            ];
+          })
+        )
+        .catch((e) => console.error("[tradera-sell] kunde inte spara annons-metadata:", e));
     }
 
     return jsonOk({ url });
