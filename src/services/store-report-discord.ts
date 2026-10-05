@@ -94,3 +94,25 @@ export async function syncStoreReportToDiscord(postId: string): Promise<void> {
     console.error("[store-report-discord] misslyckades:", err instanceof Error ? err.message : err);
   }
 }
+
+/**
+ * Röster redigerar Discord-inlägget först när det varit tyst ~10 s: en rad snabba
+ * tryck (eller ett ångrat) blir EN redigering med slutläget, och inlägget blinkar inte
+ * mellan "finns kvar" och "inte kvar". Rösten i appen sparas och syns direkt ändå.
+ * In-memory per process (Railway kör en); en omstart mitt i fönstret tappar bara
+ * redigeringen — nästa röst tar igen den.
+ */
+export const VOTE_SYNC_DELAY_MS = 10_000;
+const pendingSyncs = new Map<string, ReturnType<typeof setTimeout>>();
+
+export function scheduleStoreReportSync(postId: string, delayMs = VOTE_SYNC_DELAY_MS): void {
+  const existing = pendingSyncs.get(postId);
+  if (existing) clearTimeout(existing);
+  pendingSyncs.set(
+    postId,
+    setTimeout(() => {
+      pendingSyncs.delete(postId);
+      void syncStoreReportToDiscord(postId);
+    }, delayMs)
+  );
+}

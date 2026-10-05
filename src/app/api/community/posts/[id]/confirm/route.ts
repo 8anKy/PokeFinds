@@ -6,7 +6,7 @@ import { ServiceError } from "@/lib/errors";
 import { z } from "zod";
 import { voteStoreReport } from "@/services/community";
 import { STORE_REPORT_VOTES } from "@/lib/store-report-votes";
-import { syncStoreReportToDiscord } from "@/services/store-report-discord";
+import { scheduleStoreReportSync } from "@/services/store-report-discord";
 import { revalidateForum } from "../../../_shared/revalidate";
 
 export const dynamic = "force-dynamic";
@@ -21,13 +21,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     await assertCommunityV2(user.role);
     const { ok } = await rateLimit(`community-confirm:${user.id}`, 30, 10 * 60 * 1000);
     if (!ok) throw new ServiceError(429, "För många förfrågningar. Försök igen om en stund.");
+    // Per rapport: räcker för "fanns, slut, fylldes på" men inte för att vippa för nöjes skull.
+    // Räknaren ligger i minnet/Redis — ingen databasfråga.
+    const perReport = await rateLimit(`community-vote:${user.id}:${params.id}`, 4, 60 * 60 * 1000);
+    if (!perReport.ok) {
+      throw new ServiceError(429, "Du har redan uppdaterat den här rapporten flera gånger. Försök igen om en stund.");
+    }
     const { kind } = voteSchema.parse(await req.json().catch(() => ({})));
     const result = await voteStoreReport(params.id, user.id, kind);
     revalidateForum({ group: true, thread: true });
-    // Fire-and-forget: samma Discord-meddelande redigeras, inget nytt postas.
-    void syncStoreReportToDiscord(params.id).catch((err) =>
-      console.error("[community] butikslarm-uppdatering misslyckades:", err)
-    );
+    // Samma Discord-meddelande redigeras (aldrig ett nytt), samlat ~10 s efter sista rösten.
+    scheduleStoreReportSync(params.id);
     return jsonOk(result);
   } catch (e) {
     return apiError(e);

@@ -1089,7 +1089,8 @@
     "storeSuggestionLimit": "Too many store suggestions. Try again tomorrow.",
     "storeVisitTime": "Enter a visit within the past seven days, not in the future.",
     "storeFollowLimit": "Too many requests. Try again shortly.",
-    "storeReportConfirmStale": "This report is too old to confirm."
+    "storeReportConfirmStale": "This report is too old to confirm.",
+    "storeReportVoteLimit": "You've already updated this report several times. Try again in a while."
   },
   "Cookies": {
     "bannerAria": "Cookie information",

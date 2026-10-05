@@ -17,6 +17,7 @@
 export const API_ERROR_KEYS: Record<string, string> = {
   "Butiken hittades inte.": "storeNotFound",
   "Rapporten är för gammal för att bekräftas.": "storeReportConfirmStale",
+  "Du har redan uppdaterat den här rapporten flera gånger. Försök igen om en stund.": "storeReportVoteLimit",
   "För många butiksförslag. Försök igen i morgon.": "storeSuggestionLimit",
   "Ange ett besök under de senaste sju dagarna, inte i framtiden.": "storeVisitTime",
   "För många förfrågningar. Försök igen om en stund.": "storeFollowLimit",

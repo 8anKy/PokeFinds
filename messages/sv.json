@@ -1089,7 +1089,8 @@
     "storeSuggestionLimit": "För många butiksförslag. Försök igen i morgon.",
     "storeVisitTime": "Ange ett besök under de senaste sju dagarna, inte i framtiden.",
     "storeFollowLimit": "För många förfrågningar. Försök igen om en stund.",
-    "storeReportConfirmStale": "Rapporten är för gammal för att bekräftas."
+    "storeReportConfirmStale": "Rapporten är för gammal för att bekräftas.",
+    "storeReportVoteLimit": "Du har redan uppdaterat den här rapporten flera gånger. Försök igen om en stund."
   },
   "Cookies": {
     "bannerAria": "Information om cookies",
