@@ -236,6 +236,7 @@
     "profile": "Profile",
     "login": "Log in",
     "joinFree": "Join for free",
+    "joinShort": "Join",
     "accountMenu": "Account menu",
     "greeting": "Hi, {name}",
     "account": "My account",

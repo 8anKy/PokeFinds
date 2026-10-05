@@ -236,6 +236,7 @@
     "profile": "Profil",
     "login": "Logga in",
     "joinFree": "Gå med gratis",
+    "joinShort": "Gå med",
     "accountMenu": "Kontomeny",
     "greeting": "Hej, {name}",
     "account": "Mitt konto",

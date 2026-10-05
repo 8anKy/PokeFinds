@@ -1,29 +1,30 @@
 import { useTranslations } from "next-intl";
 import { DISCORD_URL } from "@/lib/social-links";
-import { newsFeedPublic } from "@/lib/news-feed-gate";
 import { IconDiscord } from "@/components/ui/brand-icons";
 
 /**
- * Discord-knappen i headern, bredvid App Store-brickan.
+ * Discord-knappen i headern, direkt TILL HÖGER OM LOGGAN (ägarbeslut 2026-10-05:
+ * "konvertera fler till Discord").
  *
  * Låg den bara i sidfoten och på /mer syntes den nästan aldrig: appens användare
  * bor i Utforska, och /mer är en inställningssida man öppnar när något krånglar.
- * Headern är den enda ytan som följer med överallt.
+ * Headern är den enda ytan som följer med överallt — även i appen, där mobilens
+ * header är samma `SiteHeader` (AppShell renderar den under lg).
  *
  * ⛔ Till skillnad från `AppStoreBadge` döljer den sig INTE i native-appen — att
  * be en app-användare ladda ned appen är brus, men communityn är lika relevant
  * där. Därför ingen Capacitor-koll, och därmed heller ingen "use client".
  *
- * Etiketten visas först på lg (samma brytpunkt som brickan): på mobilen delar
- * headern plats med logotyp och kontoknapp, och glyfen bär igenkänningen själv.
+ * ⛔ LITEN MED FLIT (ägarbeslut): en 32 px platta i Discords färg — bara glyfen på
+ * mobil (raden delar plats med nyhetsknappen och kontot; utloggat reserverar
+ * kontot 128 px), etiketten "Discord" från sm. Den får aldrig konkurrera med loggan.
  *
- * ⛔ VISAS BARA MEDAN NYHETSFLÖDET ÄR DOLT (ägarbeslut 2026-09-11). Slås
- *    `NEWS_FEED_PUBLIC` på tar `NewsLink` platsen — headern har plats för EN sak
- *    bredvid kontot, och Discord finns kvar på /mer och i sidfoten.
+ * Historik: 2026-09-11–10-05 visades den bara medan nyhetsflödet var DOLT
+ * (`NewsLink` tog platsen bredvid kontot). Sedan flytten bredvid loggan står de
+ * på var sin sida av headern och visas båda.
  */
 export function DiscordLink() {
   const t = useTranslations("Common");
-  if (newsFeedPublic()) return null;
   return (
     <a
       href={DISCORD_URL}
@@ -31,10 +32,10 @@ export function DiscordLink() {
       rel="noopener noreferrer"
       aria-label={t("discordLink")}
       title={t("discordLink")}
-      className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-2.5 py-1.5 text-ink-muted transition-colors hover:border-holo-cyan/50 hover:text-ink lg:px-3.5"
+      className="inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-lg bg-discord px-2 text-white transition-colors hover:bg-discord-hover sm:px-2.5"
     >
-      <IconDiscord size={20} className="shrink-0" />
-      <span className="hidden text-sm font-semibold lg:inline">Discord</span>
+      <IconDiscord size={16} className="shrink-0" />
+      <span className="hidden text-xs font-semibold sm:inline">Discord</span>
     </a>
   );
 }

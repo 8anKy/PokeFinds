@@ -194,7 +194,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   ett påslag kräver därför en ny deploy. Jobben fortsätter fylla flödet under tiden, med flit: när spaken
   slås på ska innehållet redan finnas där. Beskrivningen nedan gäller ytan när den är påslagen.
 - **NYHETER & EVENEMANG (byggt 2026-09-09)** (`.claude/rules/news-events.md`): `/nyheter` + `/evenemang`,
-  nådda via headerns knapp som **ERSATTE Discord-knappen** (Discord finns kvar på /mer + i sidfoten).
+  nådda via headerns knapp bredvid kontot. Discord-knappen sitter sedan 2026-10-05 till höger om LOGGAN
+  (liten blurple-platta, glyf på mobil, även i appen) och visas oavsett nyhetsspaken.
   ⛔ **Flödet är en JSON-FIL på Railway-volymen, aldrig en tabell** — nyhetslistan öppnas av varje besökare
   och en Neon-väckning köper minst 300 s. Skrivs av `POST /api/cron/feed-publish` (x-cron-secret), läses av
   sidorna bakom `cachedRead` med egen tagg. **En `lane` per producent**: `rss` = `news-feed.yml` (DB-FRITT,

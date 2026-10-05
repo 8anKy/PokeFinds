@@ -12,8 +12,8 @@
  *
  * UTSEENDE (ägarbeslut 2026-09-11): på mobilen BARA glyfen — ingen ram, ingen
  * platta, ingen text; träffytan är ändå 44 px. På desktop (lg) samma knapp som
- * Discord hade: ram + etikett. Discord-knappen visas i stället när flödet är
- * dolt (`DiscordLink` gör den spegelvända kollen) — aldrig båda samtidigt.
+ * Discord hade: ram + etikett. Sedan 2026-10-05 sitter Discord-knappen till
+ * höger om LOGGAN (`DiscordLink`) och visas oavsett flödets spak.
  */
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";

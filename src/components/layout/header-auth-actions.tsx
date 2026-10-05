@@ -45,13 +45,17 @@ export function HeaderAuthActions() {
     );
   }
 
+  // Telefon: Discord bredvid loggan + nyhetsikonen delar raden med de här två,
+  // så CTA:n kortas till "Gå med" under sm (vid 360 px bröt "Gå med gratis"
+  // annars på två rader). nowrap så en smal skärm aldrig delar en knapptext.
   return (
     <>
-      <LinkButton href="/logga-in" variant="ghost" size="sm">
+      <LinkButton href="/logga-in" variant="ghost" size="sm" className="whitespace-nowrap px-2 sm:px-3">
         {t("login")}
       </LinkButton>
-      <LinkButton href="/registrera" variant="primary" size="sm">
-        {t("joinFree")}
+      <LinkButton href="/registrera" variant="primary" size="sm" className="whitespace-nowrap">
+        <span className="sm:hidden">{t("joinShort")}</span>
+        <span className="hidden sm:inline">{t("joinFree")}</span>
       </LinkButton>
     </>
   );

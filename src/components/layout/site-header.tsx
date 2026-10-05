@@ -21,20 +21,16 @@ export function SiteHeader() {
             startsidan ÄR Utforska försvann det skälet, så logon får bete sig som
             användare förväntar sig. Pekar på /produkter, inte "/", så klicket inte
             kostar en onödig omdirigering. */}
-        <Link href="/produkter" aria-label="Foilio">
-          <BrandLogo />
-        </Link>
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <Link href="/produkter" aria-label="Foilio">
+            <BrandLogo />
+          </Link>
+          {/* Discord direkt till höger om loggan, i ALLA storlekar och i appen
+              (ägarbeslut 2026-10-05). Liten med flit — se discord-link.tsx. */}
+          <DiscordLink />
+        </div>
         <HeaderNav />
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Discord ligger FÖRE App Store-brickan och visas i ALLA storlekar:
-              brickan är webb-only (appanvändaren har redan appen), communityn
-              gäller alla. Se discord-link.tsx.
-              ⛔ Knappen togs bort 2026-09-09 till förmån för nyhetsflödet och
-              ÅTERSTÄLLDES samma dag när flödet grindades — headern får inte stå
-              tom på den platsen medan flödet är dolt. Sedan 2026-09-11 byter de
-              själva: DiscordLink renderar bara när flödet är DOLT, NewsLink bara
-              när det är PÅ — EN sak bredvid kontoknappen, aldrig två. */}
-          <DiscordLink />
           <NewsLink />
           {/* App Store-brickan: desktop-headern är sticky → alltid i bild.
               Mobilen har sin egen bricka ovanför sökfältet (headern scrollar
