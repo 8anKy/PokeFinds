@@ -37,6 +37,8 @@ const COLOR = 0x2dd4bf;
 const args = process.argv.slice(2);
 const DRY = args.includes("--dry");
 const TEST = args.includes("--test");
+/** Postar det SENASTE riktiga släppinlägget (oavsett ålder) som exempel. Rör inte state. */
+const PREVIEW = args.includes("--preview");
 const DRY_DAYS = Number(args.find((a) => a.startsWith("--days="))?.slice(7) ?? 14);
 
 const token = process.env.META_ACCESS_TOKEN?.trim() ?? "";
@@ -176,6 +178,23 @@ async function main() {
   }
 
   const terms = setTerms();
+
+  if (PREVIEW) {
+    let best: { store: string; handle: string; m: Media } | null = null;
+    for (const { store, handle } of stores) {
+      const r = await fetchMedia(handle);
+      if (!r.ok) continue;
+      for (const m of r.media) {
+        if (!classifyStorePost(m.caption ?? "", terms).relevant) continue;
+        if (!best || m.timestamp > best.m.timestamp) best = { store, handle, m };
+      }
+    }
+    if (!best) throw new Error("Inget släppinlägg hittades att visa som exempel");
+    if (!(await post(embedFor(best.store, best.handle, best.m)))) process.exit(1);
+    console.log(`[store-social] Exempel postat: ${best.store} ${best.m.permalink}`);
+    return;
+  }
+
   const state = readState();
   const seeded = new Set(state.seeded);
   const queue: { store: string; handle: string; m: Media; reason: string }[] = [];

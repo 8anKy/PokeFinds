@@ -22,6 +22,10 @@ on:
         description: "Torrkörning: läs + döm senaste 14 dygnen, posta och spara inget"
         type: boolean
         default: false
+      preview:
+        description: "Posta det senaste riktiga släppinlägget som exempel (rör inte state)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -58,7 +62,7 @@ jobs:
       # State = vilka inlägg som redan dömts. Egen nyckel, delas aldrig med restock-lanen.
       # ⛔ Test- och torrkörningar rör inte cachen (de skriver ingen state, och en äldre
       #    kopia som sparas sist hade gett dubbelpostningar).
-      - if: steps.guard.outputs.ready == 'true' && github.event.inputs.test != 'true' && github.event.inputs.dry != 'true'
+      - if: steps.guard.outputs.ready == 'true' && github.event.inputs.test != 'true' && github.event.inputs.dry != 'true' && github.event.inputs.preview != 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .store-social-cache
@@ -98,4 +102,5 @@ jobs:
           args=""
           if [ "${{ inputs.test }}" = "true" ]; then args="--test"; fi
           if [ "${{ inputs.dry }}" = "true" ]; then args="--dry --days=14"; fi
+          if [ "${{ inputs.preview }}" = "true" ]; then args="--preview"; fi
           npx tsx scripts/store-social-run.ts $args
