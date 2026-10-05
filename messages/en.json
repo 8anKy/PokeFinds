@@ -2960,6 +2960,14 @@
     "tipShort": "Measure centering under the photo — it takes half a minute and gives a more accurate grade."
   },
   "LocalStores": {
+    "guide": {
+      "title": "How the map works",
+      "find": "Find the store: search a city or tap a logo. Missing? Tap + to suggest it.",
+      "share": "Been there? Open the store, tap Add status and pick the product, Available, Sold out or Not sold, and the price you saw.",
+      "fresh": "A status counts for 12 hours. See a fresh report? Vote Still there or Gone so everyone knows.",
+      "cta": "Got it",
+      "open": "How the map works"
+    },
     "browseStores": "Expand store list",
     "storeList": "Find a store",
     "searchResults": "Search results",

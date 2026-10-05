@@ -5,11 +5,12 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { IconPlus, IconMapPin, IconChevronRight } from "@/components/ui/icons";
+import { IconPlus, IconMapPin, IconChevronRight, IconHelp } from "@/components/ui/icons";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Input } from "@/components/ui/input";
 import { hasStorePosition, storesInBounds, storesForBrowsing, normalizeStoreSearch, cityMapTargets, type MapBounds, type MapPoint, type MapFocus } from "@/lib/community-map";
 import type { CommunityStoreDto } from "@/services/community-stores";
+import { StoreMapGuide, storeMapGuideSeen, markStoreMapGuideSeen } from "./store-map-guide";
 
 const Canvas = dynamic(() => import("./store-map-canvas"), { ssr: false, loading: () => <div className="h-full animate-pulse bg-surface-overlay" /> });
 
@@ -29,6 +30,10 @@ export function StoreMap({ stores, onReport, onReports, onSuggest, onFollow, fol
   const [choosingPin, setChoosingPin] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
   const [detailStore, setDetailStore] = useState<CommunityStoreDto | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
+  // Guiden visas själv första gången kartan öppnas — men aldrig över en djuplänkad butik.
+  useEffect(() => { if (!initialStoreId && !storeMapGuideSeen()) setGuideOpen(true); }, [initialStoreId]);
+  function closeGuide() { markStoreMapGuideSeen(); setGuideOpen(false); }
   useEffect(() => {
     if (!initialStoreId) return;
     const store = stores.find(s => s.id === initialStoreId);
@@ -77,7 +82,8 @@ export function StoreMap({ stores, onReport, onReports, onSuggest, onFollow, fol
             </ul>}
           </div>
           <div className="flex items-center gap-1.5"><div className="pointer-events-auto flex rounded-full border border-surface-border bg-surface/95 p-1 shadow-lg"><button type="button" onClick={() => { if (onlyFollowed) onFollowed(); }} className={`min-h-8 rounded-full px-3 text-xs ${!onlyFollowed ? "bg-holo-cyan text-surface" : "text-ink-muted"}`} aria-pressed={!onlyFollowed}>{t("all")}</button><button type="button" disabled={busy} onClick={() => { if (!onlyFollowed) onFollowed(); }} className={`min-h-8 rounded-full px-3 text-xs ${onlyFollowed ? "bg-holo-cyan text-surface" : "text-ink-muted"}`} aria-pressed={onlyFollowed}>{t("followed")}</button></div>
-            <button type="button" className="pointer-events-auto ml-auto grid h-10 w-10 place-items-center rounded-full border border-surface-border bg-surface/95 text-ink shadow-lg" aria-label={t(choosingPin ? "cancelPin" : "suggestStore")} onClick={() => setChoosingPin(v => !v)}><IconPlus size={18} className={choosingPin ? "rotate-45" : ""} /></button>
+            <button type="button" className="pointer-events-auto ml-auto grid h-10 w-10 place-items-center rounded-full border border-surface-border bg-surface/95 text-ink-muted shadow-lg" aria-label={t("guide.open")} onClick={() => setGuideOpen(true)}><IconHelp size={18} /></button>
+            <button type="button" className="pointer-events-auto grid h-10 w-10 place-items-center rounded-full border border-surface-border bg-surface/95 text-ink shadow-lg" aria-label={t(choosingPin ? "cancelPin" : "suggestStore")} onClick={() => setChoosingPin(v => !v)}><IconPlus size={18} className={choosingPin ? "rotate-45" : ""} /></button>
           </div>
           {choosingPin && <p className="pointer-events-auto rounded-xl border border-holo-cyan/30 bg-surface/95 p-3 text-xs text-ink" role="status">{t("choosePin")} <button type="button" className="text-holo-cyan underline" onClick={() => { setChoosingPin(false); onSuggest(); }}>{t("withoutPin")}</button></p>}
           {error && <p className="rounded-xl bg-surface/95 p-3 text-xs text-ink" role="status">{error}</p>}
@@ -88,6 +94,7 @@ export function StoreMap({ stores, onReport, onReports, onSuggest, onFollow, fol
         <ul data-store-list className="divide-y divide-surface-border pb-3">{list.length ? list.map(storeRow) : empty}</ul>
       </div>
     </div>
+    <StoreMapGuide open={guideOpen} onClose={closeGuide} />
     <BottomSheet open={browseOpen} title={t("storeList")} closeLabel={t("close")} onClose={() => setBrowseOpen(false)} headerAction={{ label: t("close"), onClick: () => setBrowseOpen(false) }} panelClassName="h-[90dvh] max-h-[calc(100%_-_env(safe-area-inset-top)_-_0.5rem)] sm:mx-auto sm:w-full sm:max-w-xl">
       <div className="sticky top-0 z-10 space-y-2 bg-surface pb-3">
         <Input id="community-store-search" aria-label={t("searchStores")} placeholder={t("searchStores")} value={search} onChange={e => setSearch(e.target.value)} maxLength={100} />

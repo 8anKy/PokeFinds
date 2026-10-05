@@ -89,7 +89,7 @@ const WORK_MAX = 1600;
 /** Den rätade bildens kortbredd, klampad: skarpt nog, snabbt nog att varpa. */
 const STRAIGHT_MIN = 600;
 const STRAIGHT_MAX = 1000;
-const LOUPE_SIZE = 132;
+const LOUPE_SIZE = 184;
 const LOUPE_ZOOM = 4;
 
 type Step = "corners" | "lines";

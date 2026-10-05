@@ -2960,6 +2960,14 @@
     "tipShort": "Mät centreringen under fotot — det tar en halv minut och ger en exaktare grad."
   },
   "LocalStores": {
+    "guide": {
+      "title": "Så funkar kartan",
+      "find": "Hitta butiken: sök på ort eller tryck på en logga. Saknas den? Tryck + och föreslå den.",
+      "share": "Varit där? Öppna butiken, tryck Lägg till status och välj produkt, Finns, Slut eller Säljs inte och priset du såg.",
+      "fresh": "En status gäller i 12 timmar. Ser du en färsk rapport? Rösta Finns kvar eller Inte kvar så vet alla läget.",
+      "cta": "Uppfattat",
+      "open": "Så funkar kartan"
+    },
     "browseStores": "Visa större lista",
     "storeList": "Hitta en butik",
     "searchResults": "Sökresultat",
