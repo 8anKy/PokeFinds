@@ -22,6 +22,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   ⛔ Ingen AI (ägarbeslut): domen är `classifyStorePost` (`lib/store-social-filter.ts`, fixturer = riktiga inlägg).
   ⛔ Bara SET och FÖRSEGLAT (ägarbeslut 2026-10-06): kräver setnamn (katalogens nya + kommande set, `set-names.json`
   bredvid ruttabellen) eller produktord; Pokémon-merch (Polaroid, plush, figurer, kläder, spel) fälls alltid.
+  Undantag: en FÖRSENING ("Pokemon som skulle släppas idag är försenat") går fram utan setnamn — kräver Pokémon i
+  brödtexten och inget fraktord (PostNord, beställningar), annars hade leveransförseningar slunkit in.
   ⛔ DB-fri; Metas tak 200 anrop/h, scriptet slutar vid 90 %. Handtagen: `src/data/store-instagram.json` — ⛔ BARA
   ägarens utvalda (2026-10-06): billiga butiker med direktleverantör som FAKTISKT postar om Pokémon (Swepoke,
   Speltrollet, Fantasia North, Manatörsk, Spelexperten, Alphaspel, Lekia + filialer). Döda konton (Goblinen,

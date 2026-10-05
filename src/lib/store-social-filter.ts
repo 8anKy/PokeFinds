@@ -40,6 +40,7 @@ const TCG_PRODUCT = new RegExp(
     "mini ?tins?",
     "blister",
     "collection",
+    "first partner",
     "kollektion",
     "ex[- ]?box",
     "build (?:&|and|och) battle",
@@ -56,6 +57,17 @@ const TCG_PRODUCT = new RegExp(
   ].join("|"),
   "i"
 );
+
+/**
+ * FÖRSENINGAR är undantaget från produktkravet (ägarbeslut 2026-10-06): "Pokemon som
+ * skulle släppas idag är försenat" namnger sällan setet, men är precis vad läsaren
+ * behöver — vi visar släppdatumet, och då måste en försening också fram.
+ * ⛔ Snävt med flit: förseningsord + "Pokémon" i BRÖDTEXTEN + inget fraktord. Utan
+ *    fraktvakten hade varje "era beställningar är försenade pga PostNord" slunkit in.
+ */
+const DELAY =
+  /försen|skjuta på|skjuter på|skjuts upp|uppskjut|flyttas fram|dröjer|inte dykt upp|inte kommit|inte anlänt|delayed|postponed/i;
+const SHIPPING = /postnord|\bdhl\b|budbil|ombud|\bfrakt|beställning|\border(?:n|ar|s)?\b|skickas ut|leveranstid|kundtjänst/i;
 
 /** Pokémon-MERCH är inget släpp våra läsare väntar på. Läses i brödtexten. */
 const MERCH =
@@ -200,9 +212,11 @@ export function classifyStorePost(caption: string, extraPokemonTerms: readonly s
   // Setnamnet får stå i brödtexten eller som tagg ("#destinedrivals" = "destined rivals").
   const tagsCompact = hashtags(text).toLowerCase();
   const setNamed = extraPokemonTerms.some((t) => lowerBody.includes(t) || tagsCompact.includes(t.replace(/\s+/g, "")));
-  if (!setNamed && !TCG_PRODUCT.test(body)) return { relevant: false, reason: "no-product" };
+  const delayOnly = POKEMON.test(body) && DELAY.test(body) && !SHIPPING.test(body);
+  if (!setNamed && !TCG_PRODUCT.test(body) && !delayOnly) return { relevant: false, reason: "no-product" };
 
-  const release = body.match(RELEASE);
+  // En försening ÄR ett släppbesked ("har inte kommit än" bär inget av släppnorden).
+  const release = body.match(RELEASE) ?? (delayOnly ? body.match(DELAY) : null);
   const contest = body.match(CONTEST);
   if (contest && (!release || (contest.index ?? 0) < CONTEST_LEAD_CHARS)) {
     return { relevant: false, reason: "noise", detail: contest[0] };

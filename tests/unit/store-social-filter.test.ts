@@ -8,6 +8,8 @@ import { captionBody, classifyStorePost, pokemonTermsFromSetNames } from "@/lib/
  */
 const SHOULD_POST: [string, string, string?][] = [
   ["delay", "God kväll! Tyvärr kommer vi inte att kunna sälja morgondagens releaser av Pokémon 30th Celebration (Bundles & Mini Tins), i och med att de inte dykt upp ännu."],
+  ["delay with no set or product named (owner: we show release dates, delays must reach users)", "Pokemon som skulle släppas idag är försenat och kommer troligen nästa vecka. Vi går ut på facebook och instagram så fort det kommer in."],
+  ["not arrived yet", "Tyvärr har Pokémon-leveransen inte kommit än, vi meddelar här så fort den är på plats!"],
   ["set named only in a tag", "Nu är den här! Släpps i butiken på fredag kl 10 #pokemon #deltareign", "Delta Reign"],
   ["delay without release word", "Tyvärr måste vi skjuta på Pokémon 30th Celebration till onsdag den 23:e september. #fantasianorth #pokemon"],
   ["store release time", "Pokemon 30 år släpp 5! Efter 15:30 idag tisdag 22 sept #pokemon #spelexperten #sistachansen"],
@@ -41,6 +43,10 @@ const SHOULD_SKIP: [string, string, string][] = [
   ["Pokémon merch preorder", "merch", "CAPTURE IT ALL 📸 Vi kan äntligen avslöja att vi blivit exklusiv fysisk återförsäljare för lanseringen av samarbetet mellan Pokémon och Polaroid! Förköp online: Startar 25 augusti"],
   ["plushies", "merch", "Ni har väl inte missat att vi har fått in nya pokemon 30th anniversary plushies? Kom in och kika!"],
   ["release party without a product", "no-product", "LYSSNA NOGA! Fredag den 25/9 kommer vi att ha fest i butiken, mer info kommer, men förvänta er DRESSCODE, RELEASE-FEST, KANSKE LITE FIKA! #pokemon #pokemoncommunity"],
+  ["shipping delay is not a release delay", "no-product", "Hej! Alla Pokémon-beställningar är tyvärr försenade pga PostNord, vi ber om ursäkt."],
+  ["delay of merch", "merch", "Tyvärr är Pokémon-plushen försenade till nästa vecka."],
+  ["delay of a video game", "merch", "Pokémon Legends Z-A är försenat hos leverantören."],
+  ["delay with pokemon only in tags", "no-product", "Tyvärr är leveransen försenad till nästa vecka. #pokemon #tcg"],
   ["prerelease of another game", "noise", "Vi kör prerelease för Homeworlds på måndag 5/10 kl. 18:00. #starwarsunlimited #tcg"],
 ];
 
