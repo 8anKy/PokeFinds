@@ -3052,7 +3052,7 @@
     "readPost": "Öppna inlägg",
     "openProfile": "Öppna användarens profil",
     "photoAlbum": "Bildserie",
-    "postOptions": "Inläggsalternativ",
+    "postOptions": "Alternativ",
     "comments": "Kommentarer",
     "viewComments": "Visa kommentarer · {count}",
     "addReport": "Lägg till status",
@@ -3085,7 +3085,17 @@
     "voteStillSoldOut": "Fortfarande slut",
     "voteBackInStock": "Finns igen",
     "voteThanks": "Tack! Alla ser din uppdatering.",
-    "voteQuestionOwn": "Har något ändrats sedan du var där?"
+    "voteQuestionOwn": "Har något ändrats sedan du var där?",
+    "optDeletePost": "Ta bort inlägg",
+    "optDeleteTitle": "Ta bort inlägget?",
+    "optDeleteBody": "Inlägget, bilderna och kommentarerna tas bort för gott. Det går inte att ångra.",
+    "optDeleteBodyReport": "Rapporten, bilderna och kommentarerna tas bort för gott, även inlägget i Discord. Det går inte att ångra.",
+    "optReport": "Anmäl inlägg",
+    "optViewProfile": "Visa profil",
+    "optMarkSold": "Markera som såld",
+    "optMarkClosed": "Avsluta annonsen",
+    "optMarkActive": "Gör annonsen aktiv igen",
+    "optLoginHint": "Logga in för att anmäla inlägg."
   },
   "GradingTour": {
     "label": "Guide till graderingen",

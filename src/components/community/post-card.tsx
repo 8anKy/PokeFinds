@@ -22,7 +22,7 @@ import { FeedMedia } from "./feed-media";
 import { FeedActions } from "./feed-actions";
 import { CommentsSheet } from "./comments-sheet";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
-import { ThreadActions } from "./thread-actions";
+import { PostOptionsMenu } from "./post-options-menu";
 import type { useForumViewer } from "./use-forum-viewer";
 
 /**
@@ -54,8 +54,11 @@ export function PostCard({
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [commentCount, setCommentCount] = useState<number | null>(null);
+  // Raderat via "···"-menyn: försvinner direkt ur flödet, innan den delade cachen hunnit om.
+  const [removed, setRemoved] = useState(false);
   const profileHref = `/profil/${post.user.id}?inlagg=${post.id}#post-${post.id}`;
 
+  if (removed) return null;
   const report = post.storeReport ?? null;
   // Statusarkets standardtext ("Fanns på hyllan") är ingen kommentar — kortet säger det redan.
   const reportComment = report && post.excerpt && post.excerpt.trim() !== tStores(`observation.${report.observation}`) ? post.excerpt : null;
@@ -72,7 +75,7 @@ export function PostCard({
   );
   const sheets = <>
     {commentsOpen && <CommentsSheet postId={post.id} onClose={() => setCommentsOpen(false)} onCountChange={setCommentCount} />}
-    {optionsOpen && <BottomSheet open title={tStores("postOptions")} closeLabel={tStores("close")} onClose={() => setOptionsOpen(false)} panelClassName="sm:mx-auto sm:w-full sm:max-w-xl"><div className="pb-6"><ThreadActions postId={post.id} authorId={post.user.id} initialLikeCount={post.likeCount} listingKind={post.listingKind} listingStatus={post.listingStatus} isMarketplace={post.group?.isMarketplace ?? false} /></div></BottomSheet>}
+    {optionsOpen && <BottomSheet open title={tStores("postOptions")} closeLabel={tStores("close")} onClose={() => setOptionsOpen(false)} panelClassName="sm:mx-auto sm:w-full sm:max-w-xl"><PostOptionsMenu post={post} onClose={() => setOptionsOpen(false)} onDeleted={() => setRemoved(true)} /></BottomSheet>}
   </>;
 
   // Butiksrapport (ägarbeslut 2026-10-05): rapportkortet först, medlemmens foton och
@@ -112,7 +115,7 @@ export function PostCard({
       <p className="text-xs text-ink-faint"><RelativeTime date={post.createdAt} /></p>
     </div>
     {commentsOpen && <CommentsSheet postId={post.id} onClose={() => setCommentsOpen(false)} onCountChange={setCommentCount} />}
-    {optionsOpen && <BottomSheet open title={tStores("postOptions")} closeLabel={tStores("close")} onClose={() => setOptionsOpen(false)} panelClassName="sm:mx-auto sm:w-full sm:max-w-xl"><div className="pb-6"><ThreadActions postId={post.id} authorId={post.user.id} initialLikeCount={post.likeCount} listingKind={post.listingKind} listingStatus={post.listingStatus} isMarketplace={post.group?.isMarketplace ?? false} /></div></BottomSheet>}
+    {optionsOpen && <BottomSheet open title={tStores("postOptions")} closeLabel={tStores("close")} onClose={() => setOptionsOpen(false)} panelClassName="sm:mx-auto sm:w-full sm:max-w-xl"><PostOptionsMenu post={post} onClose={() => setOptionsOpen(false)} onDeleted={() => setRemoved(true)} /></BottomSheet>}
   </li>;
 
   return (

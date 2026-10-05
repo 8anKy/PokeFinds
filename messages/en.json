@@ -3052,7 +3052,7 @@
     "readPost": "Open post",
     "openProfile": "Open user profile",
     "photoAlbum": "Photo album",
-    "postOptions": "Post options",
+    "postOptions": "Options",
     "comments": "Comments",
     "viewComments": "View comments · {count}",
     "addReport": "Add status",
@@ -3085,7 +3085,17 @@
     "voteStillSoldOut": "Still sold out",
     "voteBackInStock": "Back in stock",
     "voteThanks": "Thanks! Everyone can see your update.",
-    "voteQuestionOwn": "Has anything changed since you were there?"
+    "voteQuestionOwn": "Has anything changed since you were there?",
+    "optDeletePost": "Delete post",
+    "optDeleteTitle": "Delete this post?",
+    "optDeleteBody": "The post, its photos and comments are removed for good. This can't be undone.",
+    "optDeleteBodyReport": "The report, its photos and comments are removed for good, including the Discord post. This can't be undone.",
+    "optReport": "Report post",
+    "optViewProfile": "View profile",
+    "optMarkSold": "Mark as sold",
+    "optMarkClosed": "Close listing",
+    "optMarkActive": "Make listing active again",
+    "optLoginHint": "Log in to report posts."
   },
   "GradingTour": {
     "label": "Grading guide",
