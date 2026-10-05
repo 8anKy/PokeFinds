@@ -22,7 +22,6 @@
 }
 .community-map-pin.is-cluster { @apply bg-surface-overlay text-holo-cyan border-holo-cyan; }
 .community-map-pin.is-selected { @apply ring-4 ring-holo-cyan/40; }
-.community-map-location { @apply block h-4 w-4 rounded-full border-2 border-ink bg-holo-cyan ring-4 ring-holo-cyan/25; }
 .community-store-map .leaflet-control-zoom a { @apply border-surface-border bg-surface text-ink; }
 .community-store-map.leaflet-container .leaflet-control-attribution { @apply rounded-tl-md bg-surface/90 px-1.5 py-0.5 text-ink-muted; font-size: 10px; line-height: 1.4; }
 .community-store-map.leaflet-container .leaflet-control-attribution a { @apply text-ink-muted; }

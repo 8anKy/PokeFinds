@@ -7,7 +7,6 @@ import { IconBookmark, IconMail, IconPlus } from "@/components/ui/icons";
 import { UnreadBadge } from "@/components/chat/unread-badge";
 import { ThreadList } from "@/components/community/thread-list";
 import { getFeed } from "@/services/community";
-import { listGroups } from "@/services/community-groups";
 import { listCommunityStores } from "@/services/community-stores";
 import { CommunityHub } from "@/components/community/community-hub";
 
@@ -52,7 +51,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ForumPage({ params }: PageProps) {
   setRequestLocale(params.locale);
   const t = await getTranslations("Forum");
-  const [groups, feed, stores] = await Promise.all([listGroups(), getFeed({ page: 1, pageSize: 20 }), listCommunityStores()]);
+  const [feed, stores] = await Promise.all([getFeed({ page: 1, pageSize: 20 }), listCommunityStores()]);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-2.5 py-2 sm:px-6 sm:py-4">
@@ -88,7 +87,7 @@ export default async function ForumPage({ params }: PageProps) {
 
       <div className="mt-3">
         <Suspense fallback={<ThreadList initial={feed} emptyText={t("emptyFeed")} />}>
-          <CommunityHub initial={feed} groups={groups} stores={stores} />
+          <CommunityHub initial={feed} stores={stores} />
         </Suspense>
       </div>
     </div>

@@ -2988,7 +2988,7 @@
     "address": "Street address",
     "city": "Town or city",
     "storePosition": "I am at the store: add location",
-    "storePositionHint": "Choose the store on the map, or use your location while there. You can also submit just the address.",
+    "storePositionHint": "Tap the map to set the store's position. You can also send just the address.",
     "storePositionAdded": "Map position added. Check that the address belongs to this point.",
     "suggested": "Thanks! Your store suggestion is awaiting review.",
     "followSaved": "The store is now under Followed stores.",
@@ -3020,7 +3020,7 @@
     "oldReport": "Older report ? current status unknown",
     "previousObservation": "At the visit: {status}",
     "nearbySignal": "Device location near the store ? visit is not verified",
-    "memberReport": "Member report ? without location check",
+    "memberReport": "Member report · stock not guaranteed",
     "observation": {
       "SEEN": "Seen on the shelf",
       "SOLD_OUT": "Sold out at the visit",
@@ -3095,7 +3095,14 @@
     "optMarkSold": "Mark as sold",
     "optMarkClosed": "Close listing",
     "optMarkActive": "Make listing active again",
-    "optLoginHint": "Log in to report posts."
+    "optLoginHint": "Log in to report posts.",
+    "feedModeAll": "All",
+    "feedModeStores": "In store",
+    "feedModeMarket": "Buy & sell",
+    "feedModes": "Show in feed",
+    "freshOnly": "Fresh finds only",
+    "freshOnlyHint": "On the shelf, last 12 h",
+    "noFreshReports": "No fresh finds right now. Seen something in a store? Report it from the map."
   },
   "GradingTour": {
     "label": "Grading guide",

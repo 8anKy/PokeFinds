@@ -15,14 +15,14 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useToast } from "@/components/ui/toast";
 import { StoreMap } from "./store-map";
 import type { MapPoint } from "@/lib/community-map";
-import { GroupChips } from "./group-chips";
+import { FeedModeSwitch } from "./feed-mode-switch";
+import { feedModeQuery, MARKET_GROUP_SLUG, type FeedMode } from "@/lib/community-feed-modes";
 import { ThreadList, type FeedPage } from "./thread-list";
 import { StoreReportSheet } from "./store-report-sheet";
 import { requestForumRules } from "./forum-rules-gate";
-import type { GroupSummary } from "@/services/community-groups";
 import type { CommunityStoreDto } from "@/services/community-stores";
 
-export function CommunityHub({ initial, stores: initialStores, groups }: { initial: FeedPage; stores: CommunityStoreDto[]; groups: GroupSummary[] }) {
+export function CommunityHub({ initial, stores: initialStores }: { initial: FeedPage; stores: CommunityStoreDto[] }) {
   const t = useTranslations("LocalStores");
   const { toast } = useToast();
   const search = useSearchParams();
@@ -59,19 +59,22 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
       window.history.replaceState(null, "", `${window.location.pathname}?${params}`);
     }
   }
-  const [feedGroup, setFeedGroup] = useState("");
+  // Flödets tre lägen (ägarbeslut 2026-10-05) i stället för en chiprad med sex grupper.
+  const [feedMode, setFeedMode] = useState<FeedMode>("all");
+  const [freshOnly, setFreshOnly] = useState(false);
+  const feedQuery = feedModeQuery(feedMode, freshOnly);
   const [feed, setFeed] = useState<FeedPage>(initial);
   const [feedLoading, setFeedLoading] = useState(false);
   const [feedError, setFeedError] = useState("");
   useEffect(() => {
-    if (!feedGroup) { setFeed(initial); setFeedError(""); setFeedLoading(false); return; }
+    if (!feedQuery) { setFeed(initial); setFeedError(""); setFeedLoading(false); return; }
     const controller = new AbortController();
     setFeedLoading(true); setFeedError("");
-    apiFetch<FeedPage>(`/api/community/posts?group=${encodeURIComponent(feedGroup)}&pageSize=20`, { signal: controller.signal })
+    apiFetch<FeedPage>(`/api/community/posts?${feedQuery}&pageSize=20`, { signal: controller.signal })
       .then(setFeed).catch(e => { if (!controller.signal.aborted) setFeedError(e instanceof Error ? e.message : t("error")); })
       .finally(() => { if (!controller.signal.aborted) setFeedLoading(false); });
     return () => controller.abort();
-  }, [feedGroup, initial, t]);
+  }, [feedQuery, initial, t]);
   const [reports, setReports] = useState<FeedPage | null>(null);
   const [reportVersion, setReportVersion] = useState(0);
   const [reportStore, setReportStore] = useState<CommunityStoreDto | null>(null);
@@ -140,15 +143,6 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
       setSuggestOpen(false); setName(""); setAddress(""); setCity(""); setCoordinates(undefined); setNotice(t("suggested"));
     });
   }
-  function locateStore() {
-    if (!navigator.geolocation) { setError(t("locationUnavailable")); return; }
-    setBusy(true); setError(undefined);
-    navigator.geolocation.getCurrentPosition(pos => {
-      if (pos.coords.accuracy > 100) setError(t("locationUnavailable"));
-      else setCoordinates({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-      setBusy(false);
-    }, () => { setBusy(false); setError(t("locationUnavailable")); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
-  }
   function showStoreReports(store: CommunityStoreDto) { setStatusStore(store.id); }
   function openSuggestion(point?: MapPoint) {
     if (!login()) return;
@@ -177,8 +171,11 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
       return <button key={id} type="button" id={`community-tab-${id}`} role="tab" aria-selected={view === id} aria-controls={`community-panel-${id}`} onClick={() => selectView(id)} className={`flex min-h-10 items-center justify-center gap-1.5 rounded-full text-sm font-medium transition-colors ${view === id ? "bg-surface-overlay text-ink" : "text-ink-muted hover:text-ink"}`}><Icon size={16} className={view === id ? "text-holo-cyan" : ""} />{t(id)}</button>;
     })}</nav>
     <section id={`community-panel-${view}`} role="tabpanel" aria-labelledby={`community-tab-${view}`}>
-      {view === "feed" && <div className="space-y-4"><GroupChips groups={groups} activeSlug={feedGroup} onSelect={setFeedGroup} />
-        {feedError ? <FieldError message={feedError} /> : feedLoading ? <p className="py-8 text-center text-sm text-ink-muted">{t("loading")}</p> : <ThreadList key={feedGroup} initial={feed} group={feedGroup || undefined} emptyText={t("noPosts")} visual />}
+      {view === "feed" && <div className="space-y-4">
+        <FeedModeSwitch mode={feedMode} onMode={setFeedMode} freshOnly={freshOnly} onFreshOnly={setFreshOnly} />
+        {feedError ? <FieldError message={feedError} /> : feedLoading ? <p className="py-8 text-center text-sm text-ink-muted">{t("loading")}</p>
+          : <ThreadList key={feedQuery ?? "all"} initial={feed} reportQuery={feedMode === "stores" ? feedQuery ?? undefined : undefined} group={feedMode === "market" ? MARKET_GROUP_SLUG : undefined}
+            emptyText={feedMode === "stores" ? t(freshOnly ? "noFreshReports" : "noReports") : t("noPosts")} visual />}
       </div>}
       {view === "nearby" && local}
     </section>
@@ -196,7 +193,7 @@ export function CommunityHub({ initial, stores: initialStores, groups }: { initi
         <div><Label htmlFor="store-name">{t("storeName")}</Label><Input id="store-name" value={name} maxLength={100} onChange={e => setName(e.target.value)} disabled={busy} /></div>
         <div><Label htmlFor="store-address">{t("address")}</Label><Input id="store-address" value={address} maxLength={160} onChange={e => setAddress(e.target.value)} disabled={busy} /></div>
         <div><Label htmlFor="store-city">{t("city")}</Label><Input id="store-city" value={city} maxLength={80} onChange={e => setCity(e.target.value)} disabled={busy} /></div>
-        <Button variant="secondary" disabled={busy} onClick={locateStore}>{t("storePosition")}</Button><p className="text-xs text-ink-muted">{coordinates ? t("storePositionAdded") : t("storePositionHint")}</p>
+        <p className="text-xs text-ink-muted">{coordinates ? t("storePositionAdded") : t("storePositionHint")}</p>
         {error && <FieldError message={error} />}
       </div>
     </BottomSheet>

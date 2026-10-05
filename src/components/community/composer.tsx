@@ -18,6 +18,7 @@ import {
 import { LISTING_KIND_KEYS } from "@/lib/community-labels";
 import { localizeGroup } from "@/lib/community-group-i18n";
 import type { GroupSummary } from "@/services/community-groups";
+import { VISIBLE_GROUP_SLUGS } from "@/lib/community-feed-modes";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
@@ -60,10 +61,15 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
     apiFetch<{ items: GroupSummary[] }>("/api/community/groups")
       .then((d) => {
         if (cancelled) return;
-        setGroups(d.items);
+        // Bara de synliga grupperna (lib/community-feed-modes.ts) — plus en dold grupp
+        // som någon kommit hit med via ?group=, så en gammal länk inte blir trasig.
+        const visible = d.items.filter(
+          (g) => (VISIBLE_GROUP_SLUGS as readonly string[]).includes(g.slug) || g.slug === initialGroup
+        );
+        setGroups(visible);
         // Förvalt: ?group= om den finns, annars första gruppen.
         setGroupSlug((cur) =>
-          cur && d.items.some((g) => g.slug === cur) ? cur : (d.items[0]?.slug ?? "")
+          cur && visible.some((g) => g.slug === cur) ? cur : (visible[0]?.slug ?? "")
         );
       })
       .catch((e) => {
@@ -72,7 +78,7 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [t, initialGroup]);
 
   const tGroups = useTranslations("ForumGroups");
   const group = useMemo(() => {

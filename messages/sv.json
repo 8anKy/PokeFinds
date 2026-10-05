@@ -2988,7 +2988,7 @@
     "address": "Gatuadress",
     "city": "Ort",
     "storePosition": "Jag är vid butiken: lägg till position",
-    "storePositionHint": "Välj butikens position på kartan eller använd din plats när du är där. Du kan också skicka bara adressen.",
+    "storePositionHint": "Tryck på kartan för att sätta butikens position. Du kan också skicka bara adressen.",
     "storePositionAdded": "Kartposition tillagd. Kontrollera att adressen hör till punkten.",
     "suggested": "Tack! Butiksförslaget väntar på granskning.",
     "followSaved": "Butiken finns nu under Följda butiker.",
@@ -3020,7 +3020,7 @@
     "oldReport": "Äldre rapport · aktuell status okänd",
     "previousObservation": "Vid besöket: {status}",
     "nearbySignal": "Platsuppgift nära butiken · besöket är inte verifierat",
-    "memberReport": "Medlemsrapport · utan platskontroll",
+    "memberReport": "Medlemsrapport · inget garanterat lager",
     "observation": {
       "SEEN": "Fanns på hyllan",
       "SOLD_OUT": "Slut vid besöket",
@@ -3095,7 +3095,14 @@
     "optMarkSold": "Markera som såld",
     "optMarkClosed": "Avsluta annonsen",
     "optMarkActive": "Gör annonsen aktiv igen",
-    "optLoginHint": "Logga in för att anmäla inlägg."
+    "optLoginHint": "Logga in för att anmäla inlägg.",
+    "feedModeAll": "Allt",
+    "feedModeStores": "I butik",
+    "feedModeMarket": "Köp & sälj",
+    "feedModes": "Visa i flödet",
+    "freshOnly": "Bara färska fynd",
+    "freshOnlyHint": "Finns på hyllan, senaste 12 h",
+    "noFreshReports": "Inga färska fynd just nu. Har du sett något i en butik? Rapportera det från kartan."
   },
   "GradingTour": {
     "label": "Guide till graderingen",

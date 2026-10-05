@@ -175,10 +175,10 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
-            // Skannern och butikskartans frivilliga platsval behöver samma
-            // origin. ⛔ geolocation=() blockerar även användarens uttryckliga OK.
+            // Skannern behöver kameran. ⛔ Ingen platsåtkomst alls sedan 2026-10-05
+            // (ägarbeslut) — geolocation=() stänger den även för inbäddat innehåll.
             key: "Permissions-Policy",
-            value: "camera=(self), microphone=(), geolocation=(self), browsing-topics=()",
+            value: "camera=(self), microphone=(), geolocation=(), browsing-topics=()",
           },
         ],
       },

@@ -7,7 +7,8 @@
  * (`imageUrls`) och lagras aldrig — nyckeln är sanningen, URL:en är färskvara.
  */
 import { deleteStoreReportFromDiscord } from "@/lib/discord-store-report";
-import { reportIsFresh } from "@/lib/community-stores";
+import { REPORT_FRESH_HOURS, reportIsFresh } from "@/lib/community-stores";
+import { FRESH_BUCKET_MS } from "@/lib/community-feed-modes";
 import { tallyVotes, type StoreReportVote, type VoteTally } from "@/lib/store-report-votes";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
@@ -192,6 +193,12 @@ export interface FeedParams {
    * aktiva annonser. Sålda/avslutade göms ur flödet men finns kvar på sin URL.
    */
   status?: ListingStatus | "all";
+  /**
+   * "Bara färska fynd": Finns-rapporter inom färskhetsfönstret vars senaste röst inte
+   * säger "inte kvar". Värdet är 10-minutersfacket (`freshBucket`), så den delade
+   * cachen åldras med klockan.
+   */
+  freshBucket?: number;
   page: number;
   pageSize: number;
 }
@@ -265,14 +272,18 @@ async function toFeedItems(rows: FeedRow[]): Promise<FeedItem[]> {
 }
 
 export function buildFeedWhere(
-  params: Pick<FeedParams, "groupSlug" | "authorId" | "kind" | "status" | "reportsOnly" | "storeId" | "productSlug" | "city">
+  params: Pick<FeedParams, "groupSlug" | "authorId" | "kind" | "status" | "reportsOnly" | "storeId" | "productSlug" | "city" | "freshBucket">
 ) {
   const where: Prisma.CommunityPostWhereInput = { isHidden: false };
-  if (params.reportsOnly || params.storeId || params.productSlug || params.city) {
+  if (params.reportsOnly || params.storeId || params.productSlug || params.city || params.freshBucket != null) {
     where.storeReport = { is: {
       store: { status: "APPROVED", ...(params.city ? { city: { contains: params.city, mode: "insensitive" } } : {}) },
       ...(params.storeId ? { storeId: params.storeId } : {}),
       ...(params.productSlug ? { productSlug: params.productSlug } : {}),
+      ...(params.freshBucket != null ? {
+        observation: "SEEN",
+        observedAt: { gte: new Date(params.freshBucket * FRESH_BUCKET_MS - REPORT_FRESH_HOURS * 3600_000) },
+      } : {}),
     } };
   }
   if (params.groupSlug) where.group = { slug: params.groupSlug };
@@ -291,6 +302,20 @@ export function buildFeedWhere(
 async function getFeedRaw(params: FeedParams) {
   const { page, pageSize } = params;
   const where = buildFeedWhere(params);
+
+  if (params.freshBucket != null) {
+    // Färska fynd är få (12 h-fönster): läs alla, släng de där senaste rösten säger
+    // "inte kvar" och sidindela i minnet — rösterna går inte att filtrera i SQL.
+    const rows = await prisma.communityPost.findMany({
+      where,
+      include: FEED_INCLUDE,
+      orderBy: [{ storeReport: { observedAt: "desc" } }, { id: "desc" }],
+      take: 200,
+    });
+    const still = rows.filter((r) => tallyVotes(r.storeReport?.confirmations ?? [], r.userId).lastVote?.kind !== "DISPUTE");
+    const items = await toFeedItems(still.slice((page - 1) * pageSize, page * pageSize));
+    return { items, total: still.length, page, pageSize, totalPages: Math.max(1, Math.ceil(still.length / pageSize)) };
+  }
 
   const [rows, total] = await prisma.$transaction([
     prisma.communityPost.findMany({
@@ -311,7 +336,7 @@ async function getFeedRaw(params: FeedParams) {
   return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
-export const getFeed = cachedRead(getFeedRaw, "community-feed-v6", 3600, ["community-feed"]);
+export const getFeed = cachedRead(getFeedRaw, "community-feed-v7", 3600, ["community-feed"]);
 
 /** Ett valt äldre inlägg på profilen: samma miniatyrer/modereringsvakt som
  * flödet, en delad läsning i stället för att hämta alla personens sidor. */

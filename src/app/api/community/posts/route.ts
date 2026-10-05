@@ -22,6 +22,7 @@ import { getGroupBySlug } from "@/services/community-groups";
 import { revalidateForum } from "../_shared/revalidate";
 import { storeReportSchema, validVisitTime, nearbyAtSubmit } from "@/lib/community-stores";
 import { reportableStore } from "@/services/community-stores";
+import { freshBucket } from "@/lib/community-feed-modes";
 import { syncStoreReportToDiscord } from "@/services/store-report-discord";
 
 
@@ -29,6 +30,8 @@ export const dynamic = "force-dynamic";
 
 const feedSchema = z.object({
   reports: z.enum(["1"]).optional(),
+  /** "Bara färska fynd" (lib/community-feed-modes.ts). */
+  fresh: z.enum(["1"]).optional(),
   store: z.string().trim().min(1).max(64).optional(),
   product: z.string().trim().min(1).max(200).optional(),
   city: z.string().trim().min(1).max(80).optional(),
@@ -98,6 +101,7 @@ export async function GET(req: NextRequest) {
       storeId: params.store,
       productSlug: params.product,
       city: params.city,
+      freshBucket: params.fresh === "1" ? freshBucket() : undefined,
     });
     return jsonOk(feed);
   } catch (e) {

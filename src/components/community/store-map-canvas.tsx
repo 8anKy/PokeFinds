@@ -7,8 +7,8 @@ import { useTranslations } from "next-intl";
 import { hasStorePosition, storeClusters, type MapBounds, type MapPoint, type MapFocus } from "@/lib/community-map";
 import type { CommunityStoreDto } from "@/services/community-stores";
 
-export default function StoreMapCanvas({ stores, selectedId, focus, userPosition, onSelect, onView, onPin }: {
-  stores: CommunityStoreDto[]; selectedId: string; focus: MapFocus | null; userPosition: MapPoint | null;
+export default function StoreMapCanvas({ stores, selectedId, focus, onSelect, onView, onPin }: {
+  stores: CommunityStoreDto[]; selectedId: string; focus: MapFocus | null;
   onSelect: (id: string) => void;
   onView: (bounds: MapBounds, center: MapPoint) => void;
   onPin?: (point: MapPoint) => void;
@@ -79,14 +79,10 @@ export default function StoreMapCanvas({ stores, selectedId, focus, userPosition
         }).addTo(markers);
         marker.getElement()?.setAttribute("aria-label", title);
       }
-      if (userPosition) {
-        const dot = document.createElement("span"); dot.className = "community-map-location";
-        L.marker([userPosition.latitude, userPosition.longitude], { interactive: false, zIndexOffset: -1000, icon: L.divIcon({ html: dot, className: "community-map-marker", iconSize: [18, 18] }) }).addTo(markers);
-      }
     }
     draw(); map.on("zoomend", draw);
     return () => { map.off("zoomend", draw); };
-  }, [stores, selectedId, userPosition, ready, t]);
+  }, [stores, selectedId, ready, t]);
 
   useEffect(() => {
     const map = mapRef.current;
