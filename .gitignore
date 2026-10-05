@@ -16,6 +16,7 @@ prisma/migrations/dev/
 # också lokalt vid torrkörning och hör aldrig hemma i repot.
 .restock-cache/
 .discord-restock-cache/
+.store-social-cache/
 .restock-routes/
 # Lokal cache för scripts/audit-new-products.ts (DB-dump, får aldrig committas)
 .audit-cache/

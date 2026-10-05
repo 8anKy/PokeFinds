@@ -1,0 +1,101 @@
+name: Butiksnyheter (Instagram → Discord)
+
+# Butikernas Instagram-inlägg om Pokémon-släpp → Discord-kanalen för butiksnyheter.
+# Läs filhuvudet i scripts/store-social-run.ts (källa, filter, rate limit, state).
+#
+# TAKT: startas av `kickoff`-jobbet i discord-restock.yml var ~20:e minut (GitHubs
+# `schedule:` är best effort och går timmar sent). Schemat nedan är bara RESERV.
+# ⛔ Metas tak är 200 anrop/timme: 39 butiker × 3 körningar ≈ 120 + reserven 39 = 159.
+#    Lägg inte till fler triggers utan att räkna om — scriptet slutar vid 90 % förbrukning,
+#    så ett överdrag ger sena inlägg, inte fel.
+# ⛔ Rör ALDRIG databasen (DATABASE_URL är avsiktligt död, samma som restock-lanen).
+on:
+  schedule:
+    - cron: "41 * * * *" # RESERV om restock-lanen (och därmed kickoff) ligger nere.
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Posta ett testinlägg i kanalen och sluta (läser inga butiker)"
+        type: boolean
+        default: false
+      dry:
+        description: "Torrkörning: läs + döm senaste 14 dygnen, posta och spara inget"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# En körning i taget: två samtidiga hade läst samma state och dubbelpostat.
+concurrency:
+  group: store-social
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: "postgresql://disabled:disabled@127.0.0.1:1/disabled"
+      META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+      META_IG_USER_ID: ${{ vars.META_IG_USER_ID }}
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+      # Kanal-id är ingen hemlighet → repo-variabel.
+      STORE_SOCIAL_CHANNEL_ID: ${{ vars.STORE_SOCIAL_CHANNEL_ID }}
+    steps:
+      - name: Förkrav — nyckel och kanal måste finnas
+        id: guard
+        run: |
+          if [ -z "${META_ACCESS_TOKEN}" ] || [ -z "${META_IG_USER_ID}" ] || [ -z "${STORE_SOCIAL_CHANNEL_ID}" ]; then
+            echo "::notice::META_ACCESS_TOKEN / META_IG_USER_ID / STORE_SOCIAL_CHANNEL_ID saknas — hoppar över."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # State = vilka inlägg som redan dömts. Egen nyckel, delas aldrig med restock-lanen.
+      # ⛔ Test- och torrkörningar rör inte cachen (de skriver ingen state, och en äldre
+      #    kopia som sparas sist hade gett dubbelpostningar).
+      - if: steps.guard.outputs.ready == 'true' && github.event.inputs.test != 'true' && github.event.inputs.dry != 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .store-social-cache
+          key: store-social-state-${{ github.run_id }}
+          restore-keys: |
+            store-social-state-
+
+      # Setnamnen till filtret — BARA restore, skrivs av nattkedjan.
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .restock-routes
+          key: restock-routes-
+          restore-keys: |
+            restock-routes-
+
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+      # Samma nyckel som de andra lanerna → delad, varm cache. ⛔ Vid miss MÅSTE
+      # `prisma generate` köras här också: cachen sparas av det här jobbet och läses av
+      # alla andra, och utan den genererade klienten hade de ärvt en trasig node_modules.
+      - if: steps.guard.outputs.ready == 'true'
+        id: nm
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-node20-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
+      - if: steps.guard.outputs.ready == 'true' && steps.nm.outputs.cache-hit != 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true' && steps.nm.outputs.cache-hit != 'true'
+        run: npx prisma generate
+
+      - if: steps.guard.outputs.ready == 'true'
+        run: |
+          args=""
+          if [ "${{ inputs.test }}" = "true" ]; then args="--test"; fi
+          if [ "${{ inputs.dry }}" = "true" ]; then args="--dry --days=14"; fi
+          npx tsx scripts/store-social-run.ts $args

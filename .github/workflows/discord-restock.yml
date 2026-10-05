@@ -152,6 +152,10 @@ jobs:
             since=$(date -u -d "@$(TZ=Europe/Stockholm date -d "$(TZ=Europe/Stockholm date +%F) 07:00" +%s)" +%FT%TZ)
             kick morning-alerts.yml "$since"
           fi
+          # Butiksnyheter (Instagram → Discord, store-social.yml): VARJE kickoff, dvs var
+          # ~20:e minut. DB-fri; Metas tak (200/h) räknat i store-social.yml. Ett fel här
+          # får inte fälla nattjobbens väckarklocka ovan.
+          gh workflow run store-social.yml --ref main || echo "::warning::Kunde inte starta store-social.yml"
 
   post:
     runs-on: ubuntu-latest
