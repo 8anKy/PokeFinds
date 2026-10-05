@@ -723,13 +723,17 @@ export function MobileCollectionGrid({
           const unitValue = groupUnitValue(g.lots);
           const profit = multi ? groupProfit(g.lots) : rowProfit(r);
           const quantity = multi ? g.quantity : r.quantity;
+          // STAPELN SYNS BARA NÄR PRISERNA SKILJER SIG (ägaren 2026-10-05). Flera poster
+          // med samma pris — oftast samma kort i två pärmar, som "Alla" slår ihop — är
+          // bara "2 st": ingen snittrad, ingen köpväljare i säljarket.
+          const stacked = multi && new Set(g.lots.map((l) => l.purchasePrice ?? null)).size > 1;
           // Sälj: arket listar köpen (pris + datum) och förväljer det ÄLDSTA (FIFO).
           const sellLots = multi ? lotsOldestFirst(g.lots) : null;
           const sellLot = sellLots ? sellLots[0] : r;
           // Snittet får ALDRIG läsas som att det gäller alla exemplar. Täcker det bara
           // en del av dem säger etiketten det rakt ut ("snitt 400 kr · 1 av 4"), och
           // saknas pris helt står det att priset saknas — aldrig "0 kr".
-          const avgLabel = !multi
+          const avgLabel = !stacked
             ? null
             : g.averagePaid == null
               ? t("lotAvgUnknown")
@@ -802,7 +806,7 @@ export function MobileCollectionGrid({
               </div>
               {/* Snittraden finns BARA när varan köpts flera gånger — en ensam post har
                   inget snitt att tala om, och kortet ska då se ut precis som förut. */}
-              {multi && !selectMode && (
+              {stacked && !selectMode && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -831,35 +835,26 @@ export function MobileCollectionGrid({
                   )}
                 </button>
               )}
-              {/* Vinst/förlust — belopp först, procent som stöd. Saknas köppris visas en
-                  uppmaning i stället: det är enda sättet posten kan komma med i totalen.
-                  Knappen stoppar bubblingen så kortets "öppna produkt"-tryck inte utlöses.
-                  ⛔ För en GRUPP är knappen en ren text: "sätt köppris" är en åtgärd på
-                  EN post, och gruppen vet inte vilken — köpen redigeras i utfällningen. */}
-              {!selectMode && !multi && (
+              {/* Vinst/förlust — belopp först, procent som stöd. Saknas köppris visas
+                  INGENTING (ägarbeslut 2026-10-05): de flesta kort är dragna ur paket och
+                  har inget eget pris, så en "+ Lägg till inköpspris"-uppmaning på varje ruta
+                  var brus. Priset sätts i exemplararket (Välj → Redigera). Trycket på raden
+                  ändrar priset: EN post direkt, flera poster med samma pris via arket. */}
+              {!selectMode && !stacked && profit && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    openPriceEditor(r);
+                    if (multi) openCopySheet(g.lots);
+                    else openPriceEditor(r);
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
-                  className={`-mx-1 rounded px-1 py-0.5 text-left text-xs font-semibold tabular-nums transition-colors hover:bg-surface-overlay/50 ${
-                    profit ? profitToneClass(profit.amount) : "text-holo-cyan"
-                  }`}
+                  className={`-mx-1 rounded px-1 py-0.5 text-left text-xs font-semibold tabular-nums transition-colors hover:bg-surface-overlay/50 ${profitToneClass(profit.amount)}`}
                 >
-                  {profit ? (
-                    <>
-                      {profit.amount > 0 ? "+" : ""}
-                      {formatPrice(profit.amount)}
-                      {profit.percent != null && (
-                        <span className="ml-1 font-normal opacity-80">
-                          ({formatPercent(profit.percent)})
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    t("gridAddPurchasePrice")
+                  {profit.amount > 0 ? "+" : ""}
+                  {formatPrice(profit.amount)}
+                  {profit.percent != null && (
+                    <span className="ml-1 font-normal opacity-80">({formatPercent(profit.percent)})</span>
                   )}
                 </button>
               )}
@@ -870,7 +865,7 @@ export function MobileCollectionGrid({
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
-                  <SellButton item={toSellItem(sellLot, sellLots ?? undefined)} className="w-full" />
+                  <SellButton item={toSellItem(sellLot, stacked && sellLots ? sellLots : undefined)} className="w-full" />
                 </span>
               )}
 
