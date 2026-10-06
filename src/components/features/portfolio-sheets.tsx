@@ -362,7 +362,9 @@ export function PortfolioVisibilitySheet({
       panelClassName="sm:mx-auto sm:max-w-md"
     >
       <p className="text-xs text-ink-faint">{t("publicHint")}</p>
-      <div className="mt-3 space-y-2">
+      {/* Arket har ingen fot ⇒ kroppen bär hemindikatorns luft själv; sista raden
+          låg annars kapad mot telefonens underkant (ägarens skärmdump 2026-10-07). */}
+      <div className="mt-3 space-y-2 pb-[max(1.875rem,env(safe-area-inset-bottom))]">
         {portfolios.map((p) => {
           const on = state[p.id] ?? p.isPublic;
           return (

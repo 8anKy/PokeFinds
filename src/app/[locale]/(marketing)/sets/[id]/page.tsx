@@ -164,7 +164,7 @@ export default async function SetPage({ params }: PageProps) {
     // och seriebrickan visas bara på desktop där brödsmulorna finns.
     // `pt-6` på mobil = samma tal som SubpageHeaders `-mt-6`; desktop behåller py-10.
     <SwipeBack fallback="/sets" coverViewport viewportInset="safe">
-    <div className="mx-auto max-w-7xl px-2.5 pb-10 pt-6 sm:px-6 lg:pt-10">
+    <div className="mx-auto max-w-7xl px-2.5 pb-[calc(var(--bottom-tabs-space)+1rem)] pt-6 sm:px-6 lg:pb-10 lg:pt-10">
       {/* <-escapen: JSON.stringify escapar inte "<", så ett setnamn med
           "</script>" skulle annars bryta sig ut ur script-taggen. */}
       <script

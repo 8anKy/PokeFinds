@@ -200,7 +200,7 @@ export default async function ProfilePage({ params, searchParams }: { params: { 
   return (
     <SwipeBack fallback={communityV2 ? "/forum" : "/community"} coverViewport viewportInset="safe">
       <ProfileHeader name={user.name} fallback={communityV2 ? "/forum" : "/community"} />
-      <div className="mx-auto w-full max-w-3xl px-2.5 py-10">
+      <div className="mx-auto w-full max-w-3xl px-2.5 pb-[calc(var(--bottom-tabs-space)+1rem)] pt-10 lg:pb-10">
         {/* Profilhuvud */}
         <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
           {user.avatarUrl ? (
