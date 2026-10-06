@@ -72,7 +72,9 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   regler i `.claude/rules/jp-sets.md`. RapidAPI-baslinjen är nu ~1 880/3 000 per dygn.
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`;
   graf/historik = CM trend.
-- **GRADERADE BEGÄRDA PRISER VIA EBAY BROWSE (byggt 2026-09-14, VÄNTAR PÅ NYCKEL)**: gratis (~5 000
+- **GRADERADE PRISER = TRE KÄLLOR, ALLA LIVE**: Tradera-sålt (`GradedSale`), eBay-SÅLT ur PRISLEVERANTÖREN
+  (RapidAPI `/ebay-sold-offers`, sedan 2026-09-16) och eBay-BEGÄRT via Browse (sedan 2026-09-15). Arket visar dem
+  som separata märkta rader. **BEGÄRT via EBAY BROWSE**: gratis (~5 000
   anrop/dygn per app), EN sökning per kort i kategori 183454 med aspekten `Graded:{Yes}`, bucketad per
   (bolag, betyg) ur TITELN med `detectGrading` (`lib/graded-ask.ts`, ren + testad) och skriven som ETT
   TILLSTÅND i `GradedAsk` (`jobs/graded-ask-sweep.ts`, steg sist i `tradera-sold-sync.yml`). Bevakade kort
@@ -81,9 +83,12 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   salu"), källa + antal + originalvaluta står UT. ⛔ Varje träff måste BEVISA sig (numret i titeln, språk,
   tryckning, fastpris — auktionsbud är inget begärt pris, lotter kastas); hellre tom rad än främmande pris.
   USD → öre via `priceOreFromUsd` (samma nollvakt som EUR). ⛔ 429 = sluta och skriv det som hann, aldrig
-  retry. Slås på med `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` som GitHub-secrets (ägaren väntar på eBays
-  verifiering); `scripts/ebay-graded-probe.ts` provar en sökning utan DB. Sålt-baserat per betyg för ALLA
-  kort finns bara att köpa (PriceCharting Legendary 49 $/mån, daglig CSV) — memory `graded-price-sources`.
+  retry. Nycklarna `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` är GitHub-secrets; ⛔ en NY produktionsnyckel svarar
+  `401 invalid_client` tills "Marketplace Account Deletion"-undantaget är inskickat. `scripts/ebay-graded-probe.ts`
+  provar en sökning utan DB. **SÅLT på eBay**: `jobs/ebay-sold-sweep.ts` (steg efter ask-svepet, ~600 anrop/dygn
+  ur RapidAPI-kvoten, rotation `Product.ebaySoldCheckedAt`) ⇒ `GradedSale` med `source: "ebay"`, eBay UK i GBP;
+  leverantörens matchning är LÖS ⇒ samma bevisvakter som ask-svepet; datat släpar ~2 mån. PriceCharting
+  behövs inte längre — memory `graded-price-sources`.
 - **SKANNERMOTOR UTAN AI I SKUGGLÄGE SEDAN 2026-09-30** (`scanner-engine/`, egen Railway-tjänst som SOVER mellan
   passen): SIFT + faiss + RANSAC, ingen modell. Varje inloggad skanning skickas även dit och svaret bokförs som
   `ScannerJob.result.shadow` — påverkar INGET i svaret. Offline: ägarens app-foton 99/99 (dagens skanner 92/99),
