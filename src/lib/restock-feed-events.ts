@@ -49,6 +49,7 @@ import { actionableChanges, mergeStateMap, type FeedStateMap, type StockChange }
 import { evaluateStockFlap, FLAP_WINDOW_HOURS, previousInStockMinutes, type FlapPolicy } from "@/lib/stock-flap";
 import {
   judgePriceDrop,
+  judgePriceRise,
   type PriceDropPolicy,
   type PricePostMemory,
   type PriceRejectReason,
@@ -1052,7 +1053,15 @@ function collectPriceDrops(args: {
         now,
         policy
       );
-      if (!verdictPrice.post) {
+      // Höjt pris på en vara vi nyss postade om ⇒ vårt inlägg är fel (se judgePriceRise).
+      const rise =
+        !verdictPrice.post && verdictPrice.reason === "not-cheaper"
+          ? judgePriceRise(prev.price?.[key], item.price, prev.posted[key], args.pricePosted[key], now, policy)
+          : null;
+      if (!verdictPrice.post && !rise?.post) {
+        if (rise && (rise.reason === "too-small" || rise.reason === "implausible" || rise.reason === "cooldown")) {
+          sample(`${g.sourceName} → ${item.url}: ${kr(prev.price![key])} → ${kr(item.price!)} [höjning ${rise.reason}]`);
+        }
         // "no-baseline"/"not-cheaper"/"no-price" är NORMALTILLSTÅNDET för tiotusentals
         // annonser varje varv — att räkna dem hade gjort loggen oläsbar och sagt
         // ingenting. Bara de fall där ett verkligt fall FÄLLDES är intressanta.
@@ -1103,7 +1112,7 @@ function collectPriceDrops(args: {
       });
       sample(
         `${g.sourceName} → ${item.url}: ${kr(prev.price![key])} → ${kr(item.price!)} ` +
-          `(−${verdictPrice.percent.toFixed(1)} %)`
+          (rise?.post ? `(+${rise.percent.toFixed(1)} %, höjt)` : verdictPrice.post ? `(−${verdictPrice.percent.toFixed(1)} %)` : "")
       );
     }
 

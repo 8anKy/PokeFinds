@@ -39,7 +39,8 @@ import {
 } from "@/lib/discord-restock-filter";
 import type { FlapPolicy } from "@/lib/stock-flap";
 import { formatPrice } from "@/lib/format";
-import { judgePriceDrop, pricePolicy, type PriceDropPolicy } from "@/lib/price-drop";
+import { judgePriceDrop, judgePriceRise, pricePolicy, type PriceDropPolicy } from "@/lib/price-drop";
+import { hitsFromPosts } from "@/lib/restock-hits";
 
 const POLICY: FlapPolicy = { minAwayMinutes: 20, flapMaxTransitions: 6, flapCooldownHours: 24 };
 const NOW = new Date("2026-08-11T12:00:00Z");
@@ -1565,5 +1566,75 @@ describe("deriveRestockPosts — kort våg", () => {
   it("regeln är av utan spaken (appens flapPolicy-default)", () => {
     const { shortWaveMinutes: _off, ...appLike } = LANE;
     expect(run(afterWave("12:23", "12:25"), "12:39", appLike).posts).toHaveLength(1);
+  });
+});
+
+/**
+ * HÖJT PRIS (ägarbeslut 2026-10-06): Toyspace Booster Bundle postades 783 kr 13:02,
+ * butiken höjde sedan till 920 kr — vårt inlägg stod kvar med fel pris.
+ */
+describe("deriveRestockPosts — höjt pris efter vårt eget inlägg", () => {
+  const T = NOW.getTime();
+  const afterRestock = (postedAgoMin: number | null) =>
+    state({
+      stock: { [KEY]: "IN_STOCK" },
+      price: { [KEY]: 78300 },
+      posted: postedAgoMin == null ? {} : { [KEY]: T - postedAgoMin * 60_000 },
+    });
+  const rise = (s: DiscordRestockState) =>
+    derive({ state: s, groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK", price: 92000 }]) });
+
+  it("postas när vi postade påfyllningen nyss", () => {
+    const r = rise(afterRestock(30));
+    expect(r.posts).toHaveLength(1);
+    expect(r.posts[0]).toMatchObject({ priceOre: 92000, previousPriceOre: 78300 });
+    const embed = buildRestockEmbed(r.posts[0]);
+    expect(embed.title).toBe("Höjt pris — Pitch Black Elite Trainer Box");
+    expect(embed.description).toBe(
+      `Dragon's Lair har höjt priset från ${formatPrice(78300)} till ${formatPrice(92000)} (+17,5 %) sedan vårt förra inlägg.`
+    );
+  });
+
+  it("⛔ en höjning utan eget inlägg nyligen är ingen nyhet", () => {
+    expect(rise(afterRestock(null)).posts).toHaveLength(0);
+    expect(rise(afterRestock(25 * 60)).posts).toHaveLength(0);
+  });
+
+  it("går till påfyllningens kanal, inte priskanalen", () => {
+    const post = rise(afterRestock(30)).posts[0];
+    const config = {
+      setChannels: {},
+      seriesChannels: { "mega evolution": "111" },
+      languageChannels: {},
+      defaultChannelId: "999",
+      priceChannelId: "555",
+      storeChannelId: null,
+    };
+    expect(resolveRestockChannelId(post, config)).toBe("111");
+    expect(resolveRestockChannelId({ ...post, priceOre: 70000 }, config)).toBe("555");
+  });
+
+  it("⛔ ger ingen larm-hit till appen", () => {
+    const post = rise(afterRestock(30)).posts[0];
+    expect(hitsFromPosts([post], NOW)).toHaveLength(0);
+  });
+});
+
+describe("judgePriceRise", () => {
+  const P: PriceDropPolicy = { minPercent: 5, minOre: 1000, maxPercent: 60, maxPerStore: 8, cooldownHours: 12 };
+  const now = new Date("2026-10-06T11:30:00Z");
+  const posted = now.getTime() - 30 * 60_000;
+
+  it("golv och tak som sänkningarna", () => {
+    expect(judgePriceRise(78300, 79000, posted, null, now, P)).toEqual({ post: false, reason: "too-small" });
+    expect(judgePriceRise(78300, 200000, posted, null, now, P)).toEqual({ post: false, reason: "implausible" });
+    expect(judgePriceRise(78300, 92000, posted, null, now, P).post).toBe(true);
+  });
+
+  it("en postad prisändring inom cooldownen spärrar", () => {
+    expect(judgePriceRise(78300, 92000, posted, { p: 78300, t: now.getTime() - 3600_000 }, now, P)).toEqual({
+      post: false,
+      reason: "cooldown",
+    });
   });
 });

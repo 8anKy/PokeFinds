@@ -521,6 +521,10 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   **KORT VÅG (2026-10-06)**: låg varan i lager < `RESTOCK_SHORT_WAVE_MINUTES` (5) FÖRRA gången väntar nästa
   inlägg om samma URL `RESTOCK_SHORT_WAVE_COOLDOWN_MINUTES` (60) i stället för 15 — ett ex ur en övergiven kassa,
   köpt direkt (Toyspace Mini Tin Display postades 12:23/12:39/12:58, 1–2 min i lager varje gång). Domen:
+  **HÖJT PRIS (ägarbeslut 2026-10-06)**: Toyspace Booster Bundle postades 783 kr och höjdes sedan till 920 kr — vårt
+  inlägg stod kvar med fel pris. En höjning postas ("Höjt pris — …") BARA när vi själva postat en påfyllning om samma
+  URL inom 24 h (`judgePriceRise`, `lib/price-drop.ts`): samma golv/tak/cooldown som sänkningarna, PÅFYLLNINGENS kanal
+  (inte `prices`), ingen larm-hit till appen. En höjning utan eget färskt inlägg är ingen nyhet och tiger.
   `previousInStockMinutes` (`lib/stock-flap.ts`). ⛔ BARA butikerna i `RESTOCK_SHORT_WAVE_STORES` (ägarbeslut: "Toyspace");
   default AV, så appens push/mejl är orörda. Räknas som `cooldown`.
 

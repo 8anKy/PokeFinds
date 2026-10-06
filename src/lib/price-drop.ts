@@ -135,3 +135,40 @@ export function judgePriceDrop(
 function isPrice(ore: number | null | undefined): ore is number {
   return typeof ore === "number" && Number.isFinite(ore) && ore > 0;
 }
+
+/** Hur länge efter ett påfyllningsinlägg en prishöjning räknas som en rättelse av det. */
+export const PRICE_RISE_WINDOW_HOURS = 24;
+
+export type PriceRiseVerdict =
+  | { post: true; riseOre: number; percent: number }
+  | { post: false; reason: "no-recent-post" | "not-higher" | "too-small" | "implausible" | "cooldown" | "no-price" };
+
+/**
+ * HÖJT PRIS (ägarbeslut 2026-10-06): Toyspace postades med Booster Bundle för 783 kr
+ * 13:02 och höjde sedan till 920 kr — vårt inlägg stod kvar med fel pris. En höjning
+ * är ingen nyhet i sig, så den postas BARA när vi själva postade en påfyllning om
+ * samma URL inom `PRICE_RISE_WINDOW_HOURS`: då är det vårt eget inlägg som blivit fel.
+ * Samma golv och tak som sänkningarna; en postad prisändring inom cooldownen spärrar.
+ */
+export function judgePriceRise(
+  previousOre: number | null | undefined,
+  currentOre: number | null | undefined,
+  restockPostedAt: number | null | undefined,
+  lastPricePost: PricePostMemory | null | undefined,
+  now: Date,
+  policy: PriceDropPolicy
+): PriceRiseVerdict {
+  if (!isPrice(currentOre) || !isPrice(previousOre)) return { post: false, reason: "no-price" };
+  const riseOre = currentOre - previousOre;
+  if (riseOre <= 0) return { post: false, reason: "not-higher" };
+  if (restockPostedAt == null || now.getTime() - restockPostedAt > PRICE_RISE_WINDOW_HOURS * 3600_000) {
+    return { post: false, reason: "no-recent-post" };
+  }
+  const percent = (riseOre / previousOre) * 100;
+  if (percent < policy.minPercent || riseOre < policy.minOre) return { post: false, reason: "too-small" };
+  if (percent > policy.maxPercent) return { post: false, reason: "implausible" };
+  if (lastPricePost && now.getTime() - lastPricePost.t < policy.cooldownHours * 3600_000) {
+    return { post: false, reason: "cooldown" };
+  }
+  return { post: true, riseOre, percent };
+}

@@ -171,6 +171,8 @@ export function hitsFromPosts(posts: readonly RestockPost[], now: Date): Restock
       // och bara på en RUTTAD vara — priset ska landa på en offer vi redan visar.
       if (!routed) continue;
       if (p.priceOre == null || p.priceOre <= 0) continue;
+      // Ett HÖJT pris är ingen larmhändelse i appen — nattkedjan tar offerpriset.
+      if (p.priceOre > p.previousPriceOre) continue;
       out.push({
         ...common,
         kind: "PRICE_DROP",

@@ -263,7 +263,8 @@ export function resolveChannelId(
  * `null` = posta inte alls (fail closed, se resolveChannelId).
  */
 export function resolveRestockChannelId(
-  post: Pick<RestockPost, "setName" | "series" | "language" | "storeOnly" | "previousPriceOre">,
+  post: Pick<RestockPost, "setName" | "series" | "language" | "storeOnly" | "previousPriceOre"> &
+    Partial<Pick<RestockPost, "priceOre">>,
   config: Pick<
     DiscordRestockConfig,
     | "setChannels"
@@ -275,7 +276,9 @@ export function resolveRestockChannelId(
   >
 ): string | null {
   if (post.storeOnly === true && config.storeChannelId) return config.storeChannelId;
-  if (post.previousPriceOre != null && config.priceChannelId) return config.priceChannelId;
+  // Ett HÖJT pris rättar ett påfyllningsinlägg ⇒ samma kanal som det, inte priskanalen.
+  const priceRise = post.previousPriceOre != null && post.priceOre != null && post.priceOre > post.previousPriceOre;
+  if (post.previousPriceOre != null && !priceRise && config.priceChannelId) return config.priceChannelId;
   return resolveChannelId(post.setName, post.series, config, post.language);
 }
 
@@ -479,6 +482,15 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
     post.priceOre < post.previousPriceOre
       ? { percent: ((post.previousPriceOre - post.priceOre) / post.previousPriceOre) * 100 }
       : null;
+  // Höjt pris efter vårt eget påfyllningsinlägg (judgePriceRise) — samma vakt mot nollor.
+  const priceRise =
+    !priceDrop &&
+    post.previousPriceOre != null &&
+    post.previousPriceOre > 0 &&
+    post.priceOre != null &&
+    post.priceOre > post.previousPriceOre
+      ? { percent: ((post.priceOre - post.previousPriceOre) / post.previousPriceOre) * 100 }
+      : null;
   // Rek. pris-jämförelsen: bara när BÅDA talen är riktiga priser (msrpDelta vaktar).
   const delta = msrpDelta(post.priceOre, post.msrpOre);
   const storeOnly = post.storeOnly === true;
@@ -551,7 +563,9 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
     title: clamp(
       priceDrop
         ? `Nytt lägre pris — ${post.title}`
-        : storeOnly
+        : priceRise
+          ? `Höjt pris — ${post.title}`
+          : storeOnly
           ? `${post.alsoOnline ? "Finns i butik" : "Finns bara i butik"}: ${post.title}`
           : post.title,
       MAX_TITLE
@@ -563,7 +577,10 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
     description: priceDrop
       ? `Sänkt från ${formatPrice(post.previousPriceOre)} till ${formatPrice(post.priceOre)} ` +
         `(${formatPercent(-priceDrop.percent)}).`
-      : storeOnly
+      : priceRise
+        ? `${post.storeName} har höjt priset från ${formatPrice(post.previousPriceOre)} till ` +
+          `${formatPrice(post.priceOre)} (${formatPercent(priceRise.percent)}) sedan vårt förra inlägg.`
+        : storeOnly
         ? // ⛔ NAMNET BARA NÄR DET ÄR EN ENDA BUTIK, och bara när källan gav oss det.
           //   Står varan i sex butiker är ett namn i rubriken missvisande, och ett
           //   gissat namn skickar folk till fel stad — då säger vi "butikerna" och
