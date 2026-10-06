@@ -12,6 +12,142 @@
     "handle": "lekia.se"
   },
   {
+    "store": "Lekia Alingsås",
+    "handle": "lekiaalingsas"
+  },
+  {
+    "store": "Lekia Allum",
+    "handle": "lekiaallum"
+  },
+  {
+    "store": "Lekia Borlänge Kupolen",
+    "handle": "lekiaborlange"
+  },
+  {
+    "store": "Lekia Bålsta Centrum",
+    "handle": "lekiabalsta"
+  },
+  {
+    "store": "Lekia Enköping",
+    "handle": "lekia_enkoping"
+  },
+  {
+    "store": "Lekia Eskilstuna Tuna Park",
+    "handle": "lekiaeskilstuna"
+  },
+  {
+    "store": "Lekia Frölunda",
+    "handle": "lekiafrolunda"
+  },
+  {
+    "store": "Lekia Gislaved",
+    "handle": "lekia.gislaved"
+  },
+  {
+    "store": "Lekia Gävle Valbo",
+    "handle": "lekiavalbo"
+  },
+  {
+    "store": "Lekia Göteborg Backaplan",
+    "handle": "lekiabackaplan"
+  },
+  {
+    "store": "Lekia Göteborg Kungsgatan",
+    "handle": "lekiakungsgatan"
+  },
+  {
+    "store": "Lekia Karlshamn",
+    "handle": "lekiakarlshamn"
+  },
+  {
+    "store": "Lekia Karlstad Bergvik",
+    "handle": "lekiakarlstad"
+  },
+  {
+    "store": "Lekia Kristianstad C4",
+    "handle": "lekiakristianstad"
+  },
+  {
+    "store": "Lekia Kungälv Kongahälla",
+    "handle": "lekiakongahalla"
+  },
+  {
+    "store": "Lekia Kållered",
+    "handle": "lekiakallered"
+  },
+  {
+    "store": "Lekia Lerum",
+    "handle": "lekialerum"
+  },
+  {
+    "store": "Lekia Mölndal",
+    "handle": "lekiamolndal"
+  },
+  {
+    "store": "Lekia Nordby",
+    "handle": "lekiastromstad"
+  },
+  {
+    "store": "Lekia Norrtälje Lekplaneten",
+    "handle": "lekianorrtalje"
+  },
+  {
+    "store": "Lekia Skellefteå",
+    "handle": "lekiaskelleftea"
+  },
+  {
+    "store": "Lekia Skövde",
+    "handle": "lekiaskovde"
+  },
+  {
+    "store": "Lekia Stockholm Kungens Kurva Livli",
+    "handle": "lekia_kungenskurva"
+  },
+  {
+    "store": "Lekia Stockholm Lidingö",
+    "handle": "lekialidingo"
+  },
+  {
+    "store": "Lekia Stockholm Sollentuna Centrum",
+    "handle": "lekiasollentuna"
+  },
+  {
+    "store": "Lekia Trelleborg Valengallerian",
+    "handle": "lekiavalengallerian"
+  },
+  {
+    "store": "Lekia Tyresö",
+    "handle": "lekiatyreso"
+  },
+  {
+    "store": "Lekia Uddevalla Torp",
+    "handle": "lekia_uddevalla"
+  },
+  {
+    "store": "Lekia Umeå",
+    "handle": "lekiaumea"
+  },
+  {
+    "store": "Lekia Uppsala",
+    "handle": "lekia.uppsala"
+  },
+  {
+    "store": "Lekia Vetlanda",
+    "handle": "lekiavetlanda"
+  },
+  {
+    "store": "Lekia Vimmerby",
+    "handle": "lekiavimmerby"
+  },
+  {
+    "store": "Lekia Visby",
+    "handle": "lekia_visby"
+  },
+  {
+    "store": "Lekia Ängelholm",
+    "handle": "lekiaangelholm"
+  },
+  {
     "store": "Manatörsk",
     "handle": "manatorsk"
   },

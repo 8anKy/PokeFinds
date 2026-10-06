@@ -7,8 +7,9 @@
  *
  * KÄLLA: Metas Business Discovery (gratis, officiell) — vårt eget professionella IG-konto
  * läser andra butikskontons senaste inlägg. EN förfrågan per butik och körning.
- * ⛔ Taket är 200 anrop/timme: varje konto = ett anrop per körning; ~3 körningar/h. Läs `rateLimited()`
- *    innan takten höjs. 429-motsvarigheten (kod 4/17/32/613) = SLUTA, aldrig retry.
+ * ⛔ Taket är 200 anrop/timme: varje konto = ett anrop; upp till ~4 körningar/h. En körning läser
+ *    högst `READS_PER_RUN` konton och ROTERAR (markören i state) — med filialkonton är listan längre
+ *    än en körning. 429-motsvarigheten (kod 4/17/32/613) = SLUTA, aldrig retry.
  * ⛔ Facebook och TikTok ingår INTE (ägarbeslut): Facebook-sidor kräver en appgranskning
  *    vi inte klarar, TikTok har inget officiellt läs-API. Stories syns inte i API:t.
  * ⛔ Rör ALDRIG databasen — lanen kör var ~20:e minut. Setnamnen kommer ur
@@ -25,10 +26,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { discordFetch } from "../src/lib/discord";
 import { captionBody, classifyStorePost, pokemonTermsFromSetNames } from "../src/lib/store-social-filter";
+import { DUPLICATE_WINDOW_DAYS, duplicateKey, rotationSlice } from "../src/lib/store-social-rotation";
 import stores from "../src/data/store-instagram.json";
 
 const G = "https://graph.facebook.com/v26.0";
 const MEDIA_PER_STORE = 12;
+/** 4 körningar/h × 45 = 180 < 200. Höj inte utan att räkna om mot takten i discord-restock.yml. */
+const READS_PER_RUN = 45;
 const MAX_AGE_HOURS = 48;
 const SEEN_TTL_DAYS = 120;
 const EXCERPT_CHARS = 350;
@@ -62,21 +66,27 @@ interface State {
   seeded: string[];
   /** media-id → inläggets tidpunkt (ISO). */
   seen: Record<string, string>;
+  /** Var nästa körning börjar i butikslistan. */
+  cursor: number;
+  /** duplicateKey(text) → när den postades (ISO). */
+  posted: Record<string, string>;
 }
 type Fetched = { ok: true; media: Media[] } | { ok: false; stop: boolean; error: string };
 
 function readState(): State {
   try {
     const s = JSON.parse(fs.readFileSync(stateFile, "utf8"));
-    return { seeded: s.seeded ?? [], seen: s.seen ?? {} };
+    return { seeded: s.seeded ?? [], seen: s.seen ?? {}, cursor: Number(s.cursor) || 0, posted: s.posted ?? {} };
   } catch {
-    return { seeded: [], seen: {} };
+    return { seeded: [], seen: {}, cursor: 0, posted: {} };
   }
 }
 
 function writeState(s: State) {
   const cutoff = Date.now() - SEEN_TTL_DAYS * 864e5;
   for (const [id, ts] of Object.entries(s.seen)) if (Date.parse(ts) < cutoff) delete s.seen[id];
+  const dupCutoff = Date.now() - DUPLICATE_WINDOW_DAYS * 864e5;
+  for (const [k, ts] of Object.entries(s.posted)) if (Date.parse(ts) < dupCutoff) delete s.posted[k];
   fs.mkdirSync(path.dirname(stateFile), { recursive: true });
   fs.writeFileSync(stateFile, JSON.stringify(s));
 }
@@ -215,14 +225,18 @@ async function main() {
   let fetched = 0;
   let skipped = 0;
   let stopped = false;
+  let attempted = 0;
+  // Torrkörningen läser alla (manuell, sällsynt); drift roterar.
+  const batch = DRY ? stores : rotationSlice(stores, state.cursor, READS_PER_RUN).picked;
 
-  for (const { store, handle } of stores) {
+  for (const { store, handle } of batch) {
     if (usage >= 90) {
       console.warn(`[store-social] Metas förbrukning ${usage} % — slutar, resten tas nästa körning.`);
       stopped = true;
       break;
     }
     const r = await fetchMedia(handle);
+    attempted++;
     if (!r.ok) {
       console.warn(`[store-social] @${handle} (${store}): ${r.error}`);
       if (r.stop) {
@@ -271,8 +285,16 @@ async function main() {
   }
 
   let sent = 0;
+  let duplicates = 0;
   for (const q of queue.sort((a, b) => a.m.timestamp.localeCompare(b.m.timestamp))) {
+    const key = duplicateKey(captionBody(q.m.caption ?? ""));
+    if (key && state.posted[key]) {
+      duplicates++;
+      console.log(`[store-social] dubblett ${q.store} (samma text postad ${state.posted[key].slice(0, 10)}) ${q.m.permalink}`);
+      continue;
+    }
     if (await post(embedFor(q.store, q.handle, q.m))) {
+      if (key) state.posted[key] = new Date().toISOString();
       sent++;
       console.log(`[store-social] postad ${q.store} [${q.reason}] ${q.m.permalink}`);
     } else {
@@ -281,12 +303,14 @@ async function main() {
   }
 
   state.seeded = [...seeded];
+  state.cursor = stores.length ? ((state.cursor % stores.length) + attempted) % stores.length : 0;
   writeState(state);
   console.log(
     `[store-social] ${fetched}/${stores.length} butiker lästa, ${sent} postade, ${skipped} fällda av filtret, ` +
+      `${duplicates} dubbletter, ` +
       `förbrukning ${usage} %${stopped ? " (avbruten tidigt)" : ""}`
   );
-  if (sent < queue.length) process.exit(1);
+  if (sent + duplicates < queue.length) process.exit(1);
 }
 
 main().catch((e) => {
