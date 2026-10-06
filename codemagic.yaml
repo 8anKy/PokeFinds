@@ -28,7 +28,7 @@ workflows:
         # src/lib/app-version.ts är bara ett golv och behöver inte höjas.
         # 1.3 = push-trycket öppnar butikens korg-/produktlänk natively (AppDelegate),
         #       utan att vänta på WebView:en — lib/community-v2-gate.ts läser taggen.
-        MARKETING_VERSION: "1.3"
+        MARKETING_VERSION: "1.4"
         # Capacitor 8 = SPM-mall: inget CocoaPods, ingen .xcworkspace — bygg xcodeproj:t direkt.
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
