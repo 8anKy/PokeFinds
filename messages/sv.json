@@ -2300,7 +2300,7 @@
     "pill": "Ny version",
     "pillRequired": "Uppdatering krävs",
     "installed": "Du har {installed}",
-    "installedReleased": "Du har {installed} · släppt {date}",
+    "installedReleased": "Du har {installed} · {version} släpptes {date}",
     "requiredText": "Den här versionen av appen fungerar inte längre. Uppdatera för att fortsätta använda appen felfritt.",
     "fallbackNote": "Förbättringar och buggfixar.",
     "update": "Uppdatera",

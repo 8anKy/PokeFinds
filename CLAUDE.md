@@ -37,7 +37,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   ⛔ Inga pilar ("→") i mejl (ägarbeslut, vaktat i `email-templates.test.ts`). Veckobrevet har kvar sitt EGET skal.
 - **UPPDATERINGSSKÄRMEN I APPEN (ägarbeslut 2026-10-06, ersätter remsan)**: helskärm när en nyare version finns,
   med nyheterna ur EN fil för båda telefonerna: `src/data/app-release.json` (version, datum, `minVersion`, nyheter sv/en).
-  ⛔ Vid varje släpp: skriv filen. iPhone visar den först när App Store HAR versionen (Apples lookup); Android först
+  ⛔ Vid varje släpp: skriv filen. iPhone visar den först när App Store HAR versionen (Apples lookup, som också
+  ger DATUMET — filens datum är bara reserv/Android; 1.4 stod på 8 okt men släpptes 6 okt); Android först
   när `androidOnPlay: true` (sätt den när Play publicerat — inget publikt uppslag finns). Under `minVersion` = tvingad
   (ingen "Senare"). Domen: `lib/app-release.ts` (testad). Webben/inget native-bygge.
 - **FOILIO.SE-LÄNKAR ÖPPNAR APPEN (2026-10-06)**: AASA + `applinks:foilio.se` (codemagic.yaml) + Android

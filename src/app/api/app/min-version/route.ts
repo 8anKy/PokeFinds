@@ -58,13 +58,23 @@ const TIMEOUT_MS = 5000;
 
 interface Cached {
   ios: string;
+  /** Dagen versionen släpptes i App Store, svensk tid ("2026-10-06"); null = okänt. */
+  iosReleased: string | null;
   source: "store" | "floor";
   at: number;
 }
 let cache: Cached | null = null;
 let inFlight: Promise<Cached> | null = null;
 
-async function lookupStoreVersion(): Promise<string | null> {
+/** Apples ISO-tid → kalenderdagen i Sverige (23:04 UTC+2 den 6:e är den 6:e, inte den 7:e). */
+function stockholmDay(iso: unknown): string | null {
+  if (typeof iso !== "string") return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Stockholm" }).format(d);
+}
+
+async function lookupStoreVersion(): Promise<{ version: string; released: string | null } | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
@@ -74,9 +84,10 @@ async function lookupStoreVersion(): Promise<string | null> {
       headers: { "user-agent": "Foilio/1.0 (+https://foilio.se)" },
     });
     if (!res.ok) return null;
-    const json = (await res.json()) as { results?: { version?: unknown }[] };
+    const json = (await res.json()) as { results?: { version?: unknown; currentVersionReleaseDate?: unknown }[] };
     const v = json.results?.[0]?.version;
-    return typeof v === "string" && /^\d+(\.\d+)*$/.test(v.trim()) ? v.trim() : null;
+    if (typeof v !== "string" || !/^\d+(\.\d+)*$/.test(v.trim())) return null;
+    return { version: v.trim(), released: stockholmDay(json.results?.[0]?.currentVersionReleaseDate) };
   } catch {
     return null;
   } finally {
@@ -89,9 +100,10 @@ async function current(): Promise<Cached> {
   if (!inFlight) {
     inFlight = (async () => {
       const store = await lookupStoreVersion();
-      const ios = resolveMinAppVersion(store);
+      const ios = resolveMinAppVersion(store?.version);
+      const fromStore = !!store && ios === store.version;
       const at = store ? Date.now() : Date.now() - TTL_MS + FAIL_TTL_MS;
-      cache = { ios, source: store && ios === store ? "store" : "floor", at };
+      cache = { ios, iosReleased: fromStore ? store.released : null, source: fromStore ? "store" : "floor", at };
       return cache;
     })().finally(() => {
       inFlight = null;
@@ -101,9 +113,9 @@ async function current(): Promise<Cached> {
 }
 
 export async function GET() {
-  const { ios, source } = await current();
+  const { ios, iosReleased, source } = await current();
   return NextResponse.json(
-    { ios, floor: MIN_APP_VERSION, source },
+    { ios, iosReleased, floor: MIN_APP_VERSION, source },
     { headers: { "Cache-Control": NO_STORE } }
   );
 }

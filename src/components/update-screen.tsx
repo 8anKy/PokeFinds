@@ -34,14 +34,16 @@ const RECHECK_MIN_MS = 60 * 60 * 1000;
 /** Versionen användaren skjutit upp i DEN HÄR sessionen — nollas av en kallstart. */
 let dismissedVersion: string | null = null;
 
-async function fetchIosStoreVersion(): Promise<string> {
+async function fetchIosStore(): Promise<{ version: string; released: string | null }> {
   try {
     const res = await fetch(`/api/app/min-version?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return MIN_APP_VERSION;
-    const data = (await res.json()) as { ios?: unknown };
-    return typeof data.ios === "string" && data.ios.trim() ? data.ios.trim() : MIN_APP_VERSION;
+    if (!res.ok) return { version: MIN_APP_VERSION, released: null };
+    const data = (await res.json()) as { ios?: unknown; iosReleased?: unknown };
+    const version = typeof data.ios === "string" && data.ios.trim() ? data.ios.trim() : MIN_APP_VERSION;
+    const released = typeof data.iosReleased === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.iosReleased) ? data.iosReleased : null;
+    return { version, released };
   } catch {
-    return MIN_APP_VERSION;
+    return { version: MIN_APP_VERSION, released: null };
   }
 }
 
@@ -93,12 +95,18 @@ export function UpdateScreen() {
           if (Date.now() - lastCheckAt < RECHECK_MIN_MS) return;
           lastCheckAt = Date.now();
           try {
-            const [info, iosStoreVersion] = await Promise.all([
+            const [info, iosStore] = await Promise.all([
               App.getInfo(),
-              p === "ios" ? fetchIosStoreVersion() : Promise.resolve(null),
+              p === "ios" ? fetchIosStore() : Promise.resolve(null),
             ]);
             if (cancelled) return;
-            const next = updatePrompt({ platform: p, installed: info.version, release: release as AppRelease, iosStoreVersion });
+            const next = updatePrompt({
+              platform: p,
+              installed: info.version,
+              release: release as AppRelease,
+              iosStoreVersion: iosStore?.version,
+              iosStoreReleased: iosStore?.released,
+            });
             setPrompt(next && (next.mode === "required" || dismissedVersion !== next.version) ? next : null);
           } catch {
             // Pluginet svarade inte → behåll det vi visste.
@@ -176,7 +184,7 @@ export function UpdateScreen() {
           </span>
         </h1>
         <p className="mb-5 mt-2 text-[13px] text-ink-muted">
-          {released ? t("installedReleased", { installed: prompt.installed, date: released }) : t("installed", { installed: prompt.installed })}
+          {released ? t("installedReleased", { installed: prompt.installed, version: prompt.version, date: released }) : t("installed", { installed: prompt.installed })}
         </p>
         {required && <p className="mb-4 text-sm leading-relaxed text-ink">{t("requiredText")}</p>}
       </div>

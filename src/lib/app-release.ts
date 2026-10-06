@@ -45,7 +45,7 @@ export interface UpdatePrompt {
   installed: string;
   /** Tom ⇒ visa den neutrala raden. */
   notes: ReleaseNote[];
-  /** Bara när nyheterna gäller just den här versionen. */
+  /** Dagen `version` släpptes ("2026-10-06"): Apples datum på iPhone, annars filens. */
   released: string | null;
 }
 
@@ -55,6 +55,8 @@ export function updatePrompt(opts: {
   release: AppRelease;
   /** iPhone: versionen i App Store enligt Apples lookup. */
   iosStoreVersion?: string | null;
+  /** iPhone: dagen Apple släppte den versionen ("2026-10-06") — vinner över filens datum. */
+  iosStoreReleased?: string | null;
 }): UpdatePrompt | null {
   const { platform, installed, release } = opts;
   if (!installed) return null;
@@ -69,7 +71,9 @@ export function updatePrompt(opts: {
     version: available.trim(),
     installed: installed.trim(),
     notes: sameAsFile ? release.notes : [],
-    released: sameAsFile ? release.released : null,
+    // ⛔ Filens datum skrivs i FÖRVÄG (1.4 stod på "8 oktober", Apple släppte den 6:e).
+    //    På iPhone vet Apple svaret; filen är bara reserven.
+    released: (platform === "ios" ? opts.iosStoreReleased : null) || (sameAsFile ? release.released : null),
   };
 }
 

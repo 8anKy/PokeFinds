@@ -17,6 +17,25 @@ describe("updatePrompt", () => {
     expect(p?.notes).toHaveLength(1);
   });
 
+  it("iPhone: Apples releasedatum vinner över filens (1.4 stod på 8 okt, släpptes 6 okt)", () => {
+    const p = updatePrompt({
+      platform: "ios",
+      installed: "1.3",
+      release: R,
+      iosStoreVersion: "1.4",
+      iosStoreReleased: "2026-10-06",
+    });
+    expect(p?.released).toBe("2026-10-06");
+    // Även när butiken ligger före filen: Apple vet datumet, nyheterna utelämnas ändå.
+    const ahead = updatePrompt({ platform: "ios", installed: "1.3", release: R, iosStoreVersion: "1.5", iosStoreReleased: "2026-11-01" });
+    expect(ahead).toMatchObject({ notes: [], released: "2026-11-01" });
+  });
+
+  it("Android: filens datum (inget publikt uppslag)", () => {
+    const p = updatePrompt({ platform: "android", installed: "1.3", release: R, iosStoreReleased: "2026-10-06" });
+    expect(p?.released).toBe("2026-10-08");
+  });
+
   it("iPhone: under Apples granskning (butiken har 1.3) lovas inte 1.4", () => {
     expect(updatePrompt({ platform: "ios", installed: "1.3", release: R, iosStoreVersion: "1.3" })).toBeNull();
   });
