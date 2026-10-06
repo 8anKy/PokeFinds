@@ -8,6 +8,7 @@ import { MIN_APP_VERSION } from "@/lib/app-version";
 import { isEmailLandingRoute } from "@/lib/auth-routes";
 import { localizedNote, updatePrompt, type ReleaseIcon, type UpdatePrompt } from "@/lib/app-release";
 import release from "@/data/app-release.json";
+import { markUpdateCheckDone } from "@/lib/boot-gate";
 import type { AppRelease } from "@/lib/app-release";
 
 /**
@@ -69,6 +70,12 @@ export function UpdateScreen() {
   const pathname = usePathname();
   const [prompt, setPrompt] = useState<UpdatePrompt | null>(null);
   const [platform, setPlatform] = useState<"ios" | "android">("ios");
+  // Första kollen klar ⇒ släpp splashen (lib/boot-gate.ts). Effekten körs efter
+  // commit, så en ny skärm finns redan i DOM:en när splashen börjar tona ut.
+  const [firstCheckDone, setFirstCheckDone] = useState(false);
+  useEffect(() => {
+    if (firstCheckDone) markUpdateCheckDone();
+  }, [firstCheckDone]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,9 +84,9 @@ export function UpdateScreen() {
     void (async () => {
       try {
         const { Capacitor } = await import("@capacitor/core");
-        if (!Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable("App")) return;
+        if (!Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable("App")) return markUpdateCheckDone();
         const p = Capacitor.getPlatform();
-        if (p !== "ios" && p !== "android") return;
+        if (p !== "ios" && p !== "android") return markUpdateCheckDone();
         setPlatform(p);
         const { App } = await import("@capacitor/app");
         const check = async () => {
@@ -98,6 +105,7 @@ export function UpdateScreen() {
           }
         };
         await check();
+        if (!cancelled) setFirstCheckDone(true);
         const handle = await App.addListener("appStateChange", ({ isActive }) => {
           if (isActive) void check();
         });
@@ -105,6 +113,7 @@ export function UpdateScreen() {
         else removeListener = () => void handle.remove();
       } catch {
         // Webb / plugin saknas → ingen skärm.
+        markUpdateCheckDone();
       }
     })();
     return () => {
