@@ -40,6 +40,10 @@ export interface FlapPolicy {
   minAwayMinutes: number;
   flapMaxTransitions: number;
   flapCooldownHours: number;
+  /** Föregående i-lager-fönster kortare än så här = KORT VÅG (0 = regeln av). */
+  shortWaveMinutes?: number;
+  /** Minsta tid mellan två inlägg om samma URL efter en kort våg. */
+  shortWaveCooldownMinutes?: number;
 }
 
 export function flapPolicy(): FlapPolicy {
@@ -53,6 +57,9 @@ export function flapPolicy(): FlapPolicy {
     minAwayMinutes: Number(process.env.RESTOCK_MIN_AWAY_MINUTES ?? 20),
     flapMaxTransitions: Number(process.env.RESTOCK_FLAP_MAX_TRANSITIONS ?? 6),
     flapCooldownHours: Number(process.env.RESTOCK_FLAP_COOLDOWN_HOURS ?? 24),
+    // Av som default — bara Discord-lanen sätter den (discord-restock.yml).
+    shortWaveMinutes: Number(process.env.RESTOCK_SHORT_WAVE_MINUTES ?? 0),
+    shortWaveCooldownMinutes: Number(process.env.RESTOCK_SHORT_WAVE_COOLDOWN_MINUTES ?? 60),
   };
 }
 
@@ -85,4 +92,32 @@ export function evaluateStockFlap(
   const flapping =
     policy.flapMaxTransitions > 0 && inWindow.length > policy.flapMaxTransitions;
   return { blip, cooldownHours: flapping ? policy.flapCooldownHours : 0 };
+}
+
+/**
+ * KORT VÅG (2026-10-06): hur länge varan låg i lager FÖRRA gången, i minuter — eller
+ * null om det inte går att se i dygnsfönstret.
+ *
+ * Toyspace lade tillbaka SAMMA Mini Tin Display i 1–2 minuter var 16–19:e minut
+ * (IN 12:22:59 → slut 12:24:58 → IN 12:39:54 → slut 12:40:54 → IN 12:58): ett enda ex
+ * som släpps ur en övergiven kassa och köps direkt. Med kanalens 15-minuterscooldown
+ * blev varje sådant fönster ett inlägg. En ÄKTA våg ligger kvar längre än så — det är
+ * den regeln skiljer på, inte på hur ofta varan kommer tillbaka.
+ *
+ * `recent` = övergångarna för EN annons, nyast först (samma lista som evaluateStockFlap).
+ */
+export function previousInStockMinutes(
+  recent: { oldStatus: StockStatus; detectedAt: Date }[],
+  inStatus: StockStatus,
+  now: Date
+): number | null {
+  const windowStart = now.getTime() - FLAP_WINDOW_HOURS * 3600_000;
+  const inWindow = recent.filter((e) => e.detectedAt.getTime() >= windowStart);
+  // Senaste gången varan LÄMNADE i-lager-läget …
+  const i = inWindow.findIndex((e) => e.oldStatus === inStatus);
+  if (i < 0) return null;
+  // … och övergången närmast före = när den kom IN i det läget.
+  const entered = inWindow[i + 1];
+  if (!entered) return null;
+  return (inWindow[i].detectedAt.getTime() - entered.detectedAt.getTime()) / 60_000;
 }

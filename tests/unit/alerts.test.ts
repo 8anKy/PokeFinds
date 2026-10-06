@@ -494,6 +494,9 @@ describe("evaluateStockFlap", () => {
       minAwayMinutes: 20,
       flapMaxTransitions: 6,
       flapCooldownHours: 24,
+      // Kort våg AV (0) — bara Discord-lanen sätter den, appens push/mejl är orörda.
+      shortWaveMinutes: 0,
+      shortWaveCooldownMinutes: 60,
     });
   });
 });

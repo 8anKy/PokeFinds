@@ -1507,3 +1507,58 @@ describe("discordRestockConfig — Pro-spegeln (\"pro\")", () => {
     });
   });
 });
+
+/**
+ * KORT VÅG (2026-10-06): Toyspace lade tillbaka samma Mini Tin Display i 1–2 min var
+ * 16–19:e minut och kanalen postade 12:23, 12:39 och 12:58. Lanens riktiga spakar.
+ */
+describe("deriveRestockPosts — kort våg", () => {
+  const LANE: FlapPolicy = {
+    minAwayMinutes: 5,
+    flapMaxTransitions: 40,
+    flapCooldownHours: 24,
+    shortWaveMinutes: 5,
+    shortWaveCooldownMinutes: 60,
+  };
+  const at = (hhmm: string) => new Date(`2026-10-06T${hhmm}:00Z`);
+  /** Förra vågen: IN vid `inAt`, slut vid `outAt`, postad vid `inAt`. */
+  const afterWave = (inAt: string, outAt: string): DiscordRestockState =>
+    state({
+      stock: { [KEY]: "OUT_OF_STOCK" },
+      history: { [KEY]: [{ o: "IN_STOCK", t: at(outAt).getTime() }, { o: "OUT_OF_STOCK", t: at(inAt).getTime() }] },
+      posted: { [KEY]: at(inAt).getTime() },
+    });
+  const run = (s: DiscordRestockState, now: string, policy = LANE) =>
+    deriveRestockPosts({
+      state: s,
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
+      rotating: new Set(),
+      routes: ROUTES,
+      filter: FILTER,
+      knownSets: KNOWN_SETS,
+      now: at(now),
+      policy,
+      cooldownHours: 0.25,
+      baseUrl: BASE,
+      priceDrops: null,
+    });
+
+  it("postar INTE igen 16 min efter en våg som bara låg i lager 2 min", () => {
+    const r = run(afterWave("12:23", "12:25"), "12:39");
+    expect(r.posts).toHaveLength(0);
+    expect(r.stats.skippedCooldown).toBe(1);
+  });
+
+  it("postar igen när timmen gått", () => {
+    expect(run(afterWave("12:23", "12:25"), "13:24").posts).toHaveLength(1);
+  });
+
+  it("en ÄKTA våg (låg kvar 20 min) har kvar 15-minuterscooldownen", () => {
+    expect(run(afterWave("12:00", "12:20"), "12:39").posts).toHaveLength(1);
+  });
+
+  it("regeln är av utan spaken (appens flapPolicy-default)", () => {
+    const { shortWaveMinutes: _off, ...appLike } = LANE;
+    expect(run(afterWave("12:23", "12:25"), "12:39", appLike).posts).toHaveLength(1);
+  });
+});

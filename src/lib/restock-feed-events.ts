@@ -46,7 +46,7 @@
  *     URL:er, vilket kan TYSTA en äkta påfyllning de närmaste två timmarna.
  */
 import { actionableChanges, mergeStateMap, type FeedStateMap, type StockChange } from "@/lib/feed-state-diff";
-import { evaluateStockFlap, FLAP_WINDOW_HOURS, type FlapPolicy } from "@/lib/stock-flap";
+import { evaluateStockFlap, FLAP_WINDOW_HOURS, previousInStockMinutes, type FlapPolicy } from "@/lib/stock-flap";
 import {
   judgePriceDrop,
   type PriceDropPolicy,
@@ -718,8 +718,9 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       stats.rescuedByRoute++;
     }
 
+    const recentForKey = (history[c.key] ?? []).map((e) => ({ oldStatus: e.o as StockStatus, detectedAt: new Date(e.t) }));
     const flap = evaluateStockFlap(
-      (history[c.key] ?? []).map((e) => ({ oldStatus: e.o as StockStatus, detectedAt: new Date(e.t) })),
+      recentForKey,
       (isPreorderOpen ? PREORDER : IN_STOCK) as StockStatus,
       now,
       policy
@@ -731,7 +732,14 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       continue;
     }
 
-    const effectiveCooldownMs = Math.max(cooldownMs, flap.cooldownHours * 3600_000);
+    // Kort våg: förra i-lager-fönstret var bara ett släppt kassa-ex ⇒ längre cooldown.
+    const lastWave =
+      (policy.shortWaveMinutes ?? 0) > 0
+        ? previousInStockMinutes(recentForKey, (isPreorderOpen ? PREORDER : IN_STOCK) as StockStatus, now)
+        : null;
+    const shortWaveMs =
+      lastWave != null && lastWave < (policy.shortWaveMinutes ?? 0) ? (policy.shortWaveCooldownMinutes ?? 60) * 60_000 : 0;
+    const effectiveCooldownMs = Math.max(cooldownMs, flap.cooldownHours * 3600_000, shortWaveMs);
     const last = posted[c.key];
     if (last != null && now.getTime() - last < effectiveCooldownMs) {
       stats.skippedCooldown++;

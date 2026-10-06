@@ -238,6 +238,12 @@ jobs:
       RESTOCK_ALERT_COOLDOWN_HOURS: "0.25"
       RESTOCK_MIN_AWAY_MINUTES: "5"
       RESTOCK_FLAP_MAX_TRANSITIONS: "40"
+      # KORT VÅG (2026-10-06): låg varan i lager < 5 min FÖRRA gången (ett ex ur en
+      # övergiven kassa, köpt direkt) väntar nästa inlägg om samma URL 60 min i stället
+      # för 15. Toyspace Mini Tin Display postades 12:23, 12:39 och 12:58 med 1–2 min i
+      # lager varje gång. En våg som ligger kvar ≥ 5 min påverkas inte.
+      RESTOCK_SHORT_WAVE_MINUTES: "5"
+      RESTOCK_SHORT_WAVE_COOLDOWN_MINUTES: "60"
       # ⛔ WEBHALLEN VAR SVANSEN I SVEPET. MÄTT 2026-08-15: hela svepet över 42 butiker
       # tog 54,4 s och Webhallen ensam 52,3 s av dem — dess live-koll slår upp varje
       # icke-i-lager-produkt (~48 st) sekventiellt med 800 ms paus. Sedan svepet ersatts
