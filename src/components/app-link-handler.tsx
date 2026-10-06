@@ -14,7 +14,7 @@ import { appLinkPath } from "@/lib/app-links";
  *   • `getLaunchUrl()` — appen KALLSTARTADES av länken; händelsen hann gå innan
  *     lyssnaren fanns.
  *
- * ⛔ RÖR ALDRIG ETT PLUGIN SOM INTE FINNS I BYGGET (samma regel som update-banner):
+ * ⛔ RÖR ALDRIG ETT PLUGIN SOM INTE FINNS I BYGGET (samma regel som update-screen):
  *    `isPluginAvailable("App")` före importen; webben drar aldrig in plugin-koden.
  * ⛔ Domen bor i `lib/app-links.ts` (ren, testad) — inga URL-regler här.
  */

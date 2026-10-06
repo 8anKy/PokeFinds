@@ -4,7 +4,7 @@ import { IOS_BUNDLE_ID, MIN_APP_VERSION, resolveMinAppVersion } from "@/lib/app-
 /**
  * GET /api/app/min-version — vilken app-version ligger i App Store just nu?
  *
- * Driver "Ny version finns"-remsan (components/update-banner.tsx) utan att någon
+ * Driver "Ny version finns"-remsan (components/update-screen.tsx) utan att någon
  * behöver höja en konstant efter varje granskning: Apples publika lookup-API
  * (ingen nyckel, ingen kvot att tala om) svarar med den version som är SLÄPPT
  * i den svenska butiken — dvs exakt den version användaren kan hämta. Svaret

@@ -229,6 +229,14 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   Produktlarmen visar produktbild + butikslogga (`AlertMedia`, skickas in av `services/notifications.ts`; relativa
   URL:er görs absoluta mot APP_URL-konstanten), knapp till BUTIKEN och "Jämför alla butiker i Foilio" till vår sida.
   ⛔ Inga pilar ("→") i mejl (ägarbeslut, vaktat i `email-templates.test.ts`). Veckobrevet har kvar sitt EGET skal.
+- **UPPDATERINGSSKÄRMEN I APPEN (ägarbeslut 2026-10-06, ersätter remsan)**: helskärm när en nyare version finns,
+  med nyheterna ur EN fil för båda telefonerna: `src/data/app-release.json` (version, datum, `minVersion`, nyheter sv/en).
+  ⛔ Vid varje släpp: skriv filen. iPhone visar den först när App Store HAR versionen (Apples lookup); Android först
+  när `androidOnPlay: true` (sätt den när Play publicerat — inget publikt uppslag finns). Under `minVersion` = tvingad
+  (ingen "Senare"). Domen: `lib/app-release.ts` (testad). Webben/inget native-bygge.
+- **FOILIO.SE-LÄNKAR ÖPPNAR APPEN (2026-10-06)**: AASA + `applinks:foilio.se` (codemagic.yaml) + Android
+  `autoVerify`; `AppLinkHandler` navigerar. ⛔ Android kräver `public/.well-known/assetlinks.json` med Play-nyckelns
+  SHA-256 (saknas ännu). ⛔ Slå aldrig på Resends klickspårning — omskrivna länkar öppnar webbläsaren.
 - **LIVE** på https://foilio.se — **Railway** (`divine-reflection/PokeFinds`) + Neon serverless Postgres
   (Frankfurt). Deploy = `git push origin main` (Dockerfile, node:22-slim). Ingen Vercel. Railway blockar
   SMTP-portar → mejl via Resend HTTP API (`src/lib/mailer.ts`).

@@ -1,6 +1,6 @@
 /**
  * Lägsta app-version vi vill att användarna kör — driver "Ny version finns"-remsan
- * i appen (`components/update-banner.tsx`).
+ * i appen (`components/update-screen.tsx`).
  *
  * VARFÖR I WEBBEN: appen är ett tunt WebView-skal över foilio.se, så webben når
  * VARJE installerad version — även den som aldrig uppdaterats. Webben läser den

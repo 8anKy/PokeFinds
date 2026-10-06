@@ -10,6 +10,9 @@
 export const APP_STORE_URL =
   "https://apps.apple.com/se/app/foilio-kortpriser-larm/id6783443245";
 
+/** Google Play — samma app-id som `appId` i capacitor.config.ts. */
+export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=se.foilio.app";
+
 export const DISCORD_URL = "https://discord.gg/kpgmdEebgW";
 export const INSTAGRAM_URL = "https://www.instagram.com/foilio.se";
 export const TIKTOK_URL = "https://www.tiktok.com/@foilio.se";

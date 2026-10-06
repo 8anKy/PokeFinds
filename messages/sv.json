@@ -2296,11 +2296,16 @@
   "PageNav": {
     "back": "Tillbaka"
   },
-  "UpdateBanner": {
-    "title": "Foilio {version} finns i App Store",
-    "body": "Logga in med Google eller Apple och skanna utan konto — uppdatera appen för att få det.",
-    "cta": "Uppdatera",
-    "dismiss": "Stäng"
+  "UpdateScreen": {
+    "pill": "Ny version",
+    "pillRequired": "Uppdatering krävs",
+    "installed": "Du har {installed}",
+    "installedReleased": "Du har {installed} · släppt {date}",
+    "requiredText": "Den här versionen av appen fungerar inte längre. Uppdatera för att fortsätta använda appen felfritt.",
+    "fallbackNote": "Förbättringar och buggfixar.",
+    "update": "Uppdatera",
+    "updateNow": "Uppdatera nu",
+    "later": "Senare"
   },
   "Offline": {
     "message": "Ingen internetanslutning",

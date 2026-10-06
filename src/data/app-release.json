@@ -1,0 +1,26 @@
+{
+  "version": "1.4",
+  "released": "2026-10-08",
+  "minVersion": "1.1",
+  "androidOnPlay": false,
+  "notes": [
+    {
+      "icon": "link",
+      "title": "Länkar öppnar appen",
+      "text": "Knapparna i våra mejl och i Discord tar dig direkt till rätt sida i appen.",
+      "en": { "title": "Links open the app", "text": "Buttons in our emails and on Discord take you straight to the right page in the app." }
+    },
+    {
+      "icon": "store",
+      "title": "Butiksrapporter i Community",
+      "text": "Se vad andra samlare hittat i butikerna, med pris och när de var där.",
+      "en": { "title": "Store reports in Community", "text": "See what other collectors found in stores, with the price and when they were there." }
+    },
+    {
+      "icon": "map",
+      "title": "Karta över butiker",
+      "text": "327 fysiska butiker med Pokémon-kort, sökbara per ort.",
+      "en": { "title": "Store map", "text": "327 physical stores with Pokémon cards, searchable by town." }
+    }
+  ]
+}

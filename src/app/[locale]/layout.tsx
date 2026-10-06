@@ -26,7 +26,7 @@ import { EngagementTracker } from "@/components/engagement-tracker";
 import { AppBoot } from "@/components/app-boot";
 import { AppResumeRefresh } from "@/components/app-resume-refresh";
 import { OfflineBanner } from "@/components/offline-banner";
-import { UpdateBanner } from "@/components/update-banner";
+import { UpdateScreen } from "@/components/update-screen";
 import { AppLinkHandler } from "@/components/app-link-handler";
 
 export async function generateMetadata({
@@ -154,7 +154,7 @@ export default async function LocaleLayout({
             {children}
             {/* "Ny version finns"-remsan (bara iOS-appen, bara äldre bygge) ligger på
                 z-30 FÖRE overlayn och flikarna — båda ska måla över den. */}
-            <UpdateBanner />
+            <UpdateScreen />
             {/* Overlay FÖRE bottom-tabs: båda z-40 → tabs (senare i DOM) målas
                 ovanpå overlayn (syns/klickbara), medan overlayn täcker sidans egen
                 header (annars dubbel header). */}
