@@ -8,6 +8,150 @@
     "handle": "fantasianorthsweden"
   },
   {
+    "store": "Hemmakväll Borlänge",
+    "handle": "hemmakvall_borlange"
+  },
+  {
+    "store": "Hemmakväll Falun",
+    "handle": "hemmakvall_falun"
+  },
+  {
+    "store": "Hemmakväll Gävle",
+    "handle": "hemmakvall_gavle"
+  },
+  {
+    "store": "Hemmakväll Jönköping",
+    "handle": "hemmakvall_jonkoping"
+  },
+  {
+    "store": "Hemmakväll Kalmar",
+    "handle": "hemmakvall_kalmar"
+  },
+  {
+    "store": "Hemmakväll Karlshamn",
+    "handle": "hemmakvall_karlshamn"
+  },
+  {
+    "store": "Hemmakväll Skellefteå",
+    "handle": "hemmakvall_skelleftea"
+  },
+  {
+    "store": "Hemmakväll Trollhättan",
+    "handle": "hemmakvall_trollhattan"
+  },
+  {
+    "store": "Hemmakväll Ängelholm",
+    "handle": "hemmakvall_angelholm"
+  },
+  {
+    "store": "Hemmakväll Örnsköldsvik",
+    "handle": "hemmakvall_ornskoldsvik"
+  },
+  {
+    "store": "Kandyz Borås",
+    "handle": "kandyz_boras"
+  },
+  {
+    "store": "Kandyz Bromma",
+    "handle": "kandyz_bromma"
+  },
+  {
+    "store": "Kandyz Eskilstuna",
+    "handle": "kandyz_eskilstuna"
+  },
+  {
+    "store": "Kandyz Halmstad",
+    "handle": "halmstad_kandyz"
+  },
+  {
+    "store": "Kandyz Haninge",
+    "handle": "kandyz_haninge"
+  },
+  {
+    "store": "Kandyz Hisingen",
+    "handle": "kandyz_hisingen"
+  },
+  {
+    "store": "Kandyz Hudiksvall",
+    "handle": "kandyz_hudiksvall"
+  },
+  {
+    "store": "Kandyz Kalmar",
+    "handle": "kandyz_kalmar"
+  },
+  {
+    "store": "Kandyz Karlstad",
+    "handle": "kandyz_karlstad"
+  },
+  {
+    "store": "Kandyz Lund",
+    "handle": "kandyz_lund"
+  },
+  {
+    "store": "Kandyz Löddeköpinge",
+    "handle": "kandyz_loddekopinge"
+  },
+  {
+    "store": "Kandyz Nacka",
+    "handle": "kandyz_nacka"
+  },
+  {
+    "store": "Kandyz Norrköping",
+    "handle": "kandyz_norrkoping"
+  },
+  {
+    "store": "Kandyz Norrtälje",
+    "handle": "kandyz_norrtalje"
+  },
+  {
+    "store": "Kandyz Segeltorp",
+    "handle": "kandyz_segeltorp"
+  },
+  {
+    "store": "Kandyz Skurup",
+    "handle": "kandyz_skurup"
+  },
+  {
+    "store": "Kandyz Skövde",
+    "handle": "kandyz_skovde"
+  },
+  {
+    "store": "Kandyz Trollhättan",
+    "handle": "kandyz_trollhattan"
+  },
+  {
+    "store": "Kandyz Västervik",
+    "handle": "kandyz_vastervik"
+  },
+  {
+    "store": "Kandyz Växjö",
+    "handle": "kandyz_vaxjo"
+  },
+  {
+    "store": "Kandyz Örebro",
+    "handle": "kandyz_orebro"
+  },
+  {
+    "store": "Lekextra Falun",
+    "handle": "lekextrafalun"
+  },
+  {
+    "store": "Lekextra Landskrona",
+    "handle": "lekextralandskrona"
+  },
+  {
+    "store": "Lekextra Leksand",
+    "handle": "lekextraleksand"
+  },
+  {
+    "store": "Lekextra Lidköping",
+    "handle": "lekextralidkoping"
+  },
+  {
+    "store": "Lekextra Nybro",
+    "handle": "lekextranybro"
+  },
+  {
     "store": "Lekia",
     "handle": "lekia.se"
   },

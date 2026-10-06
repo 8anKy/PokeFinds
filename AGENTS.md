@@ -222,7 +222,7 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   ⛔ DB-fri; Metas tak 200 anrop/h ⇒ högst 45 konton per körning, ROTERAR via markör i state; samma text från
   flera filialer postas en gång per 7 d (`lib/store-social-rotation.ts`). Scriptet slutar vid 90 %. Handtagen: `src/data/store-instagram.json` — ⛔ BARA
   ägarens utvalda (2026-10-06): billiga butiker med direktleverantör som FAKTISKT postar om Pokémon (Swepoke,
-  Speltrollet, Fantasia North, Manatörsk, Spelexperten, Alphaspel, Lekia + 34 aktiva Lekia-filialer, 2026-10-06). Döda konton (Goblinen,
+  Speltrollet, Fantasia North, Manatörsk, Spelexperten, Alphaspel, Lekia + 34 Lekia-, 21 Kandyz-, 10 Hemmakväll- och 5 Lekextra-filialer vars inlägg passerar filtret, 2026-10-06 — 77 konton). Döda konton (Goblinen,
   Dragon's Lair) och kedjor som aldrig postar Pokémon (Webhallen, MaxGaming, SF-Bok) är utelämnade med flit. Ny butik
   seedas tyst. Utdrag + länk ut, aldrig hela inlägget. Token dör om ägarens FB-lösen byts ⇒ röd körning (kod 190).
 - **MEJLEN = "SVART HOLO" (ägarbeslut 2026-10-06)**: alla mallar i `src/emails/templates.ts` delar palett, sidhuvud
