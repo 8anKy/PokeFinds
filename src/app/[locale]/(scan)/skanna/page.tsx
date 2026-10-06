@@ -100,7 +100,6 @@ import {
   IconScan,
   IconSearch,
   IconSettings,
-  IconShare,
   IconShield,
   IconTrash,
   IconUpload,
@@ -4333,7 +4332,7 @@ function ScanDetailsSheet(props: {
                 {/* DELA (2026-10-01): en bild med kortet och värdet för story/Discord.
                     Bredvid priset, för det är priset man vill visa upp. */}
                 <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
-                  <IconShare size={14} /> {tShare("open")}
+                  {tShare("open")}
                 </Button>
               </div>
             </div>

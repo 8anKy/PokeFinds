@@ -176,7 +176,13 @@ export default async function CollectionPage({
   const shareTop = value.topItems.slice(0, 3).flatMap((top) => {
     const i = itemById.get(top.id);
     if (!i) return [];
-    return [{ imageUrl: i.card?.imageUrl ?? i.product?.imageUrl ?? null, fallbackImageUrl: i.imageUrl ?? null }];
+    return [
+      {
+        imageUrl: i.card?.imageUrl ?? i.product?.imageUrl ?? null,
+        fallbackImageUrl: i.imageUrl ?? null,
+        shape: isSealedCollectionItem(i) ? ("box" as const) : ("card" as const),
+      },
+    ];
   });
 
   const topMovers = value.movers.slice(0, 2);

@@ -19,13 +19,19 @@
  * bilden ritas i förväg (aktiveringen hade gått ut under de sekunder kodningen tar).
  * Förhandsvisningen är slabben som snurrar live (samma ritning som videon) och den
  * går att vrida med fingret.
+ *
+ * SIDOR (2026-10-06, `pages`): flera bilder av samma sak — produktens story-bild och
+ * en liggande. Förhandsvisningen sveps i sidled (scroll-snap) med prickar under,
+ * och Dela delar den bild som syns. Alla sidor ritas när panelen öppnas, av samma
+ * skäl som ovan.
+ *
+ * Knapparna bär bara text (ägarbeslut 2026-10-06).
  */
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { IconCheck, IconLink, IconShare } from "@/components/ui/icons";
 import { detectShareMode, shareFilename, shareImage, type ShareMode } from "@/lib/share-image";
 import type { GradeSpinLayers } from "@/lib/share-card";
 import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from "@/lib/share-card";
@@ -57,12 +63,21 @@ function inviteLinkWithin(ms: number): Promise<InviteLink | null> {
 
 type Kind = "image" | "video";
 
+/** En bild i arket. `wide` = liggande (16:9), annars story (9:16). */
+export interface SharePage {
+  key: string;
+  render: (domain: string) => Promise<Blob>;
+  wide?: boolean;
+}
+
 export function ShareCardPanel(props: {
   /**
    * Ritar bilden — `renderShareCard` (skanning) eller `renderGradeShareCard`.
    * `domain` är sidfotens adress: den personliga länken, eller "foilio.se".
    */
-  render: (domain: string) => Promise<Blob>;
+  render?: (domain: string) => Promise<Blob>;
+  /** Flera bilder att svepa mellan (ersätter `render`). Första sidan visas först. */
+  pages?: SharePage[];
   /** Kortets namn: filnamnet och förhandsvisningens alt-text. */
   name: string;
   /** Var delningen kom ifrån, t.ex. "scan" — spåras som `share_card`. */
@@ -89,8 +104,11 @@ export function ShareCardPanel(props: {
   const t = useTranslations("ShareCard");
   const { source } = props;
   const printLink = props.printLink !== false;
-  const [blob, setBlob] = useState<Blob | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const pages: SharePage[] = props.pages ?? (props.render ? [{ key: "story", render: props.render }] : []);
+  const [blobs, setBlobs] = useState<(Blob | null)[]>([]);
+  const [previews, setPreviews] = useState<(string | null)[]>([]);
+  const [page, setPage] = useState(0);
+  const scroller = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [mode, setMode] = useState<ShareMode | null | undefined>(undefined);
@@ -118,25 +136,28 @@ export function ShareCardPanel(props: {
 
   useEffect(() => {
     let alive = true;
-    let url: string | null = null;
+    const urls: string[] = [];
     setFailed(false);
-    setBlob(null);
-    setPreview(null);
+    setBlobs([]);
+    setPreviews([]);
     inviteLinkWithin(3000)
-      .then((l) => {
+      .then(async (l) => {
         if (alive) setLink(l);
-        return props.render(printLink ? l?.label ?? "foilio.se" : "foilio.se");
-      })
-      .then((b) => {
-        if (!alive) return;
-        url = URL.createObjectURL(b);
-        setBlob(b);
-        setPreview(url);
+        const domain = printLink ? l?.label ?? "foilio.se" : "foilio.se";
+        // En i taget: första sidan syns så fort den är klar.
+        for (let i = 0; i < pages.length; i++) {
+          const b = await pages[i].render(domain);
+          if (!alive) return;
+          const url = URL.createObjectURL(b);
+          urls.push(url);
+          setBlobs((prev) => Object.assign([...prev], { [i]: b }));
+          setPreviews((prev) => Object.assign([...prev], { [i]: url }));
+        }
       })
       .catch(() => alive && setFailed(true));
     return () => {
       alive = false;
-      if (url) URL.revokeObjectURL(url);
+      urls.forEach((u) => URL.revokeObjectURL(u));
     };
     // Ritas om vid ett nytt försök eller ett nytt val — indata är annars fast.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,7 +197,10 @@ export function ShareCardPanel(props: {
     track("share_card", `${source}:open`);
   }, [source]);
 
-  const sharing = kind === "video" ? video : blob;
+  const sharing = kind === "video" ? video : blobs[page] ?? null;
+  const preview = previews[0] ?? null;
+  /** Spåras per sida: "product:shared", "product_wide:shared". */
+  const pageSource = page > 0 && pages[page] ? `${source}_${pages[page].key}` : source;
 
   async function onShare() {
     if (!sharing || !mode || busy) return;
@@ -184,11 +208,14 @@ export function ShareCardPanel(props: {
     try {
       const outcome = await shareImage(
         sharing,
-        shareFilename(props.name, kind === "video" ? "mp4" : "jpg"),
+        shareFilename(
+          page > 0 && pages[page] ? `${props.name}-${pages[page].key}` : props.name,
+          kind === "video" ? "mp4" : "jpg"
+        ),
         mode,
         t("title")
       );
-      if (outcome !== "cancelled") track("share_card", `${source}:${kind === "video" ? "video_" : ""}${outcome}`);
+      if (outcome !== "cancelled") track("share_card", `${pageSource}:${kind === "video" ? "video_" : ""}${outcome}`);
       if (outcome === "saved") {
         setSaved(true);
         window.setTimeout(() => setSaved(false), 2500);
@@ -250,6 +277,61 @@ export function ShareCardPanel(props: {
       <div className="flex min-h-[160px] flex-1 items-center justify-center">
         {kind === "video" && layers ? (
           <SpinPreview layers={layers} style={frameStyle} label={t("previewAlt", { name: props.name })} />
+        ) : kind === "image" && pages.length > 1 && !failed ? (
+          <div className="flex h-full w-full flex-col items-center gap-3">
+            <div
+              ref={scroller}
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+                if (i !== page) setPage(i);
+              }}
+              style={props.previewMax ? { height: props.previewMax } : undefined}
+              className="flex h-full w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {pages.map((pg, i) => (
+                <div key={pg.key} className="flex h-full w-full shrink-0 snap-center items-center justify-center px-1">
+                  {previews[i] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={previews[i]!}
+                      alt={t("previewAlt", { name: props.name })}
+                      className={cn(
+                        "block h-auto max-h-full w-auto max-w-full animate-scale-in rounded-2xl object-contain ring-1 ring-surface-border",
+                        pg.wide ? "aspect-[16/9]" : "aspect-[9/16]"
+                      )}
+                    />
+                  ) : (
+                    <div
+                      className={cn(
+                        "flex max-h-full max-w-full flex-col items-center justify-center gap-3 rounded-2xl bg-surface-overlay text-ink-faint ring-1 ring-surface-border",
+                        pg.wide ? "aspect-[16/9] w-full" : "aspect-[9/16] h-full"
+                      )}
+                    >
+                      <Spinner />
+                      <span className="text-xs">{t("rendering")}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex shrink-0 gap-2" role="tablist" aria-label={t("pagesLabel")}>
+              {pages.map((pg, i) => (
+                <button
+                  key={pg.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === page}
+                  aria-label={t("pageN", { n: i + 1, total: pages.length })}
+                  onClick={() => {
+                    const el = scroller.current;
+                    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+                  }}
+                  className={cn("h-2 w-2 rounded-full transition-colors", i === page ? "bg-holo-cyan" : "bg-surface-border")}
+                />
+              ))}
+            </div>
+          </div>
         ) : kind === "image" && preview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -309,7 +391,6 @@ export function ShareCardPanel(props: {
             disabled={!sharing || mode === undefined}
             loading={busy}
           >
-            {saved ? <IconCheck size={16} /> : <IconShare size={16} />}
             {saved
               ? t("saved")
               : kind === "video" && !video
@@ -325,7 +406,6 @@ export function ShareCardPanel(props: {
         )}
         {link && (
           <Button variant="outline" onClick={() => void onCopyLink()} aria-label={t("copyLink")}>
-            {copied ? <IconCheck size={16} /> : <IconLink size={16} />}
             {copied ? t("linkCopied") : t("copyLinkShort")}
           </Button>
         )}

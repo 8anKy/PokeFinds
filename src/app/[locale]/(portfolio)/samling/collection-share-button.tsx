@@ -13,7 +13,6 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
-import { IconShare } from "@/components/ui/icons";
 import { ShareCardPanel } from "@/components/features/share-card-panel";
 import { renderCollectionShareCard, type ShareChartPoint } from "@/lib/share-card";
 import { shareChangeOverDays, shareChartWindow } from "@/lib/share-card-data";
@@ -25,7 +24,7 @@ export function CollectionShareButton(props: {
   totalValue: number;
   itemCount: number;
   chart: ShareChartPoint[];
-  top: { imageUrl: string | null; fallbackImageUrl: string | null }[];
+  top: { imageUrl: string | null; fallbackImageUrl: string | null; shape: "card" | "box" }[];
 }) {
   const t = useTranslations("ShareCard");
   const [open, setOpen] = useState(false);
@@ -36,7 +35,6 @@ export function CollectionShareButton(props: {
   return (
     <>
       <Button variant="secondary" size="sm" onClick={() => setOpen(true)} aria-label={t("collectionOpen")}>
-        <IconShare size={15} />
         {t("open")}
       </Button>
       <BottomSheet

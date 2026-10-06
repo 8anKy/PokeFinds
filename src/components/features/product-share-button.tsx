@@ -3,7 +3,8 @@
 /**
  * "Dela" på produktvyn (2026-10-06): cirkeln uppe till höger på scenen öppnar en
  * story-bild med produktbilden, rubrikpriset, 30-dagarsförändringen och grafen
- * (`renderProductShareCard`). Inloggade får sin personliga inbjudningslänk i
+ * (`renderProductShareCard`), och en liggande variant att svepa till
+ * (`renderProductWideShareCard`, 2026-10-06). Inloggade får sin personliga inbjudningslänk i
  * sidfoten — samma ark och regler som skanningens delningskort.
  *
  * ⛔ Bilden visar exakt vyns tal: `stats.lowestPrice` (rubrikpriset), `change30`
@@ -16,7 +17,7 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { CircleButton } from "@/components/ui/back-circle";
 import { IconShare } from "@/components/ui/icons";
 import { ShareCardPanel } from "@/components/features/share-card-panel";
-import { renderProductShareCard } from "@/lib/share-card";
+import { renderProductShareCard, renderProductWideShareCard, type ProductShareInput } from "@/lib/share-card";
 import { shareChartWindow, shareChangeFromPercent } from "@/lib/share-card-data";
 import { formatPrice } from "@/lib/format";
 import { overlayIsElevated } from "@/lib/product-overlay-open";
@@ -36,6 +37,20 @@ export function ProductShareButton({
 
   const chart = shareChartWindow(data.chartData, 90);
   const change = shareChangeFromPercent(data.change30, t("period30"));
+  const input = (domain: string): ProductShareInput => ({
+    imageUrl: data.imageUrl,
+    name: data.title,
+    subtitle: [data.set?.name, categoryLabel].filter(Boolean).join(" · "),
+    shape: data.category === "SINGLE_CARD" ? "card" : "box",
+    value:
+      data.stats.lowestPrice != null && data.stats.lowestPrice > 0
+        ? { label: t("productValueLabel"), text: formatPrice(data.stats.lowestPrice) }
+        : null,
+    change,
+    chart: chart.points,
+    chartPeriod: t("chartDays", { days: chart.days }),
+    footer: { lead: t("productFooterLead"), domain },
+  });
 
   return (
     <>
@@ -65,22 +80,10 @@ export function ProductShareButton({
             previewMax="58dvh"
             safeBottom
             name={data.title}
-            render={(domain) =>
-              renderProductShareCard({
-                imageUrl: data.imageUrl,
-                name: data.title,
-                subtitle: [data.set?.name, categoryLabel].filter(Boolean).join(" · "),
-                shape: data.category === "SINGLE_CARD" ? "card" : "box",
-                value:
-                  data.stats.lowestPrice != null && data.stats.lowestPrice > 0
-                    ? { label: t("productValueLabel"), text: formatPrice(data.stats.lowestPrice) }
-                    : null,
-                change,
-                chart: chart.points,
-                chartPeriod: t("chartDays", { days: chart.days }),
-                footer: { lead: t("productFooterLead"), domain },
-              })
-            }
+            pages={[
+              { key: "story", render: (domain) => renderProductShareCard(input(domain)) },
+              { key: "wide", wide: true, render: (domain) => renderProductWideShareCard(input(domain)) },
+            ]}
           />
         )}
       </BottomSheet>

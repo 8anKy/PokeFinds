@@ -2916,7 +2916,9 @@
     "collectionValueLabel": "Samlingens värde",
     "collectionFooterLead": "Följ din samlings värde på ",
     "period30": "senaste 30 dagarna",
-    "chartDays": "{days, plural, one {# dag} other {# dagar}}"
+    "chartDays": "{days, plural, one {# dag} other {# dagar}}",
+    "pagesLabel": "Välj bild",
+    "pageN": "Bild {n} av {total}"
   },
   "Centering": {
     "title": "Mät centrering",

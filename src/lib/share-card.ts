@@ -152,10 +152,18 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
   ctx.closePath();
 }
 
+/** En bild att rita: laddad bild eller en färdig duk (t.ex. en frilagd låda). */
+type Art = HTMLImageElement | HTMLCanvasElement;
+
+function artSize(img: Art): { iw: number; ih: number } {
+  return img instanceof HTMLImageElement
+    ? { iw: img.naturalWidth || img.width, ih: img.naturalHeight || img.height }
+    : { iw: img.width, ih: img.height };
+}
+
 /** Bilden fyller rutan som `object-cover`. */
-function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
-  const iw = img.naturalWidth || img.width;
-  const ih = img.naturalHeight || img.height;
+function drawCover(ctx: CanvasRenderingContext2D, img: Art, x: number, y: number, w: number, h: number) {
+  const { iw, ih } = artSize(img);
   if (!iw || !ih) return;
   const scale = Math.max(w / iw, h / ih);
   const sw = w / scale;
@@ -208,7 +216,7 @@ function setTracking(ctx: CanvasRenderingContext2D, px: number) {
  */
 function drawAmbient(
   ctx: CanvasRenderingContext2D,
-  art: HTMLImageElement | null,
+  art: Art | null,
   cy: number = CARD_Y + CARD_H / 2,
   floorFrom: number = CARD_Y + CARD_H - 120
 ) {
@@ -297,7 +305,7 @@ const CARD_RECT: Rect = { x: CARD_X, y: CARD_Y, w: CARD_W, h: CARD_H };
 
 function drawCard(
   ctx: CanvasRenderingContext2D,
-  art: HTMLImageElement | null,
+  art: Art | null,
   mark: HTMLImageElement | null,
   r: Rect = CARD_RECT,
   glow = true
@@ -319,7 +327,13 @@ function drawCard(
     ctx.fill();
   }
   ctx.restore();
+  drawCardFace(ctx, art, mark, r);
+}
 
+/** Själva kortet utan skugga: konsten, foliereflexen och hårlinjen. */
+function drawCardFace(ctx: CanvasRenderingContext2D, art: Art | null, mark: HTMLImageElement | null, r: Rect) {
+  const { x: CX, y: CY, w: CW, h: CH } = r;
+  const radius = Math.round(CW * 0.045);
   ctx.save();
   roundedRect(ctx, CX, CY, CW, CH, radius);
   ctx.clip();
@@ -333,7 +347,7 @@ function drawCard(
     ctx.fillRect(CX, CY, CW, CH);
     if (mark) {
       ctx.globalAlpha = 0.35;
-      const h = 220;
+      const h = Math.min(220, CH * 0.4);
       const w = (h * MARK_CROP.w) / MARK_CROP.h;
       drawMark(ctx, mark, CX + (CW - w) / 2, CY + CH / 2, h);
       ctx.globalAlpha = 1;
@@ -877,14 +891,20 @@ function drawSlab3D(ctx: CanvasRenderingContext2D, texture: HTMLCanvasElement): 
   return bottom;
 }
 
-function drawFooter(ctx: CanvasRenderingContext2D, footer: { lead: string; domain: string }, family: string, y: number) {
+function drawFooter(
+  ctx: CanvasRenderingContext2D,
+  footer: { lead: string; domain: string },
+  family: string,
+  y: number,
+  left?: number
+) {
   const cx = SHARE_CARD_WIDTH / 2;
   ctx.textBaseline = "alphabetic";
   ctx.font = `500 30px ${family}`;
   const leadW = ctx.measureText(footer.lead).width;
   ctx.font = `700 30px ${family}`;
   const domainW = ctx.measureText(footer.domain).width;
-  const startX = cx - (leadW + domainW) / 2;
+  const startX = left ?? cx - (leadW + domainW) / 2;
   ctx.textAlign = "left";
   ctx.font = `500 30px ${family}`;
   ctx.fillStyle = INK_FAINT;
@@ -1267,14 +1287,14 @@ function drawSparkline(
 }
 
 /** Förändringsraden: "▲ +4,2 %  senaste 30 dagarna" — pilen och talet i rise/fall. */
-function drawChange(ctx: CanvasRenderingContext2D, change: ShareChange, family: string, y: number) {
+function drawChange(ctx: CanvasRenderingContext2D, change: ShareChange, family: string, y: number, left?: number) {
   const head = `${change.up ? "▲" : "▼"} ${change.text}`;
   const tail = `  ${change.period}`;
   ctx.font = `700 36px ${family}`;
   const headW = ctx.measureText(head).width;
   ctx.font = `500 32px ${family}`;
   const tailW = ctx.measureText(tail).width;
-  const x = SHARE_CARD_WIDTH / 2 - (headW + tailW) / 2;
+  const x = left ?? SHARE_CARD_WIDTH / 2 - (headW + tailW) / 2;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.font = `700 36px ${family}`;
@@ -1343,13 +1363,96 @@ function drawValueBlock(
   return y;
 }
 
+/**
+ * FRILÄGG LÅDAN (2026-10-06): förseglade produktbilder kommer antingen som PNG med
+ * genomskinlig bakgrund (de flesta) eller som JPEG på vit botten (Cardmarkets
+ * bilder). Den vita botten blev en vit ruta på den svarta bilden. Här fylls den
+ * vita bakgrunden från KANTERNA och görs genomskinlig — bara det som hänger ihop
+ * med kanten, så en vit yta INNE i lådan aldrig rörs.
+ *
+ * ⛔ Körs bara när alla fyra hörn är ogenomskinligt nästan-vita. En bild som redan
+ *    är frilagd, eller har en färgad bakgrund, ritas som den är.
+ */
+function knockoutBackground(img: HTMLImageElement): Art {
+  const { iw, ih } = artSize(img);
+  if (!iw || !ih) return img;
+  const scale = Math.min(1, 1400 / Math.max(iw, ih));
+  const w = Math.round(iw * scale);
+  const h = Math.round(ih * scale);
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const x = c.getContext("2d", { willReadFrequently: true });
+  if (!x) return img;
+  x.drawImage(img, 0, 0, w, h);
+  let data: ImageData;
+  try {
+    data = x.getImageData(0, 0, w, h);
+  } catch {
+    return img; // nedsmutsad duk — rita bilden som den är
+  }
+  const d = data.data;
+  const light = (i: number) => {
+    const lo = Math.min(d[i], d[i + 1], d[i + 2]);
+    const hi = Math.max(d[i], d[i + 1], d[i + 2]);
+    return d[i + 3] >= 250 && lo >= 232 && hi - lo <= 18;
+  };
+  const corners = [0, (w - 1) * 4, (h - 1) * w * 4, ((h - 1) * w + w - 1) * 4];
+  if (!corners.every(light)) return img;
+
+  const seen = new Uint8Array(w * h);
+  const stack = new Int32Array(w * h);
+  let sp = 0;
+  const push = (p: number) => {
+    if (!seen[p] && light(p * 4)) {
+      seen[p] = 1;
+      stack[sp++] = p;
+    }
+  };
+  for (let i = 0; i < w; i++) {
+    push(i);
+    push((h - 1) * w + i);
+  }
+  for (let j = 0; j < h; j++) {
+    push(j * w);
+    push(j * w + w - 1);
+  }
+  while (sp > 0) {
+    const p = stack[--sp];
+    const px = p % w;
+    if (px > 0) push(p - 1);
+    if (px < w - 1) push(p + 1);
+    if (p >= w) push(p - w);
+    if (p < w * (h - 1)) push(p + w);
+  }
+  let removed = 0;
+  for (let p = 0; p < w * h; p++) if (seen[p]) removed++;
+  // Nästan inget att ta bort, eller nästan allt (en vit bild): rita originalet.
+  if (removed < w * h * 0.02 || removed > w * h * 0.97) return img;
+  for (let p = 0; p < w * h; p++) if (seen[p]) d[p * 4 + 3] = 0;
+  // Mjuk kant: ljusa pixlar precis intill bakgrunden tonas, annars blir det en vit sömm.
+  for (let p = 0; p < w * h; p++) {
+    if (seen[p]) continue;
+    const px = p % w;
+    const edge =
+      (px > 0 && seen[p - 1]) || (px < w - 1 && seen[p + 1]) || (p >= w && seen[p - w]) || (p < w * (h - 1) && seen[p + w]);
+    if (!edge) continue;
+    const i = p * 4;
+    const lo = Math.min(d[i], d[i + 1], d[i + 2]);
+    if (lo > 180) d[i + 3] = Math.round(d[i + 3] * Math.max(0.15, (255 - lo) / 75));
+  }
+  x.putImageData(data, 0, 0);
+  return c;
+}
+
+/** Produktbilden som den ska ritas: förseglat frilagt, kort som det är. */
+function prepareArt(img: HTMLImageElement | null, shape: "card" | "box"): Art | null {
+  if (!img) return null;
+  return shape === "box" ? knockoutBackground(img) : img;
+}
+
 /** Förseglat: lådan som den är (contain) med en mjuk skugga — aldrig beskuren. */
-function drawBoxImage(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement | null,
-  mark: HTMLImageElement | null,
-  box: Rect
-) {
+function drawBoxImage(ctx: CanvasRenderingContext2D, img: Art | null, mark: HTMLImageElement | null, box: Rect) {
   if (!img) {
     if (mark) {
       ctx.save();
@@ -1361,8 +1464,7 @@ function drawBoxImage(
     }
     return;
   }
-  const iw = img.naturalWidth || img.width;
-  const ih = img.naturalHeight || img.height;
+  const { iw, ih } = artSize(img);
   if (!iw || !ih) return;
   const scale = Math.min(box.w / iw, box.h / ih);
   const w = iw * scale;
@@ -1383,10 +1485,10 @@ function canvasToJpeg(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
-function newStoryCanvas(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+function newCanvas(w = SHARE_CARD_WIDTH, h = SHARE_CARD_HEIGHT): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement("canvas");
-  canvas.width = SHARE_CARD_WIDTH;
-  canvas.height = SHARE_CARD_HEIGHT;
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("canvas");
   return { canvas, ctx };
@@ -1409,7 +1511,7 @@ export interface ProductShareInput {
   name: string;
   /** "30th Celebration · Elite Trainer Box" */
   subtitle: string;
-  /** Singel (5:7, ritas som skanningsbildens kort) eller förseglat (ritas "contain"). */
+  /** Singel (5:7, ritas som skanningsbildens kort) eller förseglat (frilagt, "contain"). */
   shape: "card" | "box";
   value: { label: string; text: string } | null;
   change: ShareChange | null;
@@ -1418,15 +1520,20 @@ export interface ProductShareInput {
   footer: { lead: string; domain: string };
 }
 
-/** Rita produktens delningsbild (1080 × 1920): bild, namn, pris, förändring, graf. */
-export async function renderProductShareCard(input: ProductShareInput): Promise<Blob> {
+async function loadProductAssets(input: ProductShareInput) {
   const family = pageFontFamily();
-  const [art, mark] = await Promise.all([
+  const [img, mark] = await Promise.all([
     loadArt({ imageUrl: input.imageUrl, name: input.name, subtitle: "", value: null, footer: input.footer }),
     loadImage("/brand/foilio-mark.png", false).catch(() => null),
     ensureFonts(family),
   ]);
-  const { canvas, ctx } = newStoryCanvas();
+  return { art: prepareArt(img, input.shape), mark, family };
+}
+
+/** Rita produktens delningsbild (1080 × 1920): bild, namn, pris, förändring, graf. */
+export async function renderProductShareCard(input: ProductShareInput): Promise<Blob> {
+  const { art, mark, family } = await loadProductAssets(input);
+  const { canvas, ctx } = newCanvas();
 
   const imageBox: Rect = { x: 160, y: 310, w: 760, h: 620 };
   drawAmbient(ctx, art, imageBox.y + imageBox.h / 2, imageBox.y + imageBox.h - 80);
@@ -1452,6 +1559,159 @@ export async function renderProductShareCard(input: ProductShareInput): Promise<
   return canvasToJpeg(canvas);
 }
 
+/* ---------------------------------------------------------------------------
+ * LIGGANDE PRODUKTBILD (2026-10-06): 1920 × 1080 — bilden till vänster, namn,
+ * pris, förändring och graf i en spalt till höger. För Discord, X och chattar,
+ * där en story-bild blir en smal remsa.
+ * ------------------------------------------------------------------------- */
+
+export const SHARE_WIDE_WIDTH = 1920;
+export const SHARE_WIDE_HEIGHT = 1080;
+
+/** Bryter texten på ord till högst `maxLines` rader; sista raden får "…" vid behov. */
+function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (let i = 0; i < words.length; i++) {
+    const next = line ? `${line} ${words[i]}` : words[i];
+    if (ctx.measureText(next).width <= maxW || !line) {
+      line = next;
+      continue;
+    }
+    lines.push(line);
+    line = words[i];
+    if (lines.length === maxLines - 1) {
+      line = words.slice(i).join(" ");
+      break;
+    }
+  }
+  if (line) lines.push(ellipsize(ctx, line, maxW));
+  return lines;
+}
+
+export async function renderProductWideShareCard(input: ProductShareInput): Promise<Blob> {
+  const { art, mark, family } = await loadProductAssets(input);
+  const W = SHARE_WIDE_WIDTH;
+  const H = SHARE_WIDE_HEIGHT;
+  const { canvas, ctx } = newCanvas(W, H);
+
+  // Bakgrunden: produktens färger som sken bakom bilden, svart under texten.
+  const cx = 540;
+  const cy = H / 2;
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, W, H);
+  if (art) {
+    const tiny = document.createElement("canvas");
+    tiny.width = 5;
+    tiny.height = 7;
+    const tctx = tiny.getContext("2d");
+    if (tctx) {
+      drawCover(tctx, art, 0, 0, 5, 7);
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(tiny, cx - 750, cy - 1000, 1500, 2000);
+      ctx.restore();
+    }
+  }
+  const vignette = ctx.createRadialGradient(cx, cy, 160, cx, cy, 900);
+  vignette.addColorStop(0, "rgba(0,0,0,0)");
+  vignette.addColorStop(0.55, "rgba(0,0,0,0.6)");
+  vignette.addColorStop(1, "rgba(0,0,0,1)");
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, W, H);
+  const column = ctx.createLinearGradient(880, 0, 1160, 0);
+  column.addColorStop(0, "rgba(0,0,0,0)");
+  column.addColorStop(1, "rgba(0,0,0,0.9)");
+  ctx.fillStyle = column;
+  ctx.fillRect(880, 0, W - 880, H);
+
+  // Produkten.
+  const imageBox: Rect = { x: 140, y: 140, w: 800, h: 800 };
+  if (input.shape === "card") {
+    const h = 780;
+    const w = Math.round((h * 5) / 7);
+    drawCard(ctx, art, mark, { x: imageBox.x + (imageBox.w - w) / 2, y: (H - h) / 2, w, h });
+  } else {
+    drawBoxImage(ctx, art, mark, imageBox);
+  }
+
+  // Högerspalten.
+  const x0 = 1060;
+  const colW = 740;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
+  // Märket + ordmärket.
+  if (mark) drawMark(ctx, mark, x0, 150, 46);
+  ctx.font = `700 42px ${family}`;
+  setTracking(ctx, -1);
+  ctx.fillStyle = INK;
+  ctx.textBaseline = "middle";
+  ctx.fillText("Foilio", x0 + (mark ? (46 * MARK_CROP.w) / MARK_CROP.h + 12 : 0), 152);
+  setTracking(ctx, 0);
+  ctx.textBaseline = "alphabetic";
+
+  let y = 280;
+  ctx.font = `800 60px ${family}`;
+  setTracking(ctx, -1);
+  ctx.fillStyle = INK;
+  const nameLines = wrapLines(ctx, input.name, colW, 2);
+  nameLines.forEach((line, i) => ctx.fillText(line, x0, y + i * 70));
+  setTracking(ctx, 0);
+  y += (nameLines.length - 1) * 70;
+
+  if (input.subtitle) {
+    y += 54;
+    ctx.font = `500 30px ${family}`;
+    ctx.fillStyle = INK_MUTED;
+    ctx.fillText(ellipsize(ctx, input.subtitle, colW), x0, y);
+  }
+
+  if (input.value) {
+    y += 84;
+    ctx.font = `700 24px ${family}`;
+    setTracking(ctx, 5);
+    ctx.fillStyle = INK_FAINT;
+    ctx.fillText(input.value.label.toUpperCase(), x0, y);
+    setTracking(ctx, 0);
+    y += 112;
+    fitFont(ctx, input.value.text, 800, family, 116, 72, colW);
+    setTracking(ctx, -2);
+    ctx.save();
+    ctx.shadowColor = "rgba(45,212,191,0.35)";
+    ctx.shadowBlur = 40;
+    ctx.fillStyle = CYAN;
+    ctx.fillText(input.value.text, x0, y);
+    ctx.restore();
+    setTracking(ctx, 0);
+  }
+
+  if (input.change) {
+    y += 62;
+    drawChange(ctx, input.change, family, y, x0);
+  }
+
+  const chartTop = y + 56;
+  drawSparkline(
+    ctx,
+    input.chart,
+    family,
+    { x: x0 + 28, y: chartTop, w: colW - 56, h: Math.min(260, 950 - chartTop) },
+    input.chartPeriod
+  );
+  drawFooter(ctx, input.footer, family, 1010, x0);
+  return canvasToJpeg(canvas);
+}
+
+/* ---------------------------------------------------------------------------
+ * SAMLINGSKORTET — de tre mest värdefulla posterna står på ett blankt golv med
+ * spegling, den dyraste i mitten. Kort ritas som kort, förseglat som lådor
+ * (frilagda) — ägarens skärmdump 2026-10-06 visade lådor beskurna till kortformat.
+ * ------------------------------------------------------------------------- */
+
 export interface CollectionShareInput {
   /** "Min samling" eller pärmens namn. */
   title: string;
@@ -1462,16 +1722,108 @@ export interface CollectionShareInput {
   chart: ShareChartPoint[];
   chartPeriod: string;
   /** De mest värdefulla posterna, dyrast först (max 3). Katalogbild först, eget foto som reserv. */
-  top: { imageUrl: string | null; fallbackImageUrl?: string | null }[];
+  top: { imageUrl: string | null; fallbackImageUrl?: string | null; shape: "card" | "box" }[];
   footer: { lead: string; domain: string };
 }
 
-/** Rita samlingens delningsbild: de tre dyraste i en solfjäder + värdet + grafen. */
+/** En post som egen duk i rätt form och storlek — utan skugga, så den kan speglas. */
+function showcaseItem(
+  art: Art | null,
+  shape: "card" | "box",
+  mark: HTMLImageElement | null,
+  maxW: number,
+  maxH: number,
+  dim: number
+): HTMLCanvasElement {
+  const asCard = shape === "card" || !art;
+  let w: number;
+  let h: number;
+  if (asCard) {
+    h = maxH;
+    w = Math.round((h * 5) / 7);
+    if (w > maxW) {
+      w = maxW;
+      h = Math.round((w * 7) / 5);
+    }
+  } else {
+    const { iw, ih } = artSize(art!);
+    const sc = Math.min(maxW / iw, maxH / ih);
+    w = Math.max(1, Math.round(iw * sc));
+    h = Math.max(1, Math.round(ih * sc));
+  }
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const x = c.getContext("2d")!;
+  if (asCard) {
+    drawCardFace(x, art, mark, { x: 0, y: 0, w, h });
+  } else {
+    x.imageSmoothingEnabled = true;
+    x.imageSmoothingQuality = "high";
+    x.drawImage(art!, 0, 0, w, h);
+  }
+  if (dim > 0) {
+    // Sidoposterna står ett steg bakom: lite mörkare, bara där posten finns.
+    x.globalCompositeOperation = "source-atop";
+    x.fillStyle = `rgba(0,0,0,${dim})`;
+    x.fillRect(0, 0, w, h);
+  }
+  return c;
+}
+
+/** Ställ en post på golvet: kontaktskugga, spegling och posten med sin skugga. */
+function drawOnFloor(ctx: CanvasRenderingContext2D, item: HTMLCanvasElement, cx: number, floorY: number) {
+  const w = item.width;
+  const h = item.height;
+  const x = cx - w / 2;
+
+  // Spegling: posten upp och ned, tonad mot svart.
+  const rh = Math.min(180, Math.round(h * 0.4));
+  const r = document.createElement("canvas");
+  r.width = w;
+  r.height = rh;
+  const rc = r.getContext("2d");
+  if (rc) {
+    rc.setTransform(1, 0, 0, -1, 0, h);
+    rc.drawImage(item, 0, 0);
+    rc.setTransform(1, 0, 0, 1, 0, 0);
+    rc.globalCompositeOperation = "destination-in";
+    const fade = rc.createLinearGradient(0, 0, 0, rh);
+    fade.addColorStop(0, "rgba(0,0,0,0.32)");
+    fade.addColorStop(1, "rgba(0,0,0,0)");
+    rc.fillStyle = fade;
+    rc.fillRect(0, 0, w, rh);
+    ctx.drawImage(r, x, floorY + 3);
+  }
+
+  // Kontaktskugga där posten möter golvet.
+  ctx.save();
+  ctx.translate(cx, floorY);
+  ctx.scale(1, 0.07);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, w * 0.62);
+  g.addColorStop(0, "rgba(0,0,0,0.9)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, w * 0.62, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.7)";
+  ctx.shadowBlur = 50;
+  ctx.shadowOffsetY = 18;
+  ctx.drawImage(item, x, floorY - h);
+  ctx.restore();
+}
+
+/** Rita samlingens delningsbild: de tre dyraste på ett golv + värdet + grafen. */
 export async function renderCollectionShareCard(input: CollectionShareInput): Promise<Blob> {
   const family = pageFontFamily();
-  const [arts, mark] = await Promise.all([
+  const top = input.top.slice(0, 3);
+  const [imgs, mark] = await Promise.all([
     Promise.all(
-      input.top.slice(0, 3).map((t) =>
+      top.map((t) =>
         loadArt({
           imageUrl: t.imageUrl,
           fallbackImageUrl: t.fallbackImageUrl,
@@ -1485,38 +1837,41 @@ export async function renderCollectionShareCard(input: CollectionShareInput): Pr
     loadImage("/brand/foilio-mark.png", false).catch(() => null),
     ensureFonts(family),
   ]);
-  const { canvas, ctx } = newStoryCanvas();
+  const arts = imgs.map((img, i) => prepareArt(img, top[i].shape));
+  const { canvas, ctx } = newCanvas();
 
-  const fanCy = 630;
-  drawAmbient(ctx, arts[0] ?? null, fanCy, fanCy + 220);
+  const floorY = 900;
+  drawAmbient(ctx, arts[0] ?? null, floorY - 280, floorY + 140);
   drawBrand(ctx, mark, family);
 
-  // Solfjädern: sidokorten lutade bakom, det dyraste rakt fram och störst.
-  const H = 580;
-  const W = Math.round((H * 5) / 7);
-  const sideH = Math.round(H * 0.86);
-  const sideW = Math.round((sideH * 5) / 7);
-  const sides: { art: HTMLImageElement | null; angle: number; dx: number }[] = [];
-  if (arts.length >= 2) sides.push({ art: arts[1], angle: -0.17, dx: -240 });
-  if (arts.length >= 3) sides.push({ art: arts[2], angle: 0.17, dx: 240 });
-  for (const s of sides) {
-    ctx.save();
-    ctx.translate(SHARE_CARD_WIDTH / 2 + s.dx, fanCy + 40);
-    ctx.rotate(s.angle);
-    drawCard(ctx, s.art, mark, { x: -sideW / 2, y: -sideH / 2, w: sideW, h: sideH }, false);
-    ctx.restore();
-  }
-  drawCard(ctx, arts[0] ?? null, mark, { x: (SHARE_CARD_WIDTH - W) / 2, y: fanCy - H / 2, w: W, h: H });
+  // Golvet: ett svagt turkost ljus där posterna står.
+  ctx.save();
+  ctx.translate(SHARE_CARD_WIDTH / 2, floorY);
+  ctx.scale(1, 0.1);
+  const floor = ctx.createRadialGradient(0, 0, 0, 0, 0, 520);
+  floor.addColorStop(0, "rgba(45,212,191,0.22)");
+  floor.addColorStop(1, "rgba(45,212,191,0)");
+  ctx.fillStyle = floor;
+  ctx.beginPath();
+  ctx.arc(0, 0, 520, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 
-  const bottom = drawValueBlock(
-    ctx,
-    family,
-    fanCy + H / 2 + 80,
-    input.title,
-    input.subtitle,
-    input.value,
-    input.change
-  );
+  // Sidoposterna först (bakom), den dyraste sist och störst.
+  const sides = top.length >= 3 ? [1, 2] : top.length === 2 ? [1] : [];
+  // Lådor är ofta bredare än höga: de får mer BREDD än kortens 5:7, annars blir en
+  // ETB en liten remsa på golvet.
+  const sideX = top.length >= 3 ? [SHARE_CARD_WIDTH / 2 - 320, SHARE_CARD_WIDTH / 2 + 320] : [SHARE_CARD_WIDTH / 2 + 270];
+  sides.forEach((idx, k) => {
+    const item = showcaseItem(arts[idx] ?? null, top[idx].shape, mark, 400, 440, 0.28);
+    drawOnFloor(ctx, item, sideX[k], floorY);
+  });
+  if (top.length > 0) {
+    const cx = top.length === 2 ? SHARE_CARD_WIDTH / 2 - 110 : SHARE_CARD_WIDTH / 2;
+    drawOnFloor(ctx, showcaseItem(arts[0] ?? null, top[0].shape, mark, 640, 580, 0), cx, floorY);
+  }
+
+  const bottom = drawValueBlock(ctx, family, floorY + 120, input.title, input.subtitle, input.value, input.change);
   drawChartBelow(ctx, input.chart, family, bottom, input.chartPeriod);
   drawFooter(ctx, input.footer, family, 1740);
   return canvasToJpeg(canvas);

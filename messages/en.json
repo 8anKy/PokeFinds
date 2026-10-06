@@ -2916,7 +2916,9 @@
     "collectionValueLabel": "Collection value",
     "collectionFooterLead": "Track your collection's value at ",
     "period30": "last 30 days",
-    "chartDays": "{days, plural, one {# day} other {# days}}"
+    "chartDays": "{days, plural, one {# day} other {# days}}",
+    "pagesLabel": "Choose image",
+    "pageN": "Image {n} of {total}"
   },
   "Centering": {
     "title": "Measure centering",

@@ -44,7 +44,6 @@ import {
   IconCheck,
   IconHelp,
   IconImage,
-  IconShare,
   IconShield,
   IconTrendingUp,
   IconX,
@@ -1389,7 +1388,7 @@ export default function GraderaPage() {
             {result.worth && <GradingWorthPanel worth={result.worth} overall={result.result.overall} />}
 
             <Button variant="outline" onClick={() => setShareOpen(true)}>
-              <IconShare size={16} /> {t("shareGrade")}
+              {t("shareGrade")}
             </Button>
           </CardContent>
         </Card>
