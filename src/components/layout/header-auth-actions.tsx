@@ -18,8 +18,9 @@ export function HeaderAuthActions() {
   const loggedIn = useAuthHint();
 
   if (loggedIn === null) {
-    // Före mount: reservera ungefär samma bredd så headern inte hoppar vid hydrering.
-    return <div className="h-9 w-32" aria-hidden />;
+    // Före mount: reservera SAMMA bredd som det som kommer — bredden sätts av CSS
+    // ur <html data-auth> (globals.css), stämplat före första målningen.
+    return <div className="header-auth-placeholder" aria-hidden />;
   }
 
   if (loggedIn) {
@@ -45,7 +46,7 @@ export function HeaderAuthActions() {
     );
   }
 
-  // Telefon: Discord bredvid loggan + nyhetsikonen delar raden med de här två,
+  // Telefon: Discord + nyhetsikonen delar högergruppen med de här två,
   // så CTA:n kortas till "Gå med" under sm (vid 360 px bröt "Gå med gratis"
   // annars på två rader). nowrap så en smal skärm aldrig delar en knapptext.
   return (

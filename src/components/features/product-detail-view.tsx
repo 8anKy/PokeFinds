@@ -19,6 +19,7 @@ import { ProductActions } from "@/components/features/product-actions";
 import { ProductRestockHistory } from "@/components/features/restock-history";
 import { CopyOnHoldTitle } from "@/components/features/copy-on-hold-title";
 import { ProductFactsPanel } from "@/components/features/product-facts-panel";
+import { ProductShareButton } from "@/components/features/product-share-button";
 import { traderaSearchUrlSpecific } from "@/lib/marketplace-urls";
 import { getSharedSession } from "@/lib/client-session";
 import { hasAuthHint } from "@/lib/auth-hint";
@@ -348,6 +349,12 @@ export function ProductDetailView({
             <div className="absolute left-4 top-1.5 lg:hidden">
               <BackCircle fallback="/produkter" />
             </div>
+            {/* Dela som story-bild — först när priset är hämtat (bilden visar det). */}
+            {!pending && (
+              <div className="absolute right-4 top-1.5 lg:right-3 lg:top-3">
+                <ProductShareButton data={data} categoryLabel={categoryLabel} />
+              </div>
+            )}
           </div>
           {/* Inte förrän priset är hämtat: med skelettet är högerspalten kortare
               än brunnen och panelen hade blivit en kapad rubrik i en sekund. */}

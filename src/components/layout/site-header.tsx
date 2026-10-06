@@ -21,16 +21,15 @@ export function SiteHeader() {
             startsidan ÄR Utforska försvann det skälet, så logon får bete sig som
             användare förväntar sig. Pekar på /produkter, inte "/", så klicket inte
             kostar en onödig omdirigering. */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
-          <Link href="/produkter" aria-label="Foilio">
-            <BrandLogo />
-          </Link>
-          {/* Discord direkt till höger om loggan, i ALLA storlekar och i appen
-              (ägarbeslut 2026-10-05). Liten med flit — se discord-link.tsx. */}
-          <DiscordLink />
-        </div>
+        <Link href="/produkter" aria-label="Foilio">
+          <BrandLogo />
+        </Link>
         <HeaderNav />
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Discord till VÄNSTER om nyhetsknappen, i ALLA storlekar och i appen
+              (ägarbeslut 2026-10-06 — satt bredvid loggan 10-05). Liten med
+              flit — se discord-link.tsx. */}
+          <DiscordLink />
           <NewsLink />
           {/* App Store-brickan: desktop-headern är sticky → alltid i bild.
               Mobilen har sin egen bricka ovanför sökfältet (headern scrollar

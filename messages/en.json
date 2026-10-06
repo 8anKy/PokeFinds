@@ -2904,7 +2904,19 @@
     "makingVideo": "Making video … {pct} %",
     "shareVideo": "Share video",
     "saveVideo": "Save video",
-    "previewAlt": "Share image for {name}"
+    "previewAlt": "Share image for {name}",
+    "productOpen": "Share the product as an image",
+    "productTitle": "Share product",
+    "productValueLabel": "Lowest price now",
+    "productFooterLead": "Compare prices for free at ",
+    "collectionOpen": "Share your collection as an image",
+    "collectionTitle": "Share collection",
+    "collectionName": "My collection",
+    "collectionItems": "{count, plural, one {# item} other {# items}}",
+    "collectionValueLabel": "Collection value",
+    "collectionFooterLead": "Track your collection's value at ",
+    "period30": "last 30 days",
+    "chartDays": "{days, plural, one {# day} other {# days}}"
   },
   "Centering": {
     "title": "Measure centering",

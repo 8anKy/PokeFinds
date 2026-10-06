@@ -32,6 +32,7 @@ import { listPortfolios, portfolioAllowance } from "@/services/portfolios";
 import { portfolioItemWhere } from "@/lib/portfolio-limit";
 import { isSealedCollectionItem } from "@/lib/collection-labels";
 import { PortfolioBar, PortfolioManageButton } from "./portfolio-bar";
+import { CollectionShareButton } from "./collection-share-button";
 
 export const dynamic = "force-dynamic";
 
@@ -169,6 +170,15 @@ export default async function CollectionPage({
   // hade lästs som "du ligger på plus minus noll", vilket är ett påstående vi inte kan göra.
   const unknownStat = <span className="text-ink-faint">–</span>;
 
+  // Delningsbildens solfjäder: de tre mest värdefulla posterna, katalogbilden först
+  // (laddas med CORS) och användarens eget foto som reserv.
+  const itemById = new Map(items.map((i) => [i.id, i]));
+  const shareTop = value.topItems.slice(0, 3).flatMap((top) => {
+    const i = itemById.get(top.id);
+    if (!i) return [];
+    return [{ imageUrl: i.card?.imageUrl ?? i.product?.imageUrl ?? null, fallbackImageUrl: i.imageUrl ?? null }];
+  });
+
   const topMovers = value.movers.slice(0, 2);
   // movers bär ingen slug — men dess id = samlings-objektets id, samma som rows
   // (som redan löst produkt-sluggen) → slå upp där så korten blir klickbara.
@@ -184,6 +194,15 @@ export default async function CollectionPage({
               <IconUpload size={15} />
               {t("importCsv")}
             </LinkButton>
+          )}
+          {value.totalValue > 0 && (
+            <CollectionShareButton
+              portfolioName={selectedPortfolio?.name ?? null}
+              totalValue={value.totalValue}
+              itemCount={value.itemCount}
+              chart={chartData}
+              top={shareTop}
+            />
           )}
           <PortfolioManageButton
             portfolios={portfolios}

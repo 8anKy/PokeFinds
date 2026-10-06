@@ -3,8 +3,8 @@ import { DISCORD_URL } from "@/lib/social-links";
 import { IconDiscord } from "@/components/ui/brand-icons";
 
 /**
- * Discord-knappen i headern, direkt TILL HÖGER OM LOGGAN (ägarbeslut 2026-10-05:
- * "konvertera fler till Discord").
+ * Discord-knappen i headern, TILL VÄNSTER OM NYHETSKNAPPEN (ägarbeslut 2026-10-06;
+ * 10-05 satt den bredvid loggan — "konvertera fler till Discord").
  *
  * Låg den bara i sidfoten och på /mer syntes den nästan aldrig: appens användare
  * bor i Utforska, och /mer är en inställningssida man öppnar när något krånglar.
@@ -20,8 +20,8 @@ import { IconDiscord } from "@/components/ui/brand-icons";
  * kontot 128 px), etiketten "Discord" från sm. Den får aldrig konkurrera med loggan.
  *
  * Historik: 2026-09-11–10-05 visades den bara medan nyhetsflödet var DOLT
- * (`NewsLink` tog platsen bredvid kontot). Sedan flytten bredvid loggan står de
- * på var sin sida av headern och visas båda.
+ * (`NewsLink` tog platsen bredvid kontot). 10-05 flyttad bredvid loggan, 10-06
+ * till högergruppen bredvid nyhetsknappen; båda visas.
  */
 export function DiscordLink() {
   const t = useTranslations("Common");

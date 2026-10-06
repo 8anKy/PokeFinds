@@ -138,11 +138,16 @@ export default async function LocaleLayout({
             2026-09-06: brickan blinkade vid varje kallstart). HTML:en är delad/
             ISR-cachad och kan inte veta vem som läser den; skriptet vet.
             suppressHydrationWarning på <html>: attributet är satt av skriptet, inte
-            av React, och skulle annars ge en dev-varning. */}
+            av React, och skulle annars ge en dev-varning.
+            Samma skript stämplar data-auth ur fo_auth-hinten (2026-10-06): headerns
+            kontoplats renderar en platshållare fram till hydreringen, och utan rätt
+            bredd FÖRE första målningen hoppade nyhets-/Discord-knapparna ~90 px vid
+            kallstart — iOS WebKit lämnade då en spökikon kvar under headerns
+            backdrop-blur tills ett flikbyte ritade om den. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              '(function(){try{var c=window.Capacitor;if(c&&typeof c.isNativePlatform==="function"&&c.isNativePlatform()){document.documentElement.setAttribute("data-native","1")}}catch(e){}})();',
+              '(function(){try{var d=document.documentElement,c=window.Capacitor;if(c&&typeof c.isNativePlatform==="function"&&c.isNativePlatform()){d.setAttribute("data-native","1")}if(document.cookie.split("; ").indexOf("fo_auth=1")>=0){d.setAttribute("data-auth","1")}}catch(e){}})();',
           }}
         />
         {/* Ingen web-laddningsskärm: laddnings-UI:t (Stitch "Foilio - Loading") bor

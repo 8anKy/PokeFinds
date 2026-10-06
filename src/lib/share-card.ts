@@ -1155,3 +1155,369 @@ function slabBackTexture(
   ctx.restore();
   return c;
 }
+
+/* ===========================================================================
+ * PRODUKTKORTET + SAMLINGSKORTET (2026-10-06) — samma story-format och samma
+ * yta som skanningens kort, med pris, förändring och en liten prisgraf.
+ *
+ * ⛔ Siffrorna är exakt de som står i appen när användaren trycker på Dela
+ *    (rubrikpriset, grafens serie, samlingens totalvärde) — bilden räknar
+ *    ingenting själv och utelämnar raden när värdet saknas, aldrig "0 kr".
+ * ======================================================================== */
+
+export interface ShareChartPoint {
+  date: string;
+  /** Öre. */
+  price: number;
+}
+
+export interface ShareChange {
+  /** "+4,2 %" — färdigformaterad av anroparen. */
+  text: string;
+  /** "senaste 30 dagarna" */
+  period: string;
+  up: boolean;
+}
+
+const RISE = "#34d399";
+const FALL = "#f87171";
+
+/** Grafens etiketter: hela kronor räcker, decimaler är brus på en story. */
+function chartLabel(ore: number): string {
+  return `${new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 0 }).format(Math.round(ore / 100))} kr`;
+}
+
+/**
+ * Prisgrafen: en mjuk turkos yta under linjen, högsta/lägsta utsatt och en punkt
+ * på dagens värde. Ritas bara med minst två punkter — en ensam punkt är ingen kurva.
+ */
+function drawSparkline(
+  ctx: CanvasRenderingContext2D,
+  points: ShareChartPoint[],
+  family: string,
+  box: Rect,
+  periodLabel: string
+) {
+  if (points.length < 2 || box.h < 120) return;
+  const prices = points.map((p) => p.price);
+  const max = Math.max(...prices);
+  const min = Math.min(...prices);
+  const span = max - min || Math.max(1, max * 0.05);
+  const padTop = 46;
+  const padBottom = 46;
+  const plotH = box.h - padTop - padBottom;
+  const xAt = (i: number) => box.x + (box.w * i) / (points.length - 1);
+  const yAt = (v: number) => box.y + padTop + plotH - ((v - min) / span) * plotH;
+
+  // Panelen: svag yta och hårlinje, som korten i appen.
+  ctx.save();
+  roundedRect(ctx, box.x - 28, box.y - 8, box.w + 56, box.h + 16, 28);
+  ctx.fillStyle = "rgba(255,255,255,0.03)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  const path = () => {
+    ctx.beginPath();
+    points.forEach((p, i) => (i ? ctx.lineTo(xAt(i), yAt(p.price)) : ctx.moveTo(xAt(i), yAt(p.price))));
+  };
+
+  ctx.save();
+  path();
+  ctx.lineTo(xAt(points.length - 1), box.y + padTop + plotH);
+  ctx.lineTo(xAt(0), box.y + padTop + plotH);
+  ctx.closePath();
+  const fill = ctx.createLinearGradient(0, box.y + padTop, 0, box.y + padTop + plotH);
+  fill.addColorStop(0, "rgba(45,212,191,0.28)");
+  fill.addColorStop(1, "rgba(45,212,191,0)");
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  path();
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = CYAN;
+  ctx.shadowColor = "rgba(45,212,191,0.6)";
+  ctx.shadowBlur = 16;
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle = CYAN;
+  ctx.shadowColor = "rgba(45,212,191,0.9)";
+  ctx.shadowBlur = 20;
+  ctx.beginPath();
+  ctx.arc(xAt(points.length - 1), yAt(points[points.length - 1].price), 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.font = `600 24px ${family}`;
+  ctx.fillStyle = INK_FAINT;
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "left";
+  ctx.fillText(chartLabel(max), box.x, box.y + 26);
+  ctx.fillText(chartLabel(min), box.x, box.y + box.h - 6);
+  ctx.textAlign = "right";
+  ctx.fillText(periodLabel, box.x + box.w, box.y + box.h - 6);
+}
+
+/** Förändringsraden: "▲ +4,2 %  senaste 30 dagarna" — pilen och talet i rise/fall. */
+function drawChange(ctx: CanvasRenderingContext2D, change: ShareChange, family: string, y: number) {
+  const head = `${change.up ? "▲" : "▼"} ${change.text}`;
+  const tail = `  ${change.period}`;
+  ctx.font = `700 36px ${family}`;
+  const headW = ctx.measureText(head).width;
+  ctx.font = `500 32px ${family}`;
+  const tailW = ctx.measureText(tail).width;
+  const x = SHARE_CARD_WIDTH / 2 - (headW + tailW) / 2;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `700 36px ${family}`;
+  ctx.fillStyle = change.up ? RISE : FALL;
+  ctx.fillText(head, x, y);
+  ctx.font = `500 32px ${family}`;
+  ctx.fillStyle = INK_MUTED;
+  ctx.fillText(tail, x + headW, y);
+}
+
+/** Namn, underrad, värde och förändring — gemensamt för produkt- och samlingskortet. */
+function drawValueBlock(
+  ctx: CanvasRenderingContext2D,
+  family: string,
+  y0: number,
+  name: string,
+  subtitle: string,
+  value: { label: string; text: string } | null,
+  change: ShareChange | null
+): number {
+  const cx = SHARE_CARD_WIDTH / 2;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  let y = y0;
+  drawBrandLine(ctx, y);
+
+  y += 84;
+  fitFont(ctx, name, 800, family, 60, 42, TEXT_MAX_W);
+  setTracking(ctx, -1);
+  ctx.fillStyle = INK;
+  ctx.fillText(ellipsize(ctx, name, TEXT_MAX_W), cx, y);
+  setTracking(ctx, 0);
+
+  if (subtitle) {
+    y += 52;
+    ctx.font = `500 30px ${family}`;
+    ctx.fillStyle = INK_MUTED;
+    ctx.fillText(ellipsize(ctx, subtitle, TEXT_MAX_W), cx, y);
+  }
+
+  if (value) {
+    y += 78;
+    ctx.textAlign = "center";
+    ctx.font = `700 24px ${family}`;
+    setTracking(ctx, 5);
+    ctx.fillStyle = INK_FAINT;
+    ctx.fillText(value.label.toUpperCase(), cx, y);
+    setTracking(ctx, 0);
+
+    y += 104;
+    fitFont(ctx, value.text, 800, family, 104, 64, TEXT_MAX_W);
+    setTracking(ctx, -2);
+    ctx.save();
+    ctx.shadowColor = "rgba(45,212,191,0.35)";
+    ctx.shadowBlur = 40;
+    ctx.fillStyle = CYAN;
+    ctx.fillText(value.text, cx, y);
+    ctx.restore();
+    setTracking(ctx, 0);
+  }
+
+  if (change) {
+    y += 62;
+    drawChange(ctx, change, family, y);
+  }
+  return y;
+}
+
+/** Förseglat: lådan som den är (contain) med en mjuk skugga — aldrig beskuren. */
+function drawBoxImage(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement | null,
+  mark: HTMLImageElement | null,
+  box: Rect
+) {
+  if (!img) {
+    if (mark) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      const h = 220;
+      const w = (h * MARK_CROP.w) / MARK_CROP.h;
+      drawMark(ctx, mark, box.x + (box.w - w) / 2, box.y + box.h / 2, h);
+      ctx.restore();
+    }
+    return;
+  }
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return;
+  const scale = Math.min(box.w / iw, box.h / ih);
+  const w = iw * scale;
+  const h = ih * scale;
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.75)";
+  ctx.shadowBlur = 70;
+  ctx.shadowOffsetY = 30;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, box.x + (box.w - w) / 2, box.y + (box.h - h) / 2, w, h);
+  ctx.restore();
+}
+
+function canvasToJpeg(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("toBlob"))), "image/jpeg", 0.92);
+  });
+}
+
+function newStoryCanvas(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+  const canvas = document.createElement("canvas");
+  canvas.width = SHARE_CARD_WIDTH;
+  canvas.height = SHARE_CARD_HEIGHT;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas");
+  return { canvas, ctx };
+}
+
+/** Grafen under värdet: börjar där texten slutar, men aldrig in i sidfotens zon. */
+function drawChartBelow(
+  ctx: CanvasRenderingContext2D,
+  chart: ShareChartPoint[],
+  family: string,
+  textBottom: number,
+  periodLabel: string
+) {
+  const top = textBottom + 60;
+  drawSparkline(ctx, chart, family, { x: 128, y: top, w: 824, h: Math.min(220, 1670 - top) }, periodLabel);
+}
+
+export interface ProductShareInput {
+  imageUrl: string | null;
+  name: string;
+  /** "30th Celebration · Elite Trainer Box" */
+  subtitle: string;
+  /** Singel (5:7, ritas som skanningsbildens kort) eller förseglat (ritas "contain"). */
+  shape: "card" | "box";
+  value: { label: string; text: string } | null;
+  change: ShareChange | null;
+  chart: ShareChartPoint[];
+  chartPeriod: string;
+  footer: { lead: string; domain: string };
+}
+
+/** Rita produktens delningsbild (1080 × 1920): bild, namn, pris, förändring, graf. */
+export async function renderProductShareCard(input: ProductShareInput): Promise<Blob> {
+  const family = pageFontFamily();
+  const [art, mark] = await Promise.all([
+    loadArt({ imageUrl: input.imageUrl, name: input.name, subtitle: "", value: null, footer: input.footer }),
+    loadImage("/brand/foilio-mark.png", false).catch(() => null),
+    ensureFonts(family),
+  ]);
+  const { canvas, ctx } = newStoryCanvas();
+
+  const imageBox: Rect = { x: 160, y: 310, w: 760, h: 620 };
+  drawAmbient(ctx, art, imageBox.y + imageBox.h / 2, imageBox.y + imageBox.h - 80);
+  drawBrand(ctx, mark, family);
+  if (input.shape === "card") {
+    const w = Math.round((imageBox.h * 5) / 7);
+    drawCard(ctx, art, mark, { x: (SHARE_CARD_WIDTH - w) / 2, y: imageBox.y, w, h: imageBox.h });
+  } else {
+    drawBoxImage(ctx, art, mark, imageBox);
+  }
+
+  const bottom = drawValueBlock(
+    ctx,
+    family,
+    imageBox.y + imageBox.h + 56,
+    input.name,
+    input.subtitle,
+    input.value,
+    input.change
+  );
+  drawChartBelow(ctx, input.chart, family, bottom, input.chartPeriod);
+  drawFooter(ctx, input.footer, family, 1740);
+  return canvasToJpeg(canvas);
+}
+
+export interface CollectionShareInput {
+  /** "Min samling" eller pärmens namn. */
+  title: string;
+  /** "312 objekt" */
+  subtitle: string;
+  value: { label: string; text: string };
+  change: ShareChange | null;
+  chart: ShareChartPoint[];
+  chartPeriod: string;
+  /** De mest värdefulla posterna, dyrast först (max 3). Katalogbild först, eget foto som reserv. */
+  top: { imageUrl: string | null; fallbackImageUrl?: string | null }[];
+  footer: { lead: string; domain: string };
+}
+
+/** Rita samlingens delningsbild: de tre dyraste i en solfjäder + värdet + grafen. */
+export async function renderCollectionShareCard(input: CollectionShareInput): Promise<Blob> {
+  const family = pageFontFamily();
+  const [arts, mark] = await Promise.all([
+    Promise.all(
+      input.top.slice(0, 3).map((t) =>
+        loadArt({
+          imageUrl: t.imageUrl,
+          fallbackImageUrl: t.fallbackImageUrl,
+          name: "",
+          subtitle: "",
+          value: null,
+          footer: input.footer,
+        })
+      )
+    ),
+    loadImage("/brand/foilio-mark.png", false).catch(() => null),
+    ensureFonts(family),
+  ]);
+  const { canvas, ctx } = newStoryCanvas();
+
+  const fanCy = 630;
+  drawAmbient(ctx, arts[0] ?? null, fanCy, fanCy + 220);
+  drawBrand(ctx, mark, family);
+
+  // Solfjädern: sidokorten lutade bakom, det dyraste rakt fram och störst.
+  const H = 580;
+  const W = Math.round((H * 5) / 7);
+  const sideH = Math.round(H * 0.86);
+  const sideW = Math.round((sideH * 5) / 7);
+  const sides: { art: HTMLImageElement | null; angle: number; dx: number }[] = [];
+  if (arts.length >= 2) sides.push({ art: arts[1], angle: -0.17, dx: -240 });
+  if (arts.length >= 3) sides.push({ art: arts[2], angle: 0.17, dx: 240 });
+  for (const s of sides) {
+    ctx.save();
+    ctx.translate(SHARE_CARD_WIDTH / 2 + s.dx, fanCy + 40);
+    ctx.rotate(s.angle);
+    drawCard(ctx, s.art, mark, { x: -sideW / 2, y: -sideH / 2, w: sideW, h: sideH }, false);
+    ctx.restore();
+  }
+  drawCard(ctx, arts[0] ?? null, mark, { x: (SHARE_CARD_WIDTH - W) / 2, y: fanCy - H / 2, w: W, h: H });
+
+  const bottom = drawValueBlock(
+    ctx,
+    family,
+    fanCy + H / 2 + 80,
+    input.title,
+    input.subtitle,
+    input.value,
+    input.change
+  );
+  drawChartBelow(ctx, input.chart, family, bottom, input.chartPeriod);
+  drawFooter(ctx, input.footer, family, 1740);
+  return canvasToJpeg(canvas);
+}

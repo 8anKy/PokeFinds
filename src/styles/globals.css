@@ -461,6 +461,24 @@ html[data-native] .web-only {
   display: none !important;
 }
 
+/* Headerns kontoplats före hydrering (`HeaderAuthActions`). Utloggad = Logga in +
+   Gå med (~128 px); inloggad = profilcirkeln (36 px) / kontomenyn (~62 px från
+   sm-tall). Skriptet i rot-layouten stämplar data-auth ur fo_auth FÖRE första
+   målningen, så knapparna till vänster om platsen står still vid hydreringen —
+   ett hopp där lämnade en spökikon under backdrop-blur i iOS-appen (2026-10-06). */
+.header-auth-placeholder {
+  height: 2.25rem;
+  width: 8rem;
+}
+html[data-auth] .header-auth-placeholder {
+  width: 2.25rem;
+}
+@media (min-width: 640px) and (min-height: 600px) {
+  html[data-auth] .header-auth-placeholder {
+    width: 62px;
+  }
+}
+
 
 /* ---------------------------------------------------------------------------
  * Kontokortet överst på /mer — SAMMA FOLIE som Pro-kortet, medvetet inte samma

@@ -19,6 +19,9 @@ export function setAuthHint(on: boolean): void {
   document.cookie = on
     ? `${NAME}=1; path=/; max-age=${MAX_AGE}; samesite=lax`
     : `${NAME}=; path=/; max-age=0; samesite=lax`;
+  // Speglas för headerns platshållare (globals.css `.header-auth-placeholder`).
+  if (on) document.documentElement?.setAttribute("data-auth", "1");
+  else document.documentElement?.removeAttribute("data-auth");
   window.dispatchEvent(new Event(EVENT));
 }
 
