@@ -26,7 +26,7 @@ import type { Prisma } from "@prisma/client";
 import { mapPool } from "../lib/concurrency";
 import { utcToday } from "../lib/utils";
 import { getRatesOre, priceOreFromUsd, priceOreFromEur } from "../lib/exchange-rate";
-import { isPlausibleGradedPriceOre } from "../lib/graded-listing";
+import { gradedTooSoonAfterRelease, isPlausibleGradedPriceOre } from "../lib/graded-listing";
 import {
   EBAY_ASK_SOURCE,
   buildGradedSearchQuery,
@@ -75,7 +75,7 @@ async function selectProducts(budget: number): Promise<ProductRow[]> {
     id: true,
     language: true,
     variantLabel: true,
-    card: { select: { name: true, number: true, set: { select: { name: true, totalCards: true } } } },
+    card: { select: { name: true, number: true, set: { select: { name: true, totalCards: true, releaseDate: true } } } },
     offers: {
       where: { retailer: { name: "Cardmarket" }, price: { not: null } },
       select: { price: true },
@@ -158,9 +158,15 @@ export async function runGradedAskSweep(
     if (stop) return;
     let buckets: GradedAskBucket[];
     try {
-      const items = await client.searchGraded(buildGradedSearchQuery(p));
-      res.apiCalls++;
-      buckets = bucketGradedAsks(items, p);
+      // ⛔ Ett nysläppt set har inga slabbar än — det som syns är råa kort med
+      // "PSA 10 contender" i titeln. Inget anrop, och gamla rader städas nedan.
+      if (gradedTooSoonAfterRelease(p.card.set.releaseDate, now)) {
+        buckets = [];
+      } else {
+        const items = await client.searchGraded(buildGradedSearchQuery(p));
+        res.apiCalls++;
+        buckets = bucketGradedAsks(items, p);
+      }
     } catch (err) {
       if (err instanceof EbayQuotaError) {
         if (!stop) console.warn("[graded-ask] eBay-kvoten slut — avslutar och skriver det som hann.");

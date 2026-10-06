@@ -47,7 +47,7 @@ import { isBlockedListingLanguage, listingCardLanguage } from "../lib/listing-la
 import { matchProduct, getListingPriceGuard } from "../scrapers/matching";
 import { traderaCategoryCompatible } from "./tradera-sweep";
 import { TRADERA_SOLD_SOURCE_NAME } from "../services/products";
-import { gradingVerdictFor, isPlausibleGradedPriceOre } from "../lib/graded-listing";
+import { gradedTooSoonAfterRelease, gradingVerdictFor, isPlausibleGradedPriceOre } from "../lib/graded-listing";
 import { traderaItemUrl } from "@/lib/tradera-listing-options";
 
 const SEARCH_API = "https://api.tradera.com/v3/searchservice.asmx";
@@ -319,6 +319,8 @@ export interface TraderaSoldSweepResult {
   gradedInRawCategory: number;
   /** Slabbade FÖRSEGLADE förpackningar — en annan vara än den vi listar, skrivs inte alls. */
   gradedSealedSkipped: number;
+  /** "Graderade" affärer sålda innan setet hunnit graderas — råa kort, skrivs inte alls. */
+  gradedTooSoon: number;
 }
 
 export async function runTraderaSoldSweep(
@@ -441,6 +443,7 @@ export async function runTraderaSoldSweep(
     gradedImplausible: 0,
     gradedInRawCategory: 0,
     gradedSealedSkipped: 0,
+    gradedTooSoon: 0,
   };
   const touched = new Set<string>();
   // Prisvakten hämtar facit per produkt — cacha den, flera affärer delar produkt.
@@ -479,7 +482,7 @@ export async function runTraderaSoldSweep(
     }
     const product = await prisma.product.findUnique({
       where: { id: match.productId },
-      select: { id: true, category: true },
+      select: { id: true, category: true, releaseDate: true, set: { select: { releaseDate: true } } },
     });
     if (!product) {
       stats.noMatch++;
@@ -503,6 +506,13 @@ export async function runTraderaSoldSweep(
       return;
     }
     const grading = verdictKind.kind === "graded" ? verdictKind.grading : null;
+    // ⛔ Såld innan kortet HUNNIT graderas ⇒ ett rått kort som säljaren fyllt i
+    // graderingsfältet på. Hör varken hemma i den graderade serien eller (okänt
+    // skick, uppblåst pris) i den råa — se `gradedTooSoonAfterRelease`.
+    if (grading && gradedTooSoonAfterRelease(product.set?.releaseDate ?? product.releaseDate, sale.endDate)) {
+      stats.gradedTooSoon++;
+      return;
+    }
     if (grading && sale.categoryId !== 1001338) stats.gradedInRawCategory++;
 
     if (grading) {
@@ -655,7 +665,8 @@ export async function runTraderaSoldSweep(
   log(
     `   🏅 Graderat: ${stats.gradedWritten} skrivna | ${stats.gradedImplausible} orimliga | ` +
       `${stats.gradedInRawCategory} låg i en RÅ kategori (skulle ha förorenat den ograderade kurvan) | ` +
-      `${stats.gradedSealedSkipped} slabbade förseglade (skippade)`
+      `${stats.gradedSealedSkipped} slabbade förseglade (skippade) | ` +
+      `${stats.gradedTooSoon} "graderade" före graderingsfönstret (skippade)`
   );
 
   return stats;

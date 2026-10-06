@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { detectGrading, gradingVerdictFor, isGradedListing } from "@/lib/graded-listing";
+import {
+  GRADED_MIN_DAYS_AFTER_RELEASE,
+  detectGrading,
+  gradedTooSoonAfterRelease,
+  gradingVerdictFor,
+  isAspirationalGradeTitle,
+  isGradedListing,
+} from "@/lib/graded-listing";
 
 /**
  * ⛔ TVÅSIDIG VAKT. Ett för snävt filter släpper in slabbar i den råa kurvan
@@ -65,9 +72,65 @@ describe("isGradedListing", () => {
     ).toBe(true);
   });
 
-  it("låter aspirationsvetot INTE röra attribut-vägen", () => {
-    // Har säljaren fyllt Traderas graderingsfält är det hens deklaration.
-    expect(isGradedListing({ title: "PSA 10-kandidat", attrIssuer: "PSA", attrGrade: "10" })).toBe(true);
+  it("aspirationsvetot slår även attribut-vägen (2026-10-06)", () => {
+    // Säljaren som skriver "PSA 10 Contender" fyller också i PSA/10 i fältet —
+    // titeln som säger "inte graderad" vinner.
+    expect(isGradedListing({ title: "PSA 10-kandidat", attrIssuer: "PSA", attrGrade: "10" })).toBe(false);
+    expect(
+      isGradedListing({ title: "Mew ex 152/128 30th Celebration Pokemonkort PSA 10 Contender", attrIssuer: "PSA", attrGrade: "10" })
+    ).toBe(false);
+  });
+
+  it("fäller råa kort med betyg som förhoppning (30th Celebration, 2026-10-06)", () => {
+    for (const title of [
+      "Mew ex 152/128 30th Celebration Pokemonkort PSA 10 Contender",
+      "Mew ex 152/128 30-årsjubileum Pokémonkort - PSA 10 potential",
+      "Articuno 132/128 30-årsfirande PSA 10-utmanare",
+      'Pikachu Ex 149/128 "PSA 10 lockande kort"',
+      "Pikachu ex 150/128 Raw möjligen PSA 10 30th Celebration Pokemonkort",
+      "Gengar ex 154/128 (PSA 10 kandidat?!)",
+      "Mega Chandelure ex 115/084 – Pokémon – Near Mint / PSA 10?",
+      "1999 Pokémon Base Set 1st Edition Machamp Holo 8/102 WOTC NM Raw PSA 8 Contender",
+      "TEAM ROCKET’S DUGTRIO 239/217 FULL ART ASCENDED HEROES PSA 10 POTEN",
+    ]) {
+      expect(isGradedListing({ title }), title).toBe(false);
+      expect(isAspirationalGradeTitle(title), title).toBe(true);
+    }
+  });
+
+  it("vetot rör inte riktiga slabbar", () => {
+    for (const title of [
+      "2002 mewtwo expedition 56/165 Non Holo PSA 8, Very Clean Regrade Candidate",
+      "Chansey 187/167 Sv06: Twilight Masquerade Holo PSA 9",
+      "Togekiss IR 235/217 Ascended Heroes CGC 10 Pristine 2026",
+      "2004 Pokemon TCG Sceptile 4/17 Pop Series 1 Holo Rare Card PSA 9 Possible PSA 10",
+      "Typhlosion 17/111 Holo Neo Genesis Pokemon WOTC CGC 8(PSA 8?)",
+      "Pokemon Ascended Hero’s Holo Psyduck IR 226/217 BGS 9.5!🔥(Possible Crossover)",
+      "2013 Pokemon Plasma Blast Dialga EX #99 TAG 8 Potential PSA 9 Check DIG Report",
+      "Meowth 10/53 Wotc Promo Holo CGC 9 - Cross Grade Candidate for PSA - New Cert",
+    ]) {
+      expect(isAspirationalGradeTitle(title), title).toBe(false);
+      expect(isGradedListing({ title }), title).toBe(true);
+    }
+  });
+});
+
+describe("gradedTooSoonAfterRelease", () => {
+  const release = new Date("2026-09-16T00:00:00Z");
+  it("fäller affärer innan kortet hunnit graderas", () => {
+    expect(gradedTooSoonAfterRelease(release, "2026-09-17T12:00:00Z")).toBe(true);
+    expect(gradedTooSoonAfterRelease(release, "2026-10-02T17:00:00Z")).toBe(true);
+    // Före släppet (förhandsförsäljning) är lika omöjligt.
+    expect(gradedTooSoonAfterRelease(release, "2026-09-01T00:00:00Z")).toBe(true);
+  });
+  it("släpper igenom efter fönstret", () => {
+    expect(gradedTooSoonAfterRelease(release, new Date(release.getTime() + GRADED_MIN_DAYS_AFTER_RELEASE * 86_400_000))).toBe(false);
+    // Äkta slabbar mätta 29 dygn efter släpp — måste klara sig.
+    expect(gradedTooSoonAfterRelease("2026-01-30", "2026-02-28")).toBe(false);
+  });
+  it("okänt släppdatum ⇒ ingen dom", () => {
+    expect(gradedTooSoonAfterRelease(null, "2026-09-17")).toBe(false);
+    expect(gradedTooSoonAfterRelease(undefined, "2026-09-17")).toBe(false);
   });
 });
 

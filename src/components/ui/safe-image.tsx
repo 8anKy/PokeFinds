@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
  * Namngivna bildproportioner.
@@ -92,10 +92,25 @@ export function SafeImage({
   priority = false,
 }: SafeImageProps) {
   const [failed, setFailed] = useState(false);
+  const ref = useRef<HTMLImageElement>(null);
+  // ⛔ ETT FEL SOM HÄNDE FÖRE HYDRERINGEN SER REACT ALDRIG. Bilden i server-HTML:en
+  // börjar laddas direkt; svarar CDN:en 404 innan klientbunten hunnit fästa
+  // `onError` har händelsen redan gått, och besökaren ser webbläsarens alt-text-ruta
+  // (mätt 2026-10-06: 30th Celebration-rutnätet). Efter monteringen frågar vi därför
+  // elementet självt: färdigladdad men utan pixlar = trasig. Ny src ⇒ ny prövning.
+  useEffect(() => {
+    setFailed(false);
+    const img = ref.current;
+    // SVG utan egen storlek har naturalWidth 0 i vissa motorer fast den ritas.
+    if (img && img.complete && img.naturalWidth === 0 && !/\.svg(?:[?#]|$)/i.test(img.currentSrc || img.src)) {
+      setFailed(true);
+    }
+  }, [src]);
   if (!src || failed) return <>{fallback}</>;
   const dims = ratio === "auto" ? null : RATIOS[ratio];
   return (
     <img
+      ref={ref}
       src={src}
       alt={alt}
       loading={priority ? "eager" : "lazy"}

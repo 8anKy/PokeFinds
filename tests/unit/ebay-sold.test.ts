@@ -61,3 +61,13 @@ describe("mapEbaySoldOffer", () => {
     expect(mapEbaySoldOffer(offer({ ended_at: "igår" }), rates)).toBeNull();
   });
 });
+
+describe("mapEbaySoldOffer — nya vakter 2026-10-06", () => {
+  it("saknat slutdatum blir aldrig 1970", () => {
+    expect(mapEbaySoldOffer(offer({ ended_at: null as unknown as string }), rates)).toBeNull();
+    expect(mapEbaySoldOffer(offer({ ended_at: "1970-01-01T00:00:00Z" }), rates)).toBeNull();
+  });
+  it("råa kort med betyg som förhoppning fälls", () => {
+    expect(mapEbaySoldOffer(offer({ title: "Machamp Holo 8/102 NM Raw PSA 8 Contender" }), rates)).toBeNull();
+  });
+});

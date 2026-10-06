@@ -47,7 +47,7 @@ export interface GradedAskProduct {
   language: CardLanguage;
   variantLabel: string | null;
   /** `set.totalCards` = printedTotal (talet på kortet); 0 = okänt. */
-  card: { name: string; number: string; set: { name: string; totalCards: number } };
+  card: { name: string; number: string; set: { name: string; totalCards: number; releaseDate?: Date | null } };
 }
 
 export interface GradedAskBucket {

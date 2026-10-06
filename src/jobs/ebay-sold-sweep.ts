@@ -26,7 +26,7 @@ import { prisma } from "../lib/db";
 import type { Prisma } from "@prisma/client";
 import { mapPool } from "../lib/concurrency";
 import { getRatesOre } from "../lib/exchange-rate";
-import { isPlausibleGradedPriceOre } from "../lib/graded-listing";
+import { gradedTooSoonAfterRelease, isPlausibleGradedPriceOre } from "../lib/graded-listing";
 import { EBAY_SOLD_SOURCE, mapEbaySoldOffer, type EbaySoldOffer } from "../lib/ebay-sold";
 import { titleCarriesNumber, titleFitsSet, type GradedAskProduct } from "../lib/graded-ask";
 import { listingCardLanguage } from "../lib/listing-language";
@@ -66,7 +66,7 @@ async function selectProducts(budget: number): Promise<ProductRow[]> {
     id: true,
     language: true,
     variantLabel: true,
-    card: { select: { tcgExternalId: true, name: true, number: true, set: { select: { name: true, totalCards: true } } } },
+    card: { select: { tcgExternalId: true, name: true, number: true, set: { select: { name: true, totalCards: true, releaseDate: true } } } },
     offers: { where: { retailer: { name: "Cardmarket" }, price: { not: null } }, select: { price: true }, take: 1 },
   } satisfies Prisma.ProductSelect;
   const baseWhere: Prisma.ProductWhereInput = {
@@ -169,6 +169,8 @@ export async function runEbaySoldSweep(opts: EbaySoldSweepOptions = {}): Promise
       if (!listingFitsVariant(p.variantLabel, title, p.card.name)) return [];
       const m = mapEbaySoldOffer(o, rates);
       if (!m) return [];
+      // ⛔ Såld innan kortet hunnit graderas = ett rått kort med betyg i titeln.
+      if (gradedTooSoonAfterRelease(p.card.set.releaseDate, m.soldAt)) return [];
       if (!isPlausibleGradedPriceOre(p.cmRefOre, m.price)) {
         res.implausible++;
         return [];

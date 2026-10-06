@@ -74,7 +74,14 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   graf/historik = CM trend.
 - **GRADERADE PRISER = TRE KÄLLOR, ALLA LIVE**: Tradera-sålt (`GradedSale`), eBay-SÅLT ur PRISLEVERANTÖREN
   (RapidAPI `/ebay-sold-offers`, sedan 2026-09-16) och eBay-BEGÄRT via Browse (sedan 2026-09-15). Arket visar dem
-  som separata märkta rader. **BEGÄRT via EBAY BROWSE**: gratis (~5 000
+  som separata märkta rader. ⚠️ **Browse-svepet har fått `401 invalid_client` i Actions VARJE natt sedan 09-15**
+  (bara första körningens 297 rader finns; lokala `.env`-nyckeln fungerar ⇒ GitHub-secreten är felformad, sätt om
+  `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` utan BOM). Steget är grönt ändå — läs `[graded-ask]`-raden.
+  ⛔ **RÅA KORT MED BETYG I TITELN (2026-10-06)**: "PSA 10 Contender/potential/utmanare/lockande", "PSA 10?" är
+  OGRADERADE — `isAspirationalGradeTitle` slår nu även Traderas attribut-väg (säljaren fyller i PSA/10 på råa kort);
+  två betyg eller omgradering/korsgradering i titeln = en slab. Och `gradedTooSoonAfterRelease`: inget graderat
+  inom **21 dygn** från setets släpp (mätt: alla "graderade" ≤ 16 d var råa, första äkta slabbar 29 d) — gäller
+  alla tre källor. 91 rader städades (`scripts/purge-implausible-graded.ts`). **BEGÄRT via EBAY BROWSE**: gratis (~5 000
   anrop/dygn per app), EN sökning per kort i kategori 183454 med aspekten `Graded:{Yes}`, bucketad per
   (bolag, betyg) ur TITELN med `detectGrading` (`lib/graded-ask.ts`, ren + testad) och skriven som ETT
   TILLSTÅND i `GradedAsk` (`jobs/graded-ask-sweep.ts`, steg sist i `tradera-sold-sync.yml`). Bevakade kort

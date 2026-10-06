@@ -18,7 +18,7 @@
  * jobs/ebay-sold-sweep.ts.
  */
 import { type RatesOre, priceOreFromEur, priceOreFromGbp, priceOreFromUsd } from "@/lib/exchange-rate";
-import type { GradingIssuer } from "@/lib/graded-listing";
+import { isAspirationalGradeTitle, type GradingIssuer } from "@/lib/graded-listing";
 
 export const EBAY_SOLD_SOURCE = "ebay";
 
@@ -79,12 +79,18 @@ export function priceOreFromCurrency(
  */
 export function mapEbaySoldOffer(o: EbaySoldOffer, rates: RatesOre): EbaySoldRow | null {
   if (!o.ebay_item_id || !o.url || !o.title) return null;
+  // Leverantören sätter bolag + betyg ur titeln — "NM Raw PSA 8 Contender" blir
+  // då en PSA 8-affär. Samma veto som Tradera-vägen.
+  if (isAspirationalGradeTitle(o.title)) return null;
   const gradeTenths = parseGradeTenths(o.grade);
   if (gradeTenths == null) return null;
   const price = priceOreFromCurrency(o.price, o.currency ?? "", rates);
   if (price == null) return null;
+  // ⛔ `new Date(null)` är 1970-01-01, inte "ogiltigt" — mätt 2026-10-06: tre
+  // Majestic Dawn-affärer låg på epoken. Inget graderat kort såldes före 2000.
+  if (!o.ended_at) return null;
   const soldAt = new Date(o.ended_at);
-  if (!Number.isFinite(soldAt.getTime())) return null;
+  if (!Number.isFinite(soldAt.getTime()) || soldAt.getUTCFullYear() < 2000) return null;
   return {
     // Prefix så nyckeln aldrig krockar med Traderas annons-id i samma kolumn.
     itemId: `${EBAY_SOLD_SOURCE}:${o.ebay_item_id}`,

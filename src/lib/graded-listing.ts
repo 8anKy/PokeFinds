@@ -70,7 +70,65 @@ export interface GradedListingInput {
  * men står här ändå eftersom "Ograderad, PSA 10-kandidat" bär BÅDA signalerna.
  */
 const ASPIRATION_VETO =
-  /\b(?:kandidat(?:er)?|m[öo]jligen|troligen|kanske|potentiell(?:t|a)?|nära|n[äa]stan|borde\s+f[åa]|skulle\s+f[åa]|v[äa]rd(?:ig|t)?\s+(?:att\s+)?grader|f[öo]r\s+grader(?:ing|as)|att\s+graderas?|pre-?grad\w*|ograderad\w*|ograderat|ungraded|to\s+grade|gradeable|grade\s+worthy|psa[-\s]?v[äa]rd\w*)\b/i;
+  /\b(?:kandidat(?:er)?|m[öo]jlig\w*|troligen|kanske|poten\w*|nära|n[äa]stan|borde\s+f[åa]|skulle\s+f[åa]|v[äa]rd(?:ig|t)?\s+(?:att\s+)?grader|f[öo]r\s+grader(?:ing|as)|att\s+graderas?|pre-?grad\w*|ograderad\w*|ograderat|ungraded|to\s+grade|gradeable|grade\s+worthy|psa[-\s]?v[äa]rd\w*|contender\w*|candidates?|possib\w*|prospect\w*|utmanare|lockande|chans(?:en)?|raw)\b/i;
+
+/**
+ * ⛔ "PSA 10?" ÄR EN FRÅGA, INTE EN SLAB. Ett betyg följt av frågetecken är säljarens
+ * gissning ("Near Mint / PSA 10?", "PSA 10 kandidat?!"). Riktiga titlar ur
+ * produktionen 2026-10-06.
+ */
+const GRADE_QUESTION = /\b(?:psa|bgs|beckett|cgc|sgc|ace|tag)\s*(?:10|[1-9](?:[.,]5)?)\s*\?/i;
+
+/**
+ * Säljer titeln ett OGRADERAT kort med en förhoppning om ett betyg?
+ *
+ * ⛔ Mätt 2026-10-06: 30th Celebration (släppt 2026-09-16) hade 23 "graderade"
+ * Tradera-affärer inom 16 dygn — "PSA 10 Contender", "PSA 10 potential",
+ * "PSA 10-utmanare", "PSA 10 lockande kort" (Traderas maskinöversättning), "Raw
+ * möjligen PSA 10". Alla råa kort; produktsidan visade dem som "PSA 10 · SÅLT".
+ *
+ * ⛔ EN SLAB SOM HOPPAS PÅ ETT ANNAT BETYG ÄR FORTFARANDE EN SLAB. Mätt i samma
+ * torrkörning: "PSA 9 Possible PSA 10", "CGC 8(PSA 8?)", "PSA 8, Very Clean
+ * Regrade Candidate", "BGS 9.5 (Possible Crossover)", "TAG 8 Potential PSA 9".
+ * Två betyg i titeln, eller ett betyg + omgradering/korsgradering ⇒ graderad,
+ * och `gradeFromTitle` tar det FÖRSTA (det kortet bär). Vetot tar bara titlar där
+ * förhoppningen är det enda betyget.
+ */
+const ISSUER_GRADE_PAIR = /\b(?:psa|bgs|beckett|cgc|sgc|ace|tag|rauk\s?card)\s*(?:10|[1-9](?:[.,]5)?)(?![\d.,]?\d)/gi;
+const SLAB_HEDGE = /\b(?:re-?grad\w*|cross\s*-?\s*(?:over|grad\w*))/i;
+
+export function isAspirationalGradeTitle(title: string): boolean {
+  const pairs = title.match(ISSUER_GRADE_PAIR)?.length ?? 0;
+  if (pairs >= 2 || (pairs === 1 && SLAB_HEDGE.test(title))) return false;
+  return (
+    ASPIRATION_VETO.test(title) || ASPIRATION_BEFORE_ISSUER.test(title) || GRADE_QUESTION.test(title)
+  );
+}
+
+/**
+ * ⛔ ETT KORT KAN INTE VARA GRADERAT INNAN DET HUNNIT GRADERAS (2026-10-06).
+ *
+ * Inskick → bolagets kö → retur tar veckor. MÄTT i produktionen 2026-10-06 över
+ * 164 843 graderade affärer: varje "graderad" affär inom 16 dygn från setets
+ * släpp var ett rått kort (Tradera, 30th Celebration), och de första äkta
+ * slabbarna (eBay UK, Ascended Heroes) dök upp efter 29 dygn. 21 dygn fäller
+ * alla falska utan att röra en enda äkta.
+ *
+ * Gäller affärer (soldAt) OCH begärda priser (observedAt). Okänt släppdatum ⇒
+ * ingen dom (false) — vakten får aldrig fälla på data vi saknar.
+ */
+export const GRADED_MIN_DAYS_AFTER_RELEASE = 21;
+
+export function gradedTooSoonAfterRelease(
+  releaseDate: Date | string | null | undefined,
+  at: Date | string
+): boolean {
+  if (!releaseDate) return false;
+  const rel = new Date(releaseDate).getTime();
+  const t = new Date(at).getTime();
+  if (!Number.isFinite(rel) || !Number.isFinite(t)) return false;
+  return t < rel + GRADED_MIN_DAYS_AFTER_RELEASE * 86_400_000;
+}
 
 /**
  * ⛔ "PERFEKT FÖR PSA 10" ÄR ETT OGRADERAT KORT. Samma aspiration som ovan, men
@@ -201,14 +259,17 @@ function mentionsAnyIssuer(title: string): boolean {
  * ÄR annonsen ett graderat kort? Vakten som håller slabbar ur den råa kurvan.
  *
  * Sann när Tradera säger det (attribut satt) ELLER när titeln säger det
- * (bolagsnamn + betyg, eller bara ordet "graderad"/"slab"). Aspirationsvetot
- * slår ut titel-vägen — men ALDRIG attribut-vägen: har säljaren fyllt Traderas
- * eget graderingsfält är det hens egen deklaration, inte vår tolkning.
+ * (bolagsnamn + betyg, eller bara ordet "graderad"/"slab").
+ *
+ * ⛔ Aspirationsvetot slår ut BÅDA vägarna sedan 2026-10-06. Förut litade vi
+ * blint på attributet ("säljarens egen deklaration") — men säljaren som skriver
+ * "PSA 10 Contender" fyller också i PSA/10 i Traderas fält, och då blev ett rått
+ * kort en PSA 10-affär. Titeln som säger "inte graderad" vinner.
  */
 export function isGradedListing(input: GradedListingInput): boolean {
-  if (input.attrIssuer?.trim() || input.attrGrade?.trim()) return true;
   const title = input.title ?? "";
-  if (ASPIRATION_VETO.test(title) || ASPIRATION_BEFORE_ISSUER.test(title)) return false;
+  if (isAspirationalGradeTitle(title)) return false;
+  if (input.attrIssuer?.trim() || input.attrGrade?.trim()) return true;
   if (GRADED_WORD.test(title)) return true;
   // Bolagsnamn ENSAMT räcker inte ("Ace Spec", "Tag Team", "isa" i ett namn) —
   // det krävs ett betyg intill för att det ska vara en slab.

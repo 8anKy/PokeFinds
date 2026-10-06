@@ -144,6 +144,21 @@ jobs:
         continue-on-error: true
         run: npx tsx scripts/heal-sealed-images.ts --apply
 
+      # Singlar: PRODUKTBILDEN FÖLJER KORTETS. Leverantörsimporten ger produkten en
+      # TCGGO-adress, och TCGGO roterar sina storage-id:n — mätt 2026-10-06: 157
+      # 30th Celebration-produkter pekade på TCGGO (50 gav 404, katalogen visade
+      # trasiga bilder) medan korten redan hade fungerande Scrydex-bilder. Lagades
+      # för hand 09-22 och gled isär igen. Billigt: probar bara rader där produkt och
+      # kort skiljer sig (normalt 0), skriver bara en verifierad bild, kastar
+      # sidorna ur 30-dygnscachen.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Produktbilder ikapp kortets bild
+        continue-on-error: true
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: npx tsx scripts/sync-product-images-from-card.ts --apply
+
       # ── FRYS SAMLINGSVÄRDET (ägarbeslut 2026-10-05) ──────────────────────────
       # Portföljen ska röra sig EN gång per dygn, EFTER Cardmarket-priserna — inte när
       # hot-card-refresh/JP/butikssvep skriver. Implicit success(): blev prissteget rött
