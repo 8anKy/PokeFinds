@@ -43,6 +43,8 @@ const DRY = args.includes("--dry");
 const TEST = args.includes("--test");
 /** Postar det SENASTE riktiga släppinlägget (oavsett ålder) som exempel. Rör inte state. */
 const PREVIEW = args.includes("--preview");
+/** Med --preview: bara den här butiken (handtaget måste stå i store-instagram.json). */
+const PREVIEW_HANDLE = (process.env.PREVIEW_HANDLE ?? "").trim().replace(/^@/, "").toLowerCase();
 const DRY_DAYS = Number(args.find((a) => a.startsWith("--days="))?.slice(7) ?? 14);
 
 const token = process.env.META_ACCESS_TOKEN?.trim() ?? "";
@@ -203,7 +205,9 @@ async function main() {
 
   if (PREVIEW) {
     let best: { store: string; handle: string; m: Media } | null = null;
-    for (const { store, handle } of stores) {
+    const pool = PREVIEW_HANDLE ? stores.filter((s) => s.handle.toLowerCase() === PREVIEW_HANDLE) : stores;
+    if (PREVIEW_HANDLE && pool.length === 0) throw new Error(`@${PREVIEW_HANDLE} står inte i store-instagram.json`);
+    for (const { store, handle } of pool) {
       const r = await fetchMedia(handle);
       if (!r.ok) continue;
       for (const m of r.media) {

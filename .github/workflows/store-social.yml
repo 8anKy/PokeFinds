@@ -26,6 +26,10 @@ on:
         description: "Posta det senaste riktiga släppinlägget som exempel (rör inte state)"
         type: boolean
         default: false
+      handle:
+        description: "Med preview: bara den här butikens IG-handtag (måste stå i store-instagram.json)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -98,6 +102,9 @@ jobs:
         run: npx prisma generate
 
       - if: steps.guard.outputs.ready == 'true'
+        env:
+          # Via env, aldrig inklistrat i skriptet — fritext från formuläret.
+          PREVIEW_HANDLE: ${{ inputs.handle }}
         run: |
           args=""
           if [ "${{ inputs.test }}" = "true" ]; then args="--test"; fi
