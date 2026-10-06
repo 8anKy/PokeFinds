@@ -145,7 +145,9 @@ export function UpdateScreen() {
             : "radial-gradient(closest-side, rgba(45,212,191,.28), transparent 70%), radial-gradient(closest-side at 70% 60%, rgba(167,139,250,.22), transparent 70%)",
         }}
       />
-      <div className="relative mx-auto flex w-full max-w-md min-h-0 flex-1 flex-col overflow-y-auto px-6 pt-8">
+      {/* Huvudet står STILL (ägarbeslut 2026-10-06): märke, etikett, version och
+          "Du har …" scrollas aldrig bort — bara nyhetslistan under rör sig. */}
+      <div className="relative mx-auto flex w-full max-w-md shrink-0 flex-col px-6 pt-8">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brand/foilio-mark.svg" alt="Foilio" width={46} height={58} className="mb-5 h-auto w-[46px]" />
         <span
@@ -168,7 +170,16 @@ export function UpdateScreen() {
           {released ? t("installedReleased", { installed: prompt.installed, date: released }) : t("installed", { installed: prompt.installed })}
         </p>
         {required && <p className="mb-4 text-sm leading-relaxed text-ink">{t("requiredText")}</p>}
-        <div className="grid gap-2.5 pb-4">
+      </div>
+      {/* Bara listan scrollar. Kanterna tonas ut så det syns att det finns mer. */}
+      <div
+        className="relative mx-auto w-full max-w-md min-h-0 flex-1 overflow-y-auto overscroll-contain px-6"
+        style={{
+          maskImage: "linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 28px), transparent 100%)",
+          WebkitMaskImage: "linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 28px), transparent 100%)",
+        }}
+      >
+        <div className="grid gap-2.5 pb-7 pt-2.5">
           {prompt.notes.length > 0 ? (
             prompt.notes.map((note) => {
               const n = localizedNote(note, locale);
