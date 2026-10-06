@@ -1519,6 +1519,7 @@ describe("deriveRestockPosts — kort våg", () => {
     flapCooldownHours: 24,
     shortWaveMinutes: 5,
     shortWaveCooldownMinutes: 60,
+    shortWaveStores: ["Dragon's Lair"],
   };
   const at = (hhmm: string) => new Date(`2026-10-06T${hhmm}:00Z`);
   /** Förra vågen: IN vid `inAt`, slut vid `outAt`, postad vid `inAt`. */
@@ -1555,6 +1556,10 @@ describe("deriveRestockPosts — kort våg", () => {
 
   it("en ÄKTA våg (låg kvar 20 min) har kvar 15-minuterscooldownen", () => {
     expect(run(afterWave("12:00", "12:20"), "12:39").posts).toHaveLength(1);
+  });
+
+  it("gäller BARA butikerna i listan", () => {
+    expect(run(afterWave("12:23", "12:25"), "12:39", { ...LANE, shortWaveStores: ["Toyspace"] }).posts).toHaveLength(1);
   });
 
   it("regeln är av utan spaken (appens flapPolicy-default)", () => {

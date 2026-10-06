@@ -44,6 +44,8 @@ export interface FlapPolicy {
   shortWaveMinutes?: number;
   /** Minsta tid mellan två inlägg om samma URL efter en kort våg. */
   shortWaveCooldownMinutes?: number;
+  /** Butikerna (källnamn) regeln gäller. Tom lista = ingen (ägarbeslut: bara Toyspace). */
+  shortWaveStores?: string[];
 }
 
 export function flapPolicy(): FlapPolicy {
@@ -60,6 +62,10 @@ export function flapPolicy(): FlapPolicy {
     // Av som default — bara Discord-lanen sätter den (discord-restock.yml).
     shortWaveMinutes: Number(process.env.RESTOCK_SHORT_WAVE_MINUTES ?? 0),
     shortWaveCooldownMinutes: Number(process.env.RESTOCK_SHORT_WAVE_COOLDOWN_MINUTES ?? 60),
+    shortWaveStores: (process.env.RESTOCK_SHORT_WAVE_STORES ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
   };
 }
 

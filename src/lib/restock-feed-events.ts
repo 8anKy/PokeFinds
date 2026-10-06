@@ -734,7 +734,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
 
     // Kort våg: förra i-lager-fönstret var bara ett släppt kassa-ex ⇒ längre cooldown.
     const lastWave =
-      (policy.shortWaveMinutes ?? 0) > 0
+      (policy.shortWaveMinutes ?? 0) > 0 && (policy.shortWaveStores ?? []).includes(found.sourceName)
         ? previousInStockMinutes(recentForKey, (isPreorderOpen ? PREORDER : IN_STOCK) as StockStatus, now)
         : null;
     const shortWaveMs =

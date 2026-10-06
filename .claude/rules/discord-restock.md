@@ -521,7 +521,8 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   **KORT VÅG (2026-10-06)**: låg varan i lager < `RESTOCK_SHORT_WAVE_MINUTES` (5) FÖRRA gången väntar nästa
   inlägg om samma URL `RESTOCK_SHORT_WAVE_COOLDOWN_MINUTES` (60) i stället för 15 — ett ex ur en övergiven kassa,
   köpt direkt (Toyspace Mini Tin Display postades 12:23/12:39/12:58, 1–2 min i lager varje gång). Domen:
-  `previousInStockMinutes` (`lib/stock-flap.ts`); default AV, så appens push/mejl är orörda. Räknas som `cooldown`.
+  `previousInStockMinutes` (`lib/stock-flap.ts`). ⛔ BARA butikerna i `RESTOCK_SHORT_WAVE_STORES` (ägarbeslut: "Toyspace");
+  default AV, så appens push/mejl är orörda. Räknas som `cooldown`.
 
 - **PRO-SPEGELN = KORGLÄNKEN I DISCORD (ägarbeslut 2026-09-17)**: `"pro"` i `DISCORD_RESTOCK_CHANNELS`
   (repo-variabel) — `"pro":"<id>"` för EN Pro-kanal, eller `"pro":{default,sets,series,languages}` för

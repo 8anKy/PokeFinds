@@ -242,6 +242,9 @@ jobs:
       # övergiven kassa, köpt direkt) väntar nästa inlägg om samma URL 60 min i stället
       # för 15. Toyspace Mini Tin Display postades 12:23, 12:39 och 12:58 med 1–2 min i
       # lager varje gång. En våg som ligger kvar ≥ 5 min påverkas inte.
+      # ⛔ BARA de butiker som står här (ägarbeslut: bara Toyspace spammar). Källnamn,
+      #    kommaseparerat — lägg till en butik först när den visar samma mönster.
+      RESTOCK_SHORT_WAVE_STORES: "Toyspace"
       RESTOCK_SHORT_WAVE_MINUTES: "5"
       RESTOCK_SHORT_WAVE_COOLDOWN_MINUTES: "60"
       # ⛔ WEBHALLEN VAR SVANSEN I SVEPET. MÄTT 2026-08-15: hela svepet över 42 butiker

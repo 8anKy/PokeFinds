@@ -497,6 +497,7 @@ describe("evaluateStockFlap", () => {
       // Kort våg AV (0) — bara Discord-lanen sätter den, appens push/mejl är orörda.
       shortWaveMinutes: 0,
       shortWaveCooldownMinutes: 60,
+      shortWaveStores: [],
     });
   });
 });
