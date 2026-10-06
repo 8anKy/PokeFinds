@@ -47,7 +47,13 @@ describe("sfbokStoreStock — centrallagret är inte butikslagret", () => {
 
   it("Mini Tin: 280 i centrallagret, 0 i butikerna ⇒ 0 ex och slut i butik", () => {
     const inStores = sfbokStoreStock({ stockQuantity: 280, warehouseInventories: wh(280, 0, 0, 0, 0) });
-    expect(inStores).toEqual({ units: 0, stores: 0, locations: [] });
+    expect(inStores).toEqual({
+      units: 0,
+      stores: 0,
+      locations: [],
+      // Nollorna står kvar — lanen diffar varje butik för sig.
+      byStore: { S040: 0, S030: 0, S010: 0, S020: 0 },
+    });
     expect(sfbokStock({ buttonState: 4, stockQuantity: inStores.units }).stock).toBe("out");
   });
 
@@ -66,11 +72,12 @@ describe("sfbokStoreStock — centrallagret är inte butikslagret", () => {
   });
 
   it("utan uppdelning ⇒ totalen med okänt butiksantal", () => {
-    expect(sfbokStoreStock({ stockQuantity: 5 })).toEqual({ units: 5, stores: null, locations: [] });
+    expect(sfbokStoreStock({ stockQuantity: 5 })).toEqual({ units: 5, stores: null, locations: [], byStore: null });
     expect(sfbokStoreStock({ stockQuantity: null, warehouseInventories: [] })).toEqual({
       units: null,
       stores: null,
       locations: [],
+      byStore: null,
     });
   });
 

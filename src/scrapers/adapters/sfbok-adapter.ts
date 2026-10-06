@@ -152,16 +152,24 @@ export function sfbokStock(input: {
 export function sfbokStoreStock(
   v: { stockQuantity?: number | null; warehouseInventories?: SfBokWarehouse[] | null },
   names?: Map<string, SfBokStore>
-): { units: number | null; stores: number | null; locations: StoreStockLocation[] } {
+): {
+  units: number | null;
+  stores: number | null;
+  locations: StoreStockLocation[];
+  /** Saldo per lagerkod för ALLA butikslager, nollor inräknade. null = ingen uppdelning. */
+  byStore: Record<string, number> | null;
+} {
   const stores = (v.warehouseInventories ?? []).filter((w) => w.isPrimaryWarehouse === false);
   if (stores.length === 0) {
-    return { units: typeof v.stockQuantity === "number" ? v.stockQuantity : null, stores: null, locations: [] };
+    return { units: typeof v.stockQuantity === "number" ? v.stockQuantity : null, stores: null, locations: [], byStore: null };
   }
   let units = 0;
   let withStock = 0;
   const locations: StoreStockLocation[] = [];
+  const byStore: Record<string, number> = {};
   for (const w of stores) {
     const qty = typeof w.quantity === "number" && w.quantity > 0 ? w.quantity : 0;
+    if (w.warehouseCode) byStore[w.warehouseCode] = qty;
     if (qty === 0) continue;
     units += qty;
     withStock++;
@@ -169,7 +177,7 @@ export function sfbokStoreStock(
     if (store) locations.push({ id: store.warehouseCode, label: sfbokStoreLabel(store), units: qty, capped: false });
   }
   locations.sort((a, b) => b.units - a.units || a.label.localeCompare(b.label, "sv"));
-  return { units, stores: withStock, locations };
+  return { units, stores: withStock, locations, byStore };
 }
 
 /**
@@ -341,10 +349,25 @@ export class SfBokAdapter implements SourceAdapter {
         category: guessListingCategory(p.displayName),
         storeOnly,
         // Orterna ur butikens egen butikssida; utan den bara antal butiker.
+        // ⛔ `byStore` även när saldot är 0: lanen diffar varje butik för sig, och en butik
+        //    som saknas i listan är "vet inte" — då blir dess påfyllning aldrig en flipp.
         storeStock:
-          storeOnly && inStores.units !== null && inStores.units > 0
-            ? { units: inStores.units, stores: inStores.stores, capped: false, locations: inStores.locations }
+          storeOnly && inStores.units !== null && (inStores.units > 0 || inStores.byStore)
+            ? {
+                units: inStores.units,
+                stores: inStores.stores,
+                capped: false,
+                locations: inStores.locations,
+                ...(inStores.byStore ? { byStore: inStores.byStore } : {}),
+              }
             : null,
+        // BUTIKSSPÅRET (2026-10-06): Göteborg fick 30th Mini Tin 09:41 och postades;
+        // Stockholm och Linköping fick den senare men annonsen var redan "i lager" ⇒
+        // ingen flipp, inget inlägg. Med ett eget spår + `byStore` diffar lanen varje
+        // butik som Webhallens. Bara när uppdelningen finns — annars som förut.
+        ...(storeOnly && inStores.byStore
+          ? { storeStatus: stock === "in" ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK }
+          : {}),
         raw,
       });
     }

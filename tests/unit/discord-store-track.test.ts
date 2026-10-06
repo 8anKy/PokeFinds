@@ -16,6 +16,7 @@ import { buildDiscordFilterContext } from "@/lib/discord-restock-filter";
 import { buildRestockEmbed, resolveRestockChannelId } from "@/lib/discord-restock";
 import { hitsFromPosts } from "@/lib/restock-hits";
 import type { FlapPolicy } from "@/lib/stock-flap";
+import { sfbokStoreStock } from "@/scrapers/adapters/sfbok-adapter";
 
 const POLICY: FlapPolicy = { minAwayMinutes: 20, flapMaxTransitions: 6, flapCooldownHours: 24 };
 const NOW = new Date("2026-09-23T09:20:00Z");
@@ -257,5 +258,88 @@ describe("en nyckel per fysisk butik (2026-09-23)", () => {
     const { posts } = derive(state, storeFeed({ "2": 3 }, 9));
     expect(posts[0].minRankLevel).toBe(9);
     expect(buildRestockEmbed(posts[0]).fields).toContainEqual({ name: "Kräver", value: "Nivå 9+", inline: true });
+  });
+});
+
+/**
+ * SF-BOK I BUTIKSSPÅRET (2026-10-06): 30th Mini Tin kom till Göteborg 09:41 och postades;
+ * Stockholm (68) och Linköping (38) fick den senare men annonsen var redan "i lager" ⇒
+ * ingen flipp, inget inlägg. Adapterns `sfbokStoreStock` matas rakt in i lanen.
+ */
+describe("SF-Bok: en ny butik postas fast en annan redan hade varan", () => {
+  const SF_URL = "https://www.sfbok.se/sv/spel/750222/pokemon-tcg-30th-celebration-mini-tin-box";
+  const SF_MAIN = `SF-Bok\t${SF_URL}`;
+  const NAMES = new Map(
+    [
+      ["S010", "Stockholm"],
+      ["S020", "Malmö"],
+      ["S030", "Göteborg"],
+      ["S040", "Linköping"],
+    ].map(([code, city]) => [code, { warehouseCode: code, name: `SF-Bok ${city}`, city }])
+  );
+  const wh = (s010: number, s020: number, s030: number, s040: number) => [
+    { warehouseCode: "S020", quantity: s020, isPrimaryWarehouse: false },
+    { warehouseCode: "1", quantity: 0, isPrimaryWarehouse: true },
+    { warehouseCode: "S040", quantity: s040, isPrimaryWarehouse: false },
+    { warehouseCode: "S010", quantity: s010, isPrimaryWarehouse: false },
+    { warehouseCode: "S030", quantity: s030, isPrimaryWarehouse: false },
+  ];
+  function sfFeed(s010: number, s020: number, s030: number, s040: number): FullFeedGroup[] {
+    const inStores = sfbokStoreStock({ warehouseInventories: wh(s010, s020, s030, s040) }, NAMES);
+    const inStock = (inStores.units ?? 0) > 0;
+    return [
+      {
+        sourceName: "SF-Bok",
+        items: [
+          {
+            url: SF_URL,
+            stockStatus: inStock ? "IN_STOCK" : "OUT_OF_STOCK",
+            title: "Pokemon TCG: 30th Celebration Mini Tin Box",
+            price: 22900,
+            imageUrl: null,
+            category: "TIN",
+            storeOnly: true,
+            storeStock: {
+              units: inStores.units,
+              stores: inStores.stores,
+              capped: false,
+              locations: inStores.locations,
+              byStore: inStores.byStore!,
+            },
+            storeStatus: inStock ? "IN_STOCK" : "OUT_OF_STOCK",
+          },
+        ],
+      },
+    ];
+  }
+  const sfDerive = (state: DiscordRestockState, groups: FullFeedGroup[]) =>
+    deriveRestockPosts({
+      state,
+      groups,
+      rotating: new Set(),
+      routes: {},
+      filter: buildDiscordFilterContext({ routes: {}, setNames: ["30th Celebration"] }),
+      now: NOW,
+      policy: POLICY,
+      cooldownHours: 0.25,
+      baseUrl: "https://foilio.se",
+      priceDrops: null,
+    });
+
+  it("Göteborg först, sedan Stockholm + Linköping ⇒ ett nytt inlägg om de två", () => {
+    // Första varvet med butiksnycklar seedas tyst (slut överallt) …
+    const seed = sfDerive(st({ [SF_MAIN]: "OUT_OF_STOCK", [`${SF_MAIN}#butik`]: "OUT_OF_STOCK" }), sfFeed(0, 0, 0, 0));
+    expect(seed.posts).toHaveLength(0);
+    // … 09:41: Göteborg får varan ⇒ inlägget.
+    const before = sfDerive(seed.nextState, sfFeed(0, 0, 80, 0));
+    expect(before.posts).toHaveLength(1);
+    expect(before.posts[0].newStoreIds).toEqual(["S030"]);
+    const after = sfDerive({ ...before.nextState, posted: {} }, sfFeed(68, 0, 44, 38));
+    expect(after.posts).toHaveLength(1);
+    expect(after.posts[0].newStoreIds?.sort()).toEqual(["S010", "S040"]);
+    const lager = buildRestockEmbed(after.posts[0]).fields.find((f) => f.name === "I lager")!.value;
+    expect(lager).toContain("🆕 Stockholm · 68 ex");
+    expect(lager).toContain("🆕 Linköping · 38 ex");
+    expect(lager).toContain("Göteborg · 44 ex");
   });
 });

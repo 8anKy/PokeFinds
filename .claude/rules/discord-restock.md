@@ -305,7 +305,7 @@ priskanalen.
   ort; centrallagret räknas aldrig). Faller uppslagningen ⇒ "N ex i M butiker" utan namn, aldrig en gissning.
 - ⛔ **ONLINE OCH BUTIK ÄR TVÅ SPÅR (ägarbeslut 2026-09-23)**: 30th Celebration fylldes på hos Webhallen
   i webblagret OCH i butikerna samtidigt, men annonsen hade EN status ⇒ bara onlineinlägget. Nu sätter
-  en källa som skiljer dem åt `RawProductData.storeStatus` (bara Webhallen: butikssaldo > 0 efter
+  en källa som skiljer dem åt `RawProductData.storeStatus` (Webhallen, och SF-Bok för butiksvaror sedan 2026-10-06 — `byStore` per lagerkod S010–S040 med nollor, annars teg en ANDRA butiks påfyllning: butikssaldo > 0 efter
   släppdagen), och `laneGroups` (`restock-feed-events.ts`) delar annonsen i huvudnyckeln = WEBBLAGRET
   (en butiksvara räknas där som SLUT) och `<url>#butik` = de fysiska butikerna. Spåren diffas,
   cooldownas och flappdäms var för sig. Butiksinlägg när webben SAMTIDIGT har varan: `alsoOnline`
