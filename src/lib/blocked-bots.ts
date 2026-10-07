@@ -15,7 +15,9 @@
 // 2026-09-28 — ägarbeslut, se lib/ai-crawlers.ts. Indexerarna begränsas till navsidorna
 // av middleware; träningscrawlarna (GPTBot, ClaudeBot, CCBot …) är kvar nedan.
 export const BLOCKED_BOTS =
-  /Applebot|GPTBot|ClaudeBot|Claude-Web|anthropic-ai|CCBot|Bytespider|AhrefsBot|SemrushBot|DataForSeoBot|MJ12bot|Amazonbot|Amzn-SearchBot|ShapBot|Meta-ExternalAgent|Meta-WebIndexer|GoogleOther|YandexBot|Baiduspider|SeznamBot|DotBot|BLEXBot|Barkrowler|ImagesiftBot|Timpibot|Diffbot|omgili|Screaming Frog|python-requests|Scrapy|node-fetch|Go-http-client|libwww-perl/i;
+  /Applebot|GPTBot|ClaudeBot|Claude-Web|anthropic-ai|CCBot|Bytespider|AhrefsBot|SemrushBot|DataForSeoBot|MJ12bot|Amazonbot|Amzn-SearchBot|ShapBot|Meta-ExternalAgent|Meta-WebIndexer|GoogleOther|YandexBot|Baiduspider|SeznamBot|DotBot|BLEXBot|Barkrowler|ImagesiftBot|Timpibot|Diffbot|omgili|Reflectionbot|Screaming Frog|python-requests|Scrapy|node-fetch|Go-http-client|libwww-perl/i;
+// Reflectionbot (reflection.ai, 2026-10-07): AI-crawler utan sökindex — 1 675 hämtningar
+// på 12 h (största crawlern, 9 % av ALL trafik, mest /en/produkter/*), ingen rankningsnytta.
 // Amzn-SearchBot: Amazons NYARE crawler-UA (2026-08-22). `Amazonbot` stod redan i
 // listan men matchar INTE strängen "Amzn-SearchBot" — det är ett annat namn, inte en
 // variant, och regexen är ren substrängsmatchning. Följden: den svepte /produkter/[slug]

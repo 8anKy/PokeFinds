@@ -127,6 +127,7 @@ export default function robots(): MetadataRoute.Robots {
           "Timpibot",
           "Diffbot",
           "omgilibot",
+          "Reflectionbot",
         ],
         disallow: "/",
       },
