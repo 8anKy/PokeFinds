@@ -55,7 +55,7 @@ const GUARDED: { file: string; what: string; needle: RegExp }[] = [
     needle: /NOT_HIDDEN/,
   },
   {
-    file: "app/sitemap.ts",
+    file: "services/sitemap.ts",
     what: "sitemapen (crawlers)",
     needle: /NOT_HIDDEN/,
   },

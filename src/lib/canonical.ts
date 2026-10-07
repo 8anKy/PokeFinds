@@ -71,6 +71,23 @@ export function alternatesFor(locale: string, path: string): Metadata["alternate
 }
 
 /**
+ * `alternates` för en sida vars SVENSKA version är den enda kanoniska, även när den
+ * renderas under `/en/` (2026-10-07: produkt- och setsidorna).
+ *
+ * ⛔ VARFÖR: varje produkt fanns som två självkanoniska sidor (sv + en) ⇒ ~80 000
+ * URL:er, och 39 % av Googlebots produkthämtningar gick till de engelska kopiorna
+ * (mätt i Railways httpLogs). Innehållet är detsamma — namn, set och butikspriser i
+ * kronor — så den engelska kopian är en dubblett, inte en egen sida. Kanonisk ⇒ sv
+ * samlar crawlbudgeten och länkkraften på EN URL per produkt. Ingen `en`-hreflang:
+ * att peka ut en alternativ språkversion som själv säger "jag är inte kanonisk" är en
+ * motsägelse Google underkänner. Samma mönster som guiderna (guider/[slug]/page.tsx).
+ */
+export function swedishCanonical(path: string): Metadata["alternates"] {
+  const sv = localeUrl(routing.defaultLocale, path);
+  return { canonical: sv, languages: { sv, "x-default": sv } };
+}
+
+/**
  * Sajtens delningsbild. RELATIV med flit — Next absolutiserar mot `metadataBase`
  * (satt i rot-layouten), så bilden följer med av sig själv nästa gång värdnamnet byts.
  *

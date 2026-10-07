@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { alternatesFor, localeUrl } from "@/lib/canonical";
+import { localeUrl, swedishCanonical } from "@/lib/canonical";
 import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { notFound } from "next/navigation";
@@ -79,7 +79,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // "surging sparks pris" har ingen anledning att klicka på ett bart namn.
     title: t("detailTitle", { name: set.name }),
     description: t("detailDescription", { name: set.name, series: set.series }),
-    alternates: alternatesFor(params.locale, `/sets/${params.id}`),
+    // Svensk kanonisk även under /en/ — se swedishCanonical() i lib/canonical.ts.
+    alternates: swedishCanonical(`/sets/${params.id}`),
   };
 }
 

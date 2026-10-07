@@ -1,0 +1,26 @@
+# Bygger katalogsnapshoten (skal + priser per produkt, som produktsidorna renderar
+# ur utan DB) PÅ BEGÄRAN — t.ex. direkt efter en deploy som ändrat snapshotens form.
+# Nattligen körs samma anrop som steg i cardmarket-refresh.yml; det här jobbet har
+# ingen schedule med flit (en egen start = en egen Neon-väckning).
+name: Katalogsnapshot (manuell)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Bygg snapshoten
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          if [ -z "${CRON_SECRET}" ]; then echo "::error::CRON_SECRET saknas i repo-secrets."; exit 1; fi
+          code=$(curl -sS -o snap.json -w '%{http_code}' --max-time 900 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://foilio.se}/api/cron/catalog-snapshot")
+          echo "catalog-snapshot → HTTP $code $(cat snap.json)"
+          test "$code" = "200"

@@ -78,7 +78,8 @@ const crypto = require("node:crypto");
 // "13" (2026-09-16): eBay-sålt som egen källa i badge-arket och grafen (`soldEbay` i payloaden).
 // "17" (2026-09-22): faktapanelen mäter sin nivå (data-fit) — gamla skal bär container-frågorna som kapade I lådan.
 // "18" (2026-10-05): Cardmarket-uppskattningar visar brickan "Uppskattat" i stället för "Slut".
-const PAGE_EPOCH = "18";
+// "19" (2026-10-07): priser ur katalogsnapshoten i HTML:en + Product-nod + svensk kanonisk på /en/.
+const PAGE_EPOCH = "19";
 const STORE_VERSION = "v1";
 /** Sidor äldre än så rensas oavsett TTL (ISR-TTL:en för produktsidor är 30 d). */
 const PAGE_MAX_AGE_MS = 35 * 24 * 3600 * 1000;

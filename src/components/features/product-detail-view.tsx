@@ -62,7 +62,7 @@ function shellToDetail(shell: ProductShellData): ProductDetailData {
     description: shell.description,
     imageUrl: shell.imageUrl,
     watchCount: 0,
-    updatedAt: "",
+    updatedAt: shell.prices?.at ?? "",
     set: shell.set,
     facts: shell.facts ?? null,
     chartData: [],
@@ -70,16 +70,17 @@ function shellToDetail(shell: ProductShellData): ProductDetailData {
     trendSource: "cardmarket",
     change7: null,
     change30: null,
-    offerCount: 0,
-    stats: {
+    // Nattens snapshot (när skalet kom därifrån) ger priserna direkt i HTML:en.
+    offerCount: shell.prices?.offers.length ?? 0,
+    stats: shell.prices?.stats ?? {
       lowestPrice: null,
       lowestPriceStockStatus: null,
       highestPrice: null,
       avgPrice: null,
       offerCount: 0,
     },
-    serializedOffers: [],
-    affiliateRetailerIds: [],
+    serializedOffers: shell.prices?.offers ?? [],
+    affiliateRetailerIds: shell.prices?.affiliateRetailerIds ?? [],
     similar: [],
     variants: shell.variants.map((v) => ({ slug: v.slug, label: v.label, lowestPrice: null })),
     traderaListings: [],
@@ -210,6 +211,9 @@ export function ProductDetailView({
   if (!dataProp && !shell) return null;
   const data: ProductDetailData = live ?? shellToDetail(shell!);
   const pending = live === null;
+  // Prisdelarna (rubrikpris, butikslistan) är klara redan i HTML:en när skalet bar
+  // snapshot-priser; grafen, delningen och faktapanelen väntar fortfarande på `live`.
+  const pricePending = pending && !shell?.prices;
 
   const isSingle = data.category === "SINGLE_CARD";
   const gradedHistory = gradedSel
@@ -282,7 +286,7 @@ export function ProductDetailView({
             <div className="truncate text-[15px] font-semibold leading-tight text-ink">{data.title}</div>
             {data.set && <div className="truncate text-xs text-ink-muted">{data.set.name} · {categoryLabel}</div>}
           </div>
-          {!pending && (
+          {!pricePending && (
             <div className="shrink-0 text-right">
               <div data-price className="text-[15px] font-bold leading-tight text-ink">
                 {formatPrice(data.stats.lowestPrice)}
@@ -403,7 +407,7 @@ export function ProductDetailView({
               change30={data.change30}
               isSingle={isSingle}
               isJapanese={data.language === "JP"}
-              pending={pending}
+              pending={pricePending}
             />
 
             {/* Bevakarantalet ("4 samlare bevakar") är BORTTAGET ur arket (2026-09-05):
@@ -478,7 +482,7 @@ export function ProductDetailView({
           {/* Erbjudanden — detail-payloaden är cachad ≤1h (cachedRead), ingen polling.
               Lagerstatusen här kan därför släpa efter restock-historiken nedanför,
               som är admin-only och hämtas färsk on-demand. */}
-          <LiveOffersTable pending={pending} slug={data.slug} traderaSearch={traderaSearch} />
+          <LiveOffersTable pending={pricePending} slug={data.slug} traderaSearch={traderaSearch} />
 
           {/* Restock-historik — admin-only, hämtas on-demand (se restock-history.tsx) */}
           <ProductRestockHistory productId={data.id} />

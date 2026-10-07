@@ -851,6 +851,20 @@ Prishistorik: servern hämtar HELA serien en gång (`MAX_DAYS`), `product-price-
 klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 
 ## SEO & indexering
+- **PRISER I PRODUKTSIDANS HTML IGEN, UTAN DB (2026-10-07)**: varje natt (steg i `cardmarket-refresh`, manuellt
+  `catalog-snapshot.yml`) skriver `/api/cron/catalog-snapshot` skal + offers + statistik för varje synlig produkt till
+  volymen (`catalog-snapshot/<gen>/<md5[0..2]>.json.gz`, ~12 MB). Sidan läser snapshoten FÖRST (`lib/catalog-snapshot.ts`,
+  ⛔ ingen prisma där) och faller tillbaka på det prislösa skalet. Därför: HTML-TTL **1 dygn** (`PRODUCT_PAGE_HTML_REVALIDATE_SECONDS`;
+  skal-cachen kvar 30 d), Product-nod med `AggregateOffer` när ett pris finns, butikslistan synlig för crawlers.
+  ⛔ Priserna räknas av SAMMA `summarizeDirectOffers`/`serializeDirectOffers` som detalj-payloaden. ⛔ Ny form på
+  snapshoten ⇒ bumpa PAGE_EPOCH + kör `catalog-snapshot.yml` direkt efter deployen.
+- **/en/-kopiorna av produkt- och setsidor är KANONISKA PÅ SVENSKA (2026-10-07, `swedishCanonical`)**: 39 % av
+  Googlebots produkthämtningar gick till dubbletterna. Sitemapen listar bara svenska URL:er.
+- **SITEMAPEN ÄR ETT INDEX (2026-10-07)**: `/sitemap.xml` → `/sitemaps/{sidor,set,forseglat,kort,kort-japanska}.xml`
+  (`services/sitemap.ts`) — Search Console redovisar indexering PER delkarta. Den gamla filen var kapad vid 40 000 och
+  tappade ~11 800 synliga produkter. Varje delkarta < 50 000; växer `kort` förbi det ⇒ dela den.
+- **BING + INDEXNOW (2026-10-07)**: ChatGPT:s webbsök vilar på Bing. foilio.se är verifierad i Bing Webmaster Tools
+  (ägaren); nya produkter/set/guider anmäls nattligen (`scripts/indexnow-submit.ts`, nyckelfilen i `public/`).
 - **AI-ASSISTENTERNA SLÄPPTES IN 2026-09-28 (ägarbeslut: "synas i ChatGPT")** — `src/lib/ai-crawlers.ts`. Sök-
   INDEXERARNA (OAI-SearchBot, Claude-SearchBot, PerplexityBot) får startsidan, `/produkter` EXAKT och navsidorna
   (`/sets`, `/guider`, `/om`, `/priser`, `/discord`, `/kontakt`) — ⛔ ALDRIG `/produkter/<slug>` (~63 000 sidor, svepet

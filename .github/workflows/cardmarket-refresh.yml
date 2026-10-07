@@ -263,6 +263,23 @@ jobs:
           echo "engine-sync → HTTP $code $(cat sync.json)"
           test "$code" = "200"
 
+      # Katalogsnapshoten: skal + priser per synlig produkt till volymen, som produkt-
+      # sidorna renderar ur utan DB (src/lib/catalog-snapshot.ts). Efter prisjobbet så
+      # att HTML:ens priser är nattens; Neon är redan vaken. Gult, aldrig rött: utan ny
+      # snapshot står gårdagens kvar.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Katalogsnapshot för produktsidorna (priser i HTML utan DB)
+        continue-on-error: true
+        timeout-minutes: 16
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          if [ -z "${CRON_SECRET}" ]; then echo "::notice::CRON_SECRET saknas — hoppar över."; exit 0; fi
+          code=$(curl -sS -o snap.json -w '%{http_code}' --max-time 900 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://foilio.se}/api/cron/catalog-snapshot")
+          echo "catalog-snapshot → HTTP $code $(cat snap.json)"
+          test "$code" = "200"
+
       # Nya sidor (produkter/set/guider senaste 26 h) till Bing via IndexNow — ChatGPT:s
       # webbsök vilar på Bings index. Neon är redan vaken här; aldrig egen cron.
       # Gult, aldrig rött: en missad anmälan läker via sitemapen. Se src/lib/indexnow.ts.

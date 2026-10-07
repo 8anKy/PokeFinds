@@ -88,7 +88,7 @@ const nextConfig = {
         // gratis.
         //
         // Ett dygn är inte en gissning: datat BAKOM svaret är redan cachat exakt så
-        // länge (`cachedRead("sitemapRows", 86400)` i src/app/sitemap.ts). Svaret kan
+        // länge (`cachedRead("sitemapRowsV2", 86400)` i src/services/sitemap.ts). Svaret kan
         // alltså inte bli färskare än 24h hur ofta vi än bygger om det — vi betalade
         // bara serialiseringen. `stale-while-revalidate` gör dessutom att hämtningen
         // efter utgången serveras direkt ur cachen medan nästa byggs i bakgrunden, så
@@ -101,7 +101,7 @@ const nextConfig = {
         //
         // ⚠️ SVARET BÄR TVÅ `Cache-Control`: den här och ruttens egen `public,
         // max-age=0, must-revalidate`. Config-headers LÄGGS TILL, de ersätter inte
-        // ruttens — och `force-dynamic` i sitemap.ts är det som ger rutten sin (den
+        // ruttens — och `force-dynamic` i sitemap-rutterna är det som ger rutten sin (den
         // får inte tas bort: den finns för att ingen DB-fråga ska köras under
         // `next build`). RFC 9111 slår ihop fälten och `s-maxage` övertrumfar
         // `max-age` för en DELAD cache, så en edge cachar ändå ett dygn.

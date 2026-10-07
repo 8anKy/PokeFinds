@@ -1439,7 +1439,7 @@ export interface ProductDetailData {
   gradedTeaser: { issuer: string; gradeTenths: number }[];
 }
 
-interface LiveOfferStats {
+export interface LiveOfferStats {
   lowestPrice: number | null;
   lowestPriceStockStatus: ShownStockStatus | null;
   highestPrice: number | null;
@@ -1447,7 +1447,7 @@ interface LiveOfferStats {
   offerCount: number;
 }
 
-interface SerializedOffer {
+export interface SerializedOffer {
   id: string;
   price: number | null;
   shippingPrice: number | null;
@@ -1463,6 +1463,68 @@ interface SerializedOffer {
     /** Sponsrad placering just nu (Retailer.sponsoredUntil i framtiden). Se lib/sponsored-offer.ts. */
     sponsored: boolean;
   };
+}
+
+/** En offer-rad som `summarizeDirectOffers` behöver — samma form som detaljfrågan ger. */
+type OfferRow = {
+  id: string;
+  price: number | null;
+  shippingPrice: number | null;
+  stockStatus: StockStatus;
+  url: string;
+  retailerId: string;
+  retailer: { id: string; name: string; logoUrl: string | null; websiteUrl: string };
+};
+
+/**
+ * Rubrikpris + statistik ur en produkts offers. EN definition, delad av detalj-
+ * payloaden (`loadProductDetailRaw`) och nattens katalogsnapshot (services/
+ * catalog-snapshot.ts) — ⛔ två kopior hade gett två olika "lägsta pris" på samma sida.
+ * Endast direkta produktlänkar visas/räknas; lägst i lager vinner, annars lägst alls.
+ */
+export function summarizeDirectOffers<T extends OfferRow>(offers: T[]): { directOffers: T[]; stats: LiveOfferStats } {
+  const directOffers = offers.filter((o) => isDirectOfferUrl(o.url));
+  const prices = directOffers.map((o) => o.price).filter((p): p is number => p !== null);
+  const highestNow = prices.length > 0 ? Math.max(...prices) : null;
+  const avgNow = prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null;
+  const directPriced = directOffers.filter((o): o is T & { price: number } => o.price !== null);
+  const directInStock = directPriced.filter((o) => o.stockStatus === "IN_STOCK");
+  const lowestPool = directInStock.length > 0 ? directInStock : directPriced;
+  const directLowest = lowestPool.length > 0 ? lowestPool.reduce((a, b) => (b.price < a.price ? b : a)) : null;
+  return {
+    directOffers,
+    stats: {
+      lowestPrice: directLowest?.price ?? null,
+      lowestPriceStockStatus: directLowest?.stockStatus ?? null,
+      highestPrice: highestNow,
+      avgPrice: avgNow,
+      offerCount: directOffers.length,
+    },
+  };
+}
+
+/** Klientformen av de direkta offers (samma i detalj-payloaden och snapshoten). */
+export function serializeDirectOffers(
+  directOffers: OfferRow[],
+  affiliateIds: Set<string>,
+  sponsoredIds: Set<string>
+): SerializedOffer[] {
+  return directOffers.map((o) => ({
+    id: o.id,
+    price: o.price,
+    shippingPrice: o.shippingPrice,
+    stockStatus: o.stockStatus,
+    url: o.url,
+    retailerId: o.retailerId,
+    retailer: {
+      id: o.retailer.id,
+      name: o.retailer.name,
+      logoUrl: o.retailer.logoUrl,
+      websiteUrl: o.retailer.websiteUrl,
+      affiliateEnabled: affiliateIds.has(o.retailerId),
+      sponsored: sponsoredIds.has(o.retailerId),
+    },
+  }));
 }
 
 const DETAIL_MAX_DAYS = 3650; // ~10 år = "hela serien" (klienten filtrerar period)
@@ -1562,26 +1624,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
   // se en sponsring sekunden den går ut vore dyrare än den är värd.
   const sponsoredIds = new Set(sponsoredRetailers.map((r) => r.id));
 
-  // Endast direkta produktlänkar visas/räknas (samma regel som produktsidan).
-  const directOffers = product.offers.filter((o) => isDirectOfferUrl(o.url));
-  const prices = directOffers
-    .map((o) => o.price)
-    .filter((p): p is number => p !== null);
-  const highestNow = prices.length > 0 ? Math.max(...prices) : null;
-  const avgNow =
-    prices.length > 0
-      ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
-      : null;
-  const directPriced = directOffers.filter(
-    (o): o is (typeof directOffers)[number] & { price: number } => o.price !== null
-  );
-  const directInStock = directPriced.filter((o) => o.stockStatus === "IN_STOCK");
-  const lowestPool = directInStock.length > 0 ? directInStock : directPriced;
-  const directLowest =
-    lowestPool.length > 0
-      ? lowestPool.reduce((a, b) => (b.price < a.price ? b : a))
-      : null;
-
+  const { directOffers, stats } = summarizeDirectOffers(product.offers);
   // ── SKENAN FÅR SAMMA FRÅGA SOM OFFERTEN, FAST NU (2026-07-27) ──────────────
   // Skena-raderna vaktades när de SKREVS, mot det facit som fanns då. "Mega Darkrai
   // ex 116/084 Extended Artwork-ram" (179 kr) skrevs medan Pitch Black saknade
@@ -1637,22 +1680,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
   const weekAgo = Date.now() - 7 * 86_400_000;
   const change7 = pctChange(cm30.filter((p) => new Date(p.date).getTime() >= weekAgo));
 
-  const serializedOffers: SerializedOffer[] = directOffers.map((o) => ({
-    id: o.id,
-    price: o.price,
-    shippingPrice: o.shippingPrice,
-    stockStatus: o.stockStatus,
-    url: o.url,
-    retailerId: o.retailerId,
-    retailer: {
-      id: o.retailer.id,
-      name: o.retailer.name,
-      logoUrl: o.retailer.logoUrl,
-      websiteUrl: o.retailer.websiteUrl,
-      affiliateEnabled: affiliateIds.has(o.retailerId),
-      sponsored: sponsoredIds.has(o.retailerId),
-    },
-  }));
+  const serializedOffers = serializeDirectOffers(directOffers, affiliateIds, sponsoredIds);
 
   return {
     id: product.id,
@@ -1677,13 +1705,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     change7,
     change30,
     offerCount: directOffers.length,
-    stats: {
-      lowestPrice: directLowest?.price ?? null,
-      lowestPriceStockStatus: directLowest?.stockStatus ?? null,
-      highestPrice: highestNow,
-      avgPrice: avgNow,
-      offerCount: directOffers.length,
-    },
+    stats,
     serializedOffers,
     affiliateRetailerIds: affiliateRetailers.map((r) => r.id),
     similar,
@@ -1756,43 +1778,51 @@ export interface ProductShellData {
   facts: ProductFacts | null;
   /** Andra tryckningar/versioner av samma kort — bara identitet, priset hämtas live. */
   variants: { slug: string; label: string | null }[];
+  /**
+   * Priser ur NATTENS katalogsnapshot (services/catalog-snapshot.ts) — bara när skalet
+   * kom därifrån. Ger HTML:en riktiga priser för crawlers utan en enda DB-fråga;
+   * klienten hämtar ändå live-payloaden och ersätter dem. `at` = när snapshoten byggdes.
+   */
+  prices?: { offers: SerializedOffer[]; stats: LiveOfferStats; affiliateRetailerIds: string[]; at: string };
 }
 
 /** ISR-TTL för produktsidans skal. Delas av sidan och skal-cachen — EN siffra. */
 export const PRODUCT_PAGE_REVALIDATE_SECONDS = 30 * 24 * 3600;
 
-async function loadProductShellRaw(slug: string): Promise<ProductShellData> {
-  const product = await withDbRetry(() =>
-    prisma.product.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        category: true,
-        language: true,
-        description: true,
-        imageUrl: true,
-        cardId: true,
-        releaseDate: true,
-        set: { select: { id: true, name: true, series: true, releaseDate: true, totalCards: true, totalCardsFull: true } },
-        card: {
-          select: {
-            artist: true, rarity: true, subtype: true, hp: true, number: true,
-            types: true, weaknessType: true, weaknessValue: true, retreatCost: true,
-            regulationMark: true, dexId: true, flavorText: true,
-          },
-        },
-      },
-    })
-  );
-  if (!product) throw new ServiceError(404, "Produkten hittades inte.");
-  const siblings = product.cardId
-    ? await prisma.product.findMany({
-        where: { cardId: product.cardId, id: { not: product.id } },
-        select: { slug: true, variantLabel: true },
-      })
-    : [];
+/**
+ * ISR-TTL för produktsidans HTML (2026-10-07) — ett dygn, inte 30. Sidan läser skalet +
+ * priserna ur nattens katalogsnapshot (lib/catalog-snapshot.ts), dvs en omrendering är
+ * en FILLÄSNING, aldrig en Neon-fråga, och priset i HTML:en får aldrig vara mer än ett
+ * par dygn gammalt. Skal-cachen ovan (reserven när snapshoten saknar produkten) behåller
+ * sina 30 dygn.
+ */
+export const PRODUCT_PAGE_HTML_REVALIDATE_SECONDS = 24 * 3600;
+
+/** Fälten skalet byggs av — delas med katalogsnapshoten (en definition). */
+export const SHELL_SELECT = {
+  id: true,
+  slug: true,
+  title: true,
+  category: true,
+  language: true,
+  description: true,
+  imageUrl: true,
+  cardId: true,
+  releaseDate: true,
+  set: { select: { id: true, name: true, series: true, releaseDate: true, totalCards: true, totalCardsFull: true } },
+  card: {
+    select: {
+      artist: true, rarity: true, subtype: true, hp: true, number: true,
+      types: true, weaknessType: true, weaknessValue: true, retreatCost: true,
+      regulationMark: true, dexId: true, flavorText: true,
+    },
+  },
+} satisfies Prisma.ProductSelect;
+
+type ShellRow = Prisma.ProductGetPayload<{ select: typeof SHELL_SELECT }>;
+
+/** Skalet ur en rad + dess syskon (andra tryckningar av samma kort). */
+export function toShellData(product: ShellRow, siblings: { slug: string; variantLabel: string | null }[]): ProductShellData {
   return {
     id: product.id,
     slug: product.slug,
@@ -1805,6 +1835,18 @@ async function loadProductShellRaw(slug: string): Promise<ProductShellData> {
     facts: buildProductFacts(product),
     variants: siblings.map((v) => ({ slug: v.slug, label: v.variantLabel })),
   };
+}
+
+async function loadProductShellRaw(slug: string): Promise<ProductShellData> {
+  const product = await withDbRetry(() => prisma.product.findUnique({ where: { slug }, select: SHELL_SELECT }));
+  if (!product) throw new ServiceError(404, "Produkten hittades inte.");
+  const siblings = product.cardId
+    ? await prisma.product.findMany({
+        where: { cardId: product.cardId, id: { not: product.id } },
+        select: { slug: true, variantLabel: true },
+      })
+    : [];
+  return toShellData(product, siblings);
 }
 
 const cachedProductShell = singleFlight(

@@ -1,11 +1,19 @@
 import type { Metadata } from "next";
-import { alternatesFor, baseOpenGraph, localeUrl } from "@/lib/canonical";
+import { baseOpenGraph, localeUrl, swedishCanonical } from "@/lib/canonical";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { loadProductShell, PRODUCT_PAGE_REVALIDATE_SECONDS } from "@/services/products";
+import { loadProductShell, PRODUCT_PAGE_HTML_REVALIDATE_SECONDS, type ProductShellData } from "@/services/products";
+import { readSnapshotEntry } from "@/lib/catalog-snapshot";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
 import { ProductDetailView } from "@/components/features/product-detail-view";
 
+// ✅ PRISERNA ÄR TILLBAKA I HTML:EN SEDAN 2026-10-07 — ur nattens KATALOGSNAPSHOT på
+// volymen (lib/catalog-snapshot.ts), inte ur databasen. Skalet + offers + statistik
+// läses som en fil, så en rendering kostar fortfarande noll Neon-tid, och därför är
+// HTML-TTL:en ett dygn i stället för 30 (priset i HTML:en blir aldrig gammalt).
+// Produkter som saknas i snapshoten (nya sedan natten, gömda) faller tillbaka på den
+// gamla skal-läsningen nedan — utan priser, som förut. Historiken:
+//
 // PRODUKTSIDAN ÄR ETT DB-FRITT SKAL SEDAN 2026-08-29. HTML:en bär namn, set, bild,
 // kategori och brödsmulor — ALDRIG ett pris. Priser/offers/graf hämtar klienten
 // själv vid montering (`/api/products/[slug]/detail`), och crawlers som kör JS
@@ -17,7 +25,7 @@ import { ProductDetailView } from "@/components/features/product-detail-view";
 // ⛔ Ruttens revalidate är MIN av det här talet och alla cachade läsningar i
 // renderingen. Importera ALDRIG `getProductBySlug`/`loadProductDetail` (1 h) hit —
 // sidan blir tyst 1h-cachad igen. Vaktat av tests/unit/product-page-isr-ttl.test.ts.
-export const revalidate = PRODUCT_PAGE_REVALIDATE_SECONDS;
+export const revalidate = PRODUCT_PAGE_HTML_REVALIDATE_SECONDS;
 
 // Tom lista → inget prerenderas vid build (undvik ~63k renders); varje slug
 // genereras on-demand vid första besök och cachas sedan (ISR). KRÄVS för cache:
@@ -29,6 +37,14 @@ export async function generateStaticParams() {
 
 interface PageProps {
   params: { locale: string; slug: string };
+}
+
+/**
+ * Snapshoten först (fil, priser med), annars den vanliga skal-läsningen (30 d-cachad,
+ * utan priser). ⛔ En `null` ur snapshoten betyder bara "inte där" — aldrig 404.
+ */
+async function loadPageShell(slug: string): Promise<ProductShellData | null> {
+  return (await readSnapshotEntry(slug)) ?? (await loadProductShell(slug));
 }
 
 /** Google klipper meta-beskrivningen runt 155 tecken i SERP:en. */
@@ -80,7 +96,7 @@ const ldJson = (node: unknown) => JSON.stringify(node).replace(/</g, "\\u003c");
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: "Detail" });
-  const product = await loadProductShell(params.slug);
+  const product = await loadPageShell(params.slug);
   // ⚠️ MJUK 404: en död slug svarar HTTP **200**, inte 404. Sidan renderar rätt
   // innehåll ("Produkten hittades inte" + `noindex`), men statuskoden är fel, och
   // svaret cachas (`s-maxage`). Katalogen döper om och slår ihop slugs som
@@ -111,7 +127,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: product.title,
     description,
-    alternates: alternatesFor(params.locale, `/produkter/${params.slug}`),
+    // Svensk kanonisk även under /en/ — se swedishCanonical() i lib/canonical.ts.
+    alternates: swedishCanonical(`/produkter/${params.slug}`),
     openGraph: {
       // ⛔ NEXTS METADATA-MERGE ÄR GRUND PER TOPPFÄLT: hela `openGraph` från
       // rot-layouten ERSÄTTS av det här objektet, det slås inte ihop fält för fält.
@@ -131,12 +148,19 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function ProductPage({ params }: PageProps) {
-  const shell = await loadProductShell(params.slug);
+  const shell = await loadPageShell(params.slug);
   if (!shell) notFound();
 
   const t = await getTranslations({ locale: params.locale, namespace: "Detail" });
   const productUrl = localeUrl(params.locale, `/produkter/${params.slug}`);
 
+  // ✅ Product-NODEN ÄR TILLBAKA (2026-10-07) — men BARA när snapshoten gav minst ett
+  // prissatt direkt erbjudande. `lowPrice` = sidans rubrikpris (lägst i lager, annars
+  // lägst alls — `summarizeDirectOffers`), `highPrice`/`offerCount` ur samma rader som
+  // butikslistan på sidan visar. HTML:en är högst ett dygn gammal (revalidate) och
+  // snapshoten byggs varje natt — priset i noden står alltså synligt på sidan.
+  // Historiken nedan gäller fortfarande för allt utom priset:
+  //
   // ⛔ INGEN Product-NOD I JSON-LD LÄNGRE (2026-08-29). Google avvisar en Product
   // utan `offers`/`review`/`aggregateRating` ("Either offers, review, or
   // aggregateRating should be specified"), och priset finns inte i HTML:en längre —
@@ -189,12 +213,46 @@ export default async function ProductPage({ params }: PageProps) {
     })),
   };
 
+  const stats = shell.prices?.stats;
+  const pricedCount = shell.prices?.offers.filter((o) => o.price != null && o.price > 0).length ?? 0;
+  const productLd =
+    stats && stats.lowestPrice != null && stats.lowestPrice > 0 && pricedCount > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: shell.title,
+          url: productUrl,
+          ...(shell.imageUrl
+            ? { image: shell.imageUrl.startsWith("http") ? shell.imageUrl : localeUrl("sv", shell.imageUrl) }
+            : {}),
+          description: await describeProduct(params.locale, shell),
+          // Tredjepartstillverkare säljer tillbehör — "Pokémon" vore fel märke där.
+          ...(shell.category === "ACCESSORY" || shell.category === "OTHER"
+            ? {}
+            : { brand: { "@type": "Brand", name: "Pokémon" } }),
+          offers: {
+            "@type": "AggregateOffer",
+            priceCurrency: "SEK",
+            lowPrice: (stats.lowestPrice / 100).toFixed(2),
+            highPrice: ((stats.highestPrice ?? stats.lowestPrice) / 100).toFixed(2),
+            offerCount: pricedCount,
+            availability:
+              stats.lowestPriceStockStatus === "IN_STOCK"
+                ? "https://schema.org/InStock"
+                : "https://schema.org/OutOfStock",
+          },
+        }
+      : null;
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: ldJson(breadcrumbLd) }}
       />
+      {productLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(productLd) }} />
+      )}
       {/* Mobil: logotyphuvudet döljs av SiteHeaderGate (rutten är en undersida) →
           vyns flytande bakåtcirkel är hela chrome:n, som i overlayn. */}
       <ProductDetailView shell={shell} context="page" />
