@@ -1567,6 +1567,71 @@ describe("deriveRestockPosts — kort våg", () => {
     const { shortWaveMinutes: _off, ...appLike } = LANE;
     expect(run(afterWave("12:23", "12:25"), "12:39", appLike).posts).toHaveLength(1);
   });
+
+  /**
+   * BEKRÄFTELSE (2026-10-07): 60-minutersspärren räckte inte — Toyspace 30th Bundle
+   * postades 05:19, 06:20, 07:26, 13:02 och 15:01, 2–5 min i lager varje gång.
+   */
+  describe("bekräftelse efter kort våg", () => {
+    const CONFIRM: FlapPolicy = { ...LANE, shortWaveConfirmMinutes: 5 };
+    const step = (s: DiscordRestockState, now: string, stock: "IN_STOCK" | "OUT_OF_STOCK", policy = CONFIRM) =>
+      deriveRestockPosts({
+        state: s,
+        groups: groups([{ url: URL_ETB, stockStatus: stock }]),
+        rotating: new Set(),
+        routes: ROUTES,
+        filter: FILTER,
+        knownSets: KNOWN_SETS,
+        now: at(now),
+        policy,
+        cooldownHours: 0.25,
+        baseUrl: BASE,
+        priceDrops: null,
+      });
+
+    it("håller inne påfyllningen efter en kort våg — även när cooldownen gått ut", () => {
+      const r = step(afterWave("12:23", "12:25"), "13:30", "IN_STOCK");
+      expect(r.posts).toHaveLength(0);
+      expect(r.stats.heldForConfirm).toBe(1);
+      expect(r.nextState.confirm?.[KEY]).toBe(at("13:30").getTime());
+      expect(r.stockSyncs).toHaveLength(0);
+    });
+
+    it("postar när varan legat kvar 5 min", () => {
+      const held = step(afterWave("12:23", "12:25"), "13:30", "IN_STOCK").nextState;
+      expect(step(held, "13:33", "IN_STOCK").posts).toHaveLength(0);
+      const r = step(held, "13:35", "IN_STOCK");
+      expect(r.posts).toHaveLength(1);
+      expect(r.posts[0].transition).toEqual({ from: "OUT_OF_STOCK", to: "IN_STOCK" });
+      expect(r.nextState.confirm?.[KEY]).toBeUndefined();
+    });
+
+    it("ett kassa-ex som säljs inom minuterna postas aldrig — och nästa våg hålls också inne", () => {
+      const held = step(afterWave("12:23", "12:25"), "13:30", "IN_STOCK").nextState;
+      const gone = step(held, "13:32", "OUT_OF_STOCK");
+      expect(gone.posts).toHaveLength(0);
+      expect(gone.stats.droppedUnconfirmed).toBe(1);
+      expect(gone.nextState.confirm?.[KEY]).toBeUndefined();
+      const again = step(gone.nextState, "14:35", "IN_STOCK");
+      expect(again.posts).toHaveLength(0);
+      expect(again.stats.heldForConfirm).toBe(1);
+    });
+
+    it("en ÄKTA våg förra gången postas direkt", () => {
+      expect(step(afterWave("12:00", "12:20"), "12:39", "IN_STOCK").posts).toHaveLength(1);
+    });
+
+    it("gäller BARA butikerna i listan", () => {
+      const other = { ...CONFIRM, shortWaveStores: ["Toyspace"] };
+      expect(step(afterWave("12:23", "12:25"), "13:30", "IN_STOCK", other).posts).toHaveLength(1);
+    });
+
+    it("minnet överlever state-filen", () => {
+      const held = step(afterWave("12:23", "12:25"), "13:30", "IN_STOCK").nextState;
+      const parsed = parseDiscordRestockState(JSON.parse(JSON.stringify(held)));
+      expect(parsed?.confirm?.[KEY]).toBe(at("13:30").getTime());
+    });
+  });
 });
 
 /**

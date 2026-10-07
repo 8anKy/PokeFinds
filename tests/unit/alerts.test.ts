@@ -498,6 +498,8 @@ describe("evaluateStockFlap", () => {
       shortWaveMinutes: 0,
       shortWaveCooldownMinutes: 60,
       shortWaveStores: [],
+      // Bekräftelsen likaså AV — bara Discord-lanen håller inne Toyspaces kassa-ex.
+      shortWaveConfirmMinutes: 0,
     });
   });
 });

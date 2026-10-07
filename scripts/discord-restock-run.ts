@@ -366,6 +366,8 @@ async function main() {
     flap: 0,
     blip: 0,
     cooldown: 0,
+    held: 0,
+    unconfirmed: 0,
     rescued: 0,
     buyBlocked: 0,
     priceDrops: 0,
@@ -610,6 +612,8 @@ async function main() {
     jobTotals.flap += s.skippedFlap;
     jobTotals.blip += s.skippedBlip;
     jobTotals.cooldown += s.skippedCooldown;
+    jobTotals.held += s.heldForConfirm;
+    jobTotals.unconfirmed += s.droppedUnconfirmed;
     jobTotals.rescued += s.rescuedByRoute;
     for (const [k, v] of Object.entries(s.filteredReasons)) {
       jobTotals.reasons[k] = (jobTotals.reasons[k] ?? 0) + (v ?? 0);
@@ -639,7 +643,7 @@ async function main() {
       console.log(`[discord-restock] ${source.name}: ingen tidigare state — seedar, postar inget.`);
     } else if (s.seededSources.length) {
       console.log(`[discord-restock] ${source.name}: ny källa i state — seedas tyst.`);
-    } else if (s.changes > 0) {
+    } else if (s.changes > 0 || s.droppedUnconfirmed > 0 || derived.posts.length > 0) {
       const reasons = Object.entries(s.filteredReasons)
         .map(([k, v]) => `${k} ${v}`)
         .join(", ");
@@ -647,6 +651,8 @@ async function main() {
         `[discord-restock] ${source.name}: ${s.changes} lagerflipp(ar) → ${derived.posts.length} att posta ` +
           `(hoppade: ${s.skippedFiltered} vaktade${reasons ? ` [${reasons}]` : ""}, ` +
           `${s.skippedFlap} blink/flapp, ${s.skippedBlip} feed-hicka, ${s.skippedCooldown} cooldown` +
+            `${s.heldForConfirm ? `, ${s.heldForConfirm} inhållna (kort våg)` : ""}` +
+            `${s.droppedUnconfirmed ? `, ${s.droppedUnconfirmed} borta före bekräftelse` : ""}` +
             `${s.rescuedByRoute ? `; ${s.rescuedByRoute} räddade av rutten` : ""}).`
       );
       for (const sample of s.filteredSamples) console.log(`[discord-restock]   vaktad: ${sample}`);
@@ -842,6 +848,7 @@ async function main() {
       `(varav ${jobTotals.priceDrops} prissänkningar). ` +
       `Hoppade: ${jobTotals.filtered} vaktade${reasonSummary ? ` [${reasonSummary}]` : ""}, ` +
       `${jobTotals.flap} blink/flapp, ${jobTotals.blip} feed-hicka, ${jobTotals.cooldown} cooldown, ` +
+      `${jobTotals.held} inhållna (kort våg), ${jobTotals.unconfirmed} borta före bekräftelse, ` +
       `${jobTotals.buyBlocked} låst köpknapp` +
       `${priceSummary ? `; prisfall fällda: ${priceSummary}` : ""}` +
       `${jobTotals.rescued ? `; ${jobTotals.rescued} räddade av rutten` : ""}.` +

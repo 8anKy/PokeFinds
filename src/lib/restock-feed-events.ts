@@ -252,10 +252,16 @@ export interface DiscordRestockState {
    * och påfyllningen är alltid det värdefullare larmet.
    */
   pricePosted?: Record<string, PricePostMemory>;
+  /**
+   * url-nyckel → när varan kom tillbaka efter en KORT VÅG och hölls inne (2026-10-07).
+   * Postas först när den legat kvar `shortWaveConfirmMinutes`; försvinner den innan är
+   * den ett kassa-ex ingen hann köpa, och posten stryks. Saknas i äldre state-filer → tom.
+   */
+  confirm?: Record<string, number>;
 }
 
 export function emptyState(): DiscordRestockState {
-  return { stock: {}, history: {}, posted: {}, absent: {}, price: {}, pricePosted: {} };
+  return { stock: {}, history: {}, posted: {}, absent: {}, price: {}, pricePosted: {}, confirm: {} };
 }
 
 /**
@@ -285,6 +291,7 @@ export function parseDiscordRestockState(parsed: unknown): DiscordRestockState |
     //    `pending`-regressionen ovan.
     price: obj(p.price),
     pricePosted: obj(p.pricePosted),
+    confirm: obj(p.confirm),
   };
 }
 
@@ -295,6 +302,9 @@ export function parseDiscordRestockState(parsed: unknown): DiscordRestockState |
  * ligger i en cache-fil som skrivs varje varv.
  */
 const ABSENT_MEMORY_HOURS = 48;
+
+/** En inhållen påfyllning som aldrig hann bekräftas (feeden tyst) glöms efter så här länge. */
+const CONFIRM_MEMORY_MS = 6 * 3600_000;
 
 const IN_STOCK = "IN_STOCK";
 const OUT_OF_STOCK = "OUT_OF_STOCK";
@@ -362,6 +372,10 @@ export interface DeriveResult {
     skippedFiltered: number;
     skippedFlap: number;
     skippedCooldown: number;
+    /** Tillbaka efter en kort våg — hålls inne tills den legat kvar (`confirm`). */
+    heldForConfirm: number;
+    /** Hölls inne och försvann innan bekräftelsen — ett kassa-ex, aldrig postat. */
+    droppedUnconfirmed: number;
     /** Frånvaro kortare än blinkfönstret — varan lämnade aldrig hyllan. */
     skippedBlip: number;
     /**
@@ -436,6 +450,8 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     skippedFiltered: 0,
     skippedFlap: 0,
     skippedCooldown: 0,
+    heldForConfirm: 0,
+    droppedUnconfirmed: 0,
     skippedBlip: 0,
     rescuedByRoute: 0,
     filteredReasons: {},
@@ -481,6 +497,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
         absent,
         price: nextPrice,
         pricePosted,
+        confirm: prev.confirm ?? {},
       },
       stats,
     };
@@ -649,6 +666,24 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
   // utskicket misslyckades, dvs precis när larmet inte kom fram.
   const posted = prev.posted;
   const posts: RestockPost[] = [];
+
+  // ---- BEKRÄFTELSE EFTER KORT VÅG (2026-10-07) ----
+  // Toyspace släppte samma ENDA ex ungefär varje timme (30th Celebration Bundle 07-10:
+  // in 05:19, 06:20, 07:26, 13:02, 15:01 — 2–5 min i lager varje gång) och 60-minuters-
+  // cooldownen räckte inte: varje ny våg låg strax utanför den. En tidsspärr kan också äta
+  // en ÄKTA påfyllning; att kräva att varan LIGGER KVAR gör det inte. Inhållna poster som
+  // inte längre är i lager stryks här — de var ett kassa-ex ingen hann köpa.
+  const confirmMs = (policy.shortWaveConfirmMinutes ?? 0) * 60_000;
+  const confirm: Record<string, number> = {};
+  for (const [k, t] of Object.entries(prev.confirm ?? {})) {
+    if (typeof t !== "number" || now.getTime() - t > CONFIRM_MEMORY_MS) continue;
+    if (nextStock[k] !== IN_STOCK) {
+      stats.droppedUnconfirmed++;
+      continue;
+    }
+    confirm[k] = t;
+  }
+  const heldNow = new Set<string>();
   const storeGroups = new Map<string, { keys: string[]; ids: string[]; base: RestockPost }>();
   const cooldownMs = cooldownHours * 3600_000;
 
@@ -748,6 +783,16 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       continue;
     }
 
+    // Tillbaka efter en kort våg: posta först när den legat kvar (se `confirm` ovan).
+    // Ingen tyst lagersynk heller — appen ska inte flippa till "i lager" för ett ex som
+    // är borta om en minut. Bekräftas den postas den, och hiten bär lagerläget.
+    if (shortWaveMs > 0 && confirmMs > 0 && locationId == null && !isPreorderOpen) {
+      confirm[c.key] = now.getTime();
+      heldNow.add(c.key);
+      stats.heldForConfirm++;
+      continue;
+    }
+
     if (locationId != null) {
       // En butik fick saldo. Samlas per annons: fyller tre butiker på i samma varv blir
       // det ETT inlägg som räknar upp alla och märker de tre.
@@ -806,6 +851,27 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     posts.push({ ...g.base, extraKeys: g.keys, newStoreIds: g.ids });
   }
 
+  // Inhållna påfyllningar som legat kvar tillräckligt länge postas nu. Vaktkedjan och
+  // cooldownen passerade de redan när de hölls inne.
+  for (const [key, t] of Object.entries(confirm)) {
+    if (heldNow.has(key) || now.getTime() - t < confirmMs) continue;
+    const found = itemByKey.get(key);
+    if (!found) continue; // feeden levererade inte i varv — vänta på nästa
+    const realUrl = found.item.storeTrackOf ?? found.item.url;
+    const item: FeedItemFull = { ...found.item, url: realUrl };
+    const route = routes[realUrl];
+    const verdict = classifyDiscordListing(
+      { title: item.title, url: realUrl, category: item.category },
+      filter
+    );
+    delete confirm[key];
+    posts.push({
+      ...buildPostBase({ key, item, sourceName: found.sourceName, route, verdict, knownSets, site, absoluteImage }),
+      preorder: false,
+      transition: { from: OUT_OF_STOCK, to: IN_STOCK },
+    });
+  }
+
   // ---- PRISSÄNKNINGAR ----
   // ⛔ EFTER lagerdomen, med flit: en URL som redan får ett påfyllnings- eller
   //    förhandsbokningsinlägg i samma varv ska inte få ett prisinlägg ovanpå. Det
@@ -840,6 +906,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       absent,
       price: nextPrice,
       pricePosted,
+      confirm,
     },
     stats,
   };

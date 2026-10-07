@@ -247,6 +247,13 @@ jobs:
       RESTOCK_SHORT_WAVE_STORES: "Toyspace"
       RESTOCK_SHORT_WAVE_MINUTES: "5"
       RESTOCK_SHORT_WAVE_COOLDOWN_MINUTES: "60"
+      # BEKRÄFTELSE (2026-10-07): 60-minutersspärren räckte inte — Toyspace släppte samma
+      # ENDA ex ungefär varje timme (30th Bundle 07-10: 05:19, 06:20, 07:26, 13:02, 15:01,
+      # 2–5 min i lager varje gång) och varje våg låg strax utanför spärren. Kommer varan
+      # tillbaka efter en kort våg postas den först när den legat kvar så här länge. Ett
+      # ex som säljs inom minuten blir aldrig ett inlägg (och aldrig en push/mejl); en äkta
+      # påfyllning postas med högst ~5 min fördröjning. Samma butikslista som ovan.
+      RESTOCK_SHORT_WAVE_CONFIRM_MINUTES: "5"
       # ⛔ WEBHALLEN VAR SVANSEN I SVEPET. MÄTT 2026-08-15: hela svepet över 42 butiker
       # tog 54,4 s och Webhallen ensam 52,3 s av dem — dess live-koll slår upp varje
       # icke-i-lager-produkt (~48 st) sekventiellt med 800 ms paus. Sedan svepet ersatts

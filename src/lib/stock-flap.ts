@@ -46,6 +46,12 @@ export interface FlapPolicy {
   shortWaveCooldownMinutes?: number;
   /** Butikerna (källnamn) regeln gäller. Tom lista = ingen (ägarbeslut: bara Toyspace). */
   shortWaveStores?: string[];
+  /**
+   * BEKRÄFTELSE EFTER KORT VÅG (2026-10-07): kom varan tillbaka efter en kort våg måste
+   * den ligga kvar så här många minuter innan den postas (0 = postas direkt, bara
+   * cooldownen gäller). Samma butikslista som ovan.
+   */
+  shortWaveConfirmMinutes?: number;
 }
 
 export function flapPolicy(): FlapPolicy {
@@ -62,6 +68,7 @@ export function flapPolicy(): FlapPolicy {
     // Av som default — bara Discord-lanen sätter den (discord-restock.yml).
     shortWaveMinutes: Number(process.env.RESTOCK_SHORT_WAVE_MINUTES ?? 0),
     shortWaveCooldownMinutes: Number(process.env.RESTOCK_SHORT_WAVE_COOLDOWN_MINUTES ?? 60),
+    shortWaveConfirmMinutes: Number(process.env.RESTOCK_SHORT_WAVE_CONFIRM_MINUTES ?? 0),
     shortWaveStores: (process.env.RESTOCK_SHORT_WAVE_STORES ?? "")
       .split(",")
       .map((s) => s.trim())

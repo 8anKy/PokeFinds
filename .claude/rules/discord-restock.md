@@ -527,6 +527,13 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   (inte `prices`), ingen larm-hit till appen. En höjning utan eget färskt inlägg är ingen nyhet och tiger.
   `previousInStockMinutes` (`lib/stock-flap.ts`). ⛔ BARA butikerna i `RESTOCK_SHORT_WAVE_STORES` (ägarbeslut: "Toyspace");
   default AV, så appens push/mejl är orörda. Räknas som `cooldown`.
+  **BEKRÄFTELSE (2026-10-07)**: 60-minutersspärren räckte inte — Toyspace släppte samma ENDA ex ungefär varje
+  timme (30th Bundle 05:19, 06:20, 07:26, 13:02, 15:01; 2–5 min i lager varje gång, 8 Toyspace-inlägg på ett
+  dygn). Kommer varan tillbaka efter en kort våg hålls den inne (`state.confirm`) och postas först när den legat
+  kvar `RESTOCK_SHORT_WAVE_CONFIRM_MINUTES` (5); försvinner den innan stryks den — inget inlägg, ingen hit (alltså
+  ingen push/mejl), ingen tyst lagersynk. Samma butikslista. En vara utan kort våg bakom sig postas DIREKT som förut.
+  ⛔ Höj INTE cooldownen i stället: en tidsspärr äter äkta påfyllningar, bekräftelsen gör det inte. Loggen:
+  `N inhållna (kort våg)` / `N borta före bekräftelse`.
 
 - **PRO-SPEGELN = KORGLÄNKEN I DISCORD (ägarbeslut 2026-09-17)**: `"pro"` i `DISCORD_RESTOCK_CHANNELS`
   (repo-variabel) — `"pro":"<id>"` för EN Pro-kanal, eller `"pro":{default,sets,series,languages}` för
