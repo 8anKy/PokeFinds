@@ -24,7 +24,7 @@ Foilio is free to use. Foilio Pro (49 kr/month) adds more alerts and features. F
 - [Product catalogue](https://foilio.se/produkter): Foilio's start page — search and filter all products, lowest in-stock price first
 - [Pricing](https://foilio.se/priser): Free vs Pro
 - [About Foilio](https://foilio.se/om): how prices are collected and how products are ranked
-- [Discord](https://foilio.se/discord): Swedish Pokémon TCG community with live restock alerts
+- [Discord](https://foilio.se/discord): Foilio Discord, the Swedish Pokémon TCG community with live restock alerts — join directly at https://discord.gg/kpgmdEebgW
 
 ## How prices are collected
 

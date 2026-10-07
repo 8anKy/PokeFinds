@@ -37,7 +37,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: "Discord" });
   return {
-    title: t("metaTitle"),
+    // `absolute`: titeln börjar redan med "Foilio" (namnet Googles AI-översikt använder,
+    // "Foilio Discord") — mallens "| Foilio" hade bara upprepat det.
+    title: { absolute: t("metaTitle") },
     description: t("metaDescription"),
     alternates: alternatesFor(params.locale, "/discord"),
   };
@@ -52,9 +54,30 @@ export default async function DiscordPage({
   const t = await getTranslations("Discord");
   const insideItems = [1, 2, 3, 4] as const;
   const invite = landingInviteUrl();
+  // Inbjudan som LÄSBAR TEXT (2026-10-07): AI-översikter och assistenter citerar text,
+  // inte knappar — Googles översikt nämnde "Foilio Discord" utan någon länk att klicka.
+  // ⛔ FAQPage-noden byggs ur EXAKT samma strängar som renderas (samma regel som /om).
+  const inviteText = invite.replace(/^https:\/\//, "");
+  const faq = (t.raw("faq") as { q: string; a: string }[]).map((f) => ({
+    q: f.q,
+    a: f.a.replace("{invite}", inviteText),
+  }));
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faq.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
 
   return (
     <article className="mx-auto max-w-3xl px-2.5 py-16 sm:px-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema).replace(/</g, "\\u003c") }}
+      />
       <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
       <p className="mt-2 text-sm text-ink-faint">{t("subtitle")}</p>
 
@@ -74,6 +97,12 @@ export default async function DiscordPage({
           {t("cta")}
         </a>
         <p className="text-xs text-ink-faint">{t("ctaNote")}</p>
+        <p className="text-xs text-ink-faint">
+          {t("inviteLabel")}{" "}
+          <a href={invite} target="_blank" rel="noopener noreferrer" className="text-holo-cyan hover:underline">
+            {inviteText}
+          </a>
+        </p>
       </div>
 
       <div className="mt-10 space-y-8 text-sm leading-relaxed text-ink-muted [&_h2]:font-display [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-ink">
@@ -96,6 +125,18 @@ export default async function DiscordPage({
         <section>
           <h2>{t("rulesTitle")}</h2>
           <p className="mt-2">{t("rulesBody")}</p>
+        </section>
+
+        <section>
+          <h2>{t("faqTitle")}</h2>
+          <dl className="mt-2 space-y-4">
+            {faq.map((f) => (
+              <div key={f.q}>
+                <dt className="font-semibold text-ink">{f.q}</dt>
+                <dd className="mt-1">{f.a}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
 
         <section>

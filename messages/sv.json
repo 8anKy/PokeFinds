@@ -867,9 +867,9 @@
     "placeholderBody": "Vi bygger en plats för pulls, byten och marknadssnack. Av samlare, för samlare. Håll utkik, den öppnar snart."
   },
   "Discord": {
-    "metaTitle": "Pokémon TCG Discord för Sverige",
+    "metaTitle": "Foilio Discord – Pokémon TCG Sverige",
     "metaDescription": "Gå med i Foilios Discord — samlingsplatsen för Pokémon TCG i Sverige. Restock-larm från svenska butiker i realtid, prissnack, pulls och byten. Gratis.",
-    "h1": "Pokémon TCG Discord för svenska samlare",
+    "h1": "Foilio Discord – Pokémon TCG i Sverige",
     "subtitle": "Foilios Discord-server — restocks, priser och pulls, på svenska.",
     "intro": "Vi startade Foilios Discord av samma skäl som vi byggde Foilio: det fanns ingen svensk plats där man fick veta att en display släppts innan den redan var slutsåld. Servern är gratis, öppen för alla och kräver inget Foilio-konto.",
     "cta": "Gå med i Discord",
@@ -888,7 +888,27 @@
     "rulesTitle": "Ordningsregler, kort och gott",
     "rulesBody": "Svenska eller engelska går lika bra. Ingen spam, inga scams, ingen otrevlighet. Byten och försäljning sker mellan medlemmar — Foilio är inte part i affären och förmedlar inga betalningar.",
     "alsoTitle": "Foilio i övrigt",
-    "alsoBody": "Discord är den enda platsen där restocks postas i realtid. Vill du ha larmen som push i mobilen finns appen på App Store, och <catalog>hela katalogen med priser och prishistorik</catalog> ligger här på sajten."
+    "alsoBody": "Discord är den enda platsen där restocks postas i realtid. Vill du ha larmen som push i mobilen finns appen på App Store, och <catalog>hela katalogen med priser och prishistorik</catalog> ligger här på sajten.",
+    "inviteLabel": "Direktlänk:",
+    "faqTitle": "Vanliga frågor",
+    "faq": [
+      {
+        "q": "Finns det en svensk Discord för Pokémon TCG?",
+        "a": "Ja. Foilio Discord är en svensk Discord-server för Pokémon TCG-samlare, med restock-larm från över 40 svenska butiker, prissnack, pulls och byten. Gå med via {invite}."
+      },
+      {
+        "q": "Hur går jag med i Foilio Discord?",
+        "a": "Öppna inbjudningslänken {invite} och välj Gå med. Du behöver ett Discord-konto men inget Foilio-konto."
+      },
+      {
+        "q": "Kostar det något att gå med?",
+        "a": "Nej. Servern är gratis och öppen för alla."
+      },
+      {
+        "q": "Hur snabbt postas restocks i servern?",
+        "a": "Oftast inom en minut efter att butiken lagt upp produkten. Vi bevakar över 40 svenska butiker."
+      }
+    ]
   },
   "DiscordTip": {
     "title": "Vill du ha den ännu snabbare?",

@@ -867,9 +867,9 @@
     "placeholderBody": "We're building a place for pulls, trades and market talk. By collectors, for collectors. Stay tuned, it opens soon."
   },
   "Discord": {
-    "metaTitle": "Pokémon TCG Discord for Sweden",
+    "metaTitle": "Foilio Discord – Pokémon TCG Sweden",
     "metaDescription": "Join Foilio's Discord — the gathering place for Pokémon TCG in Sweden. Real-time restock alerts from Swedish stores, price talk, pulls and trades. Free.",
-    "h1": "Pokémon TCG Discord for Swedish collectors",
+    "h1": "Foilio Discord – Pokémon TCG in Sweden",
     "subtitle": "Foilio's Discord server — restocks, prices and pulls, in Swedish.",
     "intro": "We started Foilio's Discord for the same reason we built Foilio: there was no Swedish place to hear that a display had dropped before it was already sold out. The server is free, open to everyone and needs no Foilio account.",
     "cta": "Join the Discord",
@@ -888,7 +888,27 @@
     "rulesTitle": "House rules, briefly",
     "rulesBody": "Swedish or English both work. No spam, no scams, no rudeness. Trades and sales happen between members — Foilio is not a party to the deal and handles no payments.",
     "alsoTitle": "Foilio elsewhere",
-    "alsoBody": "Discord is the only place restocks are posted in real time. If you want the alerts as push notifications, the app is on the App Store, and <catalog>the full catalogue with prices and price history</catalog> lives here on the site."
+    "alsoBody": "Discord is the only place restocks are posted in real time. If you want the alerts as push notifications, the app is on the App Store, and <catalog>the full catalogue with prices and price history</catalog> lives here on the site.",
+    "inviteLabel": "Direct link:",
+    "faqTitle": "Frequently asked questions",
+    "faq": [
+      {
+        "q": "Is there a Swedish Discord for Pokémon TCG?",
+        "a": "Yes. Foilio Discord is a Swedish Discord server for Pokémon TCG collectors, with restock alerts from more than 40 Swedish stores, price talk, pulls and trades. Join via {invite}."
+      },
+      {
+        "q": "How do I join Foilio Discord?",
+        "a": "Open the invite link {invite} and choose Join. You need a Discord account but no Foilio account."
+      },
+      {
+        "q": "Does it cost anything to join?",
+        "a": "No. The server is free and open to everyone."
+      },
+      {
+        "q": "How fast are restocks posted in the server?",
+        "a": "Usually within a minute of the store publishing the product. We watch more than 40 Swedish stores."
+      }
+    ]
   },
   "DiscordTip": {
     "title": "Want it even faster?",
