@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { localeUrl, swedishCanonical } from "@/lib/canonical";
 import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { setPath } from "@/lib/set-slug";
 import { prisma } from "@/lib/db";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { formatDate } from "@/lib/format";
@@ -39,9 +40,13 @@ interface PageProps {
 // `normalizedTitle`, `gtin*`, alla räknare och tidsstämplar. Rutnätet nedan använder
 // exakt sex fält. Lägg till fält här när mappningen behöver dem (tsc fångar det,
 // eftersom hela konsumtionen sker i den här filen).
-async function getSet(id: string) {
-  return prisma.cardSet.findUnique({
-    where: { id },
+// Parametern är slugen (`30th-celebration`) ELLER det gamla id:t — båda hittar setet,
+// och id-adressen 308:as till slugen i sidan nedan (gamla länkar i Discord/Google lever).
+const setWhere = (param: string) => ({ OR: [{ slug: param }, { id: param }] });
+
+async function getSet(param: string) {
+  return prisma.cardSet.findFirst({
+    where: setWhere(param),
     include: {
       products: {
         // Dolda produkter (hiddenAt) syns ingen annanstans i katalogen — inte här heller.
@@ -68,9 +73,9 @@ async function getSet(id: string) {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: "Sets" });
-  const set = await prisma.cardSet.findUnique({
-    where: { id: params.id },
-    select: { name: true, series: true },
+  const set = await prisma.cardSet.findFirst({
+    where: setWhere(params.id),
+    select: { id: true, slug: true, name: true, series: true },
   });
   if (!set) return { title: t("notFound") };
   return {
@@ -80,7 +85,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title: t("detailTitle", { name: set.name }),
     description: t("detailDescription", { name: set.name, series: set.series }),
     // Svensk kanonisk även under /en/ — se swedishCanonical() i lib/canonical.ts.
-    alternates: swedishCanonical(`/sets/${params.id}`),
+    alternates: swedishCanonical(setPath(set)),
   };
 }
 
@@ -90,6 +95,10 @@ export default async function SetPage({ params }: PageProps) {
   const locale = await getLocale();
   const set = await getSet(params.id);
   if (!set) notFound();
+  // Gammal id-adress ⇒ permanent omdirigering till den läsbara (en URL per set).
+  if (set.slug && params.id !== set.slug) {
+    permanentRedirect(`${params.locale === "sv" ? "" : `/${params.locale}`}${setPath(set)}`);
+  }
   const tGuides = await getTranslations("Guides");
   // DB-fri: guiderna är en incheckad fil. Länken är setsidans väg IN i guiden och
   // guidens starkaste interna länk (en sida med riktig brödtext om setet).
@@ -154,7 +163,7 @@ export default async function SetPage({ params }: PageProps) {
         "@type": "ListItem",
         position: 2,
         name: set.name,
-        item: localeUrl(params.locale, `/sets/${params.id}`),
+        item: localeUrl(params.locale, setPath(set)),
       },
     ],
   };

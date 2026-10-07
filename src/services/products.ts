@@ -1773,7 +1773,8 @@ export interface ProductShellData {
   language: CardLanguage;
   description: string | null;
   imageUrl: string | null;
-  set: { id: string; name: string } | null;
+  /** `slug` = läsbar setadress (lib/set-slug.ts); saknas i äldre snapshot-poster. */
+  set: { id: string; name: string; slug?: string | null } | null;
   /** Faktablocket under bilden (desktop) — se `lib/product-facts.ts`. */
   facts: ProductFacts | null;
   /** Andra tryckningar/versioner av samma kort — bara identitet, priset hämtas live. */
@@ -1809,7 +1810,7 @@ export const SHELL_SELECT = {
   imageUrl: true,
   cardId: true,
   releaseDate: true,
-  set: { select: { id: true, name: true, series: true, releaseDate: true, totalCards: true, totalCardsFull: true } },
+  set: { select: { id: true, slug: true, name: true, series: true, releaseDate: true, totalCards: true, totalCardsFull: true } },
   card: {
     select: {
       artist: true, rarity: true, subtype: true, hp: true, number: true,
@@ -1831,7 +1832,7 @@ export function toShellData(product: ShellRow, siblings: { slug: string; variant
     language: product.language,
     description: product.description,
     imageUrl: product.imageUrl,
-    set: product.set ? { id: product.set.id, name: product.set.name } : null,
+    set: product.set ? { id: product.set.id, name: product.set.name, slug: product.set.slug } : null,
     facts: buildProductFacts(product),
     variants: siblings.map((v) => ({ slug: v.slug, label: v.variantLabel })),
   };

@@ -263,6 +263,13 @@ jobs:
           echo "engine-sync → HTTP $code $(cat sync.json)"
           test "$code" = "200"
 
+      # Läsbara set-adresser för set som saknar en (nya JP-/EN-set). Före snapshoten så
+      # att produktsidornas brödsmulor får slugen samma natt. Fyller bara NULL.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Läsbara adresser för nya set
+        continue-on-error: true
+        run: npx tsx scripts/backfill-set-slugs.ts --apply
+
       # Katalogsnapshoten: skal + priser per synlig produkt till volymen, som produkt-
       # sidorna renderar ur utan DB (src/lib/catalog-snapshot.ts). Efter prisjobbet så
       # att HTML:ens priser är nattens; Neon är redan vaken. Gult, aldrig rött: utan ny

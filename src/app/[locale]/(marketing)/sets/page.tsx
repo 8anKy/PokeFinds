@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { alternatesFor } from "@/lib/canonical";
 import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { setPath } from "@/lib/set-slug";
 import { prisma } from "@/lib/db";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { formatDate } from "@/lib/format";
@@ -97,7 +98,7 @@ export default async function SetsPage({
                 {bySeries.get(series)!.map((set) => (
                   <li key={set.id}>
                     <Link
-                      href={`/sets/${set.id}`}
+                      href={setPath(set)}
                       className="group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-overlay/60 active:bg-surface-overlay sm:px-5"
                     >
                       <div className="min-w-0 flex-1">

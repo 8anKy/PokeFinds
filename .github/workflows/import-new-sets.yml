@@ -102,6 +102,12 @@ jobs:
         name: Fyll set-nämnarna (pokemontcg.io total + TCGdex-tryckningar)
         run: npx tsx scripts/import-set-denominators.ts
 
+      # Läsbar adress (`/sets/<namn>`) för nya set — fyller bara NULL, se src/lib/set-slug.ts.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Läsbara adresser för nya set
+        continue-on-error: true
+        run: npx tsx scripts/backfill-set-slugs.ts --apply
+
       # KORTFAKTA (illustratör, typ, svaghet, reträtt, regulation mark, Pokédex,
       # flavour text) för produktsidans "Om kortet"-panel. Importen ovan skriver
       # dem ur pokemontcg.io när den svarar; det här steget fyller hålen ur

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import SET_SLUG_REDIRECTS from "@/data/set-slug-redirects.json";
 import { encode, getToken, type JWT } from "next-auth/jwt";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "@/i18n/routing";
@@ -207,6 +208,15 @@ export async function middleware(req: NextRequest) {
 
   const { pathname, search } = req.nextUrl;
   const [path, prefix] = splitLocale(pathname);
+
+  // Gamla set-adresser (`/sets/<cuid>`) ⇒ äkta 308 till den läsbara (2026-10-07,
+  // lib/set-slug.ts). Kartan är INCHECKAD (src/data/set-slug-redirects.json, de 394 set
+  // Google kände under id) — middleware når ingen databas. Setsidan omdirigerar själv
+  // för set som saknas här, men där blir det en meta-refresh (sidan strömmar).
+  if (path.startsWith("/sets/")) {
+    const slug = (SET_SLUG_REDIRECTS as Record<string, string>)[path.slice("/sets/".length)];
+    if (slug) return NextResponse.redirect(new URL(`${prefix}/sets/${slug}${search}`, req.url), 308);
+  }
 
   // Personlig inbjudningslänk (lib/invite-link.ts): kom ihåg koden i 30 dygn och
   // landa på startsidan. Noll DB — koden prövas först vid registreringen. En

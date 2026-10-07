@@ -668,6 +668,11 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 - **SITEMAPEN ÄR ETT INDEX (2026-10-07)**: `/sitemap.xml` → `/sitemaps/{sidor,set,forseglat,kort,kort-japanska}.xml`
   (`services/sitemap.ts`) — Search Console redovisar indexering PER delkarta. Den gamla filen var kapad vid 40 000 och
   tappade ~11 800 synliga produkter. Varje delkarta < 50 000; växer `kort` förbi det ⇒ dela den.
+- **LÄSBARA SET-ADRESSER (2026-10-07)**: `/sets/30th-celebration` (`CardSet.slug`, `-jp` för japanska; `lib/set-slug.ts`).
+  ⛔ Slugen sätts EN gång (`scripts/backfill-set-slugs.ts` fyller bara NULL, steg i cardmarket-refresh + import-new-sets)
+  och ändras aldrig. Logiken (completion, bevakning, katalogfiltret `?set=`) går fortfarande på `id`. Gamla id-adresser:
+  äkta 308 i middleware ur den INCHECKADE kartan `src/data/set-slug-redirects.json` (de 394 set som fanns); nyare set
+  omdirigeras av sidan själv (blir meta-refresh, sidan strömmar).
 - **BING + INDEXNOW (2026-10-07)**: ChatGPT:s webbsök vilar på Bing. foilio.se är verifierad i Bing Webmaster Tools
   (ägaren); nya produkter/set/guider anmäls nattligen (`scripts/indexnow-submit.ts`, nyckelfilen i `public/`).
 - **AI-ASSISTENTERNA SLÄPPTES IN 2026-09-28 (ägarbeslut: "synas i ChatGPT")** — `src/lib/ai-crawlers.ts`. Sök-

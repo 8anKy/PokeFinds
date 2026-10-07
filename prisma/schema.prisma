@@ -399,6 +399,9 @@ model PushToken {
 model CardSet {
   id             String       @id @default(cuid())
   name           String
+  /// Läsbar adress (`/sets/30th-celebration`), sätts EN gång av scripts/backfill-set-slugs.ts
+  /// och ändras aldrig. Logiken går på `id`; se src/lib/set-slug.ts.
+  slug           String?      @unique
   series         String
   releaseDate    DateTime?
   logoUrl        String?

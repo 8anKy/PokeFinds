@@ -68,7 +68,7 @@ const getSitemapRows = cachedRead(
       }),
       prisma.cardSet.findMany({
         where: { products: { some: { ...NOT_HIDDEN } } },
-        select: { id: true },
+        select: { id: true, slug: true },
         take: 2000,
       }),
       forumPublic
@@ -96,12 +96,12 @@ const getSitemapRows = cachedRead(
       sealed,
       singles,
       singlesJp,
-      sets: sets.map((s) => s.id),
+      sets: sets.map((s) => s.slug || s.id),
       groups: groups.map((g) => g.slug),
       threads: threads.map((t) => t.id),
     };
   },
-  "sitemapRowsV2",
+  "sitemapRowsV3",
   86400,
   [STATIC_CACHE_TAG]
 );
@@ -177,7 +177,8 @@ export async function sitemapUrls(name: SitemapName): Promise<SitemapUrl[] | nul
   }
   switch (name) {
     case "set":
-      return rows.sets.map((id) => ({ loc: url(`/sets/${id}`) }));
+      // Läsbar slug (lib/set-slug.ts); id bara för ett set som ännu saknar en.
+      return rows.sets.map((slugOrId) => ({ loc: url(`/sets/${encodeURIComponent(slugOrId)}`) }));
     case "forseglat":
       return rows.sealed.map((slug) => ({ loc: url(`/produkter/${slug}`) }));
     case "kort":

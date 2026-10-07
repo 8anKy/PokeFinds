@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { loadProductShell, PRODUCT_PAGE_HTML_REVALIDATE_SECONDS, type ProductShellData } from "@/services/products";
 import { readSnapshotEntry } from "@/lib/catalog-snapshot";
+import { setPath } from "@/lib/set-slug";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
 import { ProductDetailView } from "@/components/features/product-detail-view";
 
@@ -196,7 +197,7 @@ export default async function ProductPage({ params }: PageProps) {
       ? [
           {
             name: shell.set.name,
-            url: localeUrl(params.locale, `/sets/${encodeURIComponent(shell.set.id)}`),
+            url: localeUrl(params.locale, setPath(shell.set)),
           },
         ]
       : []),
