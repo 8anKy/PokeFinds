@@ -59,12 +59,12 @@ export interface Guide {
 export const GUIDES: Guide[] = [
   {
     slug: "delta-reign",
-    title: "Pokémon Delta Reign: släppdatum, produkter och vad setet innehåller",
+    title: "Pokémon Delta Reign: släppdatum, förhandsbokning och priser i Sverige",
     description:
       "Delta Reign släpps 6 november 2026 med Mega Rayquaza ex i spetsen. Här är allt om setet, produkterna och hur du bevakar dem i svenska butiker.",
     kind: "set",
     publishedAt: "2026-09-23",
-    updatedAt: "2026-09-23",
+    updatedAt: "2026-10-07",
     setId: "cmtnj78kh0000ecn60yv8dti6",
     intro:
       "Nästa set i Mega Evolution-serien heter Delta Reign, och den här gången är det Mega Rayquaza ex som står i centrum. Det är första gången på över tio år som Mega Rayquaza är tillbaka i kortspelet. Här samlar vi det som är bekräftat om setet och vilka produkter som kommer.",
@@ -159,12 +159,12 @@ export const GUIDES: Guide[] = [
   },
   {
     slug: "30th-celebration",
-    title: "Pokémon 30th Celebration: kortlista, Classic Collection och alla produkter",
+    title: "Pokémon 30th Celebration: kortlista, alla produkter och priser i Sverige",
     description:
       "30th Celebration firar 30 år av Pokémon-kortspelet. Här är setets upplägg, vad som finns i varje booster, Classic Collection och när produkterna släpps.",
     kind: "set",
     publishedAt: "2026-09-23",
-    updatedAt: "2026-09-23",
+    updatedAt: "2026-10-07",
     setId: "cms68t7hc0000aw9sr3ocbldn",
     intro:
       "Pokémon-kortspelet fyller 30 år, och 30th Celebration är jubileumssetet. Det släpptes 16 september 2026 samtidigt i hela världen, som det första setet någonsin. Alla kort är foil, 30 olika Pikachu-illustrationer finns i boostrarna, och en Classic Collection trycker om kort från tre decennier.",
@@ -262,12 +262,12 @@ export const GUIDES: Guide[] = [
   },
   {
     slug: "pitch-black",
-    title: "Pokémon Pitch Black: kortlista, Mega Darkrai ex och alla produkter",
+    title: "Pokémon Pitch Black: kortlista, Mega Darkrai ex och priser i Sverige",
     description:
       "Pitch Black släpptes 17 juli 2026 med Mega Darkrai ex och Mega Zeraora ex. Här är setets fakta, de mest eftertraktade korten och vad produkterna innehåller.",
     kind: "set",
     publishedAt: "2026-09-23",
-    updatedAt: "2026-09-23",
+    updatedAt: "2026-10-07",
     setId: "cmrreegww0001173z06a8i647",
     intro:
       "Pitch Black är Mega Evolution-seriens femte huvudset, och det är mörkt på riktigt: Mega Darkrai ex och Mega Zeraora ex leder setet. Det bygger på Mega-Pokémon från Mega Dimension-tillägget till Pokémon Legends: Z-A.",
