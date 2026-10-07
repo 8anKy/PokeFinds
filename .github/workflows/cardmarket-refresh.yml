@@ -262,3 +262,14 @@ jobs:
           code=$(curl -sS -o sync.json -w '%{http_code}' --max-time 1100 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://foilio.se}/api/cron/engine-sync")
           echo "engine-sync → HTTP $code $(cat sync.json)"
           test "$code" = "200"
+
+      # Nya sidor (produkter/set/guider senaste 26 h) till Bing via IndexNow — ChatGPT:s
+      # webbsök vilar på Bings index. Neon är redan vaken här; aldrig egen cron.
+      # Gult, aldrig rött: en missad anmälan läker via sitemapen. Se src/lib/indexnow.ts.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Anmäl nya sidor till Bing (IndexNow)
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: npx tsx scripts/indexnow-submit.ts
