@@ -8,7 +8,7 @@ HTTP-skal runt skannermotorn (engine.py). En endpoint, delad hemlighet, ingen da
 Motorn laddas EN gång vid start (indexet ~0,2–0,4 GB i RAM). Ett lås serialiserar anropen:
 OpenCV:s SIFT-objekt är inte trådsäkert, och skannervolymen är några hundra per dygn.
 """
-import json, os, socket, threading
+import ctypes, json, os, socket, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from bootstrap import ensure_data
@@ -21,6 +21,40 @@ MAX_BYTES = 4 * 1024 * 1024
 
 engine = Engine(DATA_DIR)
 lock = threading.Lock()
+
+# MINNET (2026-10-08): tjänsten låg på 1,2–1,5 GB vaken mot väntade ~0,4 GB, dvs ~85 kr/mån.
+# ThreadingHTTPServer startar en NY tråd per anrop och faiss/OpenCV en per kärna — glibc ger varje
+# tråd en egen arena, och frigjort minne lämnas sällan tillbaka. MALLOC_ARENA_MAX (Dockerfile) kapar
+# arenorna; malloc_trim efter varje anrop lämnar tillbaka det som frigjorts.
+try:
+    _libc = ctypes.CDLL("libc.so.6")
+except OSError:
+    _libc = None
+
+
+def _trim():
+    if _libc is not None:
+        _libc.malloc_trim(0)
+
+
+def _mem():
+    """Processens RSS + cgroupens minne (det Railway fakturerar), anon vs sidcache. Bara för mätning."""
+    out = {}
+    try:
+        for line in open("/proc/self/status"):
+            if line.startswith("VmRSS:"):
+                out["rssMb"] = int(line.split()[1]) // 1024
+    except OSError:
+        pass
+    try:
+        out["cgroupMb"] = int(open("/sys/fs/cgroup/memory.current").read()) // 2**20
+        for line in open("/sys/fs/cgroup/memory.stat"):
+            k, v = line.split()
+            if k in ("anon", "file"):
+                out[k + "Mb"] = int(v) // 2**20
+    except OSError:
+        pass
+    return out
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -37,7 +71,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            return self._json(200, {"ok": True, "cards": len(engine.ids)})
+            return self._json(200, {"ok": True, "cards": len(engine.ids), "mem": _mem()})
         if self.path == "/cards":  # vilka kort motorn känner — webbens påfyllning diffar mot katalogen
             if not self._authed():
                 return self._json(401, {"error": "unauthorized"})
@@ -59,9 +93,12 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 return self._json(400, {"error": "bad-json"})
             with lock:
-                return self._json(200, engine.add_cards(cards[:300]))
+                res = engine.add_cards(cards[:300])
+                _trim()
+            return self._json(200, res)
         with lock:
             res = engine.identify(data)
+            _trim()
         self._json(200 if "error" not in res else 400, res)
 
     def log_message(self, fmt, *args):  # inga bilddata i loggen, bara rad per anrop
@@ -80,5 +117,6 @@ class DualStackServer(ThreadingHTTPServer):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
-    print(f"scanner-engine på :{port}, {len(engine.ids)} kort", flush=True)
+    _trim()
+    print(f"scanner-engine på :{port}, {len(engine.ids)} kort, minne {_mem()}", flush=True)
     DualStackServer(("::", port), Handler).serve_forever()

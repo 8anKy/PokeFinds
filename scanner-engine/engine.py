@@ -32,6 +32,9 @@ QUERY_SIDE = int(os.environ.get("QUERY_SIDE", "1000"))
 QUERY_KP = int(os.environ.get("QUERY_KP", "1500"))
 TOP_K = int(os.environ.get("TOP_K", "20"))
 NPROBE = int(os.environ.get("NPROBE", "32"))
+# Trådtak (2026-10-08): utan tak startar OpenCV en tråd per synlig kärna på Railway-värden, och varje
+# tråd kostar minne. Anropen serialiseras ändå av app.py:s lås. 4 trådar mätt ≈ samma tid som obegränsat.
+cv2.setNumThreads(int(os.environ.get("CV_THREADS", "4")))
 RATIO = 0.85  # steg B: distinkt = bästa kandidaten < 0,85 × bästa ANDRA kandidaten
 REGION_WIN = 0.92  # regionkontroll: rivalen måste ha ≥ 8 % lägre fel i skillnadsregionerna
 
@@ -46,6 +49,16 @@ def _gray(img, max_side):
     if s < 1:
         img = cv2.resize(img, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA)
     return img
+
+
+def _drop_cache(path):
+    if hasattr(os, "posix_fadvise"):
+        try:
+            fd = os.open(path, os.O_RDONLY)
+            os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+            os.close(fd)
+        except OSError:
+            pass
 
 
 def _norm(img):
@@ -66,6 +79,9 @@ class Engine:
         # I minnet (44 MB), inte memmap: add_cards() förlänger den.
         self.owners = np.load(os.path.join(nn, "owners.npy"))
         self.ids = json.load(open(os.path.join(nn, "cards.json")))
+        # Filerna är inlästa i processen — släpp sidcachen (cgroupen räknar den som minne).
+        for f in ("ivfpq.faiss", "owners.npy"):
+            _drop_cache(os.path.join(nn, f))
         rk = os.path.join(data_dir, "refkp")
         self.rk_dir = rk
         meta = json.load(open(os.path.join(rk, "meta.json")))
