@@ -39,9 +39,22 @@ def _trim():
         _libc.malloc_trim(0)
 
 
+_backfill_busy = threading.Lock()
+
+
 def _emb_backfill():
     """Kort som kom in via add_cards innan bildvektorn fanns får sin vektor i bakgrunden — bilden
-    hämtas UTANFÖR låset, bara själva tillägget sker under det. Körs en gång per start."""
+    hämtas UTANFÖR låset, bara själva tillägget sker under det. Körs vid start och efter
+    /refresh-urls; aldrig två samtidigt."""
+    if not _backfill_busy.acquire(blocking=False):
+        return
+    try:
+        _emb_backfill_run()
+    finally:
+        _backfill_busy.release()
+
+
+def _emb_backfill_run():
     todo = engine.emb_missing()
     if not todo:
         return
@@ -116,11 +129,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/cards":  # vilka kort motorn känner — webbens påfyllning diffar mot katalogen
             if not self._authed():
                 return self._json(401, {"error": "unauthorized"})
-            return self._json(200, {"ids": engine.ids})
+            # urls: webbens påfyllning byter ut länkar som katalogen ändrat (/refresh-urls).
+            return self._json(200, {"ids": engine.ids, "urls": engine.image_urls})
         self._json(404, {"error": "not-found"})
 
     def do_POST(self):
-        if self.path not in ("/identify", "/add-cards"):
+        if self.path not in ("/identify", "/add-cards", "/refresh-urls"):
             return self._json(404, {"error": "not-found"})
         if not self._authed():
             return self._json(401, {"error": "unauthorized"})
@@ -128,6 +142,16 @@ class Handler(BaseHTTPRequestHandler):
         if n <= 0 or n > MAX_BYTES:
             return self._json(413, {"error": "size"})
         data = self.rfile.read(n)
+        if self.path == "/refresh-urls":
+            try:
+                urls = json.loads(data)["urls"]
+            except Exception:
+                return self._json(400, {"error": "bad-json"})
+            with lock:
+                changed = engine.refresh_urls(urls)
+            if changed:
+                threading.Thread(target=_emb_backfill, daemon=True).start()
+            return self._json(200, {"changed": changed})
         if self.path == "/add-cards":
             try:
                 cards = json.loads(data)["cards"]

@@ -20,6 +20,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 900;
 
 const BATCH = 100;
+/** Bara id + URL per rad — motorns tak per anrop är 4 MB. */
+const URL_BATCH = 2000;
 /** Tak per körning: resten tas nästa natt (en ny JP-omgång kan vara tusentals kort). */
 const MAX_PER_RUN = 3000;
 
@@ -42,12 +44,15 @@ export async function POST(req: NextRequest) {
 
     // Motorn sover mellan passen: första anropet väcker den, försök om medan den startar.
     let known: string[] | null = null;
+    let knownUrls: Record<string, string> = {};
     for (const wait of [0, 5000, 15000, 30000]) {
       if (wait) await new Promise((r) => setTimeout(r, wait));
       try {
         const res = await engine("/cards", undefined, 30_000);
         if (res.ok) {
-          known = ((await res.json()) as { ids: string[] }).ids;
+          const body = (await res.json()) as { ids: string[]; urls?: Record<string, string> };
+          known = body.ids;
+          knownUrls = body.urls ?? {};
           break;
         }
       } catch {
@@ -64,6 +69,21 @@ export async function POST(req: NextRequest) {
     });
     const missing = catalog.filter((c) => !have.has(c.id)).slice(0, MAX_PER_RUN);
 
+    // Bildvärden kan flytta en bild efter att motorn lagt till kortet (2026-10-08: 406 JP-kort gav
+    // 404 vid varje start). Katalogen har den nya länken — skicka den för kort motorn redan känner.
+    const moved = catalog.filter((c) => have.has(c.id) && knownUrls[c.id] && knownUrls[c.id] !== c.imageUrl);
+    let relinked = 0;
+    for (let i = 0; i < moved.length; i += URL_BATCH) {
+      const urls = Object.fromEntries(moved.slice(i, i + URL_BATCH).map((c) => [c.id, c.imageUrl!]));
+      const res = await engine("/refresh-urls", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ urls }),
+      });
+      if (!res.ok) throw new Error(`refresh-urls ${res.status}`);
+      relinked += ((await res.json()) as { changed: number }).changed;
+    }
+
     let added = 0;
     let failed = 0;
     for (let i = 0; i < missing.length; i += BATCH) {
@@ -77,8 +97,8 @@ export async function POST(req: NextRequest) {
       added += r.added;
       failed += r.failedCount;
     }
-    console.log(`[engine-sync] katalog ${catalog.length}, motorn hade ${have.size}, saknades ${missing.length}: tillagda ${added}, misslyckade ${failed}.`);
-    return jsonOk({ ok: true, catalog: catalog.length, engineHad: have.size, missing: missing.length, added, failed });
+    console.log(`[engine-sync] katalog ${catalog.length}, motorn hade ${have.size}, saknades ${missing.length}: tillagda ${added}, misslyckade ${failed}; nya bildlänkar ${relinked}.`);
+    return jsonOk({ ok: true, catalog: catalog.length, engineHad: have.size, missing: missing.length, added, failed, relinked });
   } catch (error) {
     return apiError(error);
   }

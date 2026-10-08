@@ -190,6 +190,24 @@ class Engine:
         os.replace(ids_path + ".tmp", ids_path)
         e["added_ids"], e["added"] = [], []
 
+    def refresh_urls(self, urls):
+        """Byt bild-URL för kort motorn redan känner, när katalogen fått en ny (2026-10-08: 406 JP-kort
+        gav 404 — värden hade flyttat bilderna, katalogen hade redan de nya länkarna). Nyckelpunkterna
+        räknas INTE om: bilden är samma kort, bara på en ny adress. Utan bytet kan motorn varken ge
+        kortet en bildvektor eller hämta referensbilden för geometrikontrollen."""
+        changed = 0
+        for cid, url in urls.items():
+            if url and cid in self.offsets and self.image_urls.get(cid) != url:
+                self.image_urls[cid] = url
+                self._grays.pop(cid, None)
+                changed += 1
+        if changed:
+            path = os.path.join(self.dir, "cards-meta.json")
+            with open(path + ".tmp", "w") as f:
+                json.dump(self.image_urls, f)
+            os.replace(path + ".tmp", path)
+        return changed
+
     def fetch_bgr(self, cid):
         """Referensbilden i färg (för bildvektorns påfyllning av kort som saknar vektor)."""
         url = self.image_urls.get(cid)
