@@ -103,6 +103,10 @@ export const MODEL_PRICES: Record<string, ModelPrice> = {
   // Anthropic (platform.claude.com/docs/en/pricing)
   "claude-haiku-4-5": { inputPerMTok: 1, outputPerMTok: 5 },
   "claude-haiku-4-5-20251001": { inputPerMTok: 1, outputPerMTok: 5 },
+  // Priset för prompter ≤ 100 000 tokens. Över det kostar Haiku 5.5 $0,50/$2,50 —
+  // våra domar är ~1–3k tokens, så taket nås aldrig. Ny tokenizer: samma text
+  // ≈ 30 % fler tokens än på 4.5 (redan med i uppmätt `usage`).
+  "claude-haiku-5-5": { inputPerMTok: 0.1, outputPerMTok: 0.5 },
   "claude-sonnet-4-6": { inputPerMTok: 3, outputPerMTok: 15 },
   "claude-sonnet-5": { inputPerMTok: 3, outputPerMTok: 15 },
   "claude-opus-5": { inputPerMTok: 5, outputPerMTok: 25 },

@@ -7,7 +7,12 @@
  */
 import type Anthropic from "@anthropic-ai/sdk";
 
-const MODEL = process.env.DEDUPE_MODEL ?? "claude-haiku-4-5-20251001";
+// Haiku 5.5 sedan 2026-10-08 (`scripts/compare-haiku-models.ts`, 150 sparade par):
+// samma träff som 4.5 (122 mot 123/150), NOLL felaktiga "samma" mot 4.5:s två —
+// och ett falskt "samma" är en felaktig MERGE. ~8× billigare per dom. Tvingat
+// verktyg ⇒ ingen tänkning, så max_tokens 256 räcker fortfarande.
+// Rollback utan deploy: DEDUPE_MODEL=claude-haiku-4-5-20251001.
+const MODEL = process.env.DEDUPE_MODEL || "claude-haiku-5-5";
 
 const SYSTEM = [
   "Du avgör om två titlar beskriver SAMMA Pokémon TCG sealed-produkt (samma SKU).",
@@ -69,11 +74,13 @@ export interface SameVerdict {
 export async function judgeSameProduct(
   listingTitle: string,
   catalogTitle: string,
-  context?: string
+  context?: string,
+  /** Bara för modelljämförelser (`scripts/compare-haiku-models.ts`). */
+  opts?: { model?: string; client?: Anthropic }
 ): Promise<SameVerdict | null> {
   let c: Anthropic | null;
   try {
-    c = await getClient();
+    c = opts?.client ?? (await getClient());
   } catch (err) {
     console.warn("[same-product] SDK-laddning misslyckades:", err instanceof Error ? err.message : err);
     return null;
@@ -81,7 +88,7 @@ export async function judgeSameProduct(
   if (!c) return null;
   try {
     const response = await c.messages.create({
-      model: MODEL,
+      model: opts?.model ?? MODEL,
       max_tokens: 256,
       system: SYSTEM,
       tools: [SAME_TOOL],
