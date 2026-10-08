@@ -8,7 +8,7 @@ HTTP-skal runt skannermotorn (engine.py). En endpoint, delad hemlighet, ingen da
 Motorn laddas EN gång vid start (indexet ~0,2–0,4 GB i RAM). Ett lås serialiserar anropen:
 OpenCV:s SIFT-objekt är inte trådsäkert, och skannervolymen är några hundra per dygn.
 """
-import ctypes, json, os, socket, threading
+import ctypes, json, os, socket, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from bootstrap import clean_volume, ensure_data, ensure_emb
@@ -46,12 +46,24 @@ def _emb_backfill():
     if not todo:
         return
     print(f"bildvektor saknas för {len(todo)} kort — fyller på", flush=True)
-    done = 0
+    # 2026-10-08: 406 kort gav 0/406 vid VARJE start, utan ett ord om varför — samma URL:er laddas
+    # och avkodas felfritt utanför Railway. Felet loggas nu, och ett 403/429 betyder att bildvärden
+    # bromsar oss: sluta i stället för att skicka resten av kön rakt in i spärren (och hålla den vid
+    # liv till nattens add-cards, som hämtar från samma värd). Artigt tempo mellan hämtningarna.
+    done, reasons = 0, {}
     for cid in todo:
         try:
             bgr = engine.fetch_bgr(cid)
-        except Exception:
+            if bgr is None:
+                reasons["avkodning/ingen url"] = reasons.get("avkodning/ingen url", 0) + 1
+        except Exception as e:
             bgr = None
+            key = f"{type(e).__name__}: {str(e)[:80]}"
+            reasons[key] = reasons.get(key, 0) + 1
+            if getattr(e, "code", None) in (403, 429):
+                print(f"bildvärden svarar {e.code} — avbryter påfyllningen, nästa start försöker igen", flush=True)
+                break
+        time.sleep(0.2)
         if bgr is None:
             continue
         with lock:
@@ -61,6 +73,8 @@ def _emb_backfill():
         engine.emb_persist()
         _trim()
     print(f"bildvektor påfylld: {done}/{len(todo)}", flush=True)
+    for why, n in sorted(reasons.items(), key=lambda kv: -kv[1])[:5]:
+        print(f"  misslyckad hämtning ×{n}: {why}", flush=True)
 
 
 def _mem():
