@@ -11,11 +11,12 @@ OpenCV:s SIFT-objekt är inte trådsäkert, och skannervolymen är några hundra
 import ctypes, json, os, socket, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from bootstrap import ensure_data
+from bootstrap import ensure_data, ensure_emb
 from engine import Engine
 
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
 ensure_data(DATA_DIR)
+ensure_emb(DATA_DIR)
 SECRET = os.environ.get("ENGINE_SECRET", "")
 MAX_BYTES = 4 * 1024 * 1024
 
@@ -35,6 +36,30 @@ except OSError:
 def _trim():
     if _libc is not None:
         _libc.malloc_trim(0)
+
+
+def _emb_backfill():
+    """Kort som kom in via add_cards innan bildvektorn fanns får sin vektor i bakgrunden — bilden
+    hämtas UTANFÖR låset, bara själva tillägget sker under det. Körs en gång per start."""
+    todo = engine.emb_missing()
+    if not todo:
+        return
+    print(f"bildvektor saknas för {len(todo)} kort — fyller på", flush=True)
+    done = 0
+    for cid in todo:
+        try:
+            bgr = engine.fetch_bgr(cid)
+        except Exception:
+            bgr = None
+        if bgr is None:
+            continue
+        with lock:
+            engine.emb_add(cid, bgr)
+        done += 1
+    with lock:
+        engine.emb_persist()
+        _trim()
+    print(f"bildvektor påfylld: {done}/{len(todo)}", flush=True)
 
 
 def _mem():
@@ -71,7 +96,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            return self._json(200, {"ok": True, "cards": len(engine.ids), "mem": _mem()})
+            return self._json(200, {"ok": True, "cards": len(engine.ids), "mem": _mem(),
+                                    "emb": len(engine.emb["ids"]) if engine.emb else None})
         if self.path == "/cards":  # vilka kort motorn känner — webbens påfyllning diffar mot katalogen
             if not self._authed():
                 return self._json(401, {"error": "unauthorized"})
@@ -117,6 +143,7 @@ class DualStackServer(ThreadingHTTPServer):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
+    threading.Thread(target=_emb_backfill, daemon=True).start()
     _trim()
     print(f"scanner-engine på :{port}, {len(engine.ids)} kort, minne {_mem()}", flush=True)
     DualStackServer(("::", port), Handler).serve_forever()

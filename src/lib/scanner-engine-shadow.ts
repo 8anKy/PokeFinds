@@ -23,6 +23,10 @@ export interface EngineResponse {
   best?: string | null;
   candidates?: { cardId: string; inliers?: number }[];
   regionSwapFrom?: string | null;
+  /** Bildvektorns topp-5 (inlärd modell, sedan 2026-10-08) — oberoende av geometrin. */
+  embTop?: string[];
+  /** Geometrin räckte inte (< EMB_FALLBACK_INLIERS) och bildvektorns etta blev svaret. */
+  embDecided?: boolean;
   ms?: number;
   msA?: number;
   error?: string;
@@ -36,6 +40,10 @@ export interface ShadowRecord {
   inliers: number[];
   ms: number | null;
   swap?: string;
+  /** Bildvektorns topp-5 — så modellen kan mätas ENSAM mot facit, inte bara via `best`. */
+  emb?: string[];
+  /** `best` kom från bildvektorn (för lite geometri), inte från motorns verifiering. */
+  embDecided?: true;
   err?: string;
   /** Motorns svar VAR det som visades (motorläge) — inte bara en skugga. */
   primary?: true;
@@ -66,6 +74,8 @@ export function shadowRecord(res: EngineResponse | null, err?: string): ShadowRe
     inliers: top.map((c) => c.inliers ?? 0),
     ms: typeof res.ms === "number" ? res.ms : null,
     ...(res.regionSwapFrom ? { swap: res.regionSwapFrom } : {}),
+    ...(res.embTop?.length ? { emb: res.embTop.slice(0, 5) } : {}),
+    ...(res.embDecided ? { embDecided: true as const } : {}),
     ...(res.reason ? { err: res.reason } : {}),
   };
 }

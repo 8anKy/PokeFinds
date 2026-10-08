@@ -27,6 +27,32 @@ def _client():
     )
 
 
+EMB_FILES = ["model.onnx", "gallery.npy", "ids.json"]
+
+
+def ensure_emb(data_dir):
+    """Bildvektorns modell + galleri (EMB_VERSION) — egen version, oberoende av DATA_VERSION.
+    Bucket: scanner-engine/emb/<EMB_VERSION>/. Ny modell = ny version, aldrig överskrivning."""
+    version = os.environ.get("EMB_VERSION", "").strip()
+    if not version:
+        return
+    d = os.path.join(data_dir, "emb", version)
+    missing = [f for f in EMB_FILES if not os.path.exists(os.path.join(d, f))]
+    if not missing:
+        return
+    os.makedirs(d, exist_ok=True)
+    s3 = _client()
+    for f in missing:
+        dest = os.path.join(d, f)
+        print(f"hämtar emb/{version}/{f} …", flush=True)
+        try:
+            s3.download_file(os.environ["S3_BUCKET"], f"scanner-engine/emb/{version}/{f}", dest + ".part")
+            os.replace(dest + ".part", dest)
+        except Exception as e:  # valfri del — motorn kör utan bildvektor
+            print(f"kunde inte hämta emb/{version}/{f}: {e}", flush=True)
+            return
+
+
 def ensure_data(data_dir):
     version = os.environ.get("DATA_VERSION", "").strip()
     if not version:

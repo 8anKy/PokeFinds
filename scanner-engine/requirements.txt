@@ -2,3 +2,4 @@ opencv-python-headless==4.13.0.92
 numpy==2.3.2
 faiss-cpu==1.15.1
 boto3==1.43.105
+onnxruntime==1.30.0

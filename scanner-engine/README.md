@@ -1,7 +1,28 @@
-# Skannermotor utan AI
+# Skannermotor
 
-Identifierar ett Pokémonkort ur ett foto med ren bildgeometri — SIFT-nyckelpunkter, ett faiss-index
-över hela katalogen och RANSAC-verifiering. Ingen modell, ingen AI, ingen kostnad per skanning.
+Identifierar ett Pokémonkort ur ett foto med bildgeometri — SIFT-nyckelpunkter, ett faiss-index
+över hela katalogen och RANSAC-verifiering — plus (sedan 2026-10-08) en egen inlärd bildvektor som tar
+över när geometrin inte räcker. Inga externa AI-anrop, ingen kostnad per skanning.
+
+## Inlärd bildvektor (2026-10-08)
+
+Finjusterad SigLIP2-base (`scripts/scanner-proto/train_embed.py`, tränad på en RTX 2070 på ~25 min,
+ENBART katalogens referensbilder med syntetiska mobilfoto-förvanskningar), exporterad som ONNX
+(`export_embed.py`: int8 utom MLP:ns fc2 + poolningshuvudet — full int8 gav cos 0,4–0,6 mot fp32).
+Data i bucketen `scanner-engine/emb/<EMB_VERSION>/` (model.onnx 201 MB, gallery.npy fp16, ids.json);
+`bootstrap.ensure_emb` hämtar, `add_cards` ger nya kort en vektor, start fyller i saknade i bakgrunden.
+
+Mätt offline (`scripts/scanner-proto/hybrid_eval.py`, topp-1):
+
+| Test | Motorn (SIFT) | Bildvektorn ensam | Motorn + vektor |
+|---|---|---|---|
+| Ägarens app-foton (99) | 100 % | 99,0 % | 100 % |
+| Ägarens JP-batch (255) | 93,3 % | 89,0 % | 94,1 % |
+| Tradera-säljarfoton (600) | 90,5 % | 84,5 % | 91,3 % |
+| Tradera suddiga/mörka (600) | 66,5 % | 76,5 % | **78,7 %** |
+
+Regeln: vektorns topp-5 läggs först i steg A; har motorns etta < `EMB_FALLBACK_INLIERS` (15) och ingen
+regionkontroll bytte ⇒ vektorns etta. Vektorn väljer ALDRIG språk (EN/JP-tvillingar har samma konst).
 
 ## Mätt (2026-09-30, offline)
 

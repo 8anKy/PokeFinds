@@ -29,6 +29,8 @@ export default defineRailway((ctx) => {
       PORT: "8080",
       DATA_DIR: "/data",
       DATA_VERSION: "v2",
+      // Inlärd bildvektor (2026-10-08): bucket scanner-engine/emb/<v>/. Ny modell = ny version.
+      EMB_VERSION: "sig1",
       ENGINE_SECRET: ctx.randomString("engine-secret", 32),
       S3_BUCKET: "${{foilio-uploads.BUCKET}}",
       S3_ENDPOINT: "${{foilio-uploads.ENDPOINT}}",

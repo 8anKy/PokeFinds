@@ -13,7 +13,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 const DAYS = Number(process.env.DAGAR ?? "7");
 
-interface Shadow { best: string | null; top: string[]; ms: number | null; err?: string }
+interface Shadow { best: string | null; top: string[]; ms: number | null; err?: string; emb?: string[]; embDecided?: true }
 interface Chosen { cardId?: string | null; kind?: string; via?: string }
 
 async function main() {
@@ -51,6 +51,16 @@ async function main() {
     const today1 = sub.filter((r) => r.recall?.shown?.[0] === truth(r)).length;
     const pct = (k: number) => `${((100 * k) / sub.length).toFixed(1)} %`;
     console.log(`${label} (n=${sub.length}): motorn etta ${pct(engine1)} · motorn topp-5 ${pct(engine5)} · dagens skanner etta ${pct(today1)}`);
+    // BILDVEKTORN (inlärd modell, 2026-10-08): ensam, och de skanningar där den AVGJORDE (för lite geometri).
+    const withEmb = sub.filter((r) => r.shadow!.emb?.length);
+    if (withEmb.length) {
+      const e1 = withEmb.filter((r) => r.shadow!.emb![0] === truth(r)).length;
+      const dec = withEmb.filter((r) => r.shadow!.embDecided);
+      const decOk = dec.filter((r) => r.shadow!.best === truth(r)).length;
+      const decToday = dec.filter((r) => r.recall?.shown?.[0] === truth(r)).length;
+      const p = (k: number, n: number) => (n ? `${((100 * k) / n).toFixed(1)} %` : "–");
+      console.log(`   bildvektorn (n=${withEmb.length}): ensam etta ${p(e1, withEmb.length)} · avgjorde ${dec.length} st, rätt ${p(decOk, dec.length)} (dagens skanner ${p(decToday, dec.length)} på samma)`);
+    }
   }
 }
 

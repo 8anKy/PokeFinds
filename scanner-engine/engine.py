@@ -35,6 +35,14 @@ NPROBE = int(os.environ.get("NPROBE", "32"))
 # Trådtak (2026-10-08): utan tak startar OpenCV en tråd per synlig kärna på Railway-värden, och varje
 # tråd kostar minne. Anropen serialiseras ändå av app.py:s lås. 4 trådar mätt ≈ samma tid som obegränsat.
 cv2.setNumThreads(int(os.environ.get("CV_THREADS", "4")))
+# INLÄRD BILDVEKTOR (2026-10-08, ägarbeslut "train the system if needed"): finjusterad SigLIP2-base som
+# ONNX (int8) på CPU. Föreslår kandidater till steg A och AVGÖR när geometrin inte räcker — mätt offline
+# på suddiga/mörka foton 66,5 → 78,7 %, oförändrat på skarpa (scripts/scanner-proto/hybrid_eval.py).
+# Ingen extern tjänst, ingen kostnad per skanning. Utan EMB_VERSION eller filerna = motorn som förut.
+EMB_VERSION = os.environ.get("EMB_VERSION", "").strip()
+EMB_K = int(os.environ.get("EMB_K", "5"))
+EMB_FALLBACK_INLIERS = int(os.environ.get("EMB_FALLBACK_INLIERS", "15"))
+EMB_SIDE = 224
 RATIO = 0.85  # steg B: distinkt = bästa kandidaten < 0,85 × bästa ANDRA kandidaten
 REGION_WIN = 0.92  # regionkontroll: rivalen måste ha ≥ 8 % lägre fel i skillnadsregionerna
 
@@ -109,6 +117,87 @@ class Engine:
         self.sift = cv2.SIFT_create(nfeatures=QUERY_KP)
         self.matcher = cv2.BFMatcher(cv2.NORM_L2)
         self._grays = OrderedDict()  # regionkontrollens referensbilder, LRU
+        self.emb = None
+        if EMB_VERSION:
+            try:
+                self._load_emb(os.path.join(data_dir, "emb", EMB_VERSION))
+            except Exception as e:  # motorn ska aldrig dö på en valfri del
+                print(f"embedding av: {e}", flush=True)
+
+    # ---------- inlärd bildvektor ----------
+    def _load_emb(self, d):
+        import onnxruntime as ort
+        if not os.path.exists(os.path.join(d, "model.onnx")):
+            print(f"embedding saknas i {d}", flush=True)
+            return
+        so = ort.SessionOptions()
+        so.intra_op_num_threads = int(os.environ.get("CV_THREADS", "4"))
+        so.inter_op_num_threads = 1
+        # Minnet före farten: arenan behåller toppallokeringen för alltid.
+        so.enable_cpu_mem_arena = False
+        so.enable_mem_pattern = False
+        sess = ort.InferenceSession(os.path.join(d, "model.onnx"), so, providers=["CPUExecutionProvider"])
+        ids = json.load(open(os.path.join(d, "ids.json")))
+        G = np.load(os.path.join(d, "gallery.npy"))
+        add_ids, add_g = os.path.join(d, "ids-add.json"), os.path.join(d, "gallery-add.npy")
+        if os.path.exists(add_ids) and os.path.exists(add_g):
+            ids = ids + json.load(open(add_ids))
+            G = np.concatenate([G, np.load(add_g)])
+        index = faiss.IndexScalarQuantizer(G.shape[1], faiss.ScalarQuantizer.QT_fp16, faiss.METRIC_INNER_PRODUCT)
+        index.add(G.astype(np.float32))
+        del G
+        self.emb = {"sess": sess, "index": index, "ids": ids, "dir": d, "added_ids": [], "added": []}
+        _drop_cache(os.path.join(d, "gallery.npy"))
+        print(f"embedding {EMB_VERSION}: {len(ids)} kort", flush=True)
+
+    def _embed(self, bgr):
+        x = cv2.resize(bgr, (EMB_SIDE, EMB_SIDE), interpolation=cv2.INTER_AREA)
+        x = (x[:, :, ::-1].astype(np.float32) / 255.0 - 0.5) / 0.5
+        return self.emb["sess"].run(None, {"pixel_values": np.ascontiguousarray(x.transpose(2, 0, 1)[None])})[0][0]
+
+    def _emb_top(self, bgr, k):
+        sc, ix = self.emb["index"].search(self._embed(bgr)[None].astype(np.float32), k)
+        ids = self.emb["ids"]
+        return [(ids[i], float(v)) for i, v in zip(ix[0], sc[0]) if i >= 0]
+
+    def emb_missing(self):
+        """Kort motorn känner men som saknar bildvektor (tillkomna via add_cards före embeddingen)."""
+        if not self.emb:
+            return []
+        have = set(self.emb["ids"])
+        return [c for c in self.ids if c not in have and self.image_urls.get(c)]
+
+    def emb_add(self, cid, bgr):
+        v = self._embed(bgr).astype(np.float32)
+        self.emb["index"].add(v[None])
+        self.emb["ids"].append(cid)
+        self.emb["added_ids"].append(cid)
+        self.emb["added"].append(v.astype(np.float16))
+
+    def emb_persist(self):
+        e = self.emb
+        if not e or not e["added_ids"]:
+            return
+        d = e["dir"]
+        ids_path, g_path = os.path.join(d, "ids-add.json"), os.path.join(d, "gallery-add.npy")
+        prev_ids = json.load(open(ids_path)) if os.path.exists(ids_path) else []
+        new = np.stack(e["added"])
+        prev_g = np.load(g_path) if os.path.exists(g_path) else np.zeros((0, new.shape[1]), np.float16)
+        np.save(g_path + ".tmp.npy", np.concatenate([prev_g, new]))
+        with open(ids_path + ".tmp", "w") as f:
+            json.dump(prev_ids + e["added_ids"], f)
+        os.replace(g_path + ".tmp.npy", g_path)
+        os.replace(ids_path + ".tmp", ids_path)
+        e["added_ids"], e["added"] = [], []
+
+    def fetch_bgr(self, cid):
+        """Referensbilden i färg (för bildvektorns påfyllning av kort som saknar vektor)."""
+        url = self.image_urls.get(cid)
+        if not url:
+            return None
+        req = urllib.request.Request(url, headers={"User-Agent": "Foilio/1.0 (+https://foilio.se)"})
+        buf = urllib.request.urlopen(req, timeout=20).read()
+        return cv2.imdecode(np.frombuffer(buf, np.uint8), cv2.IMREAD_COLOR)
 
     # ---------- referenser ----------
     @staticmethod
@@ -275,16 +364,24 @@ class Engine:
     # ---------- publikt ----------
     def identify(self, image_bytes):
         t0 = time.time()
-        arr = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_GRAYSCALE)
-        if arr is None:
+        color = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if color is None:
             return {"error": "bad-image"}
+        arr = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
         photo = _gray(arr, QUERY_SIDE)
+        emb_top = self._emb_top(color, max(EMB_K, 5)) if self.emb else []
+        del color
         kq, des = self.sift.detectAndCompute(photo, None)
         if des is None or len(kq) < 8:
+            if emb_top:  # ingen geometri alls — bildvektorn är det enda som finns
+                return {"best": emb_top[0][0], "candidates": [{"cardId": c, "inliers": 0} for c, _ in emb_top],
+                        "embTop": [c for c, _ in emb_top], "embDecided": True, "ms": int((time.time() - t0) * 1000)}
             return {"candidates": [], "ms": int((time.time() - t0) * 1000), "reason": "no-features"}
         dq = _root_sift(des)
         stage_a = self._candidates(dq)
         cands = [c for c, _ in stage_a]
+        # Bildvektorns förslag FÖRST i kön (de saknar SIFT-röster) — steg B verifierar dem som alla andra.
+        cands = [c for c, _ in emb_top[:EMB_K] if c not in cands] + cands
         t_a = time.time()
         scores, _ = self._distinctive(kq, dq, cands)
         ranked = sorted(scores.items(), key=lambda kv: -kv[1])
@@ -319,10 +416,18 @@ class Engine:
                     if rc[1] < rc[0] * REGION_WIN:
                         lang_swap, best = best, rival
                     break
+        # RESERV: för få geometriska bevis (suddigt, mörkt, bländning) ⇒ bildvektorns etta. Aldrig när
+        # en språk-/omtryckskontroll redan bytt — den hade geometri att stå på.
+        emb_decided = False
+        if emb_top and not swapped and not lang_swap and scores.get(best, 0) < EMB_FALLBACK_INLIERS:
+            if best != emb_top[0][0]:
+                best, emb_decided = emb_top[0][0], True
         order = [best] + [c for c, _ in ranked if c != best] + [c for c in cands if c != best and c not in scores]
         return {
             "best": best,
             "candidates": [{"cardId": c, "inliers": scores.get(c, 0)} for c in order[:TOP_K]],
+            "embTop": [c for c, _ in emb_top[:5]],
+            "embDecided": emb_decided,
             "regionSwapFrom": swapped or lang_swap,
             "msA": int((t_a - t0) * 1000),
             "ms": int((time.time() - t0) * 1000),
@@ -346,9 +451,10 @@ class Engine:
                 try:
                     req = urllib.request.Request(url, headers={"User-Agent": "Foilio/1.0 (+https://foilio.se)"})
                     buf = urllib.request.urlopen(req, timeout=20).read()
-                    img = cv2.imdecode(np.frombuffer(buf, np.uint8), cv2.IMREAD_GRAYSCALE)
-                    if img is None:
+                    col = cv2.imdecode(np.frombuffer(buf, np.uint8), cv2.IMREAD_COLOR)
+                    if col is None:
                         raise ValueError("bild")
+                    img = cv2.cvtColor(col, cv2.COLOR_BGR2GRAY)
                     h, w = img.shape
                     img = cv2.resize(img, (int(w * 480 / h), 480), interpolation=cv2.INTER_AREA)
                     _, d_nn = cv2.SIFT_create(nfeatures=300).detectAndCompute(img, None)
@@ -373,11 +479,14 @@ class Engine:
                 self.image_urls[cid] = url
                 if c.get("language"):
                     self.langs[cid] = c["language"]
+                if self.emb:
+                    self.emb_add(cid, col)
                 added.append(cid)
         if added:
             self.index.add(np.vstack(vecs).astype(np.float32))
             self.owners = np.concatenate([self.owners] + owners_add)
             self._persist()
+            self.emb_persist()
         return {"added": len(added), "failed": failed[:20], "failedCount": len(failed), "cards": len(self.ids)}
 
     def _persist(self):

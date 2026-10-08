@@ -298,6 +298,13 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   `scripts/scanner-shadow-report.ts`; Gemini stängs av först när skuggan vinner i fält. Drift/kostnad:
   `scanner-engine/README.md`. ⛔ Allt som läggs till i Railway-dashboarden MÅSTE in i `.railway/railway.ts` — filen
   från 09-02 hade annars raderat bucketen + 14 variabler vid nästa apply; läs ALLTID "to destroy" i plan.
+  **+ INLÄRD BILDVEKTOR SEDAN 2026-10-08 (ägarbeslut: "train the system if needed" + "skannern ska bli bättre
+  för varje gång")**: finjusterad SigLIP2-base (tränad lokalt ENBART på katalogbilder med syntetiska
+  mobilfoto-förvanskningar) som int8-ONNX i motorn (`EMB_VERSION`, bucket `scanner-engine/emb/<v>/`). Föreslår
+  kandidater + AVGÖR när geometrin har < 15 inliers. Offline: suddiga/mörka foton 66,5 → 78,7 %, skarpa oförändrade.
+  ⛔ Full int8 förstör modellen (cos 0,4–0,6) — fc2 + head ligger kvar i fp32. ⛔ Språket (EN/JP) avgörs fortfarande
+  av motorns regionkontroll, aldrig av vektorn. ⛔ Samtyckta skanningsfoton får INTE tränas på (policyn). Träning +
+  mätning: `scripts/scanner-proto/{train_embed,export_embed,hybrid_eval}.py`, `scanner-engine/test_emb.py`.
 - **Google-/Apple-inloggning (kod klar 2026-08-29, AKTIVERAS AV ENV)**: webb = NextAuth-providers
   (`lib/auth.ts`), app = NATIVT SDK via `@capgo/capacitor-social-login` → id_token → provider
   `native-token` (verifieras mot JWKS i `lib/oauth-id-token.ts`). Google blockar sitt WEBBFLÖDE i
