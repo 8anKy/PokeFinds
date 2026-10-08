@@ -56,6 +56,20 @@ export async function SiteFooter() {
             <li><Link href="/villkor" className="transition-colors duration-150 hover:text-ink">{t("terms")}</Link></li>
             <li><Link href="/integritetspolicy" className="transition-colors duration-150 hover:text-ink">{t("privacy")}</Link></li>
             <li><Link href="/cookies" className="transition-colors duration-150 hover:text-ink">{t("cookies")}</Link></li>
+            {/* ⛔ rel="sponsored" är INTE valfritt: Cardshop Sweden betalar för sin placering
+                (Retailer.sponsoredUntil), och en följd länk i ett betalt förhållande är en
+                länkaffär enligt Googles riktlinjer — straffet drabbar foilio.se, inte butiken.
+                Statisk med flit (sidfoten är DB-fri) ⇒ ta bort raden när sponsringen upphör. */}
+            <li>
+              <a
+                href="https://cardshopsweden.se"
+                target="_blank"
+                rel="sponsored noopener"
+                className="transition-colors duration-150 hover:text-ink"
+              >
+                {t("partnerStore")}
+              </a>
+            </li>
           </ul>
         </div>
       </div>
