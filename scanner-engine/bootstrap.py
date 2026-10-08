@@ -28,6 +28,35 @@ def _client():
 
 
 EMB_FILES = ["model.onnx", "gallery.npy", "ids.json"]
+TEMP_SUFFIXES = (".part", ".tmp", ".tmp.npy", ".faiss.tmp")
+
+
+def clean_volume(data_dir):
+    """Städa volymen (5 GB, 77 % 2026-10-08) FÖRE allt annat — körs innan motorn laddar och innan
+    servern lyssnar, så ingenting kan skriva samtidigt. Två saker växer annars för alltid:
+    (1) varje EMB_VERSION får en egen katalog (~0,35 GB) och gamla raderades aldrig — motorn läser
+    BARA den aktuella, och bucketen behåller alla, så en rollback hämtar bara om; (2) .part/.tmp efter
+    en omstart mitt i en hämtning/skrivning. Utan EMB_VERSION rörs emb/ inte (motorn kör då utan
+    bildvektor, och ett tillfälligt avslag ska inte kosta en ny hämtning)."""
+    import shutil
+    freed = 0
+    for root, _, files in os.walk(data_dir):
+        for f in files:
+            if f.endswith(TEMP_SUFFIXES):
+                p = os.path.join(root, f)
+                freed += os.path.getsize(p)
+                os.remove(p)
+    version = os.environ.get("EMB_VERSION", "").strip()
+    emb_root = os.path.join(data_dir, "emb")
+    if version and os.path.isdir(emb_root):
+        for name in os.listdir(emb_root):
+            p = os.path.join(emb_root, name)
+            if name != version and os.path.isdir(p):
+                freed += sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(p) for f in fs)
+                shutil.rmtree(p)
+                print(f"tog bort gammal bildvektor emb/{name}", flush=True)
+    if freed:
+        print(f"volymstädning: {freed / 1e6:.0f} MB frigjort", flush=True)
 
 
 def ensure_emb(data_dir):

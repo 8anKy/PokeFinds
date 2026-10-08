@@ -11,10 +11,11 @@ OpenCV:s SIFT-objekt är inte trådsäkert, och skannervolymen är några hundra
 import ctypes, json, os, socket, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from bootstrap import ensure_data, ensure_emb
+from bootstrap import clean_volume, ensure_data, ensure_emb
 from engine import Engine
 
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
+clean_volume(DATA_DIR)
 ensure_data(DATA_DIR)
 ensure_emb(DATA_DIR)
 SECRET = os.environ.get("ENGINE_SECRET", "")
