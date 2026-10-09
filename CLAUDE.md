@@ -168,8 +168,9 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   export bär nu set/nummer/variant/externt id/slug sist i filen så en återimport blir exakt utan att
   bryta gamla kalkylark. Regler: `.claude/rules/collection-portfolio.md`.
 - **COMMUNITY V2 ÄR PUBLIKT SEDAN SENAST 2026-09-15** (`COMMUNITY_V2_PUBLIC` satt i Railway, verifierat: `/forum`
-  renderar trådar för en vanlig webbläsare). ⛔ `DISCORD_MARKET_CHANNEL_ID` är INTE satt ⇒ Köp/Sälj/Byt speglas
-  inte till Discord förrän kanalen finns. Historiken nedan beskriver grindningen som gällde före släppet.
+  renderar trådar för en vanlig webbläsare). ✅ `DISCORD_MARKET_CHANNEL_ID` = serverns befintliga 💱│köp-trade-sälj
+  (2026-10-09): bara marknadsgruppens annonser, alla foton som bilagor, spegeln tas bort när annonsen blir
+  Såld/Avslutad/raderas/döljs eller kontot raderas (`services/market-discord.ts`). Historiken nedan beskriver grindningen som gällde före släppet.
 - **COMMUNITY V2 I KOD SEDAN 2026-09-03, VAR GRINDAT TILLS ÄGAREN TESTAT** (`.claude/rules/community-v2.md`):
   forum med kurerade grupper + Köp/Sälj/Byt-trådar (`/forum`), bilder i Railway Bucket, 1:1-meddelanden via SSE
   (`/meddelanden`, aldrig pollning), Tradera-annonser på profilen (egen spak). Syns BARA för admin, för
