@@ -113,7 +113,11 @@ export function buildMarketEmbed(post: MarketThreadPost) {
   return {
     title: clamp(headline(post), MAX_TITLE),
     url: threadUrl(post.id),
-    description: clamp(post.content.replace(/\s+/g, " ").trim(), MAX_DESCRIPTION),
+    // Radbrytningarna behålls ("Skick: …" / "Språk: …" på egna rader); bara tomrader slås ihop.
+    description: clamp(
+      post.content.replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim(),
+      MAX_DESCRIPTION
+    ),
     color: BRAND_COLOR,
     fields,
     footer: { text: "Foilio Community · Köp, sälj & byt — svara i appen, inte här" },

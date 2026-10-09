@@ -36,6 +36,11 @@ describe("buildMarketEmbed", () => {
     expect(e.fields.find((f) => f.name === "Marknadspris")?.value).toContain("/produkter/kangaskhan");
   });
 
+  it("behåller radbrytningar men slår ihop tomrader", () => {
+    const e = buildMarketEmbed(post({ content: "Skick: NM\n\n\n\nSpråk:   Japanska" }));
+    expect(e.description).toBe("Skick: NM\n\nSpråk: Japanska");
+  });
+
   it("bäddar aldrig in en bild — fotona är bilagor", () => {
     const e = buildMarketEmbed(post()) as Record<string, unknown>;
     expect(e.image).toBeUndefined();
