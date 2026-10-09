@@ -64,8 +64,9 @@ paths:
   Pro-grind) — tilliten visas som SIGNALER på säljarkortet (medlem sedan, Tradera-/Discord-kopplad,
   försäljningar via Foilio) i stället för att stängas ute. Nya marknadstrådar korspostas till Discord via
   bot-token + `DISCORD_MARKET_CHANNEL_ID` (tomt = av, aldrig ett fel) — serverns BEFINTLIGA köp-trade-sälj-kanal
-  (ägarbeslut 2026-10-09), ⛔ BARA marknadsgruppens annonser. Alla foton (fram + bak, ≤ 6) laddas upp som
-  BILAGOR (signerade URL:er dör efter 7 d), kortet + knappen "Öppna annonsen i Foilio" under; text- eller
+  (ägarbeslut 2026-10-09), ⛔ BARA marknadsgruppens annonser. Fotona laddas upp som BILAGOR (signerade URL:er
+  dör efter 7 d) och visas INNE I kortet som galleri — embeds med samma `url`, Discords tak = 4; fler ⇒ raden
+  "+N bilder i annonsen på Foilio" (ägarbeslut 2026-10-09). Knappen "Öppna annonsen i Foilio" under; text- eller
   forumkanal avgörs av kanaltypen. ⛔ `CommunityPost.discordMessageId`: spegeln TAS BORT när annonsen blir
   Såld/Avslutad, raderas, döljs av moderator eller kontot raderas (`services/market-discord.ts`). "Aktiv igen"
   postar inte om (gratis lyft i kanalen). Boten behöver Send Messages + Attach Files + Embed Links
