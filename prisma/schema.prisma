@@ -1316,6 +1316,10 @@ model CommunityPost {
   condition      String?
   productId      String?
   traderaUrl     String?
+  // Annonsens spegel i Discords köp-trade-sälj-kanal (lib/discord-market.ts; i en
+  // forumkanal trådens id). Tas bort när annonsen säljs/avslutas/raderas/döljs
+  // eller kontot raderas — Discord får aldrig bli en väg förbi det.
+  discordMessageId String?
   // Senaste svar/aktivitet — driver sorteringen i flödet ("senast aktiv").
   lastActivityAt DateTime       @default(now())
   createdAt      DateTime       @default(now())

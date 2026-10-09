@@ -63,7 +63,13 @@ paths:
   inget, håller inga pengar. Villkoren §21 säger exakt det. Alla inloggade får sälja (ägarbeslut, ingen ålders-/
   Pro-grind) — tilliten visas som SIGNALER på säljarkortet (medlem sedan, Tradera-/Discord-kopplad,
   försäljningar via Foilio) i stället för att stängas ute. Nya marknadstrådar korspostas till Discord via
-  bot-token + `DISCORD_MARKET_CHANNEL_ID` (tomt = av, aldrig ett fel).
+  bot-token + `DISCORD_MARKET_CHANNEL_ID` (tomt = av, aldrig ett fel) — serverns BEFINTLIGA köp-trade-sälj-kanal
+  (ägarbeslut 2026-10-09), ⛔ BARA marknadsgruppens annonser. Alla foton (fram + bak, ≤ 6) laddas upp som
+  BILAGOR (signerade URL:er dör efter 7 d), kortet + knappen "Öppna annonsen i Foilio" under; text- eller
+  forumkanal avgörs av kanaltypen. ⛔ `CommunityPost.discordMessageId`: spegeln TAS BORT när annonsen blir
+  Såld/Avslutad, raderas, döljs av moderator eller kontot raderas (`services/market-discord.ts`). "Aktiv igen"
+  postar inte om (gratis lyft i kanalen). Boten behöver Send Messages + Attach Files + Embed Links
+  (forum: Create Posts; Manage Threads för att radera tråden, annars raderas startinlägget).
 - **⛔ CHATTEN POLLAR ALDRIG NEON.** Leverans = SSE-ström (`/api/chat/stream`, hålls av Railway-processen) +
   in-memory-nav (`src/lib/chat-hub.ts`); ett meddelande = EN skrivning + `publish()`, och push
   (`pushToUser`) BARA när mottagaren inte är ansluten (`isConnected`). Att öppna en konversation är en fråga.

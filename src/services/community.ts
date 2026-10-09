@@ -7,6 +7,7 @@
  * (`imageUrls`) och lagras aldrig — nyckeln är sanningen, URL:en är färskvara.
  */
 import { deleteStoreReportFromDiscord } from "@/lib/discord-store-report";
+import { removeMarketPostFromDiscord } from "@/services/market-discord";
 import { REPORT_FRESH_HOURS, reportIsFresh } from "@/lib/community-stores";
 import { FRESH_BUCKET_MS } from "@/lib/community-feed-modes";
 import { tallyVotes, type StoreReportVote, type VoteTally } from "@/lib/store-report-votes";
@@ -488,7 +489,7 @@ export async function setListingStatus(
 ) {
   const post = await prisma.communityPost.findUnique({
     where: { id: postId },
-    select: { userId: true, listingKind: true, group: { select: { slug: true } } },
+    select: { userId: true, listingKind: true, discordMessageId: true, group: { select: { slug: true } } },
   });
   if (!post) throw new ServiceError(404, "Tråden hittades inte.");
   if (!post.listingKind) throw new ServiceError(400, "Tråden är ingen annons.");
@@ -503,6 +504,9 @@ export async function setListingStatus(
     data: { listingStatus: next },
     select: { id: true, listingStatus: true },
   });
+  // Såld/avslutad ⇒ annonsen tas bort ur Discord (ägarbeslut 2026-10-09). "Aktiv igen"
+  // postar INTE om: en växling såld ↔ aktiv hade annars varit ett gratis lyft i kanalen.
+  if (next !== "ACTIVE") await removeMarketPostFromDiscord(postId, post.discordMessageId);
   return { ...updated, groupSlug: post.group?.slug ?? null };
 }
 
@@ -519,6 +523,7 @@ export async function deletePost(postId: string, userId: string, userRole: Role)
       images: { select: { key: true, thumbKey: true } },
       group: { select: { slug: true } },
       storeReport: { select: { discordMessageId: true } },
+      discordMessageId: true,
     },
   });
   if (!post) throw new ServiceError(404, "Tråden hittades inte.");
@@ -533,6 +538,8 @@ export async function deletePost(postId: string, userId: string, userRole: Role)
     groupSlug: post.group?.slug ?? null,
     // Butikslarmets spegel i Discord ska bort med inlägget (lib/discord-store-report.ts).
     discordMessageIds: [post.storeReport?.discordMessageId ?? null],
+    // Annonsens spegel i köp-trade-sälj-kanalen (lib/discord-market.ts).
+    marketDiscordMessageId: post.discordMessageId,
   };
 }
 
@@ -760,10 +767,13 @@ export async function reportPost(postId: string, reporterId: string, reason: str
 export async function hidePost(postId: string, hidden = true) {
   const post = await prisma.communityPost.findUnique({
     where: { id: postId },
-    select: { id: true, storeReport: { select: { discordMessageId: true } } },
+    select: { id: true, discordMessageId: true, storeReport: { select: { discordMessageId: true } } },
   });
   if (!post) throw new ServiceError(404, "Tråden hittades inte.");
-  if (hidden) await deleteStoreReportFromDiscord([post.storeReport?.discordMessageId]);
+  if (hidden) {
+    await deleteStoreReportFromDiscord([post.storeReport?.discordMessageId]);
+    await removeMarketPostFromDiscord(postId, post.discordMessageId);
+  }
   return prisma.communityPost.update({
     where: { id: postId },
     data: { isHidden: hidden },
@@ -777,7 +787,9 @@ export async function resolveReport(
 ) {
   const report = await prisma.report.findUnique({
     where: { id: reportId },
-    include: { post: { select: { storeReport: { select: { discordMessageId: true } } } } },
+    include: {
+      post: { select: { discordMessageId: true, storeReport: { select: { discordMessageId: true } } } },
+    },
   });
   if (!report) throw new ServiceError(404, "Rapporten hittades inte.");
 
@@ -799,6 +811,9 @@ export async function resolveReport(
       : []),
   ]);
   // Ett dolt inlägg får inte leva kvar som butikslarm i Discord.
-  if (opts.hidePost) await deleteStoreReportFromDiscord([report.post?.storeReport?.discordMessageId]);
+  if (opts.hidePost) {
+    await deleteStoreReportFromDiscord([report.post?.storeReport?.discordMessageId]);
+    await removeMarketPostFromDiscord(report.postId, report.post?.discordMessageId ?? null);
+  }
   return updated;
 }

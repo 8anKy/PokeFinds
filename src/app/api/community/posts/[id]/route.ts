@@ -6,6 +6,7 @@ import { assertCommunityV2 } from "@/lib/community-v2-server";
 import { deleteImage } from "@/lib/object-storage";
 import { deletePost, getPost, setListingStatus } from "@/services/community";
 import { deleteStoreReportFromDiscord } from "@/lib/discord-store-report";
+import { deleteMarketPostsFromDiscord } from "@/lib/discord-market";
 import { revalidateForum } from "../../_shared/revalidate";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
       )
     );
     await deleteStoreReportFromDiscord(result.discordMessageIds);
+    await deleteMarketPostsFromDiscord([result.marketDiscordMessageId]);
     return jsonOk({ deleted: true });
   } catch (e) {
     return apiError(e);

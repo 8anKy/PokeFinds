@@ -9,14 +9,13 @@ import { ServiceError } from "@/lib/errors";
 import { assertCommunityV2 } from "@/lib/community-v2-server";
 import {
   buildThumbKey,
-  imageUrl,
   isForumImageKey,
   MAX_IMAGES_PER_POST,
 } from "@/lib/object-storage";
 import { LISTING_CONDITIONS, validateListing } from "@/lib/listing-rules";
 import { assertForumRulesAccepted, logModerationEvent } from "@/lib/forum-rules";
 import { findProfanity, PROFANITY_CODE } from "@/lib/profanity";
-import { postMarketThreadToDiscord } from "@/lib/discord-market";
+import { syncMarketPostToDiscord } from "@/services/market-discord";
 import { createPost, getFeed } from "@/services/community";
 import { getGroupBySlug } from "@/services/community-groups";
 import { revalidateForum } from "../_shared/revalidate";
@@ -219,22 +218,9 @@ export async function POST(req: Request) {
     revalidateForum({ group: true });
 
     if (group.isMarketplace) {
-      // Fire-and-forget: tråden är sparad, Discord får inte fördröja svaret.
-      const firstKey = post.images[0]?.key;
-      void (firstKey ? imageUrl(firstKey) : Promise.resolve(null))
-        .catch(() => null)
-        .then((thumb) =>
-          postMarketThreadToDiscord({
-            id: post.id,
-            title: post.title,
-            content: post.content,
-            listingKind: post.listingKind,
-            priceOre: post.priceOre,
-            condition: post.condition,
-            authorName: post.user.name,
-            imageUrl: thumb,
-          })
-        );
+      // Fire-and-forget till köp-trade-sälj-kanalen (services/market-discord.ts).
+      // ⛔ Bara marknadsgruppen — övriga inlägg hade grumlat medlemmarnas kanal.
+      void syncMarketPostToDiscord(post.id);
     }
 
     if (storeReport) {
