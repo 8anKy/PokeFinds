@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { cn } from "@/lib/utils";
 import { useCommunityV2 } from "@/lib/use-community-v2";
+import { UnseenDot } from "@/components/ui/unseen-dot";
 import {
   IconSearch,
   IconBell,
@@ -137,7 +138,10 @@ export function AppShell({
               : "text-ink-muted hover:bg-surface-overlay/60 hover:text-ink hover:translate-x-0.5"
           )}
         >
-          <item.icon size={18} className="shrink-0" />
+          <span className="relative shrink-0">
+            <item.icon size={18} className="shrink-0" />
+            {(item.key === "community" || item.key === "forum") && <UnseenDot section="community" className="-right-1 -top-1" />}
+          </span>
           {label(item.ns, item.key)}
         </Link>
       ))}

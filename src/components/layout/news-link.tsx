@@ -19,6 +19,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { newsFeedPublic } from "@/lib/news-feed-gate";
 import { IconNews } from "@/components/ui/icons";
+import { UnseenDot } from "@/components/ui/unseen-dot";
 
 export function NewsLink() {
   const t = useTranslations("News");
@@ -33,7 +34,10 @@ export function NewsLink() {
       title={t("headerLink")}
       className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-ink-muted transition-colors hover:text-ink lg:h-auto lg:w-auto lg:gap-2 lg:border lg:border-surface-border lg:bg-surface-raised lg:px-3.5 lg:py-1.5 lg:hover:border-holo-cyan/50"
     >
-      <IconNews size={22} className="shrink-0" />
+      <span className="relative shrink-0">
+        <IconNews size={22} className="shrink-0" />
+        <UnseenDot section="news" className="-right-0.5 -top-0.5" />
+      </span>
       <span className="hidden text-sm font-semibold lg:inline">{t("headerLinkShort")}</span>
     </Link>
   );

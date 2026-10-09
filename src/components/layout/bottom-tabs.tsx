@@ -11,6 +11,7 @@ import { isEmailLandingRoute } from "@/lib/auth-routes";
 import { hidesBottomTabs } from "@/lib/immersive-routes";
 import { useCommunityV2 } from "@/lib/use-community-v2";
 import { rubberBand } from "@/lib/swipe-gesture";
+import { UnseenDot } from "@/components/ui/unseen-dot";
 import {
   IconSearch,
   IconPackage,
@@ -236,7 +237,7 @@ export function BottomTabs() {
                 {/* Den gemensamma markören följer fingret över hela flikraden. */}
                 <span
                   className={cn(
-                    "flex h-8 w-10 items-center justify-center rounded-full transition-transform duration-150 motion-reduce:transition-none",
+                    "relative flex h-8 w-10 items-center justify-center rounded-full transition-transform duration-150 motion-reduce:transition-none",
                     preview && highlighted && "scale-110"
                   )}
                 >
@@ -247,6 +248,7 @@ export function BottomTabs() {
                       active && !preview && "motion-safe:animate-tab-pop"
                     )}
                   />
+                  {(t.key === "community" || t.key === "forum") && <UnseenDot section="community" className="right-1.5 top-0.5" />}
                 </span>
                 <span className="sr-only">{tNav(t.key)}</span>
               </Link>

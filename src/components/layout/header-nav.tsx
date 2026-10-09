@@ -5,6 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { useCommunityV2 } from "@/lib/use-community-v2";
+import { UnseenDot } from "@/components/ui/unseen-dot";
 
 // Fyra huvudflikar på desktop (ägarbeslut 2026-08-11), samma Portfölj-mål som
 // mobilens tabb = /samling. ⛔ Marknad är BORTTAGEN (ägarbeslut 2026-09-07): fliken
@@ -40,6 +41,7 @@ export function HeaderNav() {
             )}
           >
             {t(l.key)}
+            {(l.key === "community" || l.key === "forum") && <UnseenDot section="community" className="right-0.5 top-0.5" />}
             {/* Aktiv-markör: cyan linje som växer ut från mitten (transform → GPU). */}
             <span
               aria-hidden

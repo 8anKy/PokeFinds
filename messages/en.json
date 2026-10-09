@@ -190,6 +190,7 @@
     "scanPhotoOffToast": "Switched off — your saved scan photos have been deleted."
   },
   "Nav": {
+    "unseen": "New since your last visit",
     "explore": "Explore",
     "community": "Community",
     "pricing": "Pricing",

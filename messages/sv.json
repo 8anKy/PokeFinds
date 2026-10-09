@@ -190,6 +190,7 @@
     "scanPhotoOffToast": "Avstängt — dina sparade skanningsbilder har raderats."
   },
   "Nav": {
+    "unseen": "Nytt sedan sist",
     "explore": "Utforska",
     "community": "Community",
     "pricing": "Priser",

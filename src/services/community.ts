@@ -339,6 +339,28 @@ async function getFeedRaw(params: FeedParams) {
 
 export const getFeed = cachedRead(getFeedRaw, "community-feed-v7", 3600, ["community-feed"]);
 
+/**
+ * De senaste inläggens tid + författare för "något nytt"-pricken (`/api/unseen`).
+ * Samma synlighet som startflödet; delad cache på `community-feed`-taggen, som
+ * varje skrivning kastar ⇒ EN DB-läsning per nytt inlägg, inte en per användare.
+ * Tjugo rader räcker för att hoppa över betraktarens egna senaste inlägg.
+ */
+export const getCommunityLatest = cachedRead(
+  async () => {
+    const rows = await prisma.communityPost.findMany({
+      where: buildFeedWhere({}),
+      select: { createdAt: true, userId: true },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 20,
+    });
+    // unstable_cache JSON-serialiserar — Date blir sträng ändå, gör det uttryckligt.
+    return rows.map((r) => ({ createdAt: r.createdAt.toISOString(), userId: r.userId }));
+  },
+  "community-latest-v1",
+  86_400,
+  ["community-feed"]
+);
+
 /** Ett valt äldre inlägg på profilen: samma miniatyrer/modereringsvakt som
  * flödet, en delad läsning i stället för att hämta alla personens sidor. */
 export const getProfileFeedItem = cachedRead(async (postId: string, authorId: string): Promise<FeedItem | null> => {
