@@ -214,7 +214,9 @@ export function SwipeTabs({
                 role="tabpanel"
                 aria-labelledby={`${baseId}-tab-${tab.id}`}
                 aria-hidden={!isActive}
-                className={cn("w-full pt-4", isActive ? "relative" : "absolute top-0")}
+                // overflow-x-clip: innehåll som medvetet sticker ut (flödets -mx-2.5) hade
+                // annars synts som en kant av grannfliken. `clip` skapar ingen scrollyta.
+                className={cn("w-full overflow-x-clip pt-4", isActive ? "relative" : "absolute top-0")}
                 style={isActive ? undefined : { left: `${(i - active) * 100}%` }}
               >
                 {tab.content}

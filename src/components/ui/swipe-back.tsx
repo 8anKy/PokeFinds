@@ -296,7 +296,9 @@ export function SwipeBack({
             // En fixed helskärmsyta lämnar annars sidans dokument-scroll bakom
             // sig. Den egna scrollcontainern gör långa listor (som Nyheter)
             // rullbara utan att den övre svepytan tappar viewporten.
-            "fixed inset-0 z-30 overflow-y-auto overscroll-contain lg:static lg:z-auto lg:overflow-visible",
+            // overscroll-none (inte contain): contain stoppar bara kedjningen, iOS
+            // gummibandar ändå hela ytan inkl. namnraden — samma regel som `html`.
+            "fixed inset-0 z-30 overflow-y-auto overscroll-none lg:static lg:z-auto lg:overflow-visible",
             viewportInset === "app"
               ? "pt-[calc(env(safe-area-inset-top)+1.5rem)] lg:pt-0"
               : "pt-[env(safe-area-inset-top)] lg:pt-0",

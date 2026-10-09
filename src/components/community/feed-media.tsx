@@ -35,7 +35,7 @@ export function FeedMedia({ images, href, lightbox = false }: { images: ForumIma
   }
   return <div data-swipe-ignore className="relative">
     <div ref={track} data-feed-carousel role="region" aria-label={t("photoAlbum")} tabIndex={available.length > 1 ? 0 : -1}
-      className="flex w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain bg-surface [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain bg-surface [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       style={{ aspectRatio: ratio }}
       onPointerDown={() => prepare(index)}
       onTouchStart={e => { prepare(index); if (e.touches.length === 1) start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
@@ -50,9 +50,12 @@ export function FeedMedia({ images, href, lightbox = false }: { images: ForumIma
       {available.map((image, i) => {
         // ⛔ Första bilden ensam före interaktion. Sex img-taggar med lazy i en
         // kort rad gör att webbläsaren ändå hämtar hela serien.
-        const photo = loaded.includes(i) ? <img src={image.url!} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover"
+        const photo = loaded.includes(i) ? <img src={image.url!} alt="" loading="lazy" decoding="async" draggable={false} className="absolute inset-0 h-full w-full object-cover"
           onLoad={i === 0 && !(first.width && first.height) ? e => { const { naturalWidth: w, naturalHeight: h } = e.currentTarget; if (w && h) setNatural(w / h); } : undefined} /> : null;
-        const className = "block h-full w-full shrink-0 snap-center snap-always";
+        // ⛔ Bilden ligger ABSOLUT i sin ruta. I en <button> (profil/tråd) löser WebKit
+        // inte `h-full` — bilden fick sin naturliga höjd, blev högre än ramen och
+        // spåret gick att dra lodrätt (svart band ovanför, "studsig" profil).
+        const className = "relative block h-full w-full shrink-0 snap-center snap-always overflow-hidden";
         return lightbox ? <button key={image.key} type="button" tabIndex={i === index ? 0 : -1} aria-label={t("readPost")} onClick={() => setOpen(i)} className={className}>{photo}</button> : <Link key={image.key} href={href} tabIndex={i === index ? 0 : -1} aria-label={t("openProfile")} className={className}>{photo}</Link>;
       })}
     </div>
