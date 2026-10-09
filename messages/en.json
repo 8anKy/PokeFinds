@@ -978,6 +978,10 @@
     "adminUpdateFailed": "Couldn't update the report"
   },
   "Profile": {
+    "postsGrid": "Posts",
+    "openPost": "Open post {title}",
+    "multiplePhotos": "Multiple photos",
+    "closePosts": "Close",
     "metaSuffix": "{name} · profile",
     "metaNotFound": "Profile not found",
     "reputation": "in reputation",

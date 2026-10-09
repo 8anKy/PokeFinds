@@ -13,6 +13,7 @@ import { IconCheck } from "@/components/ui/icons";
 import { SwipeBack } from "@/components/ui/swipe-back";
 import { SwipeTabs, type SwipeTab } from "@/components/ui/swipe-tabs";
 import { ThreadList } from "@/components/community/thread-list";
+import { ProfilePostGrid } from "@/components/community/profile-post-grid";
 import { ProfileHeader } from "@/components/community/profile-header";
 import { MessageButton } from "./message-button";
 import { PortfolioPane } from "./portfolio-pane";
@@ -158,14 +159,22 @@ export default async function ProfilePage({ params, searchParams }: { params: { 
     {
       id: "posts",
       label: t("tabPosts"),
-      content: (
+      // Rutnät + helskärmsvy (ägarbeslut 2026-10-09). Utanför grinden: den gamla
+      // trådlistan mot gamla communityt (samma id:n).
+      content: communityV2 ? (
+        <ProfilePostGrid
+          initial={profilePosts}
+          author={user.id}
+          authorName={user.name}
+          emptyText={t("noPosts", { name: user.name })}
+          initialOpenId={typeof searchParams?.inlagg === "string" && profilePosts.items.some((p) => p.id === searchParams.inlagg) ? searchParams.inlagg : null}
+        />
+      ) : (
         <ThreadList
-          visual={communityV2}
           initial={profilePosts}
           author={user.id}
           emptyText={t("noPosts", { name: user.name })}
-          // Utanför grinden bor trådarna i gamla communityt (samma id:n).
-          hrefBase={communityV2 ? "/forum/t" : "/community"}
+          hrefBase="/community"
         />
       ),
     },

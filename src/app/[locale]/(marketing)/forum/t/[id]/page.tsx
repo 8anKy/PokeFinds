@@ -142,7 +142,7 @@ export default async function ThreadPage({ params }: PageProps) {
           </div>
         </header>
 
-        {post.images.length > 0 && <div className="-mx-2.5 sm:mx-0"><FeedMedia images={post.images} href={localized(`/profil/${post.user.id}`)} lightbox /></div>}
+        {post.images.length > 0 && <div className="-mx-2.5 sm:mx-0"><FeedMedia images={post.images} /></div>}
 
         <div className="space-y-1 text-sm leading-relaxed text-ink">
           <h1 className="font-semibold">{post.title}</h1>

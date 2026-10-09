@@ -56,7 +56,6 @@ export function PostCard({
   const [commentCount, setCommentCount] = useState<number | null>(null);
   // Raderat via "···"-menyn: försvinner direkt ur flödet, innan den delade cachen hunnit om.
   const [removed, setRemoved] = useState(false);
-  const profileHref = `/profil/${post.user.id}?inlagg=${post.id}#post-${post.id}`;
 
   if (removed) return null;
   const report = post.storeReport ?? null;
@@ -86,7 +85,7 @@ export function PostCard({
       <StoreReportFeedCard report={report} />
       {reportComment && <p className="whitespace-pre-line break-words text-sm leading-relaxed text-ink"><span className="mr-2 font-semibold">{post.user.name}</span>{reportComment}</p>}
     </div>
-    {post.images.length > 0 && <div className="mt-3"><FeedMedia images={post.images} href={profileHref} lightbox={onProfile} /></div>}
+    {post.images.length > 0 && <div className="mt-3"><FeedMedia images={post.images} /></div>}
     <div className="mt-3 px-2.5 sm:px-0">
       {personal
         ? <FeedActions post={post} personal={personal} href={`${hrefBase}/${post.id}`} onComments={() => setCommentsOpen(true)} commentCount={commentCount ?? undefined} />
@@ -105,10 +104,10 @@ export function PostCard({
       </Link>
       <button type="button" onClick={() => setOptionsOpen(true)} className="grid h-10 w-10 shrink-0 place-items-center text-xl text-ink-muted" aria-label={tStores("postOptions")}>···</button>
     </div>
-    <FeedMedia images={post.images} href={profileHref} lightbox={onProfile} />
+    <FeedMedia images={post.images} />
     {personal && <FeedActions post={post} personal={personal} href={`${hrefBase}/${post.id}`} onComments={() => setCommentsOpen(true)} />}
     <div className="space-y-2 px-2.5 sm:px-0">
-      {onProfile ? <div className="text-sm leading-relaxed text-ink"><span className="mr-2 font-semibold">{post.user.name}</span><span className="font-medium">{post.title}</span>{(post.content || post.excerpt) && <p className="mt-1 whitespace-pre-wrap break-words text-ink-muted">{post.content || post.excerpt}</p>}</div> : <Link href={profileHref} className="block text-sm leading-relaxed text-ink"><span className="mr-2 font-semibold">{post.user.name}</span><span className="font-medium">{post.title}</span>{post.excerpt && <span className="mt-1 block whitespace-pre-line text-ink-muted">{post.excerpt}</span>}</Link>}
+      {onProfile ? <div className="text-sm leading-relaxed text-ink"><span className="mr-2 font-semibold">{post.user.name}</span><span className="font-medium">{post.title}</span>{(post.content || post.excerpt) && <p className="mt-1 whitespace-pre-wrap break-words text-ink-muted">{post.content || post.excerpt}</p>}</div> : <div className="text-sm leading-relaxed text-ink"><Link href={`/profil/${post.user.id}`} className="mr-2 font-semibold">{post.user.name}</Link><span className="font-medium">{post.title}</span>{post.excerpt && <span className="mt-1 block whitespace-pre-line text-ink-muted">{post.excerpt}</span>}</div>}
       {post.listingKind && <div className="flex items-center gap-2"><Badge variant={LISTING_KIND_VARIANTS[post.listingKind]}>{t(LISTING_KIND_KEYS[post.listingKind])}</Badge>{post.priceOre != null && post.priceOre > 0 && <span className="font-medium text-holo-cyan">{formatPrice(post.priceOre)}</span>}{muted && post.listingStatus && <Badge>{t(LISTING_STATUS_KEYS[post.listingStatus])}</Badge>}</div>}
       {post.storeReport && <StoreReportSummary report={post.storeReport} />}
       <button type="button" onClick={() => setCommentsOpen(true)} className="block min-h-9 text-sm text-ink-muted">{tStores("viewComments", { count: commentCount ?? personal?.state.counts[post.id]?.commentCount ?? post.commentCount })}</button>

@@ -978,6 +978,10 @@
     "adminUpdateFailed": "Kunde inte uppdatera anmälan"
   },
   "Profile": {
+    "postsGrid": "Inlägg",
+    "openPost": "Öppna inlägget {title}",
+    "multiplePhotos": "Flera bilder",
+    "closePosts": "Stäng",
     "metaSuffix": "{name} · profil",
     "metaNotFound": "Profilen hittades inte",
     "reputation": "i rykte",
