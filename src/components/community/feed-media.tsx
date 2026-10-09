@@ -12,6 +12,7 @@ export function FeedMedia({ images, href, lightbox = false }: { images: ForumIma
   const [index, setIndex] = useState(0);
   const [loaded, setLoaded] = useState<number[]>([0]);
   const [open, setOpen] = useState<number | null>(null);
+  const [natural, setNatural] = useState<number | null>(null);
   const track = useRef<HTMLDivElement>(null);
   const start = useRef<{ x: number; y: number } | null>(null);
   const suppressClickUntil = useRef(0);
@@ -19,7 +20,12 @@ export function FeedMedia({ images, href, lightbox = false }: { images: ForumIma
   if (!first?.url) return null;
   // En gemensam ram hindrar att bildtext/åtgärder hoppar när nästa foto är
   // stående. Native scroll-snap följer fingret och behåller lodrät sidscroll.
-  const ratio = first.width && first.height ? Math.max(.8, Math.min(1.91, first.width / first.height)) : 1;
+  // Fotot FYLLER ramen (cover) — `contain` i en kvadratisk ram gav svarta fält
+  // på sidorna av varje stående mobilfoto. Saknas måtten (alla foton hittills:
+  // uppladdningen sparar dem inte) är ramen 4:5 tills första bilden laddat och
+  // berättat sina egna proportioner; hela bilden syns alltid i helskärmsvyn.
+  const raw = first.width && first.height ? first.width / first.height : natural ?? .8;
+  const ratio = Math.max(.8, Math.min(1.91, raw));
   function prepare(at: number) {
     setLoaded(prev => Array.from(new Set([...prev, ...[at - 1, at, at + 1].filter(i => i >= 0 && i < available.length)])));
   }
@@ -44,7 +50,8 @@ export function FeedMedia({ images, href, lightbox = false }: { images: ForumIma
       {available.map((image, i) => {
         // ⛔ Första bilden ensam före interaktion. Sex img-taggar med lazy i en
         // kort rad gör att webbläsaren ändå hämtar hela serien.
-        const photo = loaded.includes(i) ? <img src={image.url!} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-contain" /> : null;
+        const photo = loaded.includes(i) ? <img src={image.url!} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover"
+          onLoad={i === 0 && !(first.width && first.height) ? e => { const { naturalWidth: w, naturalHeight: h } = e.currentTarget; if (w && h) setNatural(w / h); } : undefined} /> : null;
         const className = "block h-full w-full shrink-0 snap-center snap-always";
         return lightbox ? <button key={image.key} type="button" tabIndex={i === index ? 0 : -1} aria-label={t("readPost")} onClick={() => setOpen(i)} className={className}>{photo}</button> : <Link key={image.key} href={href} tabIndex={i === index ? 0 : -1} aria-label={t("openProfile")} className={className}>{photo}</Link>;
       })}
