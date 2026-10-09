@@ -9,8 +9,9 @@
  *
  * ⛔ BARA MARKNADSGRUPPEN. Kanalen delas med medlemmarnas egna annonser; ett
  *    vanligt communityinlägg där hade bara grumlat den (ägarbeslut 2026-10-09).
- * ⛔ ALLA FOTON LADDAS UPP SOM BILAGOR (fram + bak, upp till sex). En signerad
- *    bucket-URL dör efter 7 dygn och då hade annonsen tappat sina bilder.
+ * ⛔ FOTONA LADDAS UPP SOM BILAGOR och visas INNE I annonskortet (fram + bak).
+ *    En signerad bucket-URL dör efter 7 dygn och då hade annonsen tappat sina
+ *    bilder. Discords galleri i ett kort tar högst fyra; fler står som en rad.
  * ⛔ SPEGELN FÖLJER ANNONSEN: Såld/Avslutad, raderad, dold av moderator eller
  *    raderat konto ⇒ meddelandet tas bort (ägarbeslut 2026-10-09). Id:t sparas på
  *    `CommunityPost.discordMessageId` (services/market-discord.ts).
@@ -29,8 +30,11 @@ const BRAND_COLOR = 0x2dd4bf;
 const MAX_TITLE = 256;
 const MAX_THREAD_NAME = 100;
 const MAX_DESCRIPTION = 600;
-/** Discords tak är 10 bilagor; forumet tillåter 6 bilder per inlägg. */
-export const MAX_MARKET_PHOTOS = 10;
+/**
+ * Discord slår ihop bilderna från upp till fyra embeds med SAMMA `url` till ett
+ * galleri i första kortet — det är taket. Forumet tillåter sex bilder per inlägg.
+ */
+export const MAX_MARKET_PHOTOS = 4;
 
 const KIND_LABEL: Record<ListingKindValue, string> = {
   SELL: "Säljes",
@@ -59,6 +63,8 @@ export interface MarketThreadPost {
   authorName: string;
   /** Katalogprodukten annonsen är kopplad till, för länken till marknadspriset. */
   productSlug?: string | null;
+  /** Antal foton i annonsen (fler än som får plats i kortet ⇒ en rad om resten). */
+  photoCount?: number;
 }
 
 export interface MarketPhoto {
@@ -137,14 +143,32 @@ export function photoFileName(index: number, contentType: string): string {
 }
 
 /**
- * Meddelandets JSON-del. Fotona är VANLIGA bilagor (inte inbäddade i embeden):
- * Discord visar dem som ett galleri ovanför annonskortet, alla bilder lika stora,
- * och en senare åtgärd behöver aldrig röra dem.
+ * Meddelandets JSON-del. Fotona visas INNE I kortet (ägarbeslut 2026-10-09): första
+ * bilden på huvudembeden, resten på embeds med samma `url` — Discord ritar dem som
+ * ETT galleri i samma kort, och ett klick förstorar. Bilagor som en embed refererar
+ * (`attachment://…`) visas inte en gång till ovanför kortet.
  */
 export function buildMarketMessage(post: MarketThreadPost, photos: Pick<MarketPhoto, "contentType">[]) {
+  const totalPhotos = Math.max(post.photoCount ?? 0, photos.length);
   const shown = photos.slice(0, MAX_MARKET_PHOTOS);
+  const names = shown.map((p, i) => photoFileName(i, p.contentType));
+  const main = buildMarketEmbed(post);
+  const more = Math.max(0, totalPhotos - shown.length);
+  if (more > 0) {
+    main.fields.push({
+      name: "Fler bilder",
+      value: `+${more} ${more === 1 ? "bild" : "bilder"} i annonsen på Foilio`,
+      inline: false,
+    });
+  }
+  const embeds = names.length
+    ? [
+        { ...main, image: { url: `attachment://${names[0]}` } },
+        ...names.slice(1).map((name) => ({ url: main.url, image: { url: `attachment://${name}` } })),
+      ]
+    : [main];
   return {
-    embeds: [buildMarketEmbed(post)],
+    embeds,
     components: [
       {
         type: 1,
@@ -153,7 +177,7 @@ export function buildMarketMessage(post: MarketThreadPost, photos: Pick<MarketPh
     ],
     // Ingen @everyone/@here eller rollping ur en medlems annonstext.
     allowed_mentions: { parse: [] },
-    attachments: shown.map((p, i) => ({ id: i, filename: photoFileName(i, p.contentType) })),
+    attachments: names.map((filename, i) => ({ id: i, filename })),
   };
 }
 

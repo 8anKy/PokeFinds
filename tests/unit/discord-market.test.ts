@@ -41,7 +41,7 @@ describe("buildMarketEmbed", () => {
     expect(e.description).toBe("Skick: NM\n\nSpråk: Japanska");
   });
 
-  it("bäddar aldrig in en bild — fotona är bilagor", () => {
+  it("kortet ensamt bär ingen bild — galleriet läggs på i buildMarketMessage", () => {
     const e = buildMarketEmbed(post()) as Record<string, unknown>;
     expect(e.image).toBeUndefined();
     expect(e.thumbnail).toBeUndefined();
@@ -49,19 +49,34 @@ describe("buildMarketEmbed", () => {
 });
 
 describe("buildMarketMessage", () => {
-  it("en bilaga per foto (fram + bak) och aldrig en ping", () => {
+  it("fram + bak ligger INNE i kortet som ett galleri", () => {
     const m = buildMarketMessage(post(), [{ contentType: "image/jpeg" }, { contentType: "image/png" }]);
     expect(m.attachments).toEqual([
       { id: 0, filename: "foilio-1.jpg" },
       { id: 1, filename: "foilio-2.png" },
     ]);
+    expect(m.embeds).toHaveLength(2);
+    expect(m.embeds[0]).toMatchObject({ title: expect.stringContaining("Säljes"), image: { url: "attachment://foilio-1.jpg" } });
+    // Samma url som huvudkortet är det som får Discord att slå ihop bilderna.
+    expect(m.embeds[1]).toEqual({ url: m.embeds[0].url, image: { url: "attachment://foilio-2.png" } });
     expect(m.allowed_mentions).toEqual({ parse: [] });
     expect(m.components[0].components[0]).toMatchObject({ style: 5, url: expect.stringContaining("/forum/t/p1") });
   });
 
-  it("kapar vid Discords tak", () => {
-    const many = Array.from({ length: MAX_MARKET_PHOTOS + 3 }, () => ({ contentType: "image/jpeg" }));
-    expect(buildMarketMessage(post(), many).attachments).toHaveLength(MAX_MARKET_PHOTOS);
+  it("utan foton: bara kortet", () => {
+    const m = buildMarketMessage(post(), []);
+    expect(m.embeds).toHaveLength(1);
+    expect((m.embeds[0] as Record<string, unknown>).image).toBeUndefined();
+    expect(m.attachments).toEqual([]);
+  });
+
+  it("kapar vid galleriets fyra och säger hur många som finns kvar", () => {
+    const many = Array.from({ length: 6 }, () => ({ contentType: "image/jpeg" }));
+    const m = buildMarketMessage(post({ photoCount: 6 }), many);
+    expect(MAX_MARKET_PHOTOS).toBe(4);
+    expect(m.attachments).toHaveLength(4);
+    expect(m.embeds).toHaveLength(4);
+    expect((m.embeds[0] as ReturnType<typeof buildMarketEmbed>).fields.find((f) => f.name === "Fler bilder")?.value).toBe("+2 bilder i annonsen på Foilio");
   });
 
   it("okänd bildtyp blir jpg", () => {

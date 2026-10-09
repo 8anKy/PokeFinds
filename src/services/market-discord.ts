@@ -65,6 +65,7 @@ export async function syncMarketPostToDiscord(postId: string): Promise<void> {
         condition: post.condition,
         authorName: post.user.name,
         productSlug: post.product?.slug ?? null,
+        photoCount: post.images.length,
       },
       await loadPhotos(post.images.map((i) => i.key))
     );
