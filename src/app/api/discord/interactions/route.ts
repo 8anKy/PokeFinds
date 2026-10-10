@@ -21,6 +21,7 @@ import {
   type DiscordInteraction,
 } from "@/lib/discord-interactions";
 import {
+  answerFlags,
   autocompleteChoices,
   buildPriceEmbed,
   EPHEMERAL,
@@ -102,5 +103,7 @@ export async function POST(req: Request) {
   if (!entry) {
     return reply({ content: `Inga priser för ${hit.t} i nattens data. Se ${APP_URL}/produkter/${hit.s}`, flags: EPHEMERAL });
   }
-  return reply({ embeds: [buildPriceEmbed(entry, hit, APP_URL)], flags: EPHEMERAL });
+  // Publikt i #pris-koll (skyltfönster för Pro), efemärt i alla andra kanaler.
+  const flags = answerFlags(interaction.channel_id);
+  return reply({ embeds: [buildPriceEmbed(entry, hit, APP_URL)], ...(flags ? { flags } : {}) });
 }

@@ -9,8 +9,10 @@
  * ⛔ Priser och lager är NATTENS — svaret säger det ("Priser från <t:…:R>"), aldrig "nu".
  * ⛔ Pro avgörs av Pro-ROLLEN på medlemmen i interaktionen (Discord skickar rollerna med),
  *    samma roll som Discord-synken sätter ur `isPro()` — ingen egen regel, ingen DB-fråga.
- * Svaren är EFEMÄRA (bara den som frågade ser dem): ett publikt svar hade gett bort
- *    Pro-funktionen till hela kanalen.
+ * Svaren är EFEMÄRA (bara den som frågade ser dem) — UTOM i pris-kanalen
+ *    (`priceChannelId`, ägarbeslut 2026-10-10): där är svaren publika som skyltfönster för
+ *    Pro. Datan är ändå gratis på foilio.se; det Pro betalar för är bekvämligheten. En
+ *    kanal i stället för överallt, så uppslagen aldrig tränger undan restock-larmen.
  */
 import { formatPrice } from "@/lib/format";
 import { isStoreRetailer } from "@/lib/offer-source";
@@ -39,6 +41,19 @@ export const PRICE_COMMAND = {
 
 /** Efemärt svar (flags 64 = bara den som frågade ser det). */
 export const EPHEMERAL = 64;
+
+/**
+ * Kanalen där /pris-svaren är PUBLIKA (#pris-koll). Kanal-id är inte en hemlighet;
+ * `DISCORD_PRICE_CHANNEL_ID` i Railway skriver över utan kodändring.
+ */
+export function priceChannelId(): string {
+  return process.env.DISCORD_PRICE_CHANNEL_ID?.trim() || "1558526513937391868";
+}
+
+/** Publikt i pris-kanalen, efemärt överallt annars. */
+export function answerFlags(channelId: string | undefined | null): number | undefined {
+  return channelId && channelId === priceChannelId() ? undefined : EPHEMERAL;
+}
 
 const BRAND_COLOR = 0x2dd4bf;
 const MAX_STORE_LINES = 5;
@@ -184,7 +199,7 @@ export function proRequiredMessage(appUrl: string) {
   return {
     content:
       `**/pris ingår i Foilio Pro.** Svenska butikers priser, marknadsvärde och Tradera sålt direkt här i Discord.\n` +
-      `Skaffa Pro på ${appUrl}/priser och koppla Discord under Inställningar → Kopplingar så får du Pro-rollen.`,
+      `Se exempel i <#${priceChannelId()}>. Skaffa Pro på ${appUrl}/priser och koppla Discord under Inställningar → Kopplingar så får du Pro-rollen.`,
     flags: EPHEMERAL,
   };
 }

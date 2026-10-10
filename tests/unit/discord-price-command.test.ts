@@ -7,6 +7,7 @@ import {
   autocompleteChoices,
   buildPriceEmbed,
   normalizeSearch,
+  answerFlags,
   proRequiredMessage,
   resolveQuery,
   searchCatalogIndex,
@@ -120,10 +121,17 @@ describe("svaret", () => {
     expect(e.fields.some((f) => f.name === "Marknadsvärde")).toBe(false);
   });
 
-  it("utan Pro: efemär uppmaning med länk till prissidan", () => {
+  it("utan Pro: efemär uppmaning med länk till prissidan och pris-kanalen", () => {
     const m = proRequiredMessage("https://foilio.se");
     expect(m.flags).toBe(64);
     expect(m.content).toContain("https://foilio.se/priser");
+    expect(m.content).toContain("<#1558526513937391868>");
+  });
+
+  it("publikt bara i pris-kanalen, efemärt överallt annars", () => {
+    expect(answerFlags("1558526513937391868")).toBeUndefined();
+    expect(answerFlags("123")).toBe(64);
+    expect(answerFlags(undefined)).toBe(64);
   });
 });
 

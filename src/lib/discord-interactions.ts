@@ -68,6 +68,8 @@ export interface DiscordInteraction {
     name?: string;
     options?: { name: string; value?: string | number; focused?: boolean }[];
   };
+  /** Kanalen kommandot kördes i. */
+  channel_id?: string;
   /** Satt i en server — bär medlemmens roller. Saknas i DM. */
   member?: { roles?: string[] };
 }
