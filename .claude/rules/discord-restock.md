@@ -573,3 +573,10 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   (`PostedRestockMessage`); lanen sparar oruttade inläggs meddelanden + appens svar i minnet och den som kommer SIST
   utlöser `applyBoundToPost` + `editRestockMessage` (PATCH, publikt + Pro, ursprunglig tidsstämpel). ⛔ Kastar aldrig;
   en hit som levereras i ett SENARE jobb än inlägget redigerar inget (minnet är per jobb). Loggrad: `berikat:`.
+- **SF-BOK: BUTIKSVARA UTAN BUTIKSLAGER I SVARET = OBEKRÄFTAD (2026-10-10)**: 30th 2-Pack Blister postades 10:18 och
+  10:40 som "Finns bara i butik · 1 ex" utan ort — svaret saknade `warehouseInventories`-uppdelningen, så totalen
+  (CENTRALLAGRET inräknat) blev "butikslager", medan butikerna hade 0. `sfbokStoreStock` returnerar `split`; en
+  butiksvara utan split blir UNKNOWN + `stockUnconfirmed` (lanen hoppar raden det varvet, DB-vägen larmar aldrig på
+  UNKNOWN). Orten visas när uppdelningen finns (`sfbok-stores.ts`, verifierat: "Stockholm · 9 ex").
+- **PACKS ON PACKS UR LARMEN 2026-10-10 (ägarbeslut)** — inte retirerad: `set-restock-watch.ts --off`, källan aktiv
+  (pris/lager på produktsidan), ruttexport körd. Ingen Discord-post, inga push/mejl därifrån. **Bevakade: 43 → 42.**

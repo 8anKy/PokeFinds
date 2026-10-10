@@ -53,6 +53,7 @@ describe("sfbokStoreStock — centrallagret är inte butikslagret", () => {
       locations: [],
       // Nollorna står kvar — lanen diffar varje butik för sig.
       byStore: { S040: 0, S030: 0, S010: 0, S020: 0 },
+      split: true,
     });
     expect(sfbokStock({ buttonState: 4, stockQuantity: inStores.units }).stock).toBe("out");
   });
@@ -71,13 +72,14 @@ describe("sfbokStoreStock — centrallagret är inte butikslagret", () => {
     });
   });
 
-  it("utan uppdelning ⇒ totalen med okänt butiksantal", () => {
-    expect(sfbokStoreStock({ stockQuantity: 5 })).toEqual({ units: 5, stores: null, locations: [], byStore: null });
+  it("utan uppdelning ⇒ totalen med okänt butiksantal, split: false (anroparen kallar det inte i lager)", () => {
+    expect(sfbokStoreStock({ stockQuantity: 5 })).toEqual({ units: 5, stores: null, locations: [], byStore: null, split: false });
     expect(sfbokStoreStock({ stockQuantity: null, warehouseInventories: [] })).toEqual({
       units: null,
       stores: null,
       locations: [],
       byStore: null,
+      split: false,
     });
   });
 

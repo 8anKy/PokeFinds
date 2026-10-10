@@ -583,7 +583,7 @@ async function main() {
     if (items.length < fetchedItems.length) {
       console.log(
         `[discord-restock] ${source.name}: ${fetchedItems.length - items.length} obekräftad(e) ` +
-          `förhandsbokning(ar) hoppade detta varv (live-svaret saknades).`
+          `rad(er) hoppade detta varv (live-svar/butikslager saknades).`
       );
     }
 

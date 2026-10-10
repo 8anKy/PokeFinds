@@ -144,8 +144,9 @@ export function sfbokStock(input: {
 
 /**
  * Exemplar i de FYSISKA butikerna = de icke-primära lagren (S010–S040); centrallagret
- * (`isPrimaryWarehouse`) är webblagret och räknas aldrig. Saknas uppdelningen faller vi
- * tillbaka på `stockQuantity` (totalen) med okänt butiksantal — samma som före 2026-10-02.
+ * (`isPrimaryWarehouse`) är webblagret och räknas aldrig. Saknas uppdelningen är
+ * `units` = `stockQuantity` (totalen) och `split` = false — anroparen får då INTE kalla
+ * en butiksvara "i lager" på det talet (se fetchProducts, 2026-10-10).
  * Med `names` (`fetchSfBokStores`) får varje butik med saldo en rad, störst först; en
  * lagerkod utan namn räknas i summan men får ingen rad. ⛔ Gissa ALDRIG en ort.
  */
@@ -158,10 +159,12 @@ export function sfbokStoreStock(
   locations: StoreStockLocation[];
   /** Saldo per lagerkod för ALLA butikslager, nollor inräknade. null = ingen uppdelning. */
   byStore: Record<string, number> | null;
+  /** true = svaret bar butikslagren (S010–S040); false = bara totalen. */
+  split: boolean;
 } {
   const stores = (v.warehouseInventories ?? []).filter((w) => w.isPrimaryWarehouse === false);
   if (stores.length === 0) {
-    return { units: typeof v.stockQuantity === "number" ? v.stockQuantity : null, stores: null, locations: [], byStore: null };
+    return { units: typeof v.stockQuantity === "number" ? v.stockQuantity : null, stores: null, locations: [], byStore: null, split: false };
   }
   let units = 0;
   let withStock = 0;
@@ -177,7 +180,7 @@ export function sfbokStoreStock(
     if (store) locations.push({ id: store.warehouseCode, label: sfbokStoreLabel(store), units: qty, capped: false });
   }
   locations.sort((a, b) => b.units - a.units || a.label.localeCompare(b.label, "sv"));
-  return { units, stores: withStock, locations, byStore };
+  return { units, stores: withStock, locations, byStore, split: true };
 }
 
 /**
@@ -321,11 +324,20 @@ export class SfBokAdapter implements SourceAdapter {
           ? Math.round(price * 100)
           : null;
       const inStores = sfbokStoreStock(v, storeNames);
-      const { stock, storeOnly } = sfbokStock({
+      const verdict = sfbokStock({
         buttonState: p.webDisplay?.buttonState,
         isPreOrder: p.webDisplay?.isPreOrder,
         stockQuantity: inStores.units,
       });
+      const { storeOnly } = verdict;
+      // ⛔ BUTIKSVARA UTAN BUTIKSLAGER I SVARET = "VET INTE" (2026-10-10). SF-Bok svarar
+      //    ibland utan `warehouseInventories`-uppdelningen; då är bara totalen kvar, och den
+      //    räknar in CENTRALLAGRET. 30th 2-Pack Blister postades två gånger på förmiddagen
+      //    som "1 ex i butik" utan ort — exemplaret låg i centrallagret, butikerna hade 0.
+      //    Raden blir UNKNOWN (larmar aldrig i DB-vägen) och obekräftad i Discord-lanen
+      //    (behandlas som frånvarande det varvet, precis som Webhallens).
+      const unconfirmed = storeOnly && !inStores.split;
+      const stock: SfBokStock = unconfirmed ? "unknown" : verdict.stock;
       const ean = p.attributes?.find((a) => a.identifier === "ean")?.value?.trim() || null;
       const imageUrl = v.images?.find((i) => i.url)?.url ?? p.images?.find((i) => i.url)?.url ?? undefined;
       const raw: SfBokRaw = {
@@ -351,8 +363,9 @@ export class SfBokAdapter implements SourceAdapter {
         // Orterna ur butikens egen butikssida; utan den bara antal butiker.
         // ⛔ `byStore` även när saldot är 0: lanen diffar varje butik för sig, och en butik
         //    som saknas i listan är "vet inte" — då blir dess påfyllning aldrig en flipp.
+        ...(unconfirmed ? { stockUnconfirmed: true } : {}),
         storeStock:
-          storeOnly && inStores.units !== null && (inStores.units > 0 || inStores.byStore)
+          !unconfirmed && storeOnly && inStores.units !== null && (inStores.units > 0 || inStores.byStore)
             ? {
                 units: inStores.units,
                 stores: inStores.stores,
