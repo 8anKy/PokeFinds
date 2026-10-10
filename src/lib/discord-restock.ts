@@ -312,8 +312,9 @@ export interface RestockPost {
   soldCount?: number | null;
   /**
    * FÖRRA VÅGEN hos samma butik och URL (lanens eget minne, `DiscordRestockState.sellout`):
-   * hur länge varan låg i lager och när den sålde slut. Visas BARA i Pro-spegeln
-   * (ägarbeslut 2026-10-10) — det är lanens egen historik, och ingen gratis server har den.
+   * hur länge varan låg i lager och när den sålde slut. Visas i ALLA kanaler (ägarbeslut
+   * 2026-10-10, var Pro-only samma dag) — lanens egen historik, som ingen annan server har;
+   * den gör den gratis kanalen värd att följa, och Pro behåller korgen, DM:en och /pris.
    */
   lastSellout?: { minutes: number; at: number } | null;
   /**
@@ -560,8 +561,8 @@ export function buildRestockEmbed(
   if (sold) {
     fields.push({ name: "Tradera sålt", value: clamp(sold, MAX_FIELD_VALUE), inline: false });
   }
-  // PRO: förra vågens slutförsäljning — säger hur bråttom det är. Bara i Pro-spegeln.
-  const sellout = opts.cart ? formatLastSellout(post.lastSellout) : null;
+  // Förra vågens slutförsäljning — säger hur bråttom det är. Alla kanaler (se lastSellout).
+  const sellout = formatLastSellout(post.lastSellout);
   if (sellout) {
     fields.push({ name: "Förra påfyllningen", value: clamp(sellout, MAX_FIELD_VALUE), inline: false });
   }

@@ -1680,11 +1680,11 @@ describe("deriveRestockPosts — förra vågens slutförsäljning (Pro)", () => 
     expect(back.posts[0].lastSellout).toEqual({ minutes: 4, at: at("12:04").getTime() });
   });
 
-  it("⛔ visas BARA i Pro-spegeln", () => {
+  it("visas i ALLA kanaler, publika som Pro (ägarbeslut 2026-10-10)", () => {
     const out = step(inSince("12:00"), "12:04", "OUT_OF_STOCK");
     const post = step(out.nextState, "13:00", "IN_STOCK").posts[0];
     const field = (cart: boolean) => buildRestockEmbed(post, { cart }).fields.find((f) => f.name === "Förra påfyllningen");
-    expect(field(false)).toBeUndefined();
+    expect(field(false)?.value).toBe(field(true)?.value);
     expect(field(true)?.value).toBe(`Sålde slut på 4 min · <t:${Math.floor(at("12:04").getTime() / 1000)}:R>`);
   });
 

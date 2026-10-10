@@ -551,10 +551,10 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   ⛔ Ingen deal-kanal (ägarbeslut): jämförelsen i varje inlägg är jobbet. ⛔ Ingen MSRP — `msrp.ts`/`set-msrp.ts`
   är raderade. ⚠️ CM-värdet för sealed är EU-brett LÄGSTA annons; svenska butiker ligger ofta över ⇒ många röda
   kanter är sanningen, inte en bugg (samma skäl som att prisvakten är butiksfri uppåt, scraping-restock.md).
-- **PRO-SPEGELN: "FÖRRA PÅFYLLNINGEN SÅLDE SLUT PÅ X MIN" (ägarbeslut 2026-10-10)**: lanens state bär `sellout`
+- **"FÖRRA PÅFYLLNINGEN SÅLDE SLUT PÅ X MIN" — I ALLA KANALER (ägarbeslut 2026-10-10; var Pro-only samma dag, ägaren gjorde den publik som skäl att följa servern)**: lanens state bär `sellout`
   (url-nyckel → `{m, t}` = minuter i lager + när den sålde slut), skriven när en ONLINE-nyckel går IN/LIMITED → OUT
   och starten syns i dygnshistoriken (annars ingen rad — aldrig en gissning), glömd efter 30 dygn. Nästa
-  påfyllningsinlägg bär `lastSellout`; `buildRestockEmbed` visar fältet BARA med `{ cart: true }` (Pro-spegeln),
+  påfyllningsinlägg bär `lastSellout`; `buildRestockEmbed` visar fältet i publika inlägg OCH Pro-spegeln,
   med `<t:…:R>` så Discord skriver relativ tid i läsarens språk. ⛔ Nya state-fält in på TRE ställen
   (parse, seedad retur, slutlig retur) — `sellout` är det. Inte på prisinlägg eller butiksvaror.
 - **/pris — PRO-KOMMANDO I SERVERN (ägarbeslut 2026-10-10)**: `POST /api/discord/interactions` (Ed25519-verifierad;
