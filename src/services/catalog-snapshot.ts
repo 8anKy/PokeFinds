@@ -17,7 +17,15 @@ import path from "node:path";
 import { gzipSync } from "node:zlib";
 import { prisma, withDbRetry } from "@/lib/db";
 import { NOT_HIDDEN_SQL } from "@/lib/product-visibility";
-import { shardKey, snapshotDir, SNAPSHOT_SHARDS, type SnapshotShard } from "@/lib/catalog-snapshot";
+import {
+  shardKey,
+  snapshotDir,
+  SNAPSHOT_INDEX_FILE,
+  SNAPSHOT_SHARDS,
+  type SnapshotIndexEntry,
+  type SnapshotShard,
+} from "@/lib/catalog-snapshot";
+import { loadTraderaSoldStats } from "@/services/tradera-sold-stats";
 import {
   SHELL_SELECT,
   serializeDirectOffers,
@@ -81,6 +89,10 @@ export async function buildCatalogSnapshot(): Promise<SnapshotBuildResult> {
     retailers.filter((r) => r.sponsoredUntil && r.sponsoredUntil > now).map((r) => r.id)
   );
 
+  // Sökindexet för /pris (lib/catalog-snapshot.ts) + Tradera sålt, EN fråga per bygge.
+  const soldByProduct = await withDbRetry(() => loadTraderaSoldStats());
+  const index: SnapshotIndexEntry[] = [];
+
   let products = 0;
   let withPrice = 0;
   let bytes = 0;
@@ -129,6 +141,15 @@ export async function buildCatalogSnapshot(): Promise<SnapshotBuildResult> {
             at,
           },
         };
+        const sold = soldByProduct.get(p.id);
+        index.push({
+          s: p.slug,
+          t: p.title,
+          set: p.set?.name ?? null,
+          l: p.language,
+          n: p.card?.number ?? null,
+          ...(sold ? { sold: [sold.medianOre, sold.count] as [number, number] } : {}),
+        });
         products++;
         if (stats.lowestPrice != null) withPrice++;
       }
@@ -137,6 +158,10 @@ export async function buildCatalogSnapshot(): Promise<SnapshotBuildResult> {
     bytes += gz.length;
     await fs.writeFile(path.join(genDir, `${key}.json.gz`), gz);
   }
+
+  const indexGz = gzipSync(JSON.stringify(index));
+  bytes += indexGz.length;
+  await fs.writeFile(path.join(genDir, SNAPSHOT_INDEX_FILE), indexGz);
 
   // Peka ut den nya generationen ATOMISKT, städa sedan bort de gamla.
   const tmp = path.join(dir, `CURRENT.${process.pid}.tmp`);

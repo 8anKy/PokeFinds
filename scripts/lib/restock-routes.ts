@@ -16,8 +16,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { prisma } from "../../src/lib/db";
-import { TRADERA_SOLD_MIN_COUNT, TRADERA_SOLD_WINDOW_DAYS } from "../../src/lib/market-compare";
-import { TRADERA_SOLD_SOURCE_NAME } from "../../src/services/products";
+import { loadTraderaSoldStats } from "../../src/services/tradera-sold-stats";
 import type { RestockSourceInfo } from "../../src/scrapers/runner";
 import type { RouteTable } from "../../src/lib/restock-feed-events";
 
@@ -90,30 +89,6 @@ interface RouteProduct {
   set: { name: string; series: string | null } | null;
 }
 
-/**
- * Tradera SÅLT per produkt senaste `TRADERA_SOLD_WINDOW_DAYS`: median + antal.
- *
- * MEDIAN (percentile_cont), samma storhet som prisgrafens sålt-serie. Graderade affärer
- * ligger aldrig här — de bor i `GradedSale` — så talet är det ograderade/förseglade.
- * Okänd källa (ny databas) ⇒ tom karta, aldrig ett fel som fäller exporten.
- */
-async function loadTraderaSold(): Promise<Map<string, { medianOre: number; count: number }>> {
-  const source = await prisma.scrapeSource.findUnique({
-    where: { name: TRADERA_SOLD_SOURCE_NAME },
-    select: { id: true },
-  });
-  if (!source) return new Map();
-  const since = new Date(Date.now() - TRADERA_SOLD_WINDOW_DAYS * 86_400_000);
-  const rows = await prisma.$queryRaw<{ productId: string; n: number; median: number }[]>`
-    SELECT "productId", COUNT(*)::int AS n,
-           (percentile_cont(0.5) WITHIN GROUP (ORDER BY price))::float8 AS median
-    FROM "PriceObservation"
-    WHERE "sourceId" = ${source.id} AND "observedAt" >= ${since} AND price > 0
-    GROUP BY "productId"
-    HAVING COUNT(*) >= ${TRADERA_SOLD_MIN_COUNT}`;
-  return new Map(rows.map((r) => [r.productId, { medianOre: Math.round(r.median), count: r.n }]));
-}
-
 export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null> {
   const active = await prisma.scrapeSource.findMany({ where: { isActive: true } });
   const sources: RestockSourceInfo[] = active
@@ -145,7 +120,7 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
 
   // TRADERA SÅLT per produkt: median + antal i fönstret, i EN aggregatfråga (Neon är
   // redan vaken i exportens fönster). Bara produkter med minst MIN affärer kommer med.
-  const soldByProduct = await loadTraderaSold();
+  const soldByProduct = await loadTraderaSoldStats();
 
   // URL → produkt. En URL kan i teorin bära flera offers (olika produkter) efter en
   // felaktig länkning; först vinner, och länkrevisionen (audit-links.ts) är rätt

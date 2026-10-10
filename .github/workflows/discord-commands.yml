@@ -1,0 +1,46 @@
+name: Discord-kommandon (manuell)
+
+# Registrerar /pris i Foilios server och (valfritt) pekar applikationens
+# Interactions Endpoint URL mot https://foilio.se/api/discord/interactions.
+# Ingen databas — bara bot-token + guild-id. Se scripts/register-discord-commands.ts.
+#
+# ⛔ Sätt endpoint FÖRST när /api/discord/interactions är deployad: Discord PING:ar
+#    URL:en och vägrar spara den om svaret inte är signerat-verifierat.
+on:
+  workflow_dispatch:
+    inputs:
+      endpoint:
+        description: "Peka även Interactions Endpoint URL mot foilio.se"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discord-commands
+  cancel-in-progress: false
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+      DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+      - id: nm
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-node20-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
+      - if: steps.nm.outputs.cache-hit != 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.nm.outputs.cache-hit != 'true'
+        run: npx prisma generate
+      - run: npx tsx scripts/register-discord-commands.ts ${{ inputs.endpoint && '--endpoint' || '' }}

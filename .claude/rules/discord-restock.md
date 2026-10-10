@@ -557,3 +557,12 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   påfyllningsinlägg bär `lastSellout`; `buildRestockEmbed` visar fältet BARA med `{ cart: true }` (Pro-spegeln),
   med `<t:…:R>` så Discord skriver relativ tid i läsarens språk. ⛔ Nya state-fält in på TRE ställen
   (parse, seedad retur, slutlig retur) — `sellout` är det. Inte på prisinlägg eller butiksvaror.
+- **/pris — PRO-KOMMANDO I SERVERN (ägarbeslut 2026-10-10)**: `POST /api/discord/interactions` (Ed25519-verifierad;
+  publik nyckel = `DISCORD_PUBLIC_KEY` eller applikationens `verify_key` hämtad med bot-token) svarar på `/pris
+  produkt:<…>` med butiker i lager, marknadsvärde (CM-offern) och Tradera sålt — HELT ur nattens katalogsnapshot
+  (`readSnapshotIndex` = `<gen>/index.json.gz` med slug/titel/set/språk/nummer/sold, + skärvan). ⛔ Rör ALDRIG Neon
+  (autocomplete fyrar per tangenttryck). ⛔ Pro = Pro-ROLLEN i interaktionens `member.roles` (`DISCORD_ROLE_PRO`),
+  ingen DB. Svaren är EFEMÄRA (flags 64) — ett publikt svar hade gett bort funktionen. Autocomplete svarar även
+  gratis (reklam), priserna kräver Pro. Logik: `src/lib/discord-price-command.ts` (ren, testad). Registrering +
+  endpoint-URL: `discord-commands.yml` (manuell, `endpoint: true` först efter deploy — Discord PING:ar URL:en).
+  Indexet finns först efter nästa snapshotbygge (`catalog-snapshot.yml`); utan det svarar kommandot "laddas om".

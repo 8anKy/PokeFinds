@@ -84,3 +84,44 @@ export async function readSnapshotEntry(slug: string): Promise<SnapshotEntry | n
     return null;
   }
 }
+
+/**
+ * SÖKINDEXET (2026-10-10, Discord-kommandot /pris): en rad per produkt i samma
+ * generation — bara det som behövs för att HITTA en produkt, plus Tradera sålt (som
+ * inte finns i skärvorna). Priserna läses sedan ur skärvan med `readSnapshotEntry`.
+ * ~31 000 rader ≈ några MB i minnet, laddas en gång per generation.
+ * ⛔ Saknas filen (en generation byggd före indexet) ⇒ null, aldrig ett kast.
+ */
+export const SNAPSHOT_INDEX_FILE = "index.json.gz";
+
+export interface SnapshotIndexEntry {
+  /** slug */
+  s: string;
+  /** titel */
+  t: string;
+  /** setnamn */
+  set: string | null;
+  /** språk ("EN"/"JP") */
+  l: string;
+  /** kortnummer ("199/165"), null för förseglat */
+  n: string | null;
+  /** Tradera sålt: [median öre, antal] — bara från TRADERA_SOLD_MIN_COUNT affärer */
+  sold?: [number, number];
+}
+
+let indexMemo: { generation: string; entries: SnapshotIndexEntry[] } | null = null;
+
+export async function readSnapshotIndex(): Promise<SnapshotIndexEntry[] | null> {
+  try {
+    const dir = snapshotDir();
+    const generation = await currentGeneration(dir);
+    if (!generation) return null;
+    if (indexMemo?.generation === generation) return indexMemo.entries;
+    const raw = await fs.readFile(path.join(dir, generation, SNAPSHOT_INDEX_FILE));
+    const entries = JSON.parse(gunzipSync(raw).toString("utf8")) as SnapshotIndexEntry[];
+    indexMemo = { generation, entries };
+    return entries;
+  } catch {
+    return null;
+  }
+}
