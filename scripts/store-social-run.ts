@@ -36,7 +36,8 @@ const READS_PER_RUN = 45;
 const MAX_AGE_HOURS = 48;
 const SEEN_TTL_DAYS = 120;
 const EXCERPT_CHARS = 350;
-const COLOR = 0x2dd4bf;
+/** Blå kant (ägarbeslut 2026-10-10): butiksnyheter skiljs från restock-larmens turkos/grön/röd. */
+const COLOR = 0x3b82f6;
 
 const args = process.argv.slice(2);
 const DRY = args.includes("--dry");
