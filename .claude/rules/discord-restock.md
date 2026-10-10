@@ -566,3 +566,10 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   gratis (reklam), priserna kräver Pro. Logik: `src/lib/discord-price-command.ts` (ren, testad). Registrering +
   endpoint-URL: `discord-commands.yml` (manuell, `endpoint: true` först efter deploy — Discord PING:ar URL:en).
   Indexet finns först efter nästa snapshotbygge (`catalog-snapshot.yml`); utan det svarar kommandot "laddas om".
+- **NY BUTIKSSIDA ⇒ INLÄGGET REDIGERAS NÄR APPEN BUNDIT DEN (2026-10-10)**: en helt ny URL har ingen rutt förrän
+  nattens export, så inlägget saknade produktlänk + marknadsvärde (Card Havens 30th UPC:er 20:07). Appens larm-hit
+  binder redan sidan (`bindUnroutedHit`); svaret bär nu `bound: BoundHit[]` (slug, katalogtitel, set, CM-värde, Tradera
+  sålt — `describeBound`, två frågor, Neon redan vaken). `postRestocks` returnerar meddelande-id:n
+  (`PostedRestockMessage`); lanen sparar oruttade inläggs meddelanden + appens svar i minnet och den som kommer SIST
+  utlöser `applyBoundToPost` + `editRestockMessage` (PATCH, publikt + Pro, ursprunglig tidsstämpel). ⛔ Kastar aldrig;
+  en hit som levereras i ett SENARE jobb än inlägget redigerar inget (minnet är per jobb). Loggrad: `berikat:`.

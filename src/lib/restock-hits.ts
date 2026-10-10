@@ -104,6 +104,47 @@ export interface RestockHitApplyResult {
   /** Offers vars lagerstatus rättats av en tyst STOCK_SYNC-hit (åt båda håll). */
   synced: number;
   skipped: Record<string, number>;
+  /**
+   * ORUTTADE hits som appen just band till en produkt (2026-10-10). Lanen redigerar sitt
+   * redan postade Discord-inlägg med produktlänk, marknadsvärde och Tradera sålt — den
+   * har ingen rutt för en helt ny butikssida förrän nattens ruttexport.
+   */
+  bound?: BoundHit[];
+}
+
+/** En oruttad hit som fick en produkt — det inlägget behöver för att bli komplett. */
+export interface BoundHit {
+  /** Hitens/inläggets nyckel (`källa	url`). */
+  key: string;
+  slug: string;
+  title: string;
+  setName: string | null;
+  /** Nattens frysta CM-värde, bara när det kommer från Cardmarket (market-compare.ts). */
+  marketValueOre: number | null;
+  soldMedianOre: number | null;
+  soldCount: number | null;
+}
+
+/** Tål ett äldre/trasigt svar: bara fullständiga poster släpps igenom. */
+export function parseBoundHits(value: unknown): BoundHit[] {
+  if (!Array.isArray(value)) return [];
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const out: BoundHit[] = [];
+  for (const v of value) {
+    if (!v || typeof v !== "object") continue;
+    const o = v as Record<string, unknown>;
+    if (typeof o.key !== "string" || typeof o.slug !== "string" || typeof o.title !== "string") continue;
+    out.push({
+      key: o.key,
+      slug: o.slug,
+      title: o.title,
+      setName: typeof o.setName === "string" ? o.setName : null,
+      marketValueOre: num(o.marketValueOre),
+      soldMedianOre: num(o.soldMedianOre),
+      soldCount: num(o.soldCount),
+    });
+  }
+  return out;
 }
 
 /** Vilken grind en hit lyder under. Restock och pris pausas av OLIKA skäl (CLAUDE.md). */
@@ -343,7 +384,7 @@ export async function sendRestockHits(
         detail: text.slice(0, 300),
       };
     }
-    let body: { paused?: boolean } & Partial<RestockHitApplyResult> = {};
+    let body: { paused?: boolean } & Partial<Omit<RestockHitApplyResult, "bound">> & { bound?: unknown } = {};
     try {
       body = JSON.parse(text) as typeof body;
     } catch {
@@ -365,6 +406,7 @@ export async function sendRestockHits(
             delayedAlerts: body.delayedAlerts ?? 0,
             synced: body.synced ?? 0,
             skipped: body.skipped ?? {},
+            bound: parseBoundHits(body.bound),
           },
     };
   } catch (e) {

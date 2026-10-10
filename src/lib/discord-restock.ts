@@ -25,6 +25,7 @@ import { buyLink } from "@/lib/cart-url";
 import { formatPercent, formatPrice } from "@/lib/format";
 import { formatMarketValue, formatTraderaSold, marketDelta } from "@/lib/market-compare";
 import type { StoreStock } from "@/scrapers/types";
+import type { BoundHit } from "@/lib/restock-hits";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
 const BRAND_COLOR = 0x2dd4bf;
@@ -494,7 +495,11 @@ function clamp(s: string, max: number): string {
  * ska kunna köra direkt: varan är slutsåld igen om några minuter. Vår produktsida
  * ligger som en egen rad när vi känner igen URL:en.
  */
-export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = {}) {
+export function buildRestockEmbed(
+  post: RestockPost,
+  /** `at` = inläggets ursprungliga tid (ms) — en redigering ska inte flytta tidsstämpeln. */
+  opts: { cart?: boolean; at?: number } = {}
+) {
   // ⛔ BÅDA TALEN MÅSTE VARA RIKTIGA PRISER. `previousPriceOre` sätts bara av
   //    prisdomen, men embedden byggs också av testläget och av äldre state — och en
   //    nolla i nämnaren hade gett "−Infinity %" i en publik kanal.
@@ -631,8 +636,70 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
         ? "Foilio · Butikslagret kan ändras snabbt — ring butiken innan du åker."
         : "Foilio · foilio.se",
     },
-    timestamp: new Date().toISOString(),
+    timestamp: new Date(opts.at ?? Date.now()).toISOString(),
   };
+}
+
+/**
+ * NYSS BUNDEN PRODUKT (2026-10-10): appen band en oruttad butikssida till vår produkt
+ * (larm-hiten) och skickade tillbaka det inlägget saknade. Inlägget får nu samma fält
+ * som ett ruttat: produktlänk ("Prishistorik"), katalogtitel, marknadsvärde + kant,
+ * Tradera sålt. Muterar posten — den delas av det publika inlägget och Pro-spegeln,
+ * så båda blir rätt vid nästa rendering.
+ */
+export function applyBoundToPost(post: RestockPost, bound: BoundHit, site: string): RestockPost {
+  post.productSlug = bound.slug;
+  post.productUrl = `${site.replace(/\/$/, "")}/produkter/${bound.slug}`;
+  post.setUrl = null;
+  post.title = bound.title;
+  if (bound.setName) post.setName = bound.setName;
+  post.marketValueOre = bound.marketValueOre;
+  post.soldMedianOre = bound.soldMedianOre;
+  post.soldCount = bound.soldCount;
+  return post;
+}
+
+/** Ett postat Discord-meddelande — det som behövs för att redigera det senare. */
+export interface PostedRestockMessage {
+  channelId: string;
+  messageId: string;
+  /** Inläggen i meddelandets ordning (samma objekt som lanen postade). */
+  posts: RestockPost[];
+  /** Pro-spegeln (korglänken) — embedden byggs med `cart: true`. */
+  cart: boolean;
+  /** När det postades (ms) — tidsstämpeln behålls vid redigering. */
+  at: number;
+}
+
+/**
+ * Bygger om ett postat meddelande ur dess (nu berikade) inlägg och PATCH:ar det.
+ * Kastar aldrig: en misslyckad redigering lämnar bara det ursprungliga inlägget kvar.
+ */
+export async function editRestockMessage(msg: PostedRestockMessage, config: Pick<DiscordRestockConfig, "botToken">): Promise<boolean> {
+  try {
+    const res = await discordFetch(`/channels/${msg.channelId}/messages/${msg.messageId}`, {
+      method: "PATCH",
+      authorization: `Bot ${config.botToken}`,
+      body: JSON.stringify({ embeds: msg.posts.map((p) => buildRestockEmbed(p, { cart: msg.cart, at: msg.at })) }),
+    });
+    if (!res.ok) {
+      console.warn(`[discord-restock] Kunde inte redigera ${msg.messageId}: ${res.status} ${await res.text().catch(() => "")}`);
+    }
+    return res.ok;
+  } catch (e) {
+    console.warn("[discord-restock] Redigeringen föll:", e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
+/** Meddelande-id ur Discords svar på en POST (null om svaret saknar det). */
+async function messageIdOf(res: Response): Promise<string | null> {
+  try {
+    const body = (await res.json()) as { id?: string };
+    return typeof body.id === "string" ? body.id : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Delar en lista i bitar om högst `size`. */
@@ -741,7 +808,8 @@ export async function postTestMessages(
 export async function postRestocks(
   posts: RestockPost[],
   config: DiscordRestockConfig
-): Promise<{ sent: number; postedKeys: string[]; failed: number }> {
+): Promise<{ sent: number; postedKeys: string[]; failed: number; messages: PostedRestockMessage[] }> {
+  const messages: PostedRestockMessage[] = [];
   const byChannel = new Map<string, RestockPost[]>();
   for (const p of posts) {
     const channelId = resolveRestockChannelId(p, config);
@@ -762,12 +830,15 @@ export async function postRestocks(
   const postedKeys: string[] = [];
   for (const [channelId, list] of byChannel) {
     for (const batch of chunk(list, MAX_EMBEDS_PER_MESSAGE)) {
+      const at = Date.now();
       const res = await discordFetch(`/channels/${channelId}/messages`, {
         method: "POST",
         authorization: `Bot ${config.botToken}`,
-        body: JSON.stringify({ embeds: batch.map((p) => buildRestockEmbed(p)) }),
+        body: JSON.stringify({ embeds: batch.map((p) => buildRestockEmbed(p, { at })) }),
       });
       if (res.ok) {
+        const messageId = await messageIdOf(res);
+        if (messageId) messages.push({ channelId, messageId, posts: batch, cart: false, at });
         sent += batch.length;
         for (const p of batch) postedKeys.push(p.key, ...(p.extraKeys ?? []));
         continue;
@@ -799,12 +870,17 @@ export async function postRestocks(
     }
     for (const [channelId, list] of byPro) {
       for (const batch of chunk(list, MAX_EMBEDS_PER_MESSAGE)) {
+        const at = Date.now();
         const res = await discordFetch(`/channels/${channelId}/messages`, {
           method: "POST",
           authorization: `Bot ${config.botToken}`,
-          body: JSON.stringify({ embeds: batch.map((p) => buildRestockEmbed(p, { cart: true })) }),
+          body: JSON.stringify({ embeds: batch.map((p) => buildRestockEmbed(p, { cart: true, at })) }),
         });
-        if (res.ok) continue;
+        if (res.ok) {
+          const messageId = await messageIdOf(res);
+          if (messageId) messages.push({ channelId, messageId, posts: batch, cart: true, at });
+          continue;
+        }
         failed += batch.length;
         console.error(
           `[discord-restock] Kunde inte posta ${batch.length} Pro-larm i kanal ${channelId}: ` +
@@ -814,5 +890,5 @@ export async function postRestocks(
     }
   }
 
-  return { sent, postedKeys, failed };
+  return { sent, postedKeys, failed, messages };
 }

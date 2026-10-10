@@ -23,7 +23,14 @@ import { prisma } from "@/lib/db";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { checkPriceAlerts, checkRestockAlerts, lowestBuyableOffer, type BuyableOffer } from "@/services/alerts";
 import { HIDDEN_CATEGORIES } from "@/services/products";
-import { hitKind, siblingOfferAction, type RestockHit, type RestockHitApplyResult } from "@/lib/restock-hits";
+import {
+  hitKind,
+  siblingOfferAction,
+  type BoundHit,
+  type RestockHit,
+  type RestockHitApplyResult,
+} from "@/lib/restock-hits";
+import { loadTraderaSoldStats } from "@/services/tradera-sold-stats";
 import { guessListingCategory } from "@/scrapers/listing-category";
 import { loadMatchIndex, type MatchIndex } from "@/scrapers/matching";
 import { ensureListingProduct } from "@/scrapers/runner";
@@ -149,6 +156,8 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
     result.skipped[why] = (result.skipped[why] ?? 0) + n;
   };
   const now = new Date();
+  /** Oruttade hits som fick en produkt: hit-nyckel → produkt-id (berikas efter loopen). */
+  const boundKeys = new Map<string, string>();
 
   for (const hit of hits) {
     const retailer = await prisma.retailer.findUnique({
@@ -297,6 +306,8 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
       }
     }
     result.matched++;
+    // Oruttad men nu bunden: lanen redigerar sitt inlägg med produktens data (se BoundHit).
+    if (!hit.productSlug) boundKeys.set(hit.key, productId);
 
     const toStatus = hit.to as StockStatus;
     const laneFrom = laneStatus(hit.from);
@@ -341,5 +352,38 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
       });
     }
   }
+  if (boundKeys.size > 0) result.bound = await describeBound(boundKeys);
   return result;
+}
+
+/**
+ * Det ett Discord-inlägg behöver för en nyss bunden produkt. Neon är vaken (hiten);
+ * två smala frågor oavsett antal. Gömda produkter utelämnas — ingen länk dit.
+ */
+async function describeBound(boundKeys: Map<string, string>): Promise<BoundHit[]> {
+  const ids = Array.from(new Set(boundKeys.values()));
+  const [products, sold] = await Promise.all([
+    prisma.product.findMany({
+      where: { id: { in: ids }, hiddenAt: null },
+      select: { id: true, slug: true, title: true, settledValueOre: true, settledValueFromCm: true, set: { select: { name: true } } },
+    }),
+    loadTraderaSoldStats(ids),
+  ]);
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const out: BoundHit[] = [];
+  for (const [key, id] of boundKeys) {
+    const p = byId.get(id);
+    if (!p) continue;
+    const s = sold.get(id);
+    out.push({
+      key,
+      slug: p.slug,
+      title: p.title,
+      setName: p.set?.name ?? null,
+      marketValueOre: p.settledValueFromCm && p.settledValueOre && p.settledValueOre > 0 ? p.settledValueOre : null,
+      soldMedianOre: s?.medianOre ?? null,
+      soldCount: s?.count ?? null,
+    });
+  }
+  return out;
 }

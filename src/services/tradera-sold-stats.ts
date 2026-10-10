@@ -8,13 +8,18 @@
  * MEDIAN (percentile_cont), samma storhet som prisgrafens sålt-serie. Graderade affärer
  * ligger aldrig här — de bor i `GradedSale` — så talet är det ograderade/förseglade.
  * Okänd källa (ny databas) ⇒ tom karta, aldrig ett fel som fäller anroparen.
- * ⛔ Anropas bara där Neon redan är vaken (nattjobben).
+ * ⛔ Anropas bara där Neon redan är vaken (nattjobben och larm-hiten).
  */
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { TRADERA_SOLD_MIN_COUNT, TRADERA_SOLD_WINDOW_DAYS } from "@/lib/market-compare";
 import { TRADERA_SOLD_SOURCE_NAME } from "@/services/products";
 
-export async function loadTraderaSoldStats(): Promise<Map<string, { medianOre: number; count: number }>> {
+export async function loadTraderaSoldStats(
+  /** Bara dessa produkter (larm-hitens berikning). Utelämnad = hela katalogen. */
+  productIds?: readonly string[]
+): Promise<Map<string, { medianOre: number; count: number }>> {
+  if (productIds && productIds.length === 0) return new Map();
   const source = await prisma.scrapeSource.findUnique({
     where: { name: TRADERA_SOLD_SOURCE_NAME },
     select: { id: true },
@@ -26,6 +31,7 @@ export async function loadTraderaSoldStats(): Promise<Map<string, { medianOre: n
            (percentile_cont(0.5) WITHIN GROUP (ORDER BY price))::float8 AS median
     FROM "PriceObservation"
     WHERE "sourceId" = ${source.id} AND "observedAt" >= ${since} AND price > 0
+      ${productIds ? Prisma.sql`AND "productId" IN (${Prisma.join(productIds)})` : Prisma.empty}
     GROUP BY "productId"
     HAVING COUNT(*) >= ${TRADERA_SOLD_MIN_COUNT}`;
   return new Map(rows.map((r) => [r.productId, { medianOre: Math.round(r.median), count: r.n }]));

@@ -38,6 +38,7 @@ const lowestBuyableOffer = vi.fn();
 const storeListingUpsert = vi.fn();
 const auditLogCreate = vi.fn();
 const ensureListingProduct = vi.fn();
+const productFindMany = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -46,7 +47,10 @@ vi.mock("@/lib/db", () => ({
       findFirst: (...a: unknown[]) => offerFindFirst(...a),
       update: (...a: unknown[]) => offerUpdate(...a),
     },
-    product: { findUnique: (...a: unknown[]) => productFindUnique(...a) },
+    product: {
+      findUnique: (...a: unknown[]) => productFindUnique(...a),
+      findMany: (...a: unknown[]) => productFindMany(...a),
+    },
     restockEvent: { create: (...a: unknown[]) => restockEventCreate(...a) },
     storeListing: { upsert: (...a: unknown[]) => storeListingUpsert(...a) },
     auditLog: { create: (...a: unknown[]) => auditLogCreate(...a) },
@@ -60,6 +64,9 @@ vi.mock("@/services/alerts", () => ({
   checkRestockAlerts: (...a: unknown[]) => checkRestockAlerts(...a),
   checkPriceAlerts: (...a: unknown[]) => checkPriceAlerts(...a),
   lowestBuyableOffer: (...a: unknown[]) => lowestBuyableOffer(...a),
+}));
+vi.mock("@/services/tradera-sold-stats", () => ({
+  loadTraderaSoldStats: async () => new Map([["p-etb", { medianOre: 105000, count: 4 }]]),
 }));
 vi.mock("@/services/products", () => ({
   HIDDEN_CATEGORIES: ["ACCESSORY", "GRADED_CARD", "OTHER"],
@@ -389,6 +396,34 @@ describe("applyRestockHits — appens skrivningar", () => {
         data: expect.objectContaining({ action: "restock-hit.repoint", entityId: "o-old" }),
       });
       expect(r).toMatchObject({ matched: 1, events: 1, alerts: 2, skipped: {} });
+    });
+
+    it("oruttad + bunden ⇒ svaret bär produktens data så lanen kan redigera sitt inlägg (2026-10-10)", async () => {
+      offerFindFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(sibling("OUT_OF_STOCK"));
+      productFindMany.mockResolvedValueOnce([
+        { id: "p-etb", slug: "30th-etb", title: "30th Celebration Elite Trainer Box", settledValueOre: 79900, settledValueFromCm: true, set: { name: "30th Celebration" } },
+      ]);
+      const r = await applyRestockHits([unrouted()]);
+      expect(r.bound).toEqual([
+        {
+          key: unrouted().key,
+          slug: "30th-etb",
+          title: "30th Celebration Elite Trainer Box",
+          setName: "30th Celebration",
+          marketValueOre: 79900,
+          soldMedianOre: 105000,
+          soldCount: 4,
+        },
+      ]);
+    });
+
+    it("ruttade hits berikas aldrig (lanen har redan rutten)", async () => {
+      offerFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(sibling("UNKNOWN"));
+      const r = await applyRestockHits([hit({ storeName: "Speltrollet", storeUrl: newUrl, productSlug: "30th-etb" })]);
+      expect(r.bound).toBeUndefined();
     });
 
     it("den andra sidan står redan i lager ⇒ ingen påfyllning, inget dubbellarm, offern orörd", async () => {

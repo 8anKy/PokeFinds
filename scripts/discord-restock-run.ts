@@ -51,7 +51,14 @@ import { fetchWatchedListing } from "../src/scrapers/watched-listing";
 import { ShopifyAdapter } from "../src/scrapers/adapters/shopify-adapter";
 import { requestCountSnapshot } from "../src/scrapers/http";
 import { setDynamicDenylist } from "../src/scrapers/import-denylist";
-import { discordRestockConfig, postRestocks, postTestMessages } from "../src/lib/discord-restock";
+import {
+  applyBoundToPost,
+  discordRestockConfig,
+  editRestockMessage,
+  postRestocks,
+  postTestMessages,
+  type PostedRestockMessage,
+} from "../src/lib/discord-restock";
 import { fetchShopifyPurchasable } from "../src/scrapers/stock-verify";
 import {
   deriveRestockPosts,
@@ -77,6 +84,7 @@ import {
   removeDelivered,
   sendRestockHits,
   splitHitBatch,
+  type BoundHit,
   type RestockHit,
 } from "../src/lib/restock-hits";
 
@@ -454,6 +462,34 @@ async function main() {
       return;
     }
   };
+  // ---- NYSS BUNDNA PRODUKTER: REDIGERA INLÄGGET (2026-10-10) ----
+  // En helt ny butikssida har ingen rutt förrän nattens export, så inlägget saknar
+  // produktlänk och marknadsvärde. Appen binder sidan i larm-hiten och svarar med
+  // produktens data (`bound`); vi redigerar då vårt eget inlägg — publikt + Pro.
+  // Svaret och Discord-kvittensen kan komma i vilken ordning som helst, så båda sidor
+  // sparas och den som kommer sist utlöser redigeringen. Bara i minnet: en hit som
+  // levereras i ett SENARE jobb än inlägget postades i redigerar ingenting (sällsynt).
+  const messagesByKey = new Map<string, PostedRestockMessage[]>();
+  const boundByKey = new Map<string, BoundHit>();
+  let enrichedPosts = 0;
+  const enrichKey = async (key: string) => {
+    const bound = boundByKey.get(key);
+    const msgs = messagesByKey.get(key);
+    if (!bound || !msgs || !config) return;
+    boundByKey.delete(key);
+    messagesByKey.delete(key);
+    for (const m of msgs) for (const p of m.posts) if (p.key === key) applyBoundToPost(p, bound, baseUrl);
+    let ok = 0;
+    for (const m of msgs) if (await editRestockMessage(m, config)) ok++;
+    if (ok) {
+      enrichedPosts++;
+      console.log(
+        `[discord-restock]   berikat: ${key.replace("\t", " → ")} → ${bound.slug}` +
+          `${bound.marketValueOre ? ` (marknadsvärde ${bound.marketValueOre} öre)` : ""}`
+      );
+    }
+  };
+
   const flushHits = () => {
     if (!hitsEnabled) return;
     hitChain = hitChain
@@ -483,6 +519,10 @@ async function main() {
           }
           hitTotals.delivered += batch.length;
           hitTotals.alerts += res.result?.alerts ?? 0;
+          for (const b of res.result?.bound ?? []) {
+            boundByKey.set(b.key, b);
+            await enrichKey(b.key);
+          }
           const skipped = Object.entries(res.result?.skipped ?? {})
             .map(([k, v]) => `${k} ${v}`)
             .join(", ");
@@ -749,6 +789,19 @@ async function main() {
     queueHits(hits);
 
     const res = await postRestocks(postable, config);
+    // Meddelande-id:n för en senare redigering — bara ORUTTADE inlägg kan behöva en.
+    const enrichable: string[] = [];
+    for (const m of res.messages) {
+      for (const p of m.posts) {
+        if (p.productSlug) continue;
+        const list = messagesByKey.get(p.key);
+        if (list) list.push(m);
+        else messagesByKey.set(p.key, [m]);
+        if (!enrichable.includes(p.key)) enrichable.push(p.key);
+      }
+    }
+    // Svaret kan redan ha kommit (hitsen köades före utskicket). Utanför varvet.
+    for (const k of enrichable) void enrichKey(k);
     totalPosted += res.sent;
     totalFailures += res.failed;
     jobTotals.priceDrops += res.postedKeys.filter((k) => pricedKeys[k] != null).length;
@@ -856,7 +909,8 @@ async function main() {
         ? ` Larm-hits: ${hitTotals.queued} köade, ${hitTotals.delivered} levererade (${hitTotals.alerts} larm), ` +
           `${hitTotals.dropped} slängda, ${pendingHits.length} väntar. Lagersynkar: ${hitTotals.syncsQueued} köade, ` +
           `${hitTotals.synced} rättade i appen, ${hitTotals.syncsStale} inaktuella.`
-        : "")
+        : "") +
+      (enrichedPosts ? ` Berikade inlägg (nyss bundna produkter): ${enrichedPosts}.` : "")
   );
 
   // ⛔ NEKADE UTSKICK GÖR KÖRNINGEN RÖD. 2026-08-12 förlorade boten Send Messages i
