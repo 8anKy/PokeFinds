@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "se.foilio.app",
+      "sha256_cert_fingerprints": [
+        "D6:56:6B:0B:3F:12:BD:E7:46:1F:A4:F7:58:EC:3F:21:83:9D:12:74:A4:48:95:01:68:28:C6:DA:8D:0C:CA:27",
+        "97:78:E4:45:60:70:54:75:85:E0:5A:18:7E:86:71:E4:3A:08:3F:52:F7:B2:F8:0A:DF:DF:40:F2:BE:EF:B5:02"
+      ]
+    }
+  }
+]
