@@ -56,17 +56,17 @@ export function marketDelta(
 }
 
 /**
- * "1 130 kr · 🟢 22 % under" / "999 kr · 🔴 8 % över" / "🟢 samma pris".
+ * "1 130 kr · 22 % under" / "999 kr · 8 % över" / "549 kr · samma pris".
  *
- * Discord kan inte färga löptext i ett embed, så domen bärs av emojin (mobilen visar
- * kanten smalt) OCH av kantfärgen. Hela procent: en decimal i ett lopp är brus.
+ * ⛔ INGEN 🟢/🔴 I TEXTEN (ägarbeslut 2026-10-10): domen bärs av embeddens KANTFÄRG
+ *    (grön/röd, se buildRestockEmbed) och av orden "under"/"över". Hela procent: en
+ *    decimal i ett lopp är brus.
  */
 export function formatMarketValue(delta: MarketDelta): string {
   const rounded = Math.round(Math.abs(delta.percent));
-  const dot = delta.verdict === "good" ? "🟢" : "🔴";
   const verdict =
     rounded === 0 ? "samma pris" : `${rounded} % ${delta.percent < 0 ? "under" : "över"}`;
-  return `${formatPrice(delta.marketOre)} · ${dot} ${verdict}${delta.withShipping ? " (inkl. frakt)" : ""}`;
+  return `${formatPrice(delta.marketOre)} · ${verdict}${delta.withShipping ? " (inkl. frakt)" : ""}`;
 }
 
 /**

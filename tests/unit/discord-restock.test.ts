@@ -956,19 +956,19 @@ describe("buildRestockEmbed", () => {
     expect(embed.footer.text).toBe("Foilio · foilio.se");
   });
 
-  it("marknadsvärde: grönt på/under, rött över — kant OCH emoji (Discord färgar ingen löptext)", () => {
+  it("marknadsvärde: grön kant på/under, röd över — ingen emoji i texten", () => {
     const mv = (p: Parameters<typeof buildRestockEmbed>[0]) =>
       buildRestockEmbed(p).fields.find((f) => f.name === "Marknadsvärde")?.value.replace(/ /g, " ");
     // 549 mot 699 ⇒ 21 % under.
     const good = buildRestockEmbed({ ...post, marketValueOre: 69900 });
-    expect(mv({ ...post, marketValueOre: 69900 })).toBe("699 kr · 🟢 21 % under");
+    expect(mv({ ...post, marketValueOre: 69900 })).toBe("699 kr · 21 % under");
     expect(good.color).toBe(0x22c55e);
     // 549 mot 499 ⇒ 10 % över.
     const bad = buildRestockEmbed({ ...post, marketValueOre: 49900 });
-    expect(mv({ ...post, marketValueOre: 49900 })).toBe("499 kr · 🔴 10 % över");
+    expect(mv({ ...post, marketValueOre: 49900 })).toBe("499 kr · 10 % över");
     expect(bad.color).toBe(0xef4444);
     // Exakt marknadsvärdet räknas som bra.
-    expect(mv({ ...post, marketValueOre: 54900 })).toBe("549 kr · 🟢 samma pris");
+    expect(mv({ ...post, marketValueOre: 54900 })).toBe("549 kr · samma pris");
   });
 
   it("⛔ utan marknadsvärde eller utan riktigt pris: ingen rad, ingen färgdom, aldrig Infinity", () => {

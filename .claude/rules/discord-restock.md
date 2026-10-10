@@ -543,7 +543,7 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   rollen). Prissänkningar speglas inte. Ett nekat Pro-inlägg gör körningen röd men rör inte cooldownen.
 
 - **MARKNADSVÄRDE + TRADERA SÅLT I INLÄGGET (ägarbeslut 2026-10-10, ersätter "Rek. pris")**: två rader på full
-  bredd under Butik/Pris — `Marknadsvärde` ("699 kr · 🟢 21 % under") och `Tradera sålt` ("1 050 kr · median av 6
+  bredd under Butik/Pris — `Marknadsvärde` ("699 kr · 21 % under") och `Tradera sålt` ("1 050 kr · median av 6
   sålda, 30 d"). Kantfärgen följer marknadsvärdet (grön ≤, röd över, turkos utan värde). Talen kommer ur ruttabellen
   (`scripts/lib/restock-routes.ts`): CM-värdet = `Product.settledValueOre` BARA när `settledValueFromCm` (reserven är
   lägsta butik och ingen marknad), sålt = EN aggregatfråga (percentile_cont) över `PriceObservation` för källan
