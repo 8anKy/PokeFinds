@@ -395,6 +395,12 @@ export function ConnectionsSection({ user }: { user: SettingsUser }) {
   const [discordUsername, setDiscordUsername] = useState(user.discordUsername);
   const [disconnectingDiscord, setDisconnectingDiscord] = useState(false);
   const [traderaUserId, setTraderaUserId] = useState(user.traderaUserId);
+  // Samma spak som raden under Notiser (notificationSettings.discord) — två ingångar,
+  // EN inställning: här hittar man den direkt efter att ha kopplat Discord.
+  const discordDm = useOptimisticToggle(user.notificationSettings.discord, {
+    on: t("discordDmOnToast"),
+    off: t("discordDmOffToast"),
+  });
   const [disconnectingTradera, setDisconnectingTradera] = useState(false);
   const showListings = useOptimisticToggle(user.showTraderaListings, {
     on: t("traderaShowOnToast"),
@@ -484,7 +490,7 @@ export function ConnectionsSection({ user }: { user: SettingsUser }) {
               {discordUsername ?? t("notConnected")}
             </span>
           </div>
-          <div className="px-4 py-3">
+          <div className="border-b border-surface-border px-4 py-3 last:border-b-0">
             {discordUsername ? (
               <Button
                 variant="secondary"
@@ -506,6 +512,33 @@ export function ConnectionsSection({ user }: { user: SettingsUser }) {
               </a>
             )}
           </div>
+          {/* PRO: larmen som DM (lib/discord-dm.ts). Bara när kontot är kopplat. */}
+          {discordUsername &&
+            (user.isPro ? (
+              <SettingsRow
+                label={t("notifDiscord")}
+                hint={t("notifDiscordHint")}
+                control={
+                  <Toggle
+                    checked={discordDm.value}
+                    disabled={discordDm.saving}
+                    label={t("notifDiscord")}
+                    onChange={(next) => void discordDm.set(next, { notificationSettings: { discord: next } })}
+                  />
+                }
+              />
+            ) : (
+              <SettingsRow
+                label={t("notifDiscord")}
+                hint={t("notifDiscordHint")}
+                control={
+                  <ProLockControl
+                    label={t("proTag")}
+                    onClick={() => openPaywallOrNavigate(router, { source: "settings-discord-dm" })}
+                  />
+                }
+              />
+            ))}
         </SettingsSection>
       )}
 

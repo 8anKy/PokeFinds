@@ -125,6 +125,8 @@
     "notifDiscordHint": "Dina larm som privat meddelande från Foilio-boten. Kräver att DM från servermedlemmar är på i Discord.",
     "notifDiscordLinkHint": "Koppla ditt Discord-konto för att få larmen som DM.",
     "notifDiscordLink": "Koppla",
+    "discordDmOnToast": "Dina larm kommer nu som Discord-DM",
+    "discordDmOffToast": "Discord-DM avstängt",
     "proTag": "Pro",
     "notifSaved": "Notisinställningarna har sparats",
     "saveFail": "Det gick inte att spara",

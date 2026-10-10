@@ -125,6 +125,8 @@
     "notifDiscordHint": "Your alerts as a private message from the Foilio bot. Requires DMs from server members to be on in Discord.",
     "notifDiscordLinkHint": "Connect your Discord account to get alerts as DMs.",
     "notifDiscordLink": "Connect",
+    "discordDmOnToast": "Your alerts will now arrive as Discord DMs",
+    "discordDmOffToast": "Discord DMs turned off",
     "proTag": "Pro",
     "notifSaved": "Notification settings saved",
     "saveFail": "Couldn't save",
