@@ -610,9 +610,9 @@ model Product {
   settledValueOre    Int?
   settledValueFromCm Boolean         @default(false)
   settledValueAt     DateTime?
-  // Rekommenderat pris (MSRP) i öre, satt av ägaren (scripts/set-msrp.ts). null =
-  // okänt ⇒ kategoridefault ur src/lib/msrp.ts, annars ingen jämförelse alls.
-  // ⛔ En JÄMFÖRELSEPUNKT för Discord-inlägget — rör aldrig rubrikpris/Lägst/larm.
+  // ⛔ OANVÄND sedan 2026-10-10 (MSRP borttaget ur Discord-inläggen, ägarbeslut — ingen
+  // rad hade någonsin ett värde). Ligger kvar tills en separat migration droppar den:
+  // en drop i samma deploy hade slagit ut den gamla instansen under bytet.
   msrpOre            Int?
   // Senast namn-sökt på Tradera (roterande full-katalog-svep). null = aldrig sökt
   // → prioriteras först. Se src/jobs/tradera-sweep.ts (Fas 0).

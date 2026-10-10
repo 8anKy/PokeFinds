@@ -8,7 +8,6 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
 import { imageUrl } from "@/lib/object-storage";
-import { resolveMsrpOre } from "@/lib/msrp";
 import { STORE_OBSERVATIONS, type StoreObservation } from "@/lib/community-stores";
 import {
   deleteStoreReportFromDiscord,
@@ -50,7 +49,7 @@ async function loadStoreReportPost(postId: string): Promise<{ post: StoreReportP
   const product = r.productSlug
     ? await prisma.product.findFirst({
         where: { slug: r.productSlug },
-        select: { imageUrl: true, msrpOre: true, category: true, language: true },
+        select: { imageUrl: true, settledValueOre: true, settledValueFromCm: true },
       })
     : null;
   const firstKey = r.post.images[0]?.key;
@@ -63,7 +62,8 @@ async function loadStoreReportPost(postId: string): Promise<{ post: StoreReportP
       productLabel: r.productLabel,
       productSlug: r.productSlug,
       productImageUrl: product?.imageUrl ?? null,
-      msrpOre: product ? resolveMsrpOre(product) : null,
+      // ⛔ Bara ett Cardmarket-värde är ett marknadsvärde (src/lib/market-compare.ts).
+      marketValueOre: product?.settledValueFromCm ? product.settledValueOre : null,
       priceOre: r.priceOre,
       comment: (await isDefaultReportText(r.post.content)) ? null : r.post.content,
       photoUrl: firstKey ? await imageUrl(firstKey).catch(() => null) : null,

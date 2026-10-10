@@ -541,3 +541,19 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   `Offer.cartUrl` (Shopify/Woo) som länk; publika kanaler får ALLTID butikens produktsida — korgen är
   Pro-förmånen (push + Pro-kanal). Kanalen måste vara synlig bara för Pro-rollen (Discord-kopplingen ger
   rollen). Prissänkningar speglas inte. Ett nekat Pro-inlägg gör körningen röd men rör inte cooldownen.
+
+- **MARKNADSVÄRDE + TRADERA SÅLT I INLÄGGET (ägarbeslut 2026-10-10, ersätter "Rek. pris")**: två rader på full
+  bredd under Butik/Pris — `Marknadsvärde` ("699 kr · 🟢 21 % under") och `Tradera sålt` ("1 050 kr · median av 6
+  sålda, 30 d"). Kantfärgen följer marknadsvärdet (grön ≤, röd över, turkos utan värde). Talen kommer ur ruttabellen
+  (`scripts/lib/restock-routes.ts`): CM-värdet = `Product.settledValueOre` BARA när `settledValueFromCm` (reserven är
+  lägsta butik och ingen marknad), sålt = EN aggregatfråga (percentile_cont) över `PriceObservation` för källan
+  "Tradera sålt", `HAVING COUNT(*) >= 3`. MÄTT vid bygget: 4 312 av 4 491 rutter med marknadsvärde, 1 450 med sålt.
+  ⛔ Ingen deal-kanal (ägarbeslut): jämförelsen i varje inlägg är jobbet. ⛔ Ingen MSRP — `msrp.ts`/`set-msrp.ts`
+  är raderade. ⚠️ CM-värdet för sealed är EU-brett LÄGSTA annons; svenska butiker ligger ofta över ⇒ många röda
+  kanter är sanningen, inte en bugg (samma skäl som att prisvakten är butiksfri uppåt, scraping-restock.md).
+- **PRO-SPEGELN: "FÖRRA PÅFYLLNINGEN SÅLDE SLUT PÅ X MIN" (ägarbeslut 2026-10-10)**: lanens state bär `sellout`
+  (url-nyckel → `{m, t}` = minuter i lager + när den sålde slut), skriven när en ONLINE-nyckel går IN/LIMITED → OUT
+  och starten syns i dygnshistoriken (annars ingen rad — aldrig en gissning), glömd efter 30 dygn. Nästa
+  påfyllningsinlägg bär `lastSellout`; `buildRestockEmbed` visar fältet BARA med `{ cart: true }` (Pro-spegeln),
+  med `<t:…:R>` så Discord skriver relativ tid i läsarens språk. ⛔ Nya state-fält in på TRE ställen
+  (parse, seedad retur, slutlig retur) — `sellout` är det. Inte på prisinlägg eller butiksvaror.

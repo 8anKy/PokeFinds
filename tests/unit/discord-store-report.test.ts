@@ -17,7 +17,7 @@ function post(over: Partial<StoreReportPost> = {}): StoreReportPost {
     productLabel: "Mega Evolution Elite Trainer Box",
     productSlug: "mega-evolution-etb",
     productImageUrl: "/api/cm-image/123",
-    msrpOre: null,
+    marketValueOre: null,
     priceOre: 64900,
     comment: null,
     photoUrl: null,

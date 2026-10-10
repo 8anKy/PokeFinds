@@ -15,9 +15,9 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { ProductCategory } from "@prisma/client";
 import { prisma } from "../../src/lib/db";
-import { resolveMsrpOre } from "../../src/lib/msrp";
+import { TRADERA_SOLD_MIN_COUNT, TRADERA_SOLD_WINDOW_DAYS } from "../../src/lib/market-compare";
+import { TRADERA_SOLD_SOURCE_NAME } from "../../src/services/products";
 import type { RestockSourceInfo } from "../../src/scrapers/runner";
 import type { RouteTable } from "../../src/lib/restock-feed-events";
 
@@ -67,6 +67,53 @@ export interface RestockRoutesPayload {
   watched: { sourceName: string; url: string }[];
 }
 
+/** Produktfälten en rutt byggs av — EN definition för både Offer- och huvudboksvägen. */
+const ROUTE_PRODUCT_SELECT = {
+  id: true,
+  title: true,
+  slug: true,
+  language: true,
+  imageUrl: true,
+  settledValueOre: true,
+  settledValueFromCm: true,
+  set: { select: { name: true, series: true } },
+} as const;
+
+interface RouteProduct {
+  id: string;
+  title: string;
+  slug: string;
+  language: string | null;
+  imageUrl: string | null;
+  settledValueOre: number | null;
+  settledValueFromCm: boolean;
+  set: { name: string; series: string | null } | null;
+}
+
+/**
+ * Tradera SÅLT per produkt senaste `TRADERA_SOLD_WINDOW_DAYS`: median + antal.
+ *
+ * MEDIAN (percentile_cont), samma storhet som prisgrafens sålt-serie. Graderade affärer
+ * ligger aldrig här — de bor i `GradedSale` — så talet är det ograderade/förseglade.
+ * Okänd källa (ny databas) ⇒ tom karta, aldrig ett fel som fäller exporten.
+ */
+async function loadTraderaSold(): Promise<Map<string, { medianOre: number; count: number }>> {
+  const source = await prisma.scrapeSource.findUnique({
+    where: { name: TRADERA_SOLD_SOURCE_NAME },
+    select: { id: true },
+  });
+  if (!source) return new Map();
+  const since = new Date(Date.now() - TRADERA_SOLD_WINDOW_DAYS * 86_400_000);
+  const rows = await prisma.$queryRaw<{ productId: string; n: number; median: number }[]>`
+    SELECT "productId", COUNT(*)::int AS n,
+           (percentile_cont(0.5) WITHIN GROUP (ORDER BY price))::float8 AS median
+    FROM "PriceObservation"
+    WHERE "sourceId" = ${source.id} AND "observedAt" >= ${since} AND price > 0
+    GROUP BY "productId"
+    HAVING COUNT(*) >= ${TRADERA_SOLD_MIN_COUNT}`;
+  return new Map(rows.map((r) => [r.productId, { medianOre: Math.round(r.median), count: r.n }]));
+}
+
 export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null> {
   const active = await prisma.scrapeSource.findMany({ where: { isActive: true } });
   const sources: RestockSourceInfo[] = active
@@ -93,39 +140,20 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
 
   const offers = await prisma.offer.findMany({
     where: { retailerId: { in: retailers.map((r) => r.id) } },
-    select: {
-      url: true,
-      product: {
-        select: {
-          title: true,
-          slug: true,
-          language: true,
-          imageUrl: true,
-          category: true,
-          msrpOre: true,
-          set: { select: { name: true, series: true } },
-        },
-      },
-    },
+    select: { url: true, product: { select: ROUTE_PRODUCT_SELECT } },
   });
+
+  // TRADERA SÅLT per produkt: median + antal i fönstret, i EN aggregatfråga (Neon är
+  // redan vaken i exportens fönster). Bara produkter med minst MIN affärer kommer med.
+  const soldByProduct = await loadTraderaSold();
 
   // URL → produkt. En URL kan i teorin bära flera offers (olika produkter) efter en
   // felaktig länkning; först vinner, och länkrevisionen (audit-links.ts) är rätt
   // ställe att lösa det — inte här.
   const routes: RouteTable = {};
-  const put = (
-    url: string,
-    product: {
-      title: string;
-      slug: string;
-      language: string | null;
-      imageUrl: string | null;
-      category: ProductCategory;
-      msrpOre: number | null;
-      set: { name: string; series: string | null } | null;
-    }
-  ) => {
+  const put = (url: string, product: RouteProduct) => {
     if (routes[url]) return;
+    const sold = soldByProduct.get(product.id);
     routes[url] = {
       title: product.title,
       slug: product.slug,
@@ -137,9 +165,13 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
       language: product.language,
       // Katalogbilden som reserv för embed-miniatyren — butiksfeedarna bär sällan bild.
       imageUrl: product.imageUrl ?? null,
-      // Rek. pris löses HÄR (egen kolumn, annars kategoridefault): lanen har ingen
-      // katalog att fråga, så talet måste ligga färdigt i tabellen.
-      msrpOre: resolveMsrpOre(product),
+      // Marknadsvärdet löses HÄR: lanen har ingen katalog att fråga. ⛔ BARA ett
+      // Cardmarket-värde — reserven (lägsta butik) är ingen marknad (market-compare.ts).
+      marketValueOre:
+        product.settledValueFromCm && product.settledValueOre && product.settledValueOre > 0
+          ? product.settledValueOre
+          : null,
+      ...(sold ? { soldMedianOre: sold.medianOre, soldCount: sold.count } : {}),
     };
   };
   for (const o of offers) put(o.url, o.product);
@@ -156,20 +188,7 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
   // 2026-08-14). Offers vinner fortfarande: de är kontrollerade av länkrevisionen.
   const ledger = await prisma.storeListing.findMany({
     where: { retailerId: { in: retailers.map((r) => r.id) }, productId: { not: null } },
-    select: {
-      url: true,
-      product: {
-        select: {
-          title: true,
-          slug: true,
-          language: true,
-          imageUrl: true,
-          category: true,
-          msrpOre: true,
-          set: { select: { name: true, series: true } },
-        },
-      },
-    },
+    select: { url: true, product: { select: ROUTE_PRODUCT_SELECT } },
   });
   let fromLedger = 0;
   for (const l of ledger) {
@@ -221,9 +240,12 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
   };
 
   const withSeries = Object.values(routes).filter((r) => r.series).length;
+  const withMarket = Object.values(routes).filter((r) => r.marketValueOre != null).length;
+  const withSold = Object.values(routes).filter((r) => r.soldCount != null).length;
   console.log(
     `[export-routes] ${sources.length} källor, ${Object.keys(routes).length} URL:er ` +
-      `(${withSeries} med serie, ${Object.keys(routes).length - withSeries} utan → catch-all; ` +
+      `(${withMarket} med marknadsvärde, ${withSold} med Tradera sålt; ` +
+      `${withSeries} med serie, ${Object.keys(routes).length - withSeries} utan → catch-all; ` +
       `${fromLedger} från huvudboken utan egen offer), ${setNames.length} setnamn, ` +
       `${payload.deniedUrls.length} nekade URL:er, ${watched.length} bevakade länkar.`
   );

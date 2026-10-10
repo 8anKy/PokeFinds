@@ -23,16 +23,16 @@
 import { discordFetch } from "@/lib/discord";
 import { buyLink } from "@/lib/cart-url";
 import { formatPercent, formatPrice } from "@/lib/format";
-import { msrpDelta } from "@/lib/msrp";
+import { formatMarketValue, formatTraderaSold, marketDelta } from "@/lib/market-compare";
 import type { StoreStock } from "@/scrapers/types";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
 const BRAND_COLOR = 0x2dd4bf;
 /**
- * Kantfärg när rek. pris är känt: grön på/under, röd över. Discord kan inte färga
- * löpande text i ett embed, så "procenten blir grön/röd" (ägarönskan 2026-09-21)
- * bärs av TVÅ saker: kanten OCH en 🟢/🔴 framför talet — mobilklienten visar kanten
- * smalt, så emojin är det som faktiskt läses där.
+ * Kantfärg när marknadsvärdet är känt (ägarbeslut 2026-10-10): grön på/under, röd
+ * över. Discord kan inte färga löpande text i ett embed, så domen bärs av TVÅ saker:
+ * kanten OCH en 🟢/🔴 framför talet — mobilklienten visar kanten smalt, så emojin är
+ * det som faktiskt läses där. Utan marknadsvärde: varumärkets turkos.
  */
 const GOOD_PRICE_COLOR = 0x22c55e;
 const BAD_PRICE_COLOR = 0xef4444;
@@ -301,11 +301,20 @@ export interface RestockPost {
   cartUrl?: string | null;
   priceOre: number | null;
   /**
-   * Rekommenderat pris i öre ur ruttabellen (`Product.msrpOre` eller kategoridefault,
-   * `src/lib/msrp.ts`). Satt ⇒ inlägget visar avvikelsen; saknas ⇒ ingenting, aldrig
-   * en gissning. Följer bara med när URL:en har en rutt — en okänd SKU har inget.
+   * Marknadsvärdet (Cardmarket) i öre ur ruttabellen. Satt ⇒ "Marknadsvärde"-raden +
+   * grön/röd kant; saknas ⇒ ingenting, aldrig en gissning. Följer bara med när URL:en
+   * har en rutt — en okänd SKU har inget.
    */
-  msrpOre?: number | null;
+  marketValueOre?: number | null;
+  /** Tradera sålt (median, antal) ur ruttabellen — se `formatTraderaSold`. */
+  soldMedianOre?: number | null;
+  soldCount?: number | null;
+  /**
+   * FÖRRA VÅGEN hos samma butik och URL (lanens eget minne, `DiscordRestockState.sellout`):
+   * hur länge varan låg i lager och när den sålde slut. Visas BARA i Pro-spegeln
+   * (ägarbeslut 2026-10-10) — det är lanens egen historik, och ingen gratis server har den.
+   */
+  lastSellout?: { minutes: number; at: number } | null;
   /**
    * true = butiksvara: går bara att köpa/reservera i butikens fysiska butik
    * (SF-Bok, Webhallens butikssläpp). Lagerdomen är oförändrad — det här är
@@ -461,6 +470,21 @@ function newStoreLead(post: RestockPost): string {
   return hit ? `Nytt i ${post.storeName} ${hit.label}. ` : "";
 }
 
+/**
+ * "Sålde slut på 4 min · <t:…:R>" — Discord renderar tidsstämpeln som levande relativ
+ * tid i läsarens eget språk ("för 2 dagar sedan"). null = säg ingenting.
+ *
+ * ⛔ "under 1 min" i stället för "0 min": lanen ser övergångar med sin pollningstakt,
+ *    och en nolla läses som ett mätfel snarare än "borta direkt".
+ */
+export function formatLastSellout(s: { minutes: number; at: number } | null | undefined): string | null {
+  if (!s || !Number.isFinite(s.minutes) || s.minutes < 0 || !Number.isFinite(s.at)) return null;
+  const m = Math.round(s.minutes);
+  const span =
+    m < 1 ? "under 1 min" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`;
+  return `Sålde slut på ${span} · <t:${Math.floor(s.at / 1000)}:R>`;
+}
+
 function clamp(s: string, max: number): string {
   return s.length <= max ? s : `${s.slice(0, max - 1)}…`;
 }
@@ -491,8 +515,9 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
     post.priceOre > post.previousPriceOre
       ? { percent: ((post.priceOre - post.previousPriceOre) / post.previousPriceOre) * 100 }
       : null;
-  // Rek. pris-jämförelsen: bara när BÅDA talen är riktiga priser (msrpDelta vaktar).
-  const delta = msrpDelta(post.priceOre, post.msrpOre);
+  // Marknadsvärdet: bara när BÅDA talen är riktiga priser (marketDelta vaktar).
+  const delta = marketDelta(post.priceOre, post.marketValueOre);
+  const sold = formatTraderaSold(post.soldMedianOre, post.soldCount);
   const storeOnly = post.storeOnly === true;
   const fields: { name: string; value: string; inline: boolean }[] = [
     { name: "Butik", value: clamp(post.storeName, MAX_FIELD_VALUE), inline: true },
@@ -522,16 +547,18 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
   if (post.minRankLevel != null && post.minRankLevel > 1) {
     fields.push({ name: "Kräver", value: `Nivå ${post.minRankLevel}+`, inline: true });
   }
+  // Marknadsvärde + Tradera sålt på EGNA rader (full bredd): de bär en dom och ett
+  // antal, och inline hade klämt ihop dem bredvid Butik/Pris till oläsliga spalter.
   if (delta) {
-    fields.push({
-      name: "Rek. pris",
-      value: clamp(
-        `${formatPrice(delta.msrpOre)} · ${delta.verdict === "good" ? "🟢" : "🔴"} ` +
-          `${formatPercent(delta.percent)} (${delta.diffOre > 0 ? "+" : ""}${formatPrice(delta.diffOre)})`,
-        MAX_FIELD_VALUE
-      ),
-      inline: true,
-    });
+    fields.push({ name: "Marknadsvärde", value: clamp(formatMarketValue(delta), MAX_FIELD_VALUE), inline: false });
+  }
+  if (sold) {
+    fields.push({ name: "Tradera sålt", value: clamp(sold, MAX_FIELD_VALUE), inline: false });
+  }
+  // PRO: förra vågens slutförsäljning — säger hur bråttom det är. Bara i Pro-spegeln.
+  const sellout = opts.cart ? formatLastSellout(post.lastSellout) : null;
+  if (sellout) {
+    fields.push({ name: "Förra påfyllningen", value: clamp(sellout, MAX_FIELD_VALUE), inline: false });
   }
   if (post.setName) {
     fields.push({ name: "Set", value: clamp(post.setName, MAX_FIELD_VALUE), inline: true });

@@ -20,6 +20,7 @@ import {
   formatStoreStock,
   formatStoreLocations,
   buildRestockEmbed,
+  formatLastSellout,
   postTestMessages,
   discordRestockConfig,
 } from "@/lib/discord-restock";
@@ -955,30 +956,40 @@ describe("buildRestockEmbed", () => {
     expect(embed.footer.text).toBe("Foilio · foilio.se");
   });
 
-  it("rek. pris: grönt på/under, rött över — kant OCH emoji (Discord färgar ingen löptext)", () => {
-    const rek = (p: Parameters<typeof buildRestockEmbed>[0]) =>
-      buildRestockEmbed(p).fields.find((f) => f.name === "Rek. pris")?.value;
-    // 549 mot 599 ⇒ −8,3 %, −50 kr.
-    const good = buildRestockEmbed({ ...post, msrpOre: 59900 });
-    expect(rek({ ...post, msrpOre: 59900 })).toContain("🟢");
-    expect(rek({ ...post, msrpOre: 59900 })).toContain("-8,3 %");
-    expect(rek({ ...post, msrpOre: 59900 })).toContain("599");
+  it("marknadsvärde: grönt på/under, rött över — kant OCH emoji (Discord färgar ingen löptext)", () => {
+    const mv = (p: Parameters<typeof buildRestockEmbed>[0]) =>
+      buildRestockEmbed(p).fields.find((f) => f.name === "Marknadsvärde")?.value.replace(/ /g, " ");
+    // 549 mot 699 ⇒ 21 % under.
+    const good = buildRestockEmbed({ ...post, marketValueOre: 69900 });
+    expect(mv({ ...post, marketValueOre: 69900 })).toBe("699 kr · 🟢 21 % under");
     expect(good.color).toBe(0x22c55e);
-    // 549 mot 499 ⇒ +10,0 %, +50 kr.
-    const bad = buildRestockEmbed({ ...post, msrpOre: 49900 });
-    expect(rek({ ...post, msrpOre: 49900 })).toContain("🔴");
-    expect(rek({ ...post, msrpOre: 49900 })).toContain("+10,0 %");
+    // 549 mot 499 ⇒ 10 % över.
+    const bad = buildRestockEmbed({ ...post, marketValueOre: 49900 });
+    expect(mv({ ...post, marketValueOre: 49900 })).toBe("499 kr · 🔴 10 % över");
     expect(bad.color).toBe(0xef4444);
-    // Exakt rek. pris räknas som bra.
-    expect(rek({ ...post, msrpOre: 54900 })).toContain("🟢");
+    // Exakt marknadsvärdet räknas som bra.
+    expect(mv({ ...post, marketValueOre: 54900 })).toBe("549 kr · 🟢 samma pris");
   });
 
-  it("⛔ utan rek. pris eller utan riktigt pris: ingen jämförelse, ingen färgdom, aldrig Infinity", () => {
-    expect(buildRestockEmbed(post).fields.some((f) => f.name === "Rek. pris")).toBe(false);
+  it("⛔ utan marknadsvärde eller utan riktigt pris: ingen rad, ingen färgdom, aldrig Infinity", () => {
+    expect(buildRestockEmbed(post).fields.some((f) => f.name === "Marknadsvärde")).toBe(false);
     expect(buildRestockEmbed(post).color).toBe(0x2dd4bf);
-    expect(buildRestockEmbed({ ...post, msrpOre: 0 }).fields.some((f) => f.name === "Rek. pris")).toBe(false);
-    expect(buildRestockEmbed({ ...post, priceOre: null, msrpOre: 59900 }).fields.some((f) => f.name === "Rek. pris")).toBe(false);
-    expect(buildRestockEmbed({ ...post, priceOre: 0, msrpOre: 59900 }).color).toBe(0x2dd4bf);
+    expect(buildRestockEmbed({ ...post, marketValueOre: 0 }).fields.some((f) => f.name === "Marknadsvärde")).toBe(false);
+    expect(buildRestockEmbed({ ...post, priceOre: null, marketValueOre: 59900 }).fields.some((f) => f.name === "Marknadsvärde")).toBe(false);
+    expect(buildRestockEmbed({ ...post, priceOre: 0, marketValueOre: 59900 }).color).toBe(0x2dd4bf);
+  });
+
+  it("Tradera sålt: median + antal, men bara från tre affärer — en auktion är en anekdot", () => {
+    const sold = (p: Parameters<typeof buildRestockEmbed>[0]) =>
+      buildRestockEmbed(p).fields.find((f) => f.name === "Tradera sålt")?.value.replace(/ /g, " ");
+    expect(sold({ ...post, soldMedianOre: 105000, soldCount: 6 })).toBe("1 050 kr · median av 6 sålda, 30 d");
+    expect(sold({ ...post, soldMedianOre: 105000, soldCount: 2 })).toBeUndefined();
+    expect(sold({ ...post, soldMedianOre: 0, soldCount: 9 })).toBeUndefined();
+    expect(sold(post)).toBeUndefined();
+  });
+
+  it("⛔ inga rek. pris-rader finns kvar (MSRP borttaget 2026-10-10)", () => {
+    expect(buildRestockEmbed({ ...post, marketValueOre: 69900 }).fields.some((f) => f.name === "Rek. pris")).toBe(false);
   });
 
   it("kapar titlar över Discords 256-teckensgräns (annars 400 → HELA batchen tappas)", () => {
@@ -1631,6 +1642,70 @@ describe("deriveRestockPosts — kort våg", () => {
       const parsed = parseDiscordRestockState(JSON.parse(JSON.stringify(held)));
       expect(parsed?.confirm?.[KEY]).toBe(at("13:30").getTime());
     });
+  });
+});
+
+/**
+ * PRO: FÖRRA VÅGENS SLUTFÖRSÄLJNING (ägarbeslut 2026-10-10). Lanens eget minne —
+ * "Förra påfyllningen sålde slut på 4 min" — bara i Pro-spegeln.
+ */
+describe("deriveRestockPosts — förra vågens slutförsäljning (Pro)", () => {
+  const at = (hhmm: string) => new Date(`2026-10-10T${hhmm}:00Z`);
+  const step = (s: DiscordRestockState, now: string, stock: "IN_STOCK" | "OUT_OF_STOCK") =>
+    deriveRestockPosts({
+      state: s,
+      groups: groups([{ url: URL_ETB, stockStatus: stock }]),
+      rotating: new Set(),
+      routes: ROUTES,
+      filter: FILTER,
+      knownSets: KNOWN_SETS,
+      now: at(now),
+      policy: { minAwayMinutes: 5, flapMaxTransitions: 40, flapCooldownHours: 24 },
+      cooldownHours: 0.25,
+      baseUrl: BASE,
+      priceDrops: null,
+    });
+  const inSince = (hhmm: string): DiscordRestockState =>
+    state({
+      stock: { [KEY]: "IN_STOCK" },
+      history: { [KEY]: [{ o: "OUT_OF_STOCK", t: at(hhmm).getTime() }] },
+      posted: { [KEY]: at(hhmm).getTime() },
+    });
+
+  it("minns hur länge vågen låg i lager och bär det på nästa påfyllning", () => {
+    const out = step(inSince("12:00"), "12:04", "OUT_OF_STOCK");
+    expect(out.nextState.sellout?.[KEY]).toEqual({ m: 4, t: at("12:04").getTime() });
+    const back = step(out.nextState, "13:00", "IN_STOCK");
+    expect(back.posts).toHaveLength(1);
+    expect(back.posts[0].lastSellout).toEqual({ minutes: 4, at: at("12:04").getTime() });
+  });
+
+  it("⛔ visas BARA i Pro-spegeln", () => {
+    const out = step(inSince("12:00"), "12:04", "OUT_OF_STOCK");
+    const post = step(out.nextState, "13:00", "IN_STOCK").posts[0];
+    const field = (cart: boolean) => buildRestockEmbed(post, { cart }).fields.find((f) => f.name === "Förra påfyllningen");
+    expect(field(false)).toBeUndefined();
+    expect(field(true)?.value).toBe(`Sålde slut på 4 min · <t:${Math.floor(at("12:04").getTime() / 1000)}:R>`);
+  });
+
+  it("⛔ ingen gissning när starten inte syns i dygnshistoriken", () => {
+    const noHistory = state({ stock: { [KEY]: "IN_STOCK" } });
+    expect(step(noHistory, "12:04", "OUT_OF_STOCK").nextState.sellout?.[KEY]).toBeUndefined();
+  });
+
+  it("minnet överlever state-filen och glöms efter 30 dygn", () => {
+    const out = step(inSince("12:00"), "12:04", "OUT_OF_STOCK").nextState;
+    expect(parseDiscordRestockState(JSON.parse(JSON.stringify(out)))?.sellout?.[KEY]?.m).toBe(4);
+    const old = state({ stock: { [KEY]: "OUT_OF_STOCK" }, sellout: { [KEY]: { m: 4, t: at("12:04").getTime() - 31 * 86_400_000 } } });
+    expect(step(old, "13:00", "IN_STOCK").posts[0].lastSellout).toBeUndefined();
+  });
+
+  it("formatLastSellout: under 1 min, minuter, timmar", () => {
+    expect(formatLastSellout({ minutes: 0.4, at: 0 })).toBe("Sålde slut på under 1 min · <t:0:R>");
+    expect(formatLastSellout({ minutes: 130, at: 0 })).toBe("Sålde slut på 2 h 10 min · <t:0:R>");
+    expect(formatLastSellout({ minutes: 120, at: 0 })).toBe("Sålde slut på 2 h · <t:0:R>");
+    expect(formatLastSellout(null)).toBeNull();
+    expect(formatLastSellout({ minutes: -1, at: 0 })).toBeNull();
   });
 });
 

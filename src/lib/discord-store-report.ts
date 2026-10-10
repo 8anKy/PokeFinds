@@ -20,9 +20,9 @@
  *    synas som en misslyckad rapport.
  */
 import { discordFetch } from "@/lib/discord";
-import { formatPercent, formatPrice } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
 import { localeUrl } from "@/lib/canonical";
-import { msrpDelta } from "@/lib/msrp";
+import { formatMarketValue, marketDelta } from "@/lib/market-compare";
 import { reportIsFresh, type StoreObservation } from "@/lib/community-stores";
 import { voteLabelSv, type VoteTally } from "@/lib/store-report-votes";
 
@@ -43,7 +43,8 @@ export interface StoreReportPost {
   productSlug: string | null;
   /** Katalogens bild — relativ (/api/cm-image/…) eller absolut. */
   productImageUrl: string | null;
-  msrpOre: number | null;
+  /** Marknadsvärdet (Cardmarket, nattens frysta tal) i öre; null = okänt ⇒ ingen rad. */
+  marketValueOre: number | null;
   priceOre: number;
   /** Medlemmens kommentar; null när de inte skrev någon. */
   comment: string | null;
@@ -114,7 +115,7 @@ export function directionsUrl(store: StoreReportPost["store"]): string {
 /** Ren funktion så formatet går att testa utan nätverk. */
 export function buildStoreReportEmbed(post: StoreReportPost) {
   const seen = post.observation === "SEEN";
-  const delta = msrpDelta(post.priceOre, post.msrpOre);
+  const delta = marketDelta(post.priceOre, post.marketValueOre);
   const storeUrl = localeUrl(
     "sv",
     `/forum?store=${encodeURIComponent(post.store.id)}&view=nearby&status=1`
@@ -125,13 +126,7 @@ export function buildStoreReportEmbed(post: StoreReportPost) {
     { name: "Pris i butik", value: formatPrice(post.priceOre), inline: true },
   ];
   if (delta) {
-    fields.push({
-      name: "Rek. pris",
-      value:
-        `${formatPrice(delta.msrpOre)} · ${delta.verdict === "good" ? "🟢" : "🔴"} ` +
-        `${formatPercent(delta.percent)}`,
-      inline: true,
-    });
+    fields.push({ name: "Marknadsvärde", value: formatMarketValue(delta), inline: true });
   }
   fields.push({
     name: "Adress",

@@ -185,11 +185,17 @@ export interface RouteEntry {
   /** Katalogbilden — reserv för embed-miniatyren när butiksfeeden saknar bild. */
   imageUrl?: string | null;
   /**
-   * Rekommenderat pris i öre (`Product.msrpOre`, annars kategoridefault ur
-   * `src/lib/msrp.ts`), löst vid exporten. Lanen är DB-fri — talet måste färdas hit.
-   * Saknas/null ⇒ inlägget visar ingen jämförelse alls, aldrig en gissning.
+   * Marknadsvärdet i öre: nattens frysta CARDMARKET-värde (`Product.settledValueOre`
+   * när `settledValueFromCm`), löst vid exporten. null = inget CM-värde ⇒ ingen rad,
+   * aldrig reservkällan (src/lib/market-compare.ts). Lanen är DB-fri — talet färdas hit.
    */
-  msrpOre?: number | null;
+  marketValueOre?: number | null;
+  /**
+   * Tradera SÅLT senaste `TRADERA_SOLD_WINDOW_DAYS`: median i öre + antal affärer.
+   * Bara när antalet når `TRADERA_SOLD_MIN_COUNT` — annars saknas fälten.
+   */
+  soldMedianOre?: number | null;
+  soldCount?: number | null;
 }
 
 export type RouteTable = Record<string, RouteEntry>;
@@ -258,10 +264,29 @@ export interface DiscordRestockState {
    * den ett kassa-ex ingen hann köpa, och posten stryks. Saknas i äldre state-filer → tom.
    */
   confirm?: Record<string, number>;
+  /**
+   * url-nyckel → senaste AVSLUTADE i-lager-fönstret (2026-10-10, Pro-raden "Förra
+   * påfyllningen sålde slut på 4 min"): `m` = minuter i lager, `t` = när den sålde slut.
+   * Skrivs bara när starten syns i dygnshistoriken — en vara som legat i lager längre än
+   * fönstret har ingen "sålde slut på"-poäng. Glöms efter `SELLOUT_MEMORY_DAYS`.
+   * Saknas i äldre state-filer → tom, och raden saknas tills nästa slutförsäljning.
+   */
+  sellout?: Record<string, SelloutEntry>;
 }
 
+/** Ett avslutat i-lager-fönster. Kompakta nycklar — kartan ligger i en cache-fil. */
+export interface SelloutEntry {
+  /** minuter i lager */
+  m: number;
+  /** när den sålde slut, ms */
+  t: number;
+}
+
+/** Hur länge en slutförsäljning är värd att nämna. Äldre än så säger inget om nästa våg. */
+export const SELLOUT_MEMORY_DAYS = 30;
+
 export function emptyState(): DiscordRestockState {
-  return { stock: {}, history: {}, posted: {}, absent: {}, price: {}, pricePosted: {}, confirm: {} };
+  return { stock: {}, history: {}, posted: {}, absent: {}, price: {}, pricePosted: {}, confirm: {}, sellout: {} };
 }
 
 /**
@@ -292,6 +317,7 @@ export function parseDiscordRestockState(parsed: unknown): DiscordRestockState |
     price: obj(p.price),
     pricePosted: obj(p.pricePosted),
     confirm: obj(p.confirm),
+    sellout: obj(p.sellout),
   };
 }
 
@@ -498,6 +524,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
         price: nextPrice,
         pricePosted,
         confirm: prev.confirm ?? {},
+        sellout: prev.sellout ?? {},
       },
       stats,
     };
@@ -612,10 +639,31 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     const kept = entries.filter((e) => e.t >= windowStart);
     if (kept.length) history[key] = kept;
   }
+  // ---- SLUTFÖRSÄLJNINGARNA (Pro-raden "Förra påfyllningen sålde slut på …") ----
+  const selloutCutoff = now.getTime() - SELLOUT_MEMORY_DAYS * 86_400_000;
+  const sellout: Record<string, SelloutEntry> = {};
+  for (const [k, e] of Object.entries(prev.sellout ?? {})) {
+    if (e && typeof e.m === "number" && typeof e.t === "number" && e.t >= selloutCutoff) sellout[k] = e;
+  }
   for (const c of changes) {
     // En feed-hicka är ingen övergång — den ska varken larma eller räknas mot
     // flapp-tröskeln. (Den ligger kvar i `changes` bara för att lagerläget ska skrivas.)
     if (absentVerdicts.get(c.key) === "blip") continue;
+    // Slutsåld: fönstret började vid den senaste övergången i historiken (den som tog
+    // varan IN). Saknas den har varan legat i lager längre än dygnsfönstret — då finns
+    // ingen "sålde slut på"-poäng, och raden ska hellre utebli än gissa.
+    // ⛔ BARA ONLINE-NYCKLAR: butiksspåret har ingen korg och inget Pro-inlägg.
+    if (
+      c.to === OUT_OF_STOCK &&
+      (c.from === IN_STOCK || c.from === "LIMITED") &&
+      !c.key.endsWith(STORE_TRACK_SUFFIX) &&
+      !c.key.includes(STORE_LOCATION_MARK)
+    ) {
+      const entered = history[c.key]?.[0]?.t;
+      if (entered != null && entered <= now.getTime()) {
+        sellout[c.key] = { m: (now.getTime() - entered) / 60_000, t: now.getTime() };
+      }
+    }
     // "ABSENT" finns inte som StockStatus. En URL som dyker upp i lager motsvarar
     // DB-vägens nya offer, som skrivs med oldStatus OUT_OF_STOCK (runner.ts) — samma
     // skrivning här, annars dömer blink-regeln på ett tillstånd som inte finns.
@@ -896,6 +944,14 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     });
   }
 
+  // Förra vågens slutförsäljning på påfyllningsinläggen (bara Pro-spegeln visar den).
+  // Prisinlägg och butiksvaror får den inte — de speglas aldrig till Pro.
+  for (const p of posts) {
+    if (p.previousPriceOre != null || p.storeOnly) continue;
+    const s = sellout[p.key];
+    if (s) p.lastSellout = { minutes: s.m, at: s.t };
+  }
+
   return {
     posts,
     stockSyncs,
@@ -907,6 +963,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       price: nextPrice,
       pricePosted,
       confirm,
+      sellout,
     },
     stats,
   };
@@ -960,7 +1017,9 @@ function buildPostBase(args: {
     storeStock: item.storeStock ?? null,
     minRankLevel: item.minRankLevel ?? null,
     priceOre: item.price,
-    msrpOre: route?.msrpOre ?? null,
+    marketValueOre: route?.marketValueOre ?? null,
+    soldMedianOre: route?.soldMedianOre ?? null,
+    soldCount: route?.soldCount ?? null,
     // Butikens egen bild först (den visar exakt varan), katalogbilden som reserv —
     // de flesta feedar bär ingen bild alls och embedden stod bildlös.
     imageUrl: item.imageUrl ?? absoluteImage(route?.imageUrl),
