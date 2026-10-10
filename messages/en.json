@@ -121,6 +121,10 @@
     "notifPushTargetCart": "The store's cart",
     "notifPushTargetStore": "The store's product page",
     "notifPushTargetFoilio": "Foilio (compare stores)",
+    "notifDiscord": "Discord DM",
+    "notifDiscordHint": "Your alerts as a private message from the Foilio bot. Requires DMs from server members to be on in Discord.",
+    "notifDiscordLinkHint": "Connect your Discord account to get alerts as DMs.",
+    "notifDiscordLink": "Connect",
     "proTag": "Pro",
     "notifSaved": "Notification settings saved",
     "saveFail": "Couldn't save",
@@ -2655,6 +2659,11 @@
         "label": "Binders · split your collection, public or private",
         "free": "1",
         "pro": "5"
+      },
+      {
+        "label": "Discord · alerts as DMs + cart links in the Pro channel",
+        "free": "—",
+        "pro": "✓"
       },
       {
         "label": "Collection with value overview",

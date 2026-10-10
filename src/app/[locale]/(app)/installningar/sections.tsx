@@ -351,6 +351,34 @@ export function NotificationsSection({ user }: { user: SettingsUser }) {
             </Select>
           }
         />
+        {/* PRO: larmen även som Discord-DM (lib/discord-dm.ts). Opt-in; kräver länkat
+            konto. Bara när Discord-kopplingen finns i miljön — annars lovar raden något
+            som inte kan levereras. */}
+        {user.discordEnabled &&
+          (!user.isPro ? (
+            <SettingsRow
+              label={t("notifDiscord")}
+              hint={t("notifDiscordHint")}
+              control={
+                <ProLockControl
+                  label={t("proTag")}
+                  onClick={() => openPaywallOrNavigate(router, { source: "settings-discord-dm" })}
+                />
+              }
+            />
+          ) : user.discordUsername ? (
+            row("discord", t("notifDiscord"), t("notifDiscordHint"))
+          ) : (
+            <SettingsRow
+              label={t("notifDiscord")}
+              hint={t("notifDiscordLinkHint")}
+              control={
+                <Button size="sm" variant="secondary" onClick={() => router.push("/installningar/kopplingar")}>
+                  {t("notifDiscordLink")}
+                </Button>
+              }
+            />
+          ))}
       </SettingsSection>
     </div>
   );

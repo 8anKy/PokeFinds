@@ -40,6 +40,10 @@ jobs:
       APNS_KEY: ${{ secrets.APNS_KEY }}
       APNS_KEY_ID: 783RWWQFH7
       APNS_TEAM_ID: F2XP44FF3B
+      # Pro: larmen även som Discord-DM (src/lib/discord-dm.ts). Bara bot-token + spaken —
+      # utan dem hoppas DM:et tyst över, mejl/push går som vanligt.
+      DISCORD_ENABLED: ${{ vars.DISCORD_ENABLED }}
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
       APNS_BUNDLE_ID: se.foilio.app
       APNS_PRODUCTION: "true"
     steps:

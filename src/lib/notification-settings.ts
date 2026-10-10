@@ -61,6 +61,12 @@ export interface NotificationSettings {
    * rör reglaget eller avregistrerar sig.
    */
   news: boolean;
+  /**
+   * PRO: larmen även som Discord-DM från boten (src/lib/discord-dm.ts). Kräver länkat
+   * Discord-konto. OPT-IN (ägarbeslut 2026-10-10): ett DM från en bot ska ingen få
+   * utan att ha bett om det. Gratiskonton kan inte slå på den (users/me tystar).
+   */
+  discord: boolean;
 }
 
 export const NOTIFICATION_DEFAULTS: NotificationSettings = {
@@ -75,6 +81,7 @@ export const NOTIFICATION_DEFAULTS: NotificationSettings = {
   // Opt-out: nyheter om tjänsten mottagaren redan har konto på (befintlig
   // kundrelation), aldrig tredje part. Ett mejl per släpp, med avanmälan.
   news: true,
+  discord: false,
 };
 
 /** Läser kolumnen till ett komplett objekt. Okända/felaktiga fält → default. */
@@ -93,5 +100,6 @@ export function parseNotificationSettings(json: unknown): NotificationSettings {
         : NOTIFICATION_DEFAULTS.allRestocks,
     weekly: typeof o.weekly === "boolean" ? o.weekly : NOTIFICATION_DEFAULTS.weekly,
     news: typeof o.news === "boolean" ? o.news : NOTIFICATION_DEFAULTS.news,
+    discord: typeof o.discord === "boolean" ? o.discord : NOTIFICATION_DEFAULTS.discord,
   };
 }

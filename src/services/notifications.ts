@@ -1,6 +1,6 @@
 /**
  * Notifikationer och utskick av väntande alerts.
- * Respekterar användarens notificationSettings ({email, push}).
+ * Respekterar användarens notificationSettings ({email, push, discord}).
  */
 import { AlertStatus, AlertType, StockStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -12,6 +12,8 @@ import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { previewAllowedFor } from "@/lib/feature-preview";
 import { pushAlertUrl } from "@/lib/push-alert-url";
+import { sendAlertDm } from "@/lib/discord-dm";
+import { isPro } from "@/lib/plan";
 // ⛔ Delad läsare (samma defaultvärden som förut: email=true, push=false).
 // Fanns i tre handskrivna kopior — se src/lib/notification-settings.ts.
 import { parseNotificationSettings as parseSettings, type PushTarget } from "@/lib/notification-settings";
@@ -192,8 +194,14 @@ async function buildAlertEmail(alert: {
   };
 }
 
-/** Skickar en alert som native push till användarens enheter (om någon finns). */
-async function sendAlertPush(alert: {
+/** Discord hämtar miniatyren själv och följer bara absoluta URL:er (/api/cm-image/… görs absolut). */
+function absoluteImageUrl(url: string | null): string | null {
+  if (!url) return null;
+  return url.startsWith("/") ? `${APP_URL}${url}` : url;
+}
+
+/** Larmet som pushen OCH Discord-DM:et visar. */
+type NoticeAlert = {
   userId: string;
   type: AlertType;
   message: string;
@@ -207,12 +215,13 @@ async function sendAlertPush(alert: {
   delayNote?: string | null;
   /** Vart restock-pushen leder (notificationSettings.pushTarget). */
   target?: PushTarget;
-}): Promise<void> {
-  const tokens = await prisma.pushToken.findMany({
-    where: { userId: alert.userId },
-    select: { token: true },
-  });
-  if (tokens.length === 0) return;
+};
+
+/**
+ * Rubrik, text och länk för ett larm — EN definition för push och Discord-DM, så de
+ * aldrig säger olika saker om samma Alert-rad. `url` kan vara relativ (/produkter/…).
+ */
+async function buildAlertNotice(alert: NoticeAlert): Promise<{ title: string; body: string; url: string | undefined }> {
   // Samma tre lager-besked som mejlet (buildAlertEmail) — pushen får inte säga
   // "Åter i lager" om mejlet säger "Nu släppt".
   const title =
@@ -251,10 +260,18 @@ async function sendAlertPush(alert: {
     toStore,
     target: alert.target,
   });
-  const { invalidTokens } = await sendPush(
-    tokens.map((t) => t.token),
-    { title, body: alert.delayNote ? `${alert.message} ${alert.delayNote}` : alert.message, url }
-  );
+  return { title, body: alert.delayNote ? `${alert.message} ${alert.delayNote}` : alert.message, url };
+}
+
+/** Skickar en alert som native push till användarens enheter (om någon finns). */
+async function sendAlertPush(alert: NoticeAlert): Promise<void> {
+  const tokens = await prisma.pushToken.findMany({
+    where: { userId: alert.userId },
+    select: { token: true },
+  });
+  if (tokens.length === 0) return;
+  const notice = await buildAlertNotice(alert);
+  const { invalidTokens } = await sendPush(tokens.map((t) => t.token), notice);
   if (invalidTokens.length > 0) {
     await prisma.pushToken.deleteMany({ where: { token: { in: invalidTokens } } });
   }
@@ -295,6 +312,20 @@ export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: n
       }
       if (settings.push) {
         await sendAlertPush({ ...alert, delayNote, target: settings.pushTarget });
+      }
+      // PRO: samma larm som Discord-DM (lib/discord-dm.ts). Sist, och kastar aldrig —
+      // ett fel här får inte göra larmet PENDING igen och skicka mejlet en gång till.
+      // Pro dömer VID UTSKICKET: en Pro som fallit till Free slutar få DM direkt.
+      if (settings.discord && alert.user.discordUserId && isPro(alert.user)) {
+        const notice = await buildAlertNotice({ ...alert, delayNote, target: settings.pushTarget }).catch(() => null);
+        if (notice) {
+          await sendAlertDm(alert.user.discordUserId, {
+            title: notice.title,
+            body: notice.body,
+            url: notice.url ? (notice.url.startsWith("/") ? `${APP_URL}${notice.url}` : notice.url) : null,
+            imageUrl: absoluteImageUrl(alert.product?.imageUrl ?? null),
+          });
+        }
       }
 
       await prisma.alert.update({

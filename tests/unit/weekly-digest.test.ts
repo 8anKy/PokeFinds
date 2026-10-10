@@ -94,10 +94,15 @@ describe("notisdefaulterna speglar schema.prisma", () => {
     // En parser-only-nyckel med default `false` hade däremot krävt kolumndefaulten.
     // Ett VAL (`pushTarget`, 2026-09-17: "cart" | "store" | "foilio") är inte en spak:
     // kravet är då bara att saknad nyckel ger samma svar som koddefaulten.
+    // UNDANTAG: en OPT-IN-spak som BARA läses via parsern (ingen SQL läser nyckeln)
+    // beter sig också lika för gamla och nya konton — saknad nyckel ⇒ av överallt.
+    // `discord` (Pro-DM, 2026-10-10): ett bot-DM ska ingen få utan att ha bett om det.
+    const OPT_IN_PARSER_ONLY = new Set(["discord"]);
     for (const key of Object.keys(NOTIFICATION_DEFAULTS)) {
       if (!(key in fromSchema)) {
         const d = NOTIFICATION_DEFAULTS[key as keyof typeof NOTIFICATION_DEFAULTS];
-        if (typeof d === "boolean") expect(d, key).toBe(true);
+        if (OPT_IN_PARSER_ONLY.has(key)) expect(parseNotificationSettings({})[key as keyof typeof NOTIFICATION_DEFAULTS], key).toBe(false);
+        else if (typeof d === "boolean") expect(d, key).toBe(true);
         else expect(parseNotificationSettings({})[key as keyof typeof NOTIFICATION_DEFAULTS], key).toBe(d);
       }
     }

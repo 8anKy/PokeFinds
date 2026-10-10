@@ -121,6 +121,10 @@
     "notifPushTargetCart": "Varukorgen i butiken",
     "notifPushTargetStore": "Butikens produktsida",
     "notifPushTargetFoilio": "Foilio (jämför butiker)",
+    "notifDiscord": "Discord-DM",
+    "notifDiscordHint": "Dina larm som privat meddelande från Foilio-boten. Kräver att DM från servermedlemmar är på i Discord.",
+    "notifDiscordLinkHint": "Koppla ditt Discord-konto för att få larmen som DM.",
+    "notifDiscordLink": "Koppla",
     "proTag": "Pro",
     "notifSaved": "Notisinställningarna har sparats",
     "saveFail": "Det gick inte att spara",
@@ -2655,6 +2659,11 @@
         "label": "Pärmar · dela upp samlingen, offentliga eller privata",
         "free": "1",
         "pro": "5"
+      },
+      {
+        "label": "Discord · larm som DM + korglänk i Pro-kanalen",
+        "free": "—",
+        "pro": "✓"
       },
       {
         "label": "Samling med värdeöversikt",

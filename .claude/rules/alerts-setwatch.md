@@ -65,3 +65,13 @@ paths:
   `store` | `foilio` — raden "Restock-push öppnar" under push i /installningar. Servern väljer URL:en
   vid utskicket (`pushAlertUrl({ target })`), så valet slår igenom utan app-bygge. Saknad nyckel ⇒ cart
   (ingen migration; `weekly-digest.test.ts` speglar regeln). Prislarm ⇒ alltid Foilio.
+
+- **LARMEN SOM DISCORD-DM (Pro, ägarbeslut 2026-10-10)**: `notificationSettings.discord` (OPT-IN, parser-only — ingen
+  SQL läser nyckeln, därför inget i kolumnens `@default`; `weekly-digest.test.ts` har undantaget) + länkat
+  `User.discordUserId` + `isPro()` VID UTSKICKET ⇒ `dispatchPendingAlerts` skickar samma larm som DM
+  (`src/lib/discord-dm.ts`). Rubrik/text/länk ur `buildAlertNotice` — EN definition för push och DM.
+  ⛔ DM:et går SIST och kastar aldrig: ett kast hade gjort larmet PENDING och skickat mejlet igen. Stängda DM
+  (403/50007) = normalt utfall. ⛔ Läser bara `DISCORD_ENABLED` + `DISCORD_BOT_TOKEN` (inte `discordBotConfig()`,
+  som kräver guild/roll-id:n prisjobben saknar) — båda står i cardmarket-refresh/hot-card-refresh/scrape-all och
+  i Railway; saknas de hoppas DM:et tyst över. Raden i /installningar → Notiser: Pro-lås för Free, "Koppla" utan
+  länkat konto, annars reglaget. Spec-raden "Discord · larm som DM + korglänk i Pro-kanalen" i `Pricing.specRows`.

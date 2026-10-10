@@ -71,6 +71,8 @@ const notificationSettingsSchema = z.object({
   // Veckobrevet. ⛔ Måste stå här — Zod strippar okända nycklar, så en glömd rad
   // hade gjort avstängningen i /installningar till en tyst no-op.
   weekly: z.boolean().optional(),
+  // Pro: larmen även som Discord-DM (lib/discord-dm.ts). ⛔ Zod strippar okända nycklar.
+  discord: z.boolean().optional(),
 });
 
 const patchSchema = z.object({
@@ -124,6 +126,11 @@ export async function PATCH(req: Request) {
     // "Alla restocks" är Pro-only — tysta ner försök från gratisanvändare.
     if (input.notificationSettings?.allRestocks === true && !isPro(current)) {
       input.notificationSettings.allRestocks = false;
+    }
+    // Discord-DM är Pro-only — samma tystnad. Utskicket dömer dessutom på isPro vid
+    // larmtillfället, så en Pro som fallit till Free slutar få DM utan att röra spaken.
+    if (input.notificationSettings?.discord === true && !isPro(current)) {
+      input.notificationSettings.discord = false;
     }
 
     const data: Prisma.UserUpdateInput = {};
