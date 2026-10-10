@@ -580,3 +580,9 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   UNKNOWN). Orten visas när uppdelningen finns (`sfbok-stores.ts`, verifierat: "Stockholm · 9 ex").
 - **PACKS ON PACKS UR LARMEN 2026-10-10 (ägarbeslut)** — inte retirerad: `set-restock-watch.ts --off`, källan aktiv
   (pris/lager på produktsidan), ruttexport körd. Ingen Discord-post, inga push/mejl därifrån. **Bevakade: 43 → 42.**
+- **KANALSTÄDNING 2026-10-10 (ägarbeslut)**: `DISCORD_RESTOCK_CHANNELS` har inga `series`/`languages` längre — Sword &
+  Shield, Mega Evolution, Scarlet & Violet, Pitch Black och japanska produkter går till catch-all (#alla-restocks).
+  Setkanaler: Ascended Heroes, Prismatic Evolutions, 30th Celebration, **Delta Reign** (ny, + `pro.sets` "Delta Reign"
+  → #pro-delta-reign). Japanska Delta Reign går till #alla-restocks (icke-EN når aldrig setkanaler — ägaren OK).
+  Ny setkanal = nyckel i `sets` OCH `pro.sets` + bottens roll i den privata Pro-kanalen; testa med workflow
+  `test=true test_channel=<id>` (testet når bara publika kanaler — Pro-kanalen provades med ett direktinlägg).
