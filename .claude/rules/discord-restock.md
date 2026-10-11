@@ -12,6 +12,35 @@ paths:
 ---
 # Discord restock-lane
 
+## ✅ JOBBEN ÖVERLAPPAR — INGET BLINT GLAPP VID JOBBYTET (2026-10-11)
+2026-10-11 15:00 fylldes Speltrollet på i glappet mellan två 20-minutersjobb (förra jobbets sista
+hämtning ~12:59:40 UTC, nästa jobbs första 13:01:17); en konkurrent postade 15:00, vi 15:01:19. Glappet
+(~1,5 min var 20:e min) var den stora förlusten — inte butikens 36 s-takt. Nu (`discord-restock.yml`):
+- Lanen kör i BAKGRUNDEN i `post`; 360 s före loopens slut skriver den state + `handoff.json`
+  (`savedAt`, `cutoverAt` = loopens slut, `final: false`) + markören; workflowet sparar cachen MITT I
+  jobbet (`discord-restock-state-<id>-h`) och `handoff`-jobbet startar nästa körning med `handoff_from`.
+- Nästa jobb återställer bilden, VÄNTAR till `cutoverAt` och tar över. Det gamla jobbet diffar inget som
+  hämtats < 10 s före sitt slut (`DERIVE_CUTOFF_MS`) — nästa jobb ser samma övergång mot sitt state.
+- ⛔ **DUBBLETTSKYDDET = KANALENS HISTORIK** (`src/lib/discord-restock-ledger.ts`): bilden är några
+  minuter gammal, så nästa jobbs första diff ser övergångar det gamla redan postat. Före utskick läses de
+  publika kanalerna sedan `savedAt − 60 s`; (kanal, butiks-URL, sort) som redan står där hoppas över och
+  stämplas i cooldown — inget inlägg, ingen hit. Om-läses före varje utskick de första 3 min (sena inlägg).
+  ⛔ Kräver att boten har **Läsa meddelandehistorik** i kanalerna — annars `⚠️ Kunde inte läsa`-raden.
+  Loggen: `Liggare: X/Y kanaler lästa` och `Redan postade av förra jobbet (överlämningen): N`.
+- ⛔ En bild mitt i jobbet bär det gamla jobbets hit-kö — nästa jobb SLÄNGER den (det gamla levererar själv).
+- ⛔ **TVÅ LANER SAMTIDIGT FÅR INTE HÄNDA**: överlämningar har egen concurrency-grupp per körning (annars
+  väntar nästa ut det gamla = glappet igen); kalla starter (pingern) delar EN grupp och `gate` släpper bara
+  in dem när ingen lane lever. Vakten i `post` stoppar en lane om en ANNAN med lägre id (inte föregångaren)
+  också kör. Rubriken (`run-name`) bär "← <föregångare>" — grinden/vakten läser den.
+- Pingern ger nu en kort grind-körning var 2:a min under kedjan (avstår). Sätt den gärna till 5 min.
+
+## KANTFÄRGEN: GRÖN / ORANGE / RÖD (ägarbeslut 2026-10-11)
+`priceVerdict` (`src/lib/market-compare.ts`): grön ≤ marknadsvärdet (CM), **orange** över CM men ≤ Tradera-
+medianen, röd över Tradera. Tradera under CM ⇒ inget mellanband. Bara Tradera ⇒ grön/röd mot medianen.
+Bara CM ⇒ reservband ≤ 10 % över = orange. Samma dom i kanalinlägg, Pro-spegel, `/pris` och DM.
+**DM:et bär Butik/Pris/Marknadsvärde/Tradera sålt** (`buildAlertDmPricing` i `services/notifications.ts`,
+larmets egen butiks offer — samma källa som mejlet); förut bara "… finns i lager igen!".
+
 ## ✅ LARM-HITS: LANEN ÄR NU OCKSÅ MEJLENS OCH PUSHENS UPPTÄCKARE (2026-09-06)
 Den pausade 10-minuterslanen (restock-watch) höll Neon vaken 18,8 h/dygn för att hitta det
 Discord-lanen redan ser inom ~20 s. Nu skickar lanen en **hit** till appen för varje påfyllning
@@ -544,7 +573,7 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
 
 - **MARKNADSVÄRDE + TRADERA SÅLT I INLÄGGET (ägarbeslut 2026-10-10, ersätter "Rek. pris")**: två rader på full
   bredd under Butik/Pris — `Marknadsvärde` ("699 kr · 21 % under") och `Tradera sålt` ("1 050 kr · median av 6
-  sålda, 30 d"). Kantfärgen följer marknadsvärdet (grön ≤, röd över, turkos utan värde). Talen kommer ur ruttabellen
+  sålda, 30 d"). Kantfärgen: grön/orange/röd sedan 2026-10-11 (se avsnittet överst). Talen kommer ur ruttabellen
   (`scripts/lib/restock-routes.ts`): CM-värdet = `Product.settledValueOre` BARA när `settledValueFromCm` (reserven är
   lägsta butik och ingen marknad), sålt = EN aggregatfråga (percentile_cont) över `PriceObservation` för källan
   "Tradera sålt", `HAVING COUNT(*) >= 3`. MÄTT vid bygget: 4 312 av 4 491 rutter med marknadsvärde, 1 450 med sålt.

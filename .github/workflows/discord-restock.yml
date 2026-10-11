@@ -1,4 +1,7 @@
 name: Discord restock-larm (loop-jobb, egen takt per butik)
+# Rubriken bär föregångaren ("← <run id>") — grinden och vakten läser den för att skilja
+# en överlämning från en andra, felaktig lane. Testkörningar slutar på "(test)".
+run-name: ${{ github.event.inputs.test == 'true' && 'discord-restock (test)' || github.event.inputs.handoff_from && format('discord-restock ← {0}', github.event.inputs.handoff_from) || 'discord-restock' }}
 
 # Snabbfil som postar restocks till Discord LÅNGT före mejlet hinner ut.
 #
@@ -37,6 +40,8 @@ name: Discord restock-larm (loop-jobb, egen takt per butik)
 # att optimera bort — bara amorteras. Loopbudgeten är därför 20 min (~9 % blind tid
 # mot ~17 % vid 9-minutersjobb). Glappet KOSTAR INGA LARM, bara latens: nästa jobb
 # diffar mot samma state och hittar övergången.
+# ✅ SEDAN 2026-10-11 ÖVERLAPPAR JOBBEN i stället (se concurrency-blocket): nästa jobb
+# bootar medan det här fortfarande postar och tar över på sekunden.
 #
 # PINGERN (cron-job.org) BEHÖVS FORTFARANDE: medan ett loop-jobb kör blir dispatchen
 # PENDING i concurrency-gruppen, GitHub byter ut den väntande mot varje nyare dispatch
@@ -82,6 +87,11 @@ on:
         type: string
         required: false
         default: ""
+      handoff_from:
+        description: "Sätts av lanen själv (överlämningen) — lämna tomt vid manuell start."
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -98,11 +108,77 @@ permissions:
 # vilket är precis tvärtemot varför det finns.
 # Det är ofarligt att låta det gå vid sidan av: `--test` rör varken feedar eller
 # state-filen, så det finns ingenting att serialisera mot driftkörningen.
+#
+# ── ÖVERLAPPET (2026-10-11) ───────────────────────────────────────────────────────
+# Mellan två jobb var lanen BLIND ~1,5 min var 20:e minut (förra jobbets sista hämtning
+# → GitHubs kö → boot → nästa jobbs första hämtning). 2026-10-11 15:00 fylldes Speltrollet
+# på exakt i glappet; en konkurrent postade 15:00, vi 15:01:19. Nu:
+#   1. Lanen skriver en ögonblicksbild 6 min före sitt slut (DISCORD_RESTOCK_HANDOFF_SECONDS)
+#      och fortsätter posta. `post` sparar cachen MITT I jobbet (lanen kör i bakgrunden).
+#   2. `handoff`-jobbet ser cachen och startar nästa körning med handoff_from=<detta id>.
+#   3. Nästa körning återställer bilden, VÄNTAR till det här jobbets slut (`cutoverAt`) och
+#      tar över på sekunden. Det den hade postat dubbelt (allt vi postade efter bilden)
+#      hoppar den över genom att läsa kanalerna (src/lib/discord-restock-ledger.ts).
+# ⛔ DÄRFÖR FÅR ÖVERLÄMNINGAR EN EGEN concurrency-grupp per körning — i den gemensamma
+#    gruppen hade nästa jobb stått och väntat på att det här slutade, dvs glappet igen.
+#    Kalla starter (pingern, schemat) delar fortfarande EN grupp, och `gate` släpper bara
+#    in en kall start när ingen lane lever. `post` har dessutom en vakt som stoppar en
+#    andra lane inom en minut om grinden ändå skulle racea (lägst körnings-id vinner).
 concurrency:
-  group: discord-restock${{ github.event.inputs.test == 'true' && '-test' || '' }}
+  group: discord-restock${{ github.event.inputs.test == 'true' && '-test' || github.event.inputs.handoff_from && format('-h-{0}', github.run_id) || '' }}
   cancel-in-progress: false
 
 jobs:
+  # ── GRINDEN: BLIR DEN HÄR KÖRNINGEN LANEN? (2026-10-11) ────────────────────────
+  # Kall start (pingern/schemat): bara om INGEN annan lane-körning lever — under en
+  # överlämning lever två, och då ska pingern tiga. Överlämning (handoff_from=X): om ingen
+  # ANNAN lane än föregångaren X kör. Körningar äldre än 40 min räknas som hängda.
+  # ⛔ Inga hemligheter, ingen checkout — bara `gh` mot Actions-API:t (läsrätt).
+  gate:
+    if: github.event.inputs.test != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: read
+    outputs:
+      go: ${{ steps.gate.outputs.go }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ME: ${{ github.run_id }}
+      FROM: ${{ github.event.inputs.handoff_from }}
+    steps:
+      - id: gate
+        run: |
+          set -uo pipefail
+          now=$(date +%s)
+          # API-fel: en överlämning går ändå (vakten i `post` stoppar en ev. dubblett),
+          # en kall start avstår (pingern försöker igen om 2 min).
+          if ! runs=$(gh api "repos/$GH_REPO/actions/workflows/discord-restock.yml/runs?per_page=40" \
+            | jq -r --argjson me "$ME" '.workflow_runs[]
+                | select(.id != $me)
+                | select(.status == "in_progress" or .status == "queued")
+                | select((.display_title // "") | endswith("(test)") | not)
+                | "\(.id) \(.run_started_at // .created_at)"'); then
+            if [ -n "$FROM" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
+            echo "::warning::Grinden kunde inte läsa körningarna (föregångare: ${FROM:-ingen})."
+            exit 0
+          fi
+          go=true
+          while read -r id started; do
+            [ -z "${id:-}" ] && continue
+            age=$(( now - $(date -d "$started" +%s) ))
+            if [ "$age" -gt 2400 ]; then echo "Ignorerar körning $id (${age} s gammal — hängd?)."; continue; fi
+            if [ -z "$FROM" ]; then
+              echo "Kall start: körning $id lever redan — avstår."; go=false; break
+            fi
+            [ "$id" = "$FROM" ] && continue
+            st=$(gh api "repos/$GH_REPO/actions/runs/$id/jobs" | jq -r '[.jobs[] | select(.name == "post") | .status][0] // ""')
+            if [ "$st" = "in_progress" ]; then echo "Körning $id är redan lanen — avstår."; go=false; break; fi
+          done <<< "$runs"
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+          echo "Grind: go=$go (föregångare: ${FROM:-ingen})."
+
   # ── VÄCKARKLOCKAN FÖR NATTJOBBEN (2026-09-28) ─────────────────────────────────
   # GitHubs `schedule:` är best effort och går 3–5 h sent i vår drift (cardmarket-refresh
   # "13:00" startade 16:48–17:37 UTC vecka 39; scrape-all "02:00" 06:58–08:05). Lanen
@@ -114,8 +190,11 @@ jobs:
   # ⛔ EN START PER DYGN: "finns en körning skapad sedan klockslaget?" (alla statusar,
   #    även köade) — annars startas den. Fönstret är brett så en lane som legat nere
   #    ändå startar jobbet när den kommer tillbaka.
+  # ⛔ Bara när körningen BLEV lanen: pingerns kalla starter avstår i grinden var 2:a
+  #    minut under en överlämningskedja, och store-social hade annars startats lika ofta.
   kickoff:
-    if: github.event.inputs.test != 'true'
+    needs: gate
+    if: needs.gate.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
@@ -158,12 +237,19 @@ jobs:
           gh workflow run store-social.yml --ref main || echo "::warning::Kunde inte starta store-social.yml"
 
   post:
+    needs: gate
+    # `always()` för testläget: då hoppas grinden över, och utan always() hade ett
+    # hoppat beroende hoppat även det här jobbet.
+    if: always() && (github.event.inputs.test == 'true' || needs.gate.outputs.go == 'true')
     runs-on: ubuntu-latest
-    # Loopbudgeten är 1200 s (20 min) och en butiks sista varv får löpa klart efter
-    # den. Taket är ett skyddsräcke mot en hängd körning, inte en planerad gräns —
-    # men det är också hur länge lanen står blind om ett jobb hänger, så håll
-    # marginalen liten (den längsta enskilda hämtningen är ~40 s).
-    timeout-minutes: 25
+    # Boot (~1 min) + väntan på föregångarens slut (≤ ~6 min) + loopbudgeten 1200 s + en
+    # butiks sista varv. Taket är ett skyddsräcke mot en hängd körning; grinden räknar en
+    # körning äldre än 40 min som hängd och släpper då in en kall start.
+    timeout-minutes: 35
+    # Vakten (dubbla laner) läser Actions-API:t.
+    permissions:
+      contents: read
+      actions: read
     env:
       # ⛔ AVSIKTLIGT OÅTKOMLIG. Se filhuvudet. PrismaClient konstrueras vid import av
       # runner.ts; en syntaktiskt giltig men död URL låter konstruktionen lyckas och
@@ -220,6 +306,12 @@ jobs:
       # över dubbelt så lång täckning. ⛔ Höj inte vidare utan att väga in att ett
       # HÄNGT jobb blockerar lanen tills timeout-minutes löper ut.
       DISCORD_RESTOCK_LOOP_SECONDS: "1200"
+      # ÖVERLAPPET (2026-10-11, se concurrency-blocket): ögonblicksbilden skrivs så här
+      # många sekunder före loopens slut. Måste täcka cache-sparning + handoff-jobbets
+      # pollning + GitHubs kö (två jobb: gate, post) + boot — mätt kö ~95 s per jobb.
+      # För kort ⇒ nästa jobb hinner inte fram (glappet tillbaka, men inga dubbletter);
+      # längre kostar bara tomgång i nästa jobb.
+      DISCORD_RESTOCK_HANDOFF_SECONDS: "360"
       # ── DÄMPNINGEN I KANALERNA, LÖSARE ÄN I APPEN (ägarbeslut 2026-09-17) ──────────
       # Släppdagen för 30th Celebration: Alphaspel öppnade Poster Collection 13:35, 14:05
       # och 14:29 (varje våg en äkta bokningsbar period). Vi postade 13:35; 14:05 åt den
@@ -282,6 +374,9 @@ jobs:
           fi
       - if: steps.guard.outputs.ready == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Ingen git-operation efter checkout; token ska inte ligga kvar i .git/config.
+          persist-credentials: false
 
       # EGEN cache-nyckel. ⛔ Dela ALDRIG `.restock-cache`/`restock-fp-` med
       # restock-watch.yml: lanarna skulle läsa och skriva varandras lagerläge, och
@@ -336,13 +431,130 @@ jobs:
       # ⛔ Kanal-id:t skickas via ENV, inte interpolerat rakt in i kommandoraden.
       #    `inputs.*` är fritext från den som startar körningen; klistras den in i
       #    `run:` blir den skalkod. Här är det bara en variabel scriptet läser.
-      - if: steps.guard.outputs.ready == 'true'
+      - if: steps.guard.outputs.ready == 'true' && github.event.inputs.test == 'true'
         env:
           TEST_CHANNEL: ${{ inputs.test_channel }}
         run: |
-          args=""
-          if [ "${{ inputs.test }}" = "true" ]; then
-            args="--test"
-            if [ -n "$TEST_CHANNEL" ]; then args="$args --test-channel=$TEST_CHANNEL"; fi
-          fi
+          args="--test"
+          if [ -n "$TEST_CHANNEL" ]; then args="$args --test-channel=$TEST_CHANNEL"; fi
           npx tsx scripts/discord-restock-run.ts $args
+
+      # ── LANEN I BAKGRUNDEN (överlappet, 2026-10-11) ────────────────────────────
+      # Lanen måste fortsätta posta MEDAN cachen sparas (ögonblicksbilden), och steg körs
+      # i tur och ordning — därför startas den i bakgrunden och de följande stegen följer
+      # loggen. `setsid` ger en egen processgrupp så vakten kan stoppa hela trädet
+      # (npx → tsx → node). Utgångskoden skrivs till .lane.exit.
+      # ⛔ GH_TOKEN står INTE i det här stegets miljö: lanen kör hela npm-trädet och ska
+      #    inte ärva en token.
+      - if: steps.guard.outputs.ready == 'true' && github.event.inputs.test != 'true'
+        name: Starta lanen
+        run: |
+          setsid nohup bash -c 'npx tsx scripts/discord-restock-run.ts; echo $? > .lane.exit' \
+            > .lane.log 2>&1 < /dev/null &
+          echo $! > .lane.pid
+          echo "Lanen startad (pid $(cat .lane.pid))."
+
+      # VAKTEN: lever en ANNAN lane med lägre körnings-id (inte föregångaren) är den här
+      # körningen en dubblett — grinden kan racea mot en kall start. Stoppa vår lane inom
+      # en minut; den äldre fortsätter. Efterträdare har alltid högre id och berörs inte.
+      - if: steps.guard.outputs.ready == 'true' && github.event.inputs.test != 'true'
+        name: Vakt mot dubbla laner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ME: ${{ github.run_id }}
+          FROM: ${{ github.event.inputs.handoff_from }}
+        run: |
+          export PID=$(cat .lane.pid)
+          nohup bash -c '
+            while kill -0 "$PID" 2>/dev/null; do
+              sleep 60
+              ids=$(gh api "repos/$GH_REPO/actions/workflows/discord-restock.yml/runs?status=in_progress&per_page=20" 2>/dev/null \
+                | jq -r --argjson me "$ME" ".workflow_runs[] | select(.id < \$me) | select((.display_title // \"\") | endswith(\"(test)\") | not) | .id" 2>/dev/null) || continue
+              for id in $ids; do
+                [ "$id" = "$FROM" ] && continue
+                st=$(gh api "repos/$GH_REPO/actions/runs/$id/jobs" 2>/dev/null | jq -r "[.jobs[] | select(.name == \"post\") | .status][0] // \"\"" 2>/dev/null)
+                if [ "$st" = "in_progress" ]; then
+                  echo "[vakt] Körning $id är redan lanen (lägre id) — stoppar den här." >> .lane.log
+                  kill -TERM -- -"$PID" 2>/dev/null
+                  exit 0
+                fi
+              done
+            done' > /dev/null 2>&1 < /dev/null &
+          echo "Vakten startad."
+
+      - if: steps.guard.outputs.ready == 'true' && github.event.inputs.test != 'true'
+        id: wait
+        name: Lanen (till ögonblicksbilden)
+        run: |
+          PID=$(cat .lane.pid)
+          tail -n +1 -f .lane.log --pid="$PID" &
+          TP=$!
+          while kill -0 "$PID" 2>/dev/null && [ ! -f .discord-restock-handoff.ready ]; do sleep 2; done
+          sleep 1
+          kill "$TP" 2>/dev/null || true
+          echo "lines=$(wc -l < .lane.log)" >> "$GITHUB_OUTPUT"
+          if [ -f .discord-restock-handoff.ready ]; then echo "snapshot=true" >> "$GITHUB_OUTPUT"; fi
+
+      # Ögonblicksbilden. Egen nyckel (…-h); nästa jobb återställer på prefixet och får den
+      # nyaste — den här, eftersom vår egen slutsparning skapas först när vi är klara.
+      # State-filen skrivs atomärt (temp + rename), så tar läser aldrig en halv fil.
+      - if: steps.wait.outputs.snapshot == 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .discord-restock-cache
+          key: discord-restock-state-${{ github.run_id }}-h
+
+      - if: steps.guard.outputs.ready == 'true' && github.event.inputs.test != 'true'
+        name: Lanen (till slut)
+        env:
+          LINES_DONE: ${{ steps.wait.outputs.lines }}
+        run: |
+          PID=$(cat .lane.pid)
+          tail -n +$(( ${LINES_DONE:-0} + 1 )) -f .lane.log --pid="$PID"
+          code=$(cat .lane.exit 2>/dev/null || true)
+          if [ -z "$code" ]; then
+            echo "::notice::Lanen stoppades utan utgångskod (vakten eller avbrott)."
+            exit 0
+          fi
+          exit "$code"
+
+  # ── ÖVERLÄMNINGEN: STARTA NÄSTA JOBB NÄR ÖGONBLICKSBILDEN FINNS (2026-10-11) ────
+  # Eget jobb med skrivrätt på Actions (samma skäl som kickoff: `actions: write` ska inte
+  # ligga på jobbet som kör npm-trädet). Sover tills bilden kan finnas, pollar sedan cachen.
+  handoff:
+    needs: gate
+    if: needs.gate.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ME: ${{ github.run_id }}
+    steps:
+      - name: Starta nästa lane när ögonblicksbilden är sparad
+        run: |
+          set -uo pipefail
+          # Tidigast: boot (~1 min) + loopbudget 20 min − överlämning 6 min ≈ 15 min.
+          sleep 780
+          for i in $(seq 1 150); do
+            n=$(gh cache list --key "discord-restock-state-$ME-h" --json key -q 'length' 2>/dev/null || echo 0)
+            if [ "${n:-0}" != "0" ]; then
+              gh workflow run discord-restock.yml --ref main -f handoff_from="$ME"
+              echo "::notice::Ögonblicksbilden sparad — nästa lane startad (handoff_from=$ME)."
+              exit 0
+            fi
+            # GITHUB_TOKEN har 1 000 anrop/h per repo (delat med grinden + vakten) —
+            # jobbstatusen bara varje minut.
+            if [ $(( i % 6 )) -eq 0 ]; then
+              st=$(gh api "repos/$GH_REPO/actions/runs/$ME/jobs" 2>/dev/null | jq -r '[.jobs[] | select(.name == "post") | .status][0] // ""')
+              if [ "$st" = "completed" ]; then
+                echo "::notice::Lanen slutade utan ögonblicksbild — pingern tar nästa start."
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "::warning::Ingen ögonblicksbild inom tidsfönstret."

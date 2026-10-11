@@ -43,8 +43,8 @@
  * används bara för att göra inlägget snyggare. Det var den gamla ruttgrinden som gjorde
  * att mejl gick ut om påfyllningar Discord teg om.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { SourceType } from "@prisma/client";
 import { fetchSourceFeed, getAdapter, type FeedItem, type RestockSourceInfo } from "../src/scrapers/runner";
 import { fetchWatchedListing } from "../src/scrapers/watched-listing";
@@ -57,8 +57,18 @@ import {
   editRestockMessage,
   postRestocks,
   postTestMessages,
+  resolveRestockChannelId,
   type PostedRestockMessage,
 } from "../src/lib/discord-restock";
+import {
+  cutoverWaitMs,
+  findInLedger,
+  loadLedger,
+  parseHandoffMeta,
+  publicRestockChannelIds,
+  type HandoffMeta,
+  type LedgerEntry,
+} from "../src/lib/discord-restock-ledger";
 import { fetchShopifyPurchasable } from "../src/scrapers/stock-verify";
 import {
   deriveRestockPosts,
@@ -99,6 +109,24 @@ const stateFile = process.env.DISCORD_RESTOCK_STATE_FILE ?? ".discord-restock-ca
  */
 const hitsFile = process.env.DISCORD_RESTOCK_HITS_FILE ?? ".discord-restock-cache/hits.json";
 const hitSecret = process.env.CRON_SECRET?.trim() ?? "";
+/** Överlämningsfilen bredvid state-filen — se discord-restock-ledger.ts. */
+const handoffFile = join(dirname(stateFile), "handoff.json");
+/**
+ * ÖVERLAPPET (2026-10-11): så här många sekunder före jobbets slut skrivs en ögonblicksbild
+ * och markören `handoffMarker`; workflowet sparar då cachen och startar nästa jobb, som tar
+ * över på klockslaget. 0/osatt = inget överlapp (lokala körningar, torrkörning).
+ */
+const handoffSeconds = Math.max(0, Number(process.env.DISCORD_RESTOCK_HANDOFF_SECONDS ?? 0));
+const handoffMarker = process.env.DISCORD_RESTOCK_HANDOFF_MARKER ?? ".discord-restock-handoff.ready";
+/**
+ * Sista hämtningen som får DIFFAS före jobbets slut. Det som hämtas senare slängs — nästa
+ * jobb (som börjar posta på klockslaget) ser samma övergång mot sitt eget state. Annars
+ * hade båda jobben kunnat posta samma påfyllning med någon sekunds mellanrum.
+ */
+const DERIVE_CUTOFF_MS = 10_000;
+/** Hur länge efter starten liggaren läses om före varje utskick (sena inlägg från förra jobbet). */
+const LEDGER_REFRESH_WINDOW_MS = 3 * 60_000;
+const LEDGER_REFRESH_TTL_MS = 5_000;
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
 const cooldownHours = Number(process.env.RESTOCK_ALERT_COOLDOWN_HOURS ?? 2);
 
@@ -160,6 +188,26 @@ function readState(): DiscordRestockState | null {
 }
 
 /** Larm-hits som inte hann levereras förra jobbet. Samma regel som readState: tolkningen bor i lib. */
+function readHandoffMeta(): HandoffMeta | null {
+  if (!existsSync(handoffFile)) return null;
+  try {
+    return parseHandoffMeta(JSON.parse(readFileSync(handoffFile, "utf8")));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Skriv via temporärfil + rename. ⛔ ATOMÄRT MED FLIT: workflowet sparar cachen MEDAN
+ * lanen kör (ögonblicksbilden), och tar hade annars kunnat läsa en halvskriven fil.
+ */
+function writeFileAtomic(file: string, data: string) {
+  mkdirSync(dirname(file), { recursive: true });
+  const tmp = `${file}.tmp`;
+  writeFileSync(tmp, data);
+  renameSync(tmp, file);
+}
+
 function readPendingHits(): RestockHit[] {
   if (!existsSync(hitsFile)) return [];
   try {
@@ -356,6 +404,9 @@ async function main() {
   //    båda rena och synkrona, så "läs state → räkna → skriv state" är atomärt så
   //    länge inget `await` ligger emellan. Lägg ALDRIG in ett await där.
   let state: DiscordRestockState | null = readState();
+  // Överlämningen (se discord-restock-ledger.ts): när skrevs state-filen, och postar
+  // jobbet som skrev den fortfarande?
+  const handoffMeta = readHandoffMeta();
   let totalPosted = 0;
   let totalFailures = 0;
   let stateDirty = false;
@@ -383,12 +434,11 @@ async function main() {
     priceReasons: {} as Record<string, number>,
   };
 
-  const writeState = () => {
-    if (!state || !stateDirty) return;
+  const writeState = (force = false) => {
+    if (!state || (!stateDirty && !force)) return;
     stateDirty = false;
     try {
-      mkdirSync(dirname(stateFile), { recursive: true });
-      writeFileSync(stateFile, JSON.stringify(state));
+      writeFileAtomic(stateFile, JSON.stringify(state));
     } catch (e) {
       console.warn("[discord-restock] Kunde inte skriva state-filen:", e instanceof Error ? e.message : e);
     }
@@ -407,6 +457,16 @@ async function main() {
   // kvar i kön och försöker igen vid nästa flush; kön skrivs till fil så den överlever
   // jobbgränsen. ⛔ Oberoende av Discord-kvittensen — se hitsFromPosts.
   let pendingHits: RestockHit[] = readPendingHits();
+  // ⛔ En ögonblicksbild mitt i ett jobb (`final: false`) bär det gamla jobbets hit-kö, och
+  //    det jobbet LEVER och levererar den själv. Skickade vi den också hade appen fått
+  //    samma påfyllningar två gånger.
+  if (handoffMeta && !handoffMeta.final && pendingHits.length) {
+    console.log(
+      `[discord-restock] Överlämning: ${pendingHits.length} väntande hit(s) i ögonblicksbilden ` +
+        `tillhör förra jobbet — slängs här.`
+    );
+    pendingHits = [];
+  }
   let hitsDirty = false;
   let hitChain: Promise<void> = Promise.resolve();
   let hitsPausedLogged = false;
@@ -428,8 +488,7 @@ async function main() {
     if (!hitsDirty) return;
     hitsDirty = false;
     try {
-      mkdirSync(dirname(hitsFile), { recursive: true });
-      writeFileSync(hitsFile, JSON.stringify({ hits: pendingHits }));
+      writeFileAtomic(hitsFile, JSON.stringify({ hits: pendingHits }));
     } catch (e) {
       console.warn("[discord-restock] Kunde inte skriva hit-kön:", e instanceof Error ? e.message : e);
     }
@@ -566,10 +625,79 @@ async function main() {
     }
     flushHits();
   };
+  // ---- VÄNTA IN FÖRRA JOBBETS SLUT ----
+  // En ögonblicksbild betyder att förra jobbet fortfarande postar fram till `cutoverAt`.
+  // Vi tar över på klockslaget — inte före (då hade två jobb postat samtidigt) och inte
+  // efter (då vore glappet tillbaka).
+  const waitMs = cutoverWaitMs(handoffMeta, Date.now(), (handoffSeconds || 360) * 1000 + 120_000);
+  if (waitMs > 0) {
+    console.log(
+      `[discord-restock] Överlämning: förra jobbet postar till ${new Date(handoffMeta!.cutoverAt).toISOString()} ` +
+        `— väntar ${Math.round(waitMs / 1000)} s och tar sedan över.`
+    );
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+
+  // ---- LIGGAREN: VAD HANN FÖRRA JOBBET POSTA? ----
+  // State-filen är från `savedAt`; allt förra jobbet postade efter det står bara i
+  // kanalerna. Läses en gång nu, och om före varje utskick de första minuterna (inlägg
+  // som var på väg när vi tog över).
+  const ledgerByChannel = new Map<string, { entries: LedgerEntry[]; at: number }>();
+  const ownMessageIds = new Set<string>();
+  const ledgerSince = handoffMeta ? handoffMeta.savedAt - 60_000 : null;
+  const readLedger = async (channelIds: readonly string[]): Promise<string[]> => {
+    if (!config || ledgerSince == null || !channelIds.length) return [];
+    const { entries, failed } = await loadLedger(channelIds, ledgerSince, config.botToken, ownMessageIds);
+    const at = Date.now();
+    for (const id of channelIds) {
+      if (failed.includes(id)) continue;
+      ledgerByChannel.set(id, { entries: entries.filter((e) => e.channelId === id), at });
+    }
+    return failed;
+  };
+  if (config && ledgerSince != null) {
+    const channels = publicRestockChannelIds(config);
+    const failed = await readLedger(channels);
+    const n = [...ledgerByChannel.values()].reduce((a, c) => a + c.entries.length, 0);
+    console.log(
+      `[discord-restock] Liggare: ${channels.length - failed.length}/${channels.length} kanaler lästa, ` +
+        `${n} inlägg sedan ${new Date(ledgerSince).toISOString()}.`
+    );
+    if (failed.length) {
+      console.warn(
+        `[discord-restock] ⚠️ Kunde inte läsa ${failed.length} kanal(er) (${failed.join(", ")}) — boten saknar ` +
+          `troligen "Läsa meddelandehistorik". Dubbletter kan slinka igenom vid jobbytet i de kanalerna.`
+      );
+    }
+  }
+  const ledgerRefreshUntil = handoffMeta && !handoffMeta.final ? Date.now() + LEDGER_REFRESH_WINDOW_MS : 0;
+  const cooldownMs = cooldownHours * 3600_000;
+  let ledgerSkipped = 0;
+
   // Det som blev över från förra jobbet skickas direkt — Railway är troligen uppe igen.
   flushHits();
 
   const deadline = loopSeconds ? Date.now() + loopSeconds * 1000 : 0;
+
+  // ---- ÖGONBLICKSBILDEN FÖR NÄSTA JOBB ----
+  // Skrivs `handoffSeconds` före slutet; workflowet väntar på markören, sparar cachen och
+  // startar nästa jobb. Det här jobbet fortsätter som vanligt fram till `deadline`.
+  let handoffTimer: ReturnType<typeof setTimeout> | null = null;
+  if (deadline && handoffSeconds > 0 && !DRY_RUN) {
+    handoffTimer = setTimeout(() => {
+      try {
+        writeState(true);
+        writeHits();
+        writeFileAtomic(handoffFile, JSON.stringify({ savedAt: Date.now(), cutoverAt: deadline, final: false }));
+        writeFileSync(handoffMarker, String(Date.now()));
+        console.log(
+          `[discord-restock] Överlämning: ögonblicksbild skriven — nästa jobb tar över ${new Date(deadline).toISOString()}.`
+        );
+      } catch (e) {
+        console.warn("[discord-restock] Kunde inte skriva ögonblicksbilden:", e instanceof Error ? e.message : e);
+      }
+    }, Math.max(0, deadline - handoffSeconds * 1000 - Date.now()));
+  }
 
   /** Ett varv för EN butik: hämta → diffa → posta. Returnerar hämtningens kostnad. */
   const runStore = async (source: RestockSourceInfo): Promise<number> => {
@@ -579,6 +707,12 @@ async function main() {
     //    svaret inte hämtas postar vi inte på gissningen — raden hoppas ett varv, och
     //    frånvarominnet gör att en ÄKTA förhandsbokning ändå postas när svaret kommer.
     const fetchedItems: FeedItem[] = await fetchSourceFeed(source);
+    // ⛔ FÖR SENT ATT DIFFA: nästa jobb tar över vid `deadline` och ser samma övergång mot
+    //    sitt eget state. Diffade vi här hade båda kunnat posta den — och state:t vi sparar
+    //    hade dessutom svalt övergången för ett jobb som startar kallt.
+    if (deadline && Date.now() >= deadline - DERIVE_CUTOFF_MS) {
+      return requestsForSource(before, requestCountSnapshot(), source, fetchedItems[0]?.url);
+    }
     const items = fetchedItems.filter((it) => !it.stockUnconfirmed);
     if (items.length < fetchedItems.length) {
       console.log(
@@ -730,7 +864,7 @@ async function main() {
     // webbplatsen redan vet är fel.
     // ⛔ null = vet inte ⇒ POSTA. Ett uteblivet svar är ingen ny upplysning, och att
     //    tolka det som slutsåld hade tystat äkta påfyllningar vid varje 429.
-    const postable: typeof derived.posts = [];
+    let postable: typeof derived.posts = [];
     for (const p of derived.posts) {
       if (!shopifyStores.has(p.storeName)) {
         postable.push(p);
@@ -747,6 +881,45 @@ async function main() {
       postable.push(p);
     }
     if (!postable.length) return requests;
+
+    // ---- LIGGAREN: HOPPA ÖVER DET FÖRRA JOBBET REDAN POSTAT ----
+    // Stämplas som postat (cooldown) så nästa varv inte försöker igen, men blir varken
+    // inlägg eller larm-hit — förra jobbet skickade hiten.
+    if (config && ledgerByChannel.size) {
+      const targets = new Map<(typeof postable)[number], string | null>();
+      for (const p of postable) targets.set(p, resolveRestockChannelId(p, config));
+      if (Date.now() < ledgerRefreshUntil) {
+        const stale = [...new Set([...targets.values()].filter((c): c is string => !!c))].filter(
+          (c) => Date.now() - (ledgerByChannel.get(c)?.at ?? 0) > LEDGER_REFRESH_TTL_MS
+        );
+        if (stale.length) await readLedger(stale);
+      }
+      const nowMs = Date.now();
+      const fresh: typeof postable = [];
+      const dupKeys: string[] = [];
+      const dupPriced: Record<string, number> = {};
+      for (const p of postable) {
+        const ch = targets.get(p);
+        const hit = ch ? findInLedger(ledgerByChannel.get(ch)?.entries ?? [], ch, p, nowMs, cooldownMs) : null;
+        if (!hit) {
+          fresh.push(p);
+          continue;
+        }
+        dupKeys.push(p.key, ...(p.extraKeys ?? []));
+        if (p.previousPriceOre != null && p.priceOre != null) dupPriced[p.key] = p.priceOre;
+        ledgerSkipped++;
+        console.log(
+          `[discord-restock]   hoppar (förra jobbet postade ${new Date(hit.at).toISOString()}): ` +
+            `${p.storeName} → ${p.storeUrl}`
+        );
+      }
+      if (dupKeys.length && state) {
+        state = markPosted(state, dupKeys, new Date(), dupPriced);
+        stateDirty = true;
+      }
+      postable = fresh;
+      if (!postable.length) return requests;
+    }
 
     // Larm-hits ur EXAKT det som går till Discord (efter köpbarhetskollen), men
     // oberoende av om Discord kvitterar. Bara ruttade URL:er blir hits.
@@ -789,6 +962,7 @@ async function main() {
     queueHits(hits);
 
     const res = await postRestocks(postable, config);
+    for (const m of res.messages) ownMessageIds.add(m.messageId);
     // Meddelande-id:n för en senare redigering — bara ORUTTADE inlägg kan behöva en.
     const enrichable: string[] = [];
     for (const m of res.messages) {
@@ -875,7 +1049,16 @@ async function main() {
   await Promise.all(selected.map((s, i) => storeLoop(s, i)));
 
   clearInterval(stateTimer);
-  writeState();
+  if (handoffTimer) clearTimeout(handoffTimer);
+  writeState(true);
+  // Slutsparningen: nästa kalla start väntar inte och skickar hit-kön (`final: true`).
+  if (deadline && !DRY_RUN) {
+    try {
+      writeFileAtomic(handoffFile, JSON.stringify({ savedAt: Date.now(), cutoverAt: deadline, final: true }));
+    } catch (e) {
+      console.warn("[discord-restock] Kunde inte skriva överlämningsfilen:", e instanceof Error ? e.message : e);
+    }
+  }
 
   // Sista leveransförsöket får löpa klart (≤ 90 s) — det som ändå inte gick ut
   // skrivs till kön och plockas upp av nästa jobb.
@@ -910,7 +1093,8 @@ async function main() {
           `${hitTotals.dropped} slängda, ${pendingHits.length} väntar. Lagersynkar: ${hitTotals.syncsQueued} köade, ` +
           `${hitTotals.synced} rättade i appen, ${hitTotals.syncsStale} inaktuella.`
         : "") +
-      (enrichedPosts ? ` Berikade inlägg (nyss bundna produkter): ${enrichedPosts}.` : "")
+      (enrichedPosts ? ` Berikade inlägg (nyss bundna produkter): ${enrichedPosts}.` : "") +
+      (ledgerSkipped ? ` Redan postade av förra jobbet (överlämningen): ${ledgerSkipped}.` : "")
   );
 
   // ⛔ NEKADE UTSKICK GÖR KÖRNINGEN RÖD. 2026-08-12 förlorade boten Send Messages i
