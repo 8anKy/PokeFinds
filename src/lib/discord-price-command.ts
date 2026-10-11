@@ -16,7 +16,7 @@
  */
 import { formatPrice } from "@/lib/format";
 import { isStoreRetailer } from "@/lib/offer-source";
-import { formatTraderaSold, marketDelta, formatMarketValue } from "@/lib/market-compare";
+import { formatTraderaSold, marketDelta, formatMarketValue, priceEdgeColor } from "@/lib/market-compare";
 import { CARDMARKET_RETAILER_NAME } from "@/lib/market-value";
 import type { SnapshotEntry, SnapshotIndexEntry } from "@/lib/catalog-snapshot";
 
@@ -179,7 +179,6 @@ export function buildPriceEmbed(entry: SnapshotEntry, index: SnapshotIndexEntry 
 
   const at = Date.parse(entry.prices.at);
   const productUrl = `${appUrl}/produkter/${entry.slug}`;
-  const delta = cheapest && cm?.price ? marketDelta(cheapest.price, cm.price) : null;
   return {
     title: entry.title.length <= 256 ? entry.title : `${entry.title.slice(0, 255)}…`,
     url: productUrl,
@@ -187,7 +186,8 @@ export function buildPriceEmbed(entry: SnapshotEntry, index: SnapshotIndexEntry 
       `${entry.set?.name ? `${entry.set.name} · ` : ""}` +
       `Priser och lager från ${Number.isFinite(at) ? `<t:${Math.floor(at / 1000)}:R>` : "senaste natten"}. ` +
       `[Prishistorik och alla butiker](${productUrl})`,
-    color: delta ? (delta.verdict === "good" ? 0x22c55e : 0xef4444) : BRAND_COLOR,
+    // Grön/orange/röd för den billigaste butiken — samma dom som påfyllningsinläggen.
+    color: priceEdgeColor(BRAND_COLOR, cheapest?.price, cm?.price, index?.sold?.[0], index?.sold?.[1]),
     fields,
     ...(absolute(entry.imageUrl, appUrl) ? { thumbnail: { url: absolute(entry.imageUrl, appUrl)! } } : {}),
     footer: { text: "Foilio Pro · /pris" },

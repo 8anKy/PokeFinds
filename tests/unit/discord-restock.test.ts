@@ -971,6 +971,15 @@ describe("buildRestockEmbed", () => {
     expect(mv({ ...post, marketValueOre: 54900 })).toBe("549 kr · samma pris");
   });
 
+  it("orange kant mellan marknadsvärdet och Tradera sålt; röd över Tradera (2026-10-11)", () => {
+    // 549 över marknadsvärdet 499 men under Tradera-medianen 650 ⇒ orange.
+    expect(buildRestockEmbed({ ...post, marketValueOre: 49900, soldMedianOre: 65000, soldCount: 6 }).color).toBe(0xf97316);
+    // Över Tradera-medianen ⇒ röd.
+    expect(buildRestockEmbed({ ...post, marketValueOre: 49900, soldMedianOre: 52000, soldCount: 6 }).color).toBe(0xef4444);
+    // Bara Tradera, under medianen ⇒ grön (förut turkos).
+    expect(buildRestockEmbed({ ...post, soldMedianOre: 65000, soldCount: 6 }).color).toBe(0x22c55e);
+  });
+
   it("⛔ utan marknadsvärde eller utan riktigt pris: ingen rad, ingen färgdom, aldrig Infinity", () => {
     expect(buildRestockEmbed(post).fields.some((f) => f.name === "Marknadsvärde")).toBe(false);
     expect(buildRestockEmbed(post).color).toBe(0x2dd4bf);

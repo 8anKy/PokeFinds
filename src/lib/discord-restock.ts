@@ -23,20 +23,14 @@
 import { discordFetch } from "@/lib/discord";
 import { buyLink } from "@/lib/cart-url";
 import { formatPercent, formatPrice } from "@/lib/format";
-import { formatMarketValue, formatTraderaSold, marketDelta } from "@/lib/market-compare";
+import { formatMarketValue, formatTraderaSold, marketDelta, priceEdgeColor } from "@/lib/market-compare";
 import type { StoreStock } from "@/scrapers/types";
 import type { BoundHit } from "@/lib/restock-hits";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
 const BRAND_COLOR = 0x2dd4bf;
-/**
- * Kantfärg när marknadsvärdet är känt (ägarbeslut 2026-10-10): grön på/under, röd
- * över. Discord kan inte färga löpande text i ett embed, så domen bärs av TVÅ saker:
- * kanten OCH en 🟢/🔴 framför talet — mobilklienten visar kanten smalt, så emojin är
- * det som faktiskt läses där. Utan marknadsvärde: varumärkets turkos.
- */
-const GOOD_PRICE_COLOR = 0x22c55e;
-const BAD_PRICE_COLOR = 0xef4444;
+// Kantfärgen när priset kan dömas: grön/orange/röd mot marknadsvärdet OCH Tradera
+// sålt — se `priceVerdict` i market-compare.ts. Utan dom: varumärkets turkos.
 
 /** Discords hårda tak. Överskrids något svarar API:t 400 och HELA batchen tappas. */
 const MAX_EMBEDS_PER_MESSAGE = 10;
@@ -626,7 +620,7 @@ export function buildRestockEmbed(
         : post.preorder
           ? "Går nu att förhandsboka."
           : "Finns i lager igen.",
-    color: delta ? (delta.verdict === "good" ? GOOD_PRICE_COLOR : BAD_PRICE_COLOR) : BRAND_COLOR,
+    color: priceEdgeColor(BRAND_COLOR, post.priceOre, post.marketValueOre, post.soldMedianOre, post.soldCount),
     fields,
     ...(post.imageUrl ? { thumbnail: { url: post.imageUrl } } : {}),
     footer: {

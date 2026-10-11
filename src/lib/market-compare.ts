@@ -83,3 +83,66 @@ export function formatTraderaSold(
   if (medianOre == null || medianOre <= 0 || count == null || count < TRADERA_SOLD_MIN_COUNT) return null;
   return `${formatPrice(medianOre)} · median av ${count} sålda, ${TRADERA_SOLD_WINDOW_DAYS} d`;
 }
+
+/**
+ * KANTFÄRGEN — TRE DOMAR, INTE TVÅ (ägarbeslut 2026-10-11).
+ *
+ * Grön/röd gjorde varje påfyllning en krona över Cardmarket lika röd som en dubbelt så
+ * dyr, så nästan alla heta släpp såg dåliga ut. Mellanläget är det SVENSKA andrahands-
+ * priset: över Cardmarket men under vad samma vara faktiskt säljs för på Tradera är ett
+ * schysst pris här, inte ett dåligt.
+ *   · "good" = på/under marknadsvärdet (Cardmarket).
+ *   · "fair" = över marknadsvärdet men på/under Tradera-medianen.
+ *   · "bad"  = över Tradera-medianen (dyrare än andrahand).
+ * Fall:
+ *   · Tradera-medianen UNDER marknadsvärdet ⇒ inget mellanband: över marknaden = "bad".
+ *   · Bara Tradera ⇒ på/under medianen "good", över "bad".
+ *   · Bara marknadsvärde ⇒ reservband: ≤ FAIR_FALLBACK_PERCENT över = "fair".
+ *   · Inget av dem (eller inget riktigt pris) ⇒ null = varumärkets turkos.
+ * Tradera räknas BARA från TRADERA_SOLD_MIN_COUNT affärer — samma grind som raden, så
+ * kanten aldrig dömer på ett tal inlägget inte visar.
+ * ⛔ RÖR ALDRIG PRISET: färgen är en etikett i Discord, inte rubrikpris/"Lägst"/larm.
+ */
+export type PriceVerdict = "good" | "fair" | "bad";
+
+/** Reservbandet när Tradera-raden saknas: så mycket över marknadsvärdet är "fair". */
+export const FAIR_FALLBACK_PERCENT = 10;
+
+export const PRICE_VERDICT_COLOR: Record<PriceVerdict, number> = {
+  good: 0x22c55e,
+  fair: 0xf97316,
+  bad: 0xef4444,
+};
+
+export function priceVerdict(
+  priceOre: number | null | undefined,
+  marketOre: number | null | undefined,
+  soldMedianOre?: number | null,
+  soldCount?: number | null
+): PriceVerdict | null {
+  if (priceOre == null || !(priceOre > 0)) return null;
+  const market = marketOre != null && marketOre > 0 ? marketOre : null;
+  const sold =
+    soldMedianOre != null && soldMedianOre > 0 && soldCount != null && soldCount >= TRADERA_SOLD_MIN_COUNT
+      ? soldMedianOre
+      : null;
+  if (market != null) {
+    if (priceOre <= market) return "good";
+    if (sold != null) return priceOre <= sold ? "fair" : "bad";
+    return ((priceOre - market) / market) * 100 <= FAIR_FALLBACK_PERCENT ? "fair" : "bad";
+  }
+  if (sold != null) return priceOre <= sold ? "good" : "bad";
+  return null;
+}
+
+/** Embed-kantens färg för priset, eller `fallback` (varumärket) när domen saknas. */
+export function priceEdgeColor(
+  fallback: number,
+  priceOre: number | null | undefined,
+  marketOre: number | null | undefined,
+  soldMedianOre?: number | null,
+  soldCount?: number | null
+): number {
+  const v = priceVerdict(priceOre, marketOre, soldMedianOre, soldCount);
+  return v ? PRICE_VERDICT_COLOR[v] : fallback;
+}

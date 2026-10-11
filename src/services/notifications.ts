@@ -12,7 +12,8 @@ import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { previewAllowedFor } from "@/lib/feature-preview";
 import { pushAlertUrl } from "@/lib/push-alert-url";
-import { sendAlertDm } from "@/lib/discord-dm";
+import { sendAlertDm, type AlertDmPricing } from "@/lib/discord-dm";
+import { loadTraderaSoldStats } from "@/services/tradera-sold-stats";
 import { isPro } from "@/lib/plan";
 // ⛔ Delad läsare (samma defaultvärden som förut: email=true, push=false).
 // Fanns i tre handskrivna kopior — se src/lib/notification-settings.ts.
@@ -278,6 +279,65 @@ async function sendAlertPush(alert: NoticeAlert): Promise<void> {
 }
 
 /**
+ * Butik + pris + marknadsjämförelse för Discord-DM:et (2026-10-11: DM:et visade bara
+ * "… finns i lager igen!" utan pris). Samma källor som mejlet: larmets EGEN butik
+ * (retailerId) med egen fråga, prislarmets sparade `Alert.priceOre` före offerns pris,
+ * och för feed-först-larm annonsen själv. Marknadsvärdet är BARA ett CM-värde
+ * (`settledValueFromCm`), Tradera sålt samma median som kanalinlägget.
+ * Kastar aldrig — null ⇒ DM:et går ut utan prisrader, som förut.
+ */
+async function buildAlertDmPricing(alert: {
+  type: AlertType;
+  retailerId: string | null;
+  storeListingId: string | null;
+  priceOre: number | null;
+  product: { id: string; settledValueOre: number | null; settledValueFromCm: boolean } | null;
+}): Promise<AlertDmPricing | null> {
+  try {
+    if (!alert.product && alert.storeListingId) {
+      const listing = await prisma.storeListing.findUnique({
+        where: { id: alert.storeListingId },
+        select: { price: true, retailer: { select: { name: true } } },
+      });
+      if (!listing) return null;
+      return {
+        storeName: listing.retailer.name,
+        priceOre: listing.price && listing.price > 0 ? listing.price : null,
+        marketValueOre: null,
+        soldMedianOre: null,
+        soldCount: null,
+      };
+    }
+    if (!alert.product) return null;
+    const product = alert.product;
+    const offer = alert.retailerId
+      ? await prisma.offer.findFirst({
+          where: { productId: product.id, retailerId: alert.retailerId },
+          select: { price: true, retailer: { select: { name: true } } },
+          orderBy: { price: "asc" },
+        })
+      : null;
+    const isPriceAlert = alert.type === AlertType.PRICE_DROP || alert.type === AlertType.PRICE_TARGET;
+    const offerPrice = offer?.price && offer.price > 0 ? offer.price : null;
+    const priceOre = isPriceAlert ? (alert.priceOre ?? offerPrice) : offerPrice;
+    const sold = (await loadTraderaSoldStats([product.id])).get(product.id) ?? null;
+    return {
+      storeName: offer?.retailer.name ?? null,
+      priceOre,
+      marketValueOre:
+        product.settledValueFromCm && product.settledValueOre && product.settledValueOre > 0
+          ? product.settledValueOre
+          : null,
+      soldMedianOre: sold?.medianOre ?? null,
+      soldCount: sold?.count ?? null,
+    };
+  } catch (e) {
+    console.warn("[notifications] DM-prisrader kunde inte byggas:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/**
  * Skickar alla väntande alerts till användarens PÅSLAGNA kanaler (e-post och/eller
  * native push). Markerar SENT/FAILED och räknar omförsök (max 3).
  */
@@ -319,11 +379,13 @@ export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: n
       if (settings.discord && alert.user.discordUserId && isPro(alert.user)) {
         const notice = await buildAlertNotice({ ...alert, delayNote, target: settings.pushTarget }).catch(() => null);
         if (notice) {
+          const pricing = await buildAlertDmPricing(alert);
           await sendAlertDm(alert.user.discordUserId, {
             title: notice.title,
             body: notice.body,
             url: notice.url ? (notice.url.startsWith("/") ? `${APP_URL}${notice.url}` : notice.url) : null,
             imageUrl: absoluteImageUrl(alert.product?.imageUrl ?? null),
+            pricing,
           });
         }
       }

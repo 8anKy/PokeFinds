@@ -15,6 +15,8 @@
  * ⛔ Inga nya personuppgifter: `User.discordUserId` finns redan sedan länkningen.
  */
 import { discordFetch } from "@/lib/discord";
+import { formatPrice } from "@/lib/format";
+import { formatMarketValue, formatTraderaSold, marketDelta, priceEdgeColor } from "@/lib/market-compare";
 
 /** Turkos signaturaccent (`holo.cyan`). */
 const BRAND_COLOR = 0x2dd4bf;
@@ -34,6 +36,34 @@ export interface AlertDmContent {
   /** Absolut länk (butik/korg/produktsida), eller null. */
   url: string | null;
   imageUrl?: string | null;
+  /**
+   * Butik + pris + marknadsjämförelse — samma rader och samma kantfärg som
+   * påfyllningsinlägget i kanalen (discord-restock.ts). Utelämnad = bara rubrik och text.
+   */
+  pricing?: AlertDmPricing | null;
+}
+
+export interface AlertDmPricing {
+  storeName: string | null;
+  /** Butikens pris i öre. null/0 ⇒ ingen prisrad (0 kr är inget pris). */
+  priceOre: number | null;
+  /** Cardmarket-värdet (settledValue, BARA när det kommer från CM). */
+  marketValueOre: number | null;
+  soldMedianOre: number | null;
+  soldCount: number | null;
+}
+
+const MAX_FIELD_VALUE = 1024;
+
+function pricingFields(p: AlertDmPricing): { name: string; value: string; inline: boolean }[] {
+  const fields: { name: string; value: string; inline: boolean }[] = [];
+  if (p.storeName) fields.push({ name: "Butik", value: clamp(p.storeName, MAX_FIELD_VALUE), inline: true });
+  if (p.priceOre != null && p.priceOre > 0) fields.push({ name: "Pris", value: formatPrice(p.priceOre), inline: true });
+  const delta = marketDelta(p.priceOre, p.marketValueOre);
+  if (delta) fields.push({ name: "Marknadsvärde", value: formatMarketValue(delta), inline: false });
+  const sold = formatTraderaSold(p.soldMedianOre, p.soldCount);
+  if (sold) fields.push({ name: "Tradera sålt", value: sold, inline: false });
+  return fields;
 }
 
 function clamp(s: string, max: number): string {
@@ -42,11 +72,14 @@ function clamp(s: string, max: number): string {
 
 /** Ren funktion så formatet går att testa utan nätverk. */
 export function buildAlertDmEmbed(c: AlertDmContent) {
+  const p = c.pricing ?? null;
+  const fields = p ? pricingFields(p) : [];
   return {
     title: clamp(c.title, MAX_TITLE),
     description: clamp(c.body, MAX_DESCRIPTION),
     ...(c.url ? { url: c.url } : {}),
-    color: BRAND_COLOR,
+    color: p ? priceEdgeColor(BRAND_COLOR, p.priceOre, p.marketValueOre, p.soldMedianOre, p.soldCount) : BRAND_COLOR,
+    ...(fields.length ? { fields } : {}),
     ...(c.imageUrl ? { thumbnail: { url: c.imageUrl } } : {}),
     footer: { text: "Foilio Pro · stäng av under Inställningar → Notiser" },
     timestamp: new Date().toISOString(),

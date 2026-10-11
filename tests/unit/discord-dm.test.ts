@@ -24,6 +24,29 @@ describe("buildAlertDmEmbed", () => {
     expect(e.footer.text).toContain("Inställningar");
   });
 
+  it("prisrader: butik, pris, marknadsvärde, Tradera sålt + kantfärg (2026-10-11)", () => {
+    const e = buildAlertDmEmbed({
+      ...CONTENT,
+      pricing: { storeName: "Speltrollet", priceOre: 64900, marketValueOre: 67958, soldMedianOre: 92700, soldCount: 112 },
+    });
+    const field = (n: string) => e.fields?.find((f) => f.name === n)?.value.replace(/ /g, " ");
+    expect(field("Butik")).toBe("Speltrollet");
+    expect(field("Pris")).toBe("649 kr");
+    expect(field("Marknadsvärde")).toContain("4 % under");
+    expect(field("Tradera sålt")).toBe("927 kr · median av 112 sålda, 30 d");
+    expect(e.color).toBe(0x22c55e);
+  });
+
+  it("⛔ utan pris: ingen prisrad, aldrig 0 kr, turkos kant", () => {
+    const e = buildAlertDmEmbed({
+      ...CONTENT,
+      pricing: { storeName: "Speltrollet", priceOre: 0, marketValueOre: 67958, soldMedianOre: null, soldCount: null },
+    });
+    expect(e.fields?.some((f) => f.name === "Pris")).toBe(false);
+    expect(e.fields?.some((f) => f.name === "Marknadsvärde")).toBe(false);
+    expect(e.color).toBe(0x2dd4bf);
+  });
+
   it("utan länk/bild: inga tomma fält (Discord svarar 400 på url: null)", () => {
     const e = buildAlertDmEmbed({ ...CONTENT, url: null, imageUrl: null });
     expect("url" in e).toBe(false);
