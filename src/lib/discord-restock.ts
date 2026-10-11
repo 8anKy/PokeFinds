@@ -385,6 +385,12 @@ export interface RestockPost {
    * katalogens övriga regler finns för att förhindra.
    */
   previousPriceOre?: number | null;
+  /**
+   * DOLT SLÄPP (2026-10-11, scripts/lib/drop-watch.ts): `hidden` = vi hittade den köpbara
+   * sidan bakom en sökkod/rebus (`storeUrl` är den dolda sidan), `riddle` = rebusen är ute
+   * på originalsidan (`storeUrl` är originalsidan). `note` blir inläggets text.
+   */
+  drop?: { kind: "hidden" | "riddle"; note: string; originalUrl: string } | null;
 }
 
 /**
@@ -572,6 +578,14 @@ export function buildRestockEmbed(
   // känner igen butikens URL, annars katalogen filtrerad på setet. Fältnamnet skiljer
   // dem åt med flit: "Prishistorik" lovar en prisgraf, och den finns bara på
   // produktsidan — att kalla setlänken samma sak hade varit ett löfte vi inte håller.
+  // Dolt släpp: originalsidan bär köpgränsen och instruktionen — länka den också.
+  if (post.drop?.kind === "hidden" && post.drop.originalUrl !== post.storeUrl) {
+    fields.push({
+      name: "Originalsida",
+      value: clamp(`[Köpgräns och instruktion](${post.drop.originalUrl})`, MAX_FIELD_VALUE),
+      inline: false,
+    });
+  }
   if (post.productUrl) {
     fields.push({
       name: "Prishistorik",
@@ -588,7 +602,9 @@ export function buildRestockEmbed(
 
   return {
     title: clamp(
-      priceDrop
+      post.drop
+        ? `${post.drop.kind === "riddle" ? "Rebus ute nu" : "Dolt släpp"}: ${post.title}`
+        : priceDrop
         ? `Nytt lägre pris — ${post.title}`
         : priceRise
           ? `Höjt pris — ${post.title}`
@@ -601,7 +617,9 @@ export function buildRestockEmbed(
     //    2026-09-17): korglänken är Pro-förmånen (push + Pro-kanal). `cartUrl` följer
     //    med posten → hiten → offern, så pushen får den också.
     url: opts.cart ? buyLink(post.cartUrl, post.storeUrl) : post.storeUrl,
-    description: priceDrop
+    description: post.drop
+      ? clamp(post.drop.note, 4096)
+      : priceDrop
       ? `Sänkt från ${formatPrice(post.previousPriceOre)} till ${formatPrice(post.priceOre)} ` +
         `(${formatPercent(-priceDrop.percent)}).`
       : priceRise

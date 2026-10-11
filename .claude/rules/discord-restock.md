@@ -34,6 +34,23 @@ hämtning ~12:59:40 UTC, nästa jobbs första 13:01:17); en konkurrent postade 1
   också kör. Rubriken (`run-name`) bär "← <föregångare>" — grinden/vakten läser den.
 - Pingern ger nu en kort grind-körning var 2:a min under kedjan (avstår). Sätt den gärna till 5 min.
 
+## DOLDA SLÄPP — SÖKKOD OCH REBUS (ägarbeslut 2026-10-11)
+Spelexperten och Dragon's Lair släpper heta varor via en DOLD sida: originalsidans beskrivning bär en
+instruktion och den köpbara sidan har en orelaterad titel ⇒ utanför kategori/kollektion och fälld av vakterna.
+`scripts/lib/drop-watch.ts` (körtid) + `src/lib/drop-pages.ts` (ren, testad), bara `DROP_STORES`:
+- **Hitta originalsidor**: feedvaror som är slut/kommande eller har "Max N" i titeln, URL:er lanen postat
+  (14 d) och nya URL:er läses högst var 6:e h; sidor med aktiv instruktion var 90:e s. ≤ 2 sidor per varv.
+  Tillstånd i `.discord-restock-cache/drops.json` (följer cachen och överlämningen).
+- **Kod** ("skriver du artikelnumret … i sökrutan: SYL-01"): Spelexperten ⇒ butikens sök
+  (`AIR_ibutik.fcgi?funk=gor_sokning&term=`), träffen vars **Artnr ÄR koden** + JSON-LD i lager ⇒ post.
+  ⛔ Shopifys robots.txt stänger `/search` ⇒ Dragon's Lair söker koden i titel/SKU bland nyaste produkterna.
+- **Rebus** ("I morgon ersätter vi texten med en enkel rebus" = förhandsbesked; ändrad text därefter = LIVE):
+  rebusen postas EN gång ("Rebus ute nu", ingen hit), och för Shopify läses `/products.json?limit=15` (nyast
+  först) varje varv i 6 h. ⛔ Länk bara när EXAKT EN produkt (skapad < 48 h) matchar på MINST TVÅ av pris,
+  bild, köpgräns i texten — annars bara rebusen. Ingen AI-lösning (fel vara i kanalen är värre).
+- Inlägget: "Dolt släpp: …" med `storeUrl` = den dolda sidan, fältet "Originalsida" (köpgräns), hit till appen
+  via originalets rutt. Dubblettskydd: `drops.json.alerted` (24 h) + liggaren + cooldown-kartan.
+
 ## KANTFÄRGEN: GRÖN / GUL / RÖD (ägarbeslut 2026-10-11)
 `priceVerdict` (`src/lib/market-compare.ts`): grön ≤ marknadsvärdet (CM), **gul** (ägarbeslut: gul i stället för orange — orange läste som röd på den smala kanten) över CM men ≤ Tradera-
 medianen, röd över Tradera. Tradera under CM ⇒ inget mellanband. Bara Tradera ⇒ grön/röd mot medianen.

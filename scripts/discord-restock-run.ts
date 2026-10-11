@@ -59,6 +59,7 @@ import {
   postTestMessages,
   resolveRestockChannelId,
   type PostedRestockMessage,
+  type RestockPost,
 } from "../src/lib/discord-restock";
 import {
   cutoverWaitMs,
@@ -70,6 +71,7 @@ import {
   type LedgerEntry,
 } from "../src/lib/discord-restock-ledger";
 import { fetchShopifyPurchasable, verifyStockForUrl } from "../src/scrapers/stock-verify";
+import { DROP_STORES, DropWatcher } from "./lib/drop-watch";
 import {
   deriveRestockPosts,
   markPosted,
@@ -408,6 +410,18 @@ async function main() {
   // Överlämningen (se discord-restock-ledger.ts): när skrevs state-filen, och postar
   // jobbet som skrev den fortfarande?
   const handoffMeta = readHandoffMeta();
+
+  // ---- DOLDA SLÄPP (sökkod/rebus, scripts/lib/drop-watch.ts) ----
+  // `publish` binds längre ned, när liggaren och hit-kön finns.
+  let publishDrop: (posts: RestockPost[]) => Promise<void> = async () => {};
+  const dropsFile = join(dirname(stateFile), "drops.json");
+  const dropWatcher = new DropWatcher({
+    file: dropsFile,
+    routes,
+    posted: () => state?.posted ?? {},
+    publish: (posts) => publishDrop(posts),
+    baseUrl,
+  });
   let totalPosted = 0;
   let totalFailures = 0;
   let stateDirty = false;
@@ -440,6 +454,8 @@ async function main() {
     stateDirty = false;
     try {
       writeFileAtomic(stateFile, JSON.stringify(state));
+      const drops = dropWatcher.takeDirty();
+      if (drops) writeFileAtomic(dropsFile, drops);
     } catch (e) {
       console.warn("[discord-restock] Kunde inte skriva state-filen:", e instanceof Error ? e.message : e);
     }
@@ -766,6 +782,21 @@ async function main() {
     }
     emptyFeedLogged.delete(source.name);
 
+    if (DROP_STORES.has(source.name)) {
+      const prefix = `${source.name}	`;
+      dropWatcher.noteFeed(
+        source.name,
+        items.map((it) => ({
+          url: it.url,
+          title: it.title,
+          stockStatus: String(it.stockStatus),
+          price: it.price ?? null,
+          imageUrl: it.imageUrl ?? null,
+        })),
+        items.filter((it) => state?.stock[prefix + it.url] === undefined).map((it) => it.url)
+      );
+    }
+
     const now = new Date();
     // ---- ATOMÄRT BLOCK: inga await här inne ----
     const derived = deriveRestockPosts({
@@ -1001,6 +1032,31 @@ async function main() {
    * En butiks egen loop. Kör tills loopbudgeten är slut; väntar ut SIN takt mellan
    * varven. Ett fel i en butik får aldrig stoppa de andra — därav try/catch per varv.
    */
+  // Dolda släpp postas som vanliga inlägg: liggaren (överlämningen), hits, cooldown.
+  publishDrop = async (posts: RestockPost[]) => {
+    if (!posts.length) return;
+    if (!config) {
+      for (const p of posts) console.log(`[discord-restock][dry] ${p.drop?.kind ?? "drop"}: ${p.storeName} → ${p.title} ${p.storeUrl}`);
+      return;
+    }
+    const nowMs = Date.now();
+    const list = posts.filter((p) => {
+      const ch = resolveRestockChannelId(p, config);
+      return !(ch && findInLedger(ledgerByChannel.get(ch)?.entries ?? [], ch, p, nowMs, cooldownMs));
+    });
+    if (!list.length) return;
+    queueHits(hitsFromPosts(list, new Date()));
+    const res = await postRestocks(list, config);
+    for (const m of res.messages) ownMessageIds.add(m.messageId);
+    totalPosted += res.sent;
+    totalFailures += res.failed;
+    for (const k of res.postedKeys) console.log(`[discord-restock]   postade (dolt släpp): ${k.replace("	", " → ")}`);
+    if (res.postedKeys.length && state) {
+      state = markPosted(state, res.postedKeys, new Date(), {});
+      stateDirty = true;
+    }
+  };
+
   /**
    * FÖRSVUNNA I-LAGER-VAROR: FRÅGA SIDAN (2026-10-11).
    *
@@ -1098,6 +1154,7 @@ async function main() {
         // Efter varvet och utan await: kollen får aldrig fördröja en hämtning eller ett
         // inlägg (den delar butikens artighetskö i politeFetch). Nästa varv är ≥ 25 s bort.
         void checkVanished(source);
+        if (DROP_STORES.has(source.name)) void dropWatcher.tick(source.name, deadline ? deadline - DERIVE_CUTOFF_MS : 0);
         if (requests > 0) {
           interval = pollIntervalMs(requests, budget);
           if (!logged) {
@@ -1179,7 +1236,10 @@ async function main() {
         : "") +
       (enrichedPosts ? ` Berikade inlägg (nyss bundna produkter): ${enrichedPosts}.` : "") +
       (ledgerSkipped ? ` Redan postade av förra jobbet (överlämningen): ${ledgerSkipped}.` : "") +
-      (vanishedConfirmed ? ` Försvunna ur feeden, sidan sa slut: ${vanishedConfirmed}.` : "")
+      (vanishedConfirmed ? ` Försvunna ur feeden, sidan sa slut: ${vanishedConfirmed}.` : "") +
+      (dropWatcher.found || dropWatcher.riddles
+        ? ` Dolda släpp: ${dropWatcher.found} sidor hittade, ${dropWatcher.riddles} rebusar postade.`
+        : "")
   );
 
   // ⛔ NEKADE UTSKICK GÖR KÖRNINGEN RÖD. 2026-08-12 förlorade boten Send Messages i
