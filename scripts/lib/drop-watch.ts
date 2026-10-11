@@ -16,7 +16,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { politeFetch } from "../../src/scrapers/http";
-import { fetchShopifyPurchasable, verifyStockForUrl } from "../../src/scrapers/stock-verify";
+import { fetchShopifyPurchasable, stockFromJsonLd, verifyStockForUrl } from "../../src/scrapers/stock-verify";
 import type { RestockPost } from "../../src/lib/discord-restock";
 import type { RouteTable } from "../../src/lib/restock-feed-events";
 import {
@@ -39,6 +39,8 @@ const RECHECK_ACTIVE_CDN_MS = 90_000;
 const RECHECK_ACTIVE_OWN_MS = 10 * 60_000;
 /** Sida i ett HETT set (lanen postat om setet senaste veckan, t.ex. 30th Celebration). */
 const RECHECK_HOT_MS = 15 * 60_000;
+/** Spelexperten: en ny kod syns bara genom att läsa sidan — heta sidor var 5:e min i snabbloopen. */
+const RECHECK_HOT_OWN_MS = 5 * 60_000;
 const RECHECK_OTHER_MS = 6 * 3600_000;
 const HOT_SET_DAYS = 7;
 /** Rebusen jagas så här länge efter att den blev live. Koder jagas så länge de står kvar. */
@@ -49,10 +51,12 @@ const REPOST_AFTER_MS = 24 * 3600_000;
 const NEWEST_MAX_AGE_MS = 48 * 3600_000;
 const PAGES_PER_TICK = 2;
 /**
- * Spelexperten-varvet är ~60 s och feeden kostar ~12 förfrågningar; 2 sidor + 3 sökningar
- * håller butiken på ~0,28 förfr./s — under taket för egna servrar (restock-poll-interval.ts).
+ * Snabba kodloopen: en Spelexperten-sökning var 6:e s (0,17 förfr./s). Medan koder jagas
+ * glesas butikens vanliga feed (~12 förfrågningar) ut till 120 s (0,1/s) — totalen stannar
+ * kring dagens ~0,27 förfr./s, under taket för egna servrar (restock-poll-interval.ts).
  */
-const SEARCHES_PER_TICK = 3;
+export const FAST_CODE_MS = 6_000;
+export const SLOW_FEED_WHILE_CODES_MS = 120_000;
 
 /** Koderna ur en instruktion (äldre drops.json bar ett ensamt `code`). */
 function codesOf(i: DropInstruction | null | undefined): string[] {
@@ -195,7 +199,7 @@ export class DropWatcher {
    * resten, och inom varje grupp den som legat längst. ⛔ Spelexperten har ~300 slutsålda
    * Pokémon-sidor — utan ordningen tog första varvet ~2,5 h innan 30th-sidorna nåddes.
    */
-  private duePages(store: string): string[] {
+  private duePages(store: string, max = PAGES_PER_TICK, maxRank = 3): string[] {
     const now = Date.now();
     const prefix = `${store}\t`;
     const hot = this.hotSets();
@@ -235,17 +239,21 @@ export class DropWatcher {
           ? RECHECK_ACTIVE_CDN_MS
           : RECHECK_ACTIVE_OWN_MS
         : hotPage
-          ? RECHECK_HOT_MS
+          ? cdn
+            ? RECHECK_HOT_MS
+            : RECHECK_HOT_OWN_MS
           : RECHECK_OTHER_MS;
       if (age < every) continue;
-      due.push({ url, rank: active ? 0 : hotPage ? 1 : p ? 3 : 2, age });
+      const rank = active ? 0 : hotPage ? 1 : p ? 3 : 2;
+      if (rank <= maxRank) due.push({ url, rank, age });
     }
     due.sort((a, b) => a.rank - b.rank || b.age - a.age);
-    return due.slice(0, PAGES_PER_TICK).map((d) => d.url);
+    return due.slice(0, max).map((d) => d.url);
   }
 
   async tick(store: string, stopAt: number) {
-    if (!DROP_STORES.has(store) || this.busy.has(store)) return;
+    // Spelexperten sköts helt av snabbloopen (`fastTick`): en förfrågan var 6:e s.
+    if (!DROP_STORES.has(store) || store === "Spelexperten" || this.busy.has(store)) return;
     if (stopAt && Date.now() >= stopAt) return;
     this.busy.add(store);
     try {
@@ -262,6 +270,7 @@ export class DropWatcher {
 
   /** Läs originalsidan och dess instruktion. */
   private async readPage(store: string, url: string) {
+    if (process.env.DROP_WATCH_DEBUG === "1") console.log(`[drop-watch] läs ${url.slice(-50)} ${new Date().toISOString()}`);
     const seen = (this.feed.get(store) ?? []).find((it) => it.url === url);
     const prev = this.data.pages[url];
     let text = "";
@@ -350,32 +359,8 @@ export class DropWatcher {
       ]);
     }
 
-    if (store === "Spelexperten") {
-      // Varje (sida, kod)-par — två koder på samma sida söks båda. Nya/ändrade koder
-      // (sedda < 1 h) söks VARJE varv; resten turas om med de platser som blir över.
-      const urgent: [string, DropPage, string][] = [];
-      const rest: [string, DropPage, string][] = [];
-      for (const [url, p] of active) {
-        if (this.wasAlerted(`${store}\t${url}#found`)) continue;
-        const fresh = p.codesSeenAt != null && now - p.codesSeenAt < CODE_PRIORITY_MS;
-        for (const code of codesOf(p.instruction)) (fresh ? urgent : rest).push([url, p, code]);
-      }
-      const picks: [string, DropPage, string][] = [];
-      const take = (list: [string, DropPage, string][], key: string) => {
-        for (let i = 0; i < list.length && picks.length < SEARCHES_PER_TICK; i++) {
-          const turn = (this.codeTurn.get(key) ?? 0) % list.length;
-          this.codeTurn.set(key, turn + 1);
-          if (!picks.includes(list[turn])) picks.push(list[turn]);
-        }
-      };
-      take(urgent, `${store}#urgent`);
-      take(rest, store);
-      for (const [url, p, code] of picks) {
-        if (this.wasAlerted(`${store}\t${url}#found`)) continue;
-        await this.searchSpelexperten(store, url, p, code);
-      }
-      return;
-    }
+    // Spelexpertens koder söks i den SNABBA loopen (`fastTick`), inte här efter feedvarvet.
+    if (store === "Spelexperten") return;
 
     // Shopify: butikens nyaste produkter (en förfrågan), gemensamt för alla aktiva sidor.
     const origin = shopifyOrigin(active[0][0]);
@@ -450,17 +435,81 @@ export class DropWatcher {
     }
   }
 
+  /** (sida, kod)-paren som jagas hos Spelexperten — nya/ändrade koder först. */
+  private codePairs(store: string): { urgent: [string, DropPage, string][]; rest: [string, DropPage, string][] } {
+    const now = Date.now();
+    const urgent: [string, DropPage, string][] = [];
+    const rest: [string, DropPage, string][] = [];
+    for (const [url, p] of Object.entries(this.data.pages)) {
+      if (p.store !== store || p.instruction?.kind !== "code") continue;
+      if (this.wasAlerted(`${store}\t${url}#found`)) continue;
+      const fresh = p.codesSeenAt != null && now - p.codesSeenAt < CODE_PRIORITY_MS;
+      for (const code of codesOf(p.instruction)) (fresh ? urgent : rest).push([url, p, code]);
+    }
+    return { urgent, rest };
+  }
+
+  /** Finns det koder att jaga? Då glesar lanen ut butikens vanliga feed (se scriptet). */
+  hasActiveCodes(store: string): boolean {
+    const { urgent, rest } = this.codePairs(store);
+    return urgent.length + rest.length > 0;
+  }
+
+  /**
+   * SNABBA KODLOOPEN (Spelexperten): EN sökning per anrop, anropas var `FAST_CODE_MS` av
+   * scriptet — oberoende av butikens ~60 s feedvarv. En kod = en sökning var 6:e s; nya/
+   * ändrade koder går före, övriga turas om. Artighet: butikens feed glesas samtidigt ut
+   * till 120 s, så totalen ligger kvar runt dagens ~0,27 förfr./s.
+   */
+  async fastTick(store: string, stopAt: number) {
+    if (store !== "Spelexperten" || this.busy.has(`${store}#fast`)) return;
+    if (stopAt && Date.now() >= stopAt) return;
+    this.busy.add(`${store}#fast`);
+    try {
+      // EN förfrågan per anrop, i den här ordningen: ny/ändrad kod → en sida som ska läsas
+      // om (heta set var 5:e min — så hittas en ny kod) → övriga koder i tur och ordning.
+      const { urgent, rest } = this.codePairs(store);
+      if (!urgent.length) {
+        // Kalla sidor (inte hett set, ingen instruktion) får var tredje plats när koder jagas —
+        // annars hade första svepet över ~300 sidor stängt ute kodsökningen i en halvtimme.
+        // Var tredje plats är ALLTID en kodsökning när koder finns — en känd kod söks alltså
+        // minst var 18:e s även medan sidor läses (första svepet över 19 heta sidor tog 2 min).
+        const slot = (this.codeTurn.get(`${store}#slot`) ?? 0) + 1;
+        this.codeTurn.set(`${store}#slot`, slot);
+        const forceCode = rest.length > 0 && slot % 3 === 0;
+        const [due] = forceCode ? [] : this.duePages(store, 1, rest.length && slot % 3 !== 1 ? 1 : 3);
+        if (due) {
+          await this.readPage(store, due);
+          this.newUrls.get(store)?.delete(due);
+          return;
+        }
+      }
+      const list = urgent.length ? urgent : rest;
+      if (!list.length) return;
+      const key = urgent.length ? `${store}#urgent` : store;
+      const turn = (this.codeTurn.get(key) ?? 0) % list.length;
+      this.codeTurn.set(key, turn + 1);
+      const [url, p, code] = list[turn];
+      await this.searchSpelexperten(store, url, p, code);
+    } catch (e) {
+      console.warn(`[drop-watch] ${store} kodsök:`, e instanceof Error ? e.message : e);
+    } finally {
+      this.busy.delete(`${store}#fast`);
+    }
+  }
+
   private async searchSpelexperten(store: string, url: string, p: DropPage, code: string) {
+    if (process.env.DROP_WATCH_DEBUG === "1") console.log(`[drop-watch] sök ${code} ${new Date().toISOString()}`);
     const res = await politeFetch(
       `${SPELEXPERTEN}/cgi-bin/ibutik/AIR_ibutik.fcgi?funk=gor_sokning&term=${encodeURIComponent(code)}`,
-      { delayMs: 2000 }
+      { delayMs: 1000 }
     );
     if (!res.ok) return;
     const links = spelexpertenSearchLinks(await res.text(), SPELEXPERTEN).filter((u) => u !== url);
     for (const link of links.slice(0, 3)) {
       const key = `${store}\t${link}`;
       if (this.wasAlerted(key)) return;
-      const page = await politeFetch(link, { delayMs: 2000 });
+      const page = await politeFetch(link, { delayMs: 1000 });
       if (!page.ok) continue;
       const html = await page.text();
       // ⛔ BUTIKENS SÖK AVGÖR, MEN ARTIKELNUMRET MÅSTE VARA KODEN — originalsidan och
@@ -480,7 +529,9 @@ export class DropWatcher {
         /\/pokemon\//i.test(link) ||
         (priceOre != null && p.priceOre != null && priceOre === p.priceOre);
       if (!plausible) continue;
-      if ((await verifyStockForUrl(store, link)) !== "IN_STOCK") return;
+      // Lagret ur sidan vi redan hämtat (JSON-LD) — en hämtning mindre när det är bråttom.
+      const stock = stockFromJsonLd(html) ?? (await verifyStockForUrl(store, link));
+      if (stock !== "IN_STOCK") return;
       this.markAlerted(key);
       this.markAlerted(`${store}\t${url}#found`);
       this.found++;

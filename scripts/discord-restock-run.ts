@@ -71,7 +71,7 @@ import {
   type LedgerEntry,
 } from "../src/lib/discord-restock-ledger";
 import { fetchShopifyPurchasable, verifyStockForUrl } from "../src/scrapers/stock-verify";
-import { DROP_STORES, DropWatcher } from "./lib/drop-watch";
+import { DROP_STORES, DropWatcher, FAST_CODE_MS, SLOW_FEED_WHILE_CODES_MS } from "./lib/drop-watch";
 import {
   deriveRestockPosts,
   markPosted,
@@ -1172,7 +1172,9 @@ async function main() {
         );
       }
       if (!deadline) return;
-      const next = started + interval;
+      // Medan den snabba kodloopen söker hos butiken: glesare feed, samma totala artighet.
+      const effective = dropWatcher.hasActiveCodes(source.name) ? Math.max(interval, SLOW_FEED_WHILE_CODES_MS) : interval;
+      const next = started + effective;
       // Sista varvet får STARTA före deadline och löpa klart efter den —
       // `timeout-minutes` i workflowet har marginal för en hel hämtning. Att i
       // stället kräva att hela varvet ryms hade lämnat butiken tyst i upp till ett
@@ -1187,7 +1189,13 @@ async function main() {
   // Alla butiker samtidigt. Det ökar INTE lasten mot någon enskild butik: politeFetch
   // fördröjer per VÄRD, och varje butik är en egen värd. Det tar bara bort köandet
   // MELLAN dem, vilket var hela poängen med att sluta svepa.
+  // SNABBA KODLOOPEN (dolda släpp, Spelexperten): en sökning var FAST_CODE_MS, bara när
+  // det finns koder att jaga — annars gör anropet ingenting.
+  const fastCodeTimer = selected.some((s) => s.name === "Spelexperten")
+    ? setInterval(() => void dropWatcher.fastTick("Spelexperten", deadline ? deadline - DERIVE_CUTOFF_MS : 0), FAST_CODE_MS)
+    : null;
   await Promise.all(selected.map((s, i) => storeLoop(s, i)));
+  if (fastCodeTimer) clearInterval(fastCodeTimer);
 
   clearInterval(stateTimer);
   if (handoffTimer) clearTimeout(handoffTimer);
