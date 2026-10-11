@@ -40,6 +40,22 @@ const LIVE_WINDOW_MS = 6 * 3600_000;
 const REPOST_AFTER_MS = 24 * 3600_000;
 const NEWEST_MAX_AGE_MS = 48 * 3600_000;
 const PAGES_PER_TICK = 2;
+const SEARCHES_PER_TICK = 2;
+
+/** Koderna ur en instruktion (äldre drops.json bar ett ensamt `code`). */
+function codesOf(i: DropInstruction | null | undefined): string[] {
+  if (!i || i.kind !== "code") return [];
+  const legacy = (i as unknown as { code?: string }).code;
+  return i.codes ?? (legacy ? [legacy] : []);
+}
+
+/** Priset ur sidans JSON-LD (`"price": "475.00"`) i öre, eller null. */
+function jsonLdPriceOre(html: string): number | null {
+  const m = html.match(/"price"\s*:\s*"?(\d+(?:[.,]\d+)?)/);
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
+}
 
 interface DropPage {
   store: string;
@@ -200,11 +216,14 @@ export class DropWatcher {
     let priceOre = seen?.price ?? prev?.priceOre ?? null;
     let images: string[] = seen?.imageUrl ? [seen.imageUrl] : [];
     let title = seen?.title ?? prev?.title ?? "";
+    let ownCodes: string[] = [];
     if (store === "Spelexperten") {
       const res = await politeFetch(url, { delayMs: 2000 });
       if (!res.ok) return;
       const html = await res.text();
       text = htmlToText(html);
+      const artnr = spelexpertenArtnr(html);
+      if (artnr) ownCodes = [artnr];
       images = [...images, ...[...html.matchAll(/\/bilder\/artiklar\/[^"?\s]+/g)].map((m) => m[0])];
     } else {
       const origin = shopifyOrigin(url);
@@ -221,7 +240,7 @@ export class DropWatcher {
       images = [...images, ...(d.images ?? [])];
       title = d.title ?? title;
     }
-    const instruction = readDropInstruction(text, prev?.instruction ?? null);
+    const instruction = readDropInstruction(text, prev?.instruction ?? null, ownCodes);
     const becameLive =
       instruction &&
       (instruction.kind === "code" || instruction.phase === "live") &&
@@ -238,7 +257,7 @@ export class DropWatcher {
     this.dirty = true;
     if (instruction && (!prev?.instruction || becameLive)) {
       console.log(
-        `[drop-watch] ${store}: ${instruction.kind === "code" ? `sökkod ${instruction.code}` : `rebus (${instruction.phase})`} på ${url}`
+        `[drop-watch] ${store}: ${instruction.kind === "code" ? `sökkod ${instruction.codes.join(" / ")}` : `rebus (${instruction.phase})`} på ${url}`
       );
     }
   }
@@ -271,13 +290,20 @@ export class DropWatcher {
     }
 
     if (store === "Spelexperten") {
-      const codes = active.filter(([, p]) => p.instruction?.kind === "code");
-      if (!codes.length) return;
-      const turn = (this.codeTurn.get(store) ?? 0) % codes.length;
-      this.codeTurn.set(store, turn + 1);
-      const [url, p] = codes[turn];
-      if (p.instruction?.kind !== "code") return;
-      await this.searchSpelexperten(store, url, p, p.instruction.code);
+      // Varje (sida, kod)-par i tur och ordning — två koder på samma sida söks båda.
+      const pairs: [string, DropPage, string][] = [];
+      for (const [url, p] of active) {
+        if (this.wasAlerted(`${store}\t${url}#found`)) continue;
+        for (const code of codesOf(p.instruction)) pairs.push([url, p, code]);
+      }
+      if (!pairs.length) return;
+      for (let i = 0; i < Math.min(SEARCHES_PER_TICK, pairs.length); i++) {
+        const turn = (this.codeTurn.get(store) ?? 0) % pairs.length;
+        this.codeTurn.set(store, turn + 1);
+        const [url, p, code] = pairs[turn];
+        if (this.wasAlerted(`${store}\t${url}#found`)) continue;
+        await this.searchSpelexperten(store, url, p, code);
+      }
       return;
     }
 
@@ -295,14 +321,16 @@ export class DropWatcher {
         title: string;
         body_html?: string;
         created_at?: string;
+        published_at?: string;
         images?: { src: string }[];
         variants?: { price: string; sku?: string | null; available?: boolean }[];
       }[];
     };
-    const fresh = (data.products ?? []).filter((x) => {
-      const t = Date.parse(x.created_at ?? "");
-      return Number.isFinite(t) && now - t < NEWEST_MAX_AGE_MS;
-    });
+    // Publiceringen räknas, inte skapandet: en dold sida kan ha förberetts i förväg och
+    // publicerats först vid släppet.
+    const stamp = (x: { created_at?: string; published_at?: string }) =>
+      Math.max(Date.parse(x.created_at ?? "") || 0, Date.parse(x.published_at ?? "") || 0);
+    const fresh = (data.products ?? []).filter((x) => now - stamp(x) < NEWEST_MAX_AGE_MS);
     for (const [url, p] of active) {
       const candidates: (HiddenCandidate & { available: boolean; skus: string[] })[] = fresh
         .map((x) => ({
@@ -312,16 +340,23 @@ export class DropWatcher {
           text: `${x.title} ${htmlToText(x.body_html ?? "")}`,
           available: (x.variants ?? []).some((v) => v.available !== false),
           skus: (x.variants ?? []).map((v) => normalizeCode(v.sku ?? "")),
+          publishedAt: Date.parse(x.published_at ?? "") || null,
         }))
         .filter((c) => c.url !== url);
       let pick: { url: string; why: string } | null = null;
       if (p.instruction?.kind === "code") {
-        const code = p.instruction.code;
-        const byCode = candidates.filter((c) => c.skus.includes(code) || normalizeCode(c.text).includes(code));
-        if (byCode.length === 1) pick = { url: byCode[0].url, why: `sökkoden ${code}` };
+        // Flera koder (en kan vara en lockkod): bara om EXAKT EN produkt bär någon av dem.
+        const codes = codesOf(p.instruction);
+        const byCode = candidates.filter((c) =>
+          codes.some((code) => c.skus.includes(code) || normalizeCode(c.text).includes(code))
+        );
+        if (byCode.length === 1) pick = { url: byCode[0].url, why: `sökkoden ${codes.join("/")}` };
       }
       if (!pick) {
-        const m = pickHiddenCandidate({ url, priceOre: p.priceOre, imageKeys: p.imageKeys }, candidates);
+        const m = pickHiddenCandidate(
+          { url, priceOre: p.priceOre, imageKeys: p.imageKeys, liveAt: p.liveAt },
+          candidates
+        );
         if (m) pick = { url: m.candidate.url, why: `matchar originalet (${m.signals.join(" + ")})` };
       }
       if (!pick) continue;
@@ -338,7 +373,7 @@ export class DropWatcher {
           kind: "hidden",
           note:
             p.instruction?.kind === "code"
-              ? `Dold produktsida — hittad via sökkoden ${p.instruction.code} på butikens sida.`
+              ? `Dold produktsida — hittad via sökkoden på butikens sida (${pick.why}).`
               : `Dold produktsida bakom rebusen — hittad bland butikens nya produkter (${pick.why}).`,
         }),
       ]);
@@ -357,11 +392,27 @@ export class DropWatcher {
       if (this.wasAlerted(key)) return;
       const page = await politeFetch(link, { delayMs: 2000 });
       if (!page.ok) continue;
+      const html = await page.text();
       // ⛔ BUTIKENS SÖK AVGÖR, MEN ARTIKELNUMRET MÅSTE VARA KODEN — originalsidan och
       //    andra varor med koden i texten träffar också sökningen.
-      if (spelexpertenArtnr(await page.text()) !== code) continue;
+      if (spelexpertenArtnr(html) !== code) continue;
+      // ⛔ LOCKKOD-SPÄRR: står två koder på sidan kan den ena leda till en ANNAN vara.
+      //    Den dolda sidan måste vara en Pokémon-vara eller kosta som originalet.
+      // ⛔ Bara VARANS egna text (sidtitel + JSON-LD), aldrig hela sidan — menyn bär
+      //    "Pokémon" på varje Spelexperten-sida.
+      const priceOre = jsonLdPriceOre(html);
+      const ownText = [
+        html.match(/<title>([^<]*)<\/title>/i)?.[1] ?? "",
+        ...[...html.matchAll(/"(?:name|description)"\s*:\s*"([^"]{0,500})"/g)].map((m) => m[1]),
+      ].join(" ");
+      const plausible =
+        /pok[eé]mon/i.test(htmlToText(ownText)) ||
+        /\/pokemon\//i.test(link) ||
+        (priceOre != null && p.priceOre != null && priceOre === p.priceOre);
+      if (!plausible) continue;
       if ((await verifyStockForUrl(store, link)) !== "IN_STOCK") return;
       this.markAlerted(key);
+      this.markAlerted(`${store}\t${url}#found`);
       this.found++;
       console.log(`[drop-watch] ${store}: dold sida ${link} (sökkod ${code}) för ${url}`);
       await this.deps.publish([

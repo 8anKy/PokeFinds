@@ -34,7 +34,23 @@ const DL_ANNOUNCEMENT =
 
 describe("readDropInstruction", () => {
   it("Spelexperten: koden i instruktionsrutan, inte artikelnumret", () => {
-    expect(readDropInstruction(htmlToText(SPELEXPERTEN_PAGE))).toEqual({ kind: "code", code: "SYL-01" });
+    expect(readDropInstruction(htmlToText(SPELEXPERTEN_PAGE), null, ["POK10463-101-SYL"])).toEqual({
+      kind: "code",
+      codes: ["SYL-01"],
+    });
+  });
+
+  it("två koder på samma sida ⇒ båda (butikens sök avgör vilken som leder till varan)", () => {
+    const two = SPELEXPERTEN_PAGE.replace("SYL-01</div>", "SYL-01</div><div>SYL-02</div>");
+    expect(readDropInstruction(htmlToText(two), null, ["POK10463-101-SYL"])).toEqual({
+      kind: "code",
+      codes: ["SYL-01", "SYL-02"],
+    });
+  });
+
+  it("sidans eget artikelnummer räknas aldrig som sökkod", () => {
+    const text = "Skriv artikelnumret i sökrutan: POK10463-101-SYL";
+    expect(readDropInstruction(text, null, ["POK10463-101-SYL"])).toBeNull();
   });
 
   it("Dragon's Lair: förhandsbeskedet är inte rebusen", () => {
@@ -92,6 +108,15 @@ describe("pickHiddenCandidate — minst två signaler och exakt en kandidat", ()
 
   it("⛔ två lika starka kandidater ⇒ ingen gissning", () => {
     expect(pickHiddenCandidate(orig, [hidden, { ...hidden, url: "https://dragonslair.se/products/tva" }])).toBeNull();
+  });
+
+  it("tidssignalen: publicerad kring släppet + samma pris räcker, tiden ensam gör det inte", () => {
+    const liveAt = Date.parse("2026-10-12T08:00:30Z");
+    const o = { ...orig, liveAt };
+    const atDrop = { url: "https://dragonslair.se/products/x", priceOre: 99500, imageKeys: ["annan"], text: "Soppa", publishedAt: liveAt - 18_000 };
+    expect(pickHiddenCandidate(o, [atDrop])?.signals).toEqual(["pris", "tid"]);
+    expect(pickHiddenCandidate(o, [{ ...atDrop, priceOre: 15000 }])).toBeNull();
+    expect(pickHiddenCandidate(o, [{ ...atDrop, publishedAt: liveAt - 3 * 3600_000 }])).toBeNull();
   });
 
   it("originalsidan själv räknas aldrig", () => {

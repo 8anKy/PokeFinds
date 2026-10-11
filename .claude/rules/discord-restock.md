@@ -43,11 +43,13 @@ instruktion och den köpbara sidan har en orelaterad titel ⇒ utanför kategori
   Tillstånd i `.discord-restock-cache/drops.json` (följer cachen och överlämningen).
 - **Kod** ("skriver du artikelnumret … i sökrutan: SYL-01"): Spelexperten ⇒ butikens sök
   (`AIR_ibutik.fcgi?funk=gor_sokning&term=`), träffen vars **Artnr ÄR koden** + JSON-LD i lager ⇒ post.
+  ⛔ TVÅ KODER (en lockkod) ⇒ båda söks; träffen måste dessutom vara Pokémon i sin EGEN titel/JSON-LD, ligga under
+  `/pokemon/` eller kosta som originalet (menyn bär "Pokémon" på varje sida — hela sidtexten duger inte).
   ⛔ Shopifys robots.txt stänger `/search` ⇒ Dragon's Lair söker koden i titel/SKU bland nyaste produkterna.
 - **Rebus** ("I morgon ersätter vi texten med en enkel rebus" = förhandsbesked; ändrad text därefter = LIVE):
   rebusen postas EN gång ("Rebus ute nu", ingen hit), och för Shopify läses `/products.json?limit=15` (nyast
   först) varje varv i 6 h. ⛔ Länk bara när EXAKT EN produkt (skapad < 48 h) matchar på MINST TVÅ av pris,
-  bild, köpgräns i texten — annars bara rebusen. Ingen AI-lösning (fel vara i kanalen är värre).
+  bild, köpgräns i texten, publicerad ±30 min från att rebusen blev live (`published_at`) — annars bara rebusen. Ingen AI-lösning (fel vara i kanalen är värre).
 - Inlägget: "Dolt släpp: …" med `storeUrl` = den dolda sidan, fältet "Originalsida" (köpgräns), hit till appen
   via originalets rutt. Dubblettskydd: `drops.json.alerted` (24 h) + liggaren + cooldown-kartan.
 
