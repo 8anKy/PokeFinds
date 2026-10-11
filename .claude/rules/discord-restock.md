@@ -87,6 +87,13 @@ direkt EFTER ett levererat larmpaket** (`splitHitBatch`), dvs i ett fönster som
 - En synk per URL (senaste läget vinner); ett larm på samma URL, eller lanens senaste feedstatus som
   motsäger synken, gör den inaktuell. Loggen: `Lagersynkar: N köade, M rättade i appen, K inaktuella`.
 - ⚠️ En tyst dag utan larm skickar inga synkar alls — då rättar nattkedjan, som förut.
+- **FÖRSVUNNEN UR FEEDEN ⇒ FRÅGA SIDAN (2026-10-11)**: Speltrollet tar BORT slutsålda varor (30th Booster
+  Bundle: borta ur feeden, sidan 404, appen "I lager" till natten). En ruttad URL som låg i lager och varit borta
+  ur en levererande, icke-roterande feed ≥ 10 min slås upp med `verifyStockForUrl` (`checkVanished` i scriptet,
+  efter varvet utan await, ≤ 2 per butik och varv, en gång per URL och jobb). Slut ⇒ STOCK_SYNC i kön (åker med
+  nästa larmpaket, ingen egen väckning) + frånvarominnet skrivs om till OUT_OF_STOCK (ingen omkoll; en återkomst
+  blir en riktig påfyllning). ⛔ Frånvaro tolkas fortfarande aldrig — den kollas. Lagersynkar överlever
+  jobbytet (idempotenta); larm-hits i en ögonblicksbild slängs.
 
 ## ⛔ KATALOGEN GRINDAR INTE LÄNGRE (2026-08-16) — ombygget som löste ägarens felrapport
 Symtomet: **mejl och push kom fram om påfyllningar Discord teg om, i de flesta butiker.**

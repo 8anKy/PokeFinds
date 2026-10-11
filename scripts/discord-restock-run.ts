@@ -69,11 +69,12 @@ import {
   type HandoffMeta,
   type LedgerEntry,
 } from "../src/lib/discord-restock-ledger";
-import { fetchShopifyPurchasable } from "../src/scrapers/stock-verify";
+import { fetchShopifyPurchasable, verifyStockForUrl } from "../src/scrapers/stock-verify";
 import {
   deriveRestockPosts,
   markPosted,
   parseDiscordRestockState,
+  type AbsentEntry,
   type DiscordRestockState,
   type RouteTable,
 } from "../src/lib/restock-feed-events";
@@ -460,12 +461,16 @@ async function main() {
   // ⛔ En ögonblicksbild mitt i ett jobb (`final: false`) bär det gamla jobbets hit-kö, och
   //    det jobbet LEVER och levererar den själv. Skickade vi den också hade appen fått
   //    samma påfyllningar två gånger.
+  //    UTOM lagersynkarna: de är idempotenta (appen skriver bara en offer som inte ändrats
+  //    sedan synken), och de åker bara med ett larmpaket — slängdes de vid varje jobbyte
+  //    hade en synk som inte hann med ett paket inom jobbet aldrig nått appen.
   if (handoffMeta && !handoffMeta.final && pendingHits.length) {
+    const kept = pendingHits.filter((h) => h.kind === "STOCK_SYNC");
     console.log(
-      `[discord-restock] Överlämning: ${pendingHits.length} väntande hit(s) i ögonblicksbilden ` +
-        `tillhör förra jobbet — slängs här.`
+      `[discord-restock] Överlämning: ${pendingHits.length - kept.length} väntande larm-hit(s) i ögonblicksbilden ` +
+        `tillhör förra jobbet — slängs här; ${kept.length} lagersynk(ar) behålls.`
     );
-    pendingHits = [];
+    pendingHits = kept;
   }
   let hitsDirty = false;
   let hitChain: Promise<void> = Promise.resolve();
@@ -996,6 +1001,79 @@ async function main() {
    * En butiks egen loop. Kör tills loopbudgeten är slut; väntar ut SIN takt mellan
    * varven. Ett fel i en butik får aldrig stoppa de andra — därav try/catch per varv.
    */
+  /**
+   * FÖRSVUNNA I-LAGER-VAROR: FRÅGA SIDAN (2026-10-11).
+   *
+   * Speltrollet (m.fl.) markerar inte en slutsåld vara — de tar bort den. 30th Celebration
+   * Booster Bundle försvann ur feeden 2026-10-11 och sidan svarade 404, men den tysta
+   * lagersynken kräver en feedrad med "slut", så appen visade "I lager" till nattkörningen.
+   * Frånvaro TOLKAS ALDRIG (en feed-hicka ser likadan ut) — den KOLLAS: en ruttad URL som
+   * låg i lager och varit borta ur en levererande feed ≥ 10 min slås upp på butikens sida
+   * (`verifyStockForUrl`, samma dom som nattens stale-pass: 404/bort-omdirigering/låst
+   * köpknapp = slut; 429/timeout = vet inte). Slut ⇒ en tyst STOCK_SYNC i kön, som åker med
+   * nästa larmpaket — ingen egen leverans, ingen Neon-väckning. Frånvarominnet skrivs om
+   * till "slut", så samma URL inte kollas igen och en återkomst blir en riktig påfyllning.
+   * ⛔ Inte roterande butiker: där är frånvaro det normala.
+   * ⛔ Högst två uppslag per butik och varv, och varje URL högst en gång per jobb.
+   */
+  const VANISHED_CHECK_AFTER_MS = 10 * 60_000;
+  const VANISHED_CHECKS_PER_RUN = 2;
+  const VANISHED_FROM = new Set(["IN_STOCK", "LIMITED", "PREORDER"]);
+  const vanishedChecked = new Set<string>();
+  const vanishedBusy = new Set<string>();
+  let vanishedConfirmed = 0;
+  const checkVanished = async (source: RestockSourceInfo) => {
+    if (!state || rotating.has(source.name) || vanishedBusy.has(source.name)) return;
+    if (deadline && Date.now() >= deadline - DERIVE_CUTOFF_MS) return;
+    const prefix = `${source.name}\t`;
+    const now = Date.now();
+    const picks: [string, AbsentEntry][] = [];
+    for (const [key, e] of Object.entries(state.absent ?? {})) {
+      if (!key.startsWith(prefix) || key.includes("#") || vanishedChecked.has(key)) continue;
+      if (!VANISHED_FROM.has(e.s) || now - e.t < VANISHED_CHECK_AFTER_MS) continue;
+      if (!routes[key.slice(prefix.length)]) continue;
+      picks.push([key, e]);
+      if (picks.length >= VANISHED_CHECKS_PER_RUN) break;
+    }
+    if (!picks.length) return;
+    vanishedBusy.add(source.name);
+    try {
+      for (const [key, e] of picks) {
+        vanishedChecked.add(key);
+        const url = key.slice(prefix.length);
+        const verdict = await verifyStockForUrl(source.name, url);
+        if (verdict !== "OUT_OF_STOCK") continue;
+        // ---- ATOMÄRT: inga await härifrån ----
+        const cur: AbsentEntry | undefined = state?.absent?.[key];
+        if (!state || !cur || state.stock[key] !== undefined) continue; // tillbaka i feeden under tiden
+        state = { ...state, absent: { ...state.absent, [key]: { s: "OUT_OF_STOCK", t: cur.t } } };
+        stateDirty = true;
+        vanishedConfirmed++;
+        console.log(`[discord-restock]   borta ur feeden, sidan säger slut: ${source.name} → ${url}`);
+        if (config && hitsEnabled) {
+          const at = new Date();
+          // Lanens senaste feedstatus för URL:en är "i lager" från innan den försvann —
+          // utan raden hade splitHitBatch kallat synken inaktuell och slängt den.
+          lastFeedStatus.set(url, "OUT_OF_STOCK");
+          pendingHits = mergePendingHits(
+            pendingHits,
+            hitsFromStockSyncs(
+              [{ key, storeName: source.name, storeUrl: url, from: e.s, to: "OUT_OF_STOCK", priceOre: null }],
+              at
+            ),
+            at
+          );
+          hitsDirty = true;
+          hitTotals.syncsQueued++;
+        }
+      }
+    } catch (err) {
+      console.warn(`[discord-restock] Sidkollen för ${source.name} föll:`, err instanceof Error ? err.message : err);
+    } finally {
+      vanishedBusy.delete(source.name);
+    }
+  };
+
   const storeLoop = async (source: RestockSourceInfo, index: number) => {
     // ⛔ STARTA INTE ALLA SAMTIDIGT. politeFetch fördröjer per VÄRD, så 42 parallella
     //    hämtningar mot 42 olika butiker är i sig artigt — men Shopify svarar 429 när
@@ -1014,6 +1092,9 @@ async function main() {
       const started = Date.now();
       try {
         const requests = await runStore(source);
+        // Efter varvet och utan await: kollen får aldrig fördröja en hämtning eller ett
+        // inlägg (den delar butikens artighetskö i politeFetch). Nästa varv är ≥ 25 s bort.
+        void checkVanished(source);
         if (requests > 0) {
           interval = pollIntervalMs(requests, budget);
           if (!logged) {
@@ -1094,7 +1175,8 @@ async function main() {
           `${hitTotals.synced} rättade i appen, ${hitTotals.syncsStale} inaktuella.`
         : "") +
       (enrichedPosts ? ` Berikade inlägg (nyss bundna produkter): ${enrichedPosts}.` : "") +
-      (ledgerSkipped ? ` Redan postade av förra jobbet (överlämningen): ${ledgerSkipped}.` : "")
+      (ledgerSkipped ? ` Redan postade av förra jobbet (överlämningen): ${ledgerSkipped}.` : "") +
+      (vanishedConfirmed ? ` Försvunna ur feeden, sidan sa slut: ${vanishedConfirmed}.` : "")
   );
 
   // ⛔ NEKADE UTSKICK GÖR KÖRNINGEN RÖD. 2026-08-12 förlorade boten Send Messages i
