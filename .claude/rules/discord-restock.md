@@ -39,7 +39,9 @@ Spelexperten och Dragon's Lair släpper heta varor via en DOLD sida: originalsid
 instruktion och den köpbara sidan har en orelaterad titel ⇒ utanför kategori/kollektion och fälld av vakterna.
 `scripts/lib/drop-watch.ts` (körtid) + `src/lib/drop-pages.ts` (ren, testad), bara `DROP_STORES`:
 - **Hitta originalsidor**: feedvaror som är slut/kommande eller har "Max N" i titeln, URL:er lanen postat
-  (14 d) och nya URL:er läses högst var 6:e h; sidor med aktiv instruktion var 90:e s. ≤ 2 sidor per varv.
+  (14 d) och nya URL:er; HETA set (lanen postat om setet < 7 d) läses först och var 15:e min, övriga var 6:e h,
+  sidor med instruktion var 90:e s (Shopify) / 10:e min (Spelexperten). ≤ 2 sidor + ≤ 3 sökningar per varv.
+  ⛔ Koder jagas SÅ LÄNGE DE STÅR KVAR (Spelexperten låter koden stå mellan släppen); ny/ändrad kod söks först i 1 h.
   Tillstånd i `.discord-restock-cache/drops.json` (följer cachen och överlämningen).
 - **Kod** ("skriver du artikelnumret … i sökrutan: SYL-01"): Spelexperten ⇒ butikens sök
   (`AIR_ibutik.fcgi?funk=gor_sokning&term=`), träffen vars **Artnr ÄR koden** + JSON-LD i lager ⇒ post.

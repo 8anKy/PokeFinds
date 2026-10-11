@@ -34,13 +34,25 @@ import {
 
 export const DROP_STORES = new Set(["Spelexperten", "Dragon's Lair"]);
 
-const RECHECK_ACTIVE_MS = 90_000;
+/** Sida med instruktion: Shopify (CDN) ofta, egen server (Spelexperten) mer sällan. */
+const RECHECK_ACTIVE_CDN_MS = 90_000;
+const RECHECK_ACTIVE_OWN_MS = 10 * 60_000;
+/** Sida i ett HETT set (lanen postat om setet senaste veckan, t.ex. 30th Celebration). */
+const RECHECK_HOT_MS = 15 * 60_000;
 const RECHECK_OTHER_MS = 6 * 3600_000;
+const HOT_SET_DAYS = 7;
+/** Rebusen jagas så här länge efter att den blev live. Koder jagas så länge de står kvar. */
 const LIVE_WINDOW_MS = 6 * 3600_000;
+/** En ny/ändrad kod söks FÖRST så här länge — släppet är troligen nu. */
+const CODE_PRIORITY_MS = 60 * 60_000;
 const REPOST_AFTER_MS = 24 * 3600_000;
 const NEWEST_MAX_AGE_MS = 48 * 3600_000;
 const PAGES_PER_TICK = 2;
-const SEARCHES_PER_TICK = 2;
+/**
+ * Spelexperten-varvet är ~60 s och feeden kostar ~12 förfrågningar; 2 sidor + 3 sökningar
+ * håller butiken på ~0,28 förfr./s — under taket för egna servrar (restock-poll-interval.ts).
+ */
+const SEARCHES_PER_TICK = 3;
 
 /** Koderna ur en instruktion (äldre drops.json bar ett ensamt `code`). */
 function codesOf(i: DropInstruction | null | undefined): string[] {
@@ -64,8 +76,10 @@ interface DropPage {
   priceOre: number | null;
   imageKeys: string[];
   checkedAt: number;
-  /** När rebusen/koden blev aktiv — sökningen ger upp efter LIVE_WINDOW_MS. */
+  /** När rebusen/koden blev aktiv (rebusen jagas LIVE_WINDOW_MS, tidssignalens mitt). */
   liveAt?: number;
+  /** När sidans nuvarande koduppsättning sågs första gången — ny/ändrad ⇒ sökordning först. */
+  codesSeenAt?: number;
 }
 
 interface DropFile {
@@ -163,32 +177,70 @@ export class DropWatcher {
     this.dirty = true;
   }
 
-  /** Vilka sidor är det dags att läsa? Aktiva instruktioner först. */
+  /** Set lanen postat om (alla butiker) senaste veckan — där händer släppen. */
+  private hotSets(): Set<string> {
+    const now = Date.now();
+    const sets = new Set<string>();
+    for (const [key, t] of Object.entries(this.deps.posted())) {
+      if (now - t > HOT_SET_DAYS * 86_400_000) continue;
+      const url = key.slice(key.indexOf("\t") + 1).split("#")[0];
+      const set = this.deps.routes[url]?.setName;
+      if (set) sets.add(set.toLowerCase());
+    }
+    return sets;
+  }
+
+  /**
+   * Vilka sidor är det dags att läsa? Ordning: aktiv instruktion → hett set → aldrig läst →
+   * resten, och inom varje grupp den som legat längst. ⛔ Spelexperten har ~300 slutsålda
+   * Pokémon-sidor — utan ordningen tog första varvet ~2,5 h innan 30th-sidorna nåddes.
+   */
   private duePages(store: string): string[] {
     const now = Date.now();
     const prefix = `${store}\t`;
-    const candidates = new Set<string>();
+    const hot = this.hotSets();
+    const isHot = (url: string, title: string) => {
+      const set = this.deps.routes[url]?.setName?.toLowerCase();
+      if (set && hot.has(set)) return true;
+      const t = title.toLowerCase();
+      for (const s of hot) if (s.length >= 6 && t.includes(s)) return true;
+      return false;
+    };
+    const candidates = new Map<string, string>();
     for (const it of this.feed.get(store) ?? []) {
       // Hypade varor bär köpgränsen i titeln (Dragon's Lair); originalsidan till ett dolt
-      // släpp står som slut/kommande (Spelexperten). Båda läses högst var 6:e timme.
-      if (/max\.?\s*\d/i.test(it.title) || it.stockStatus !== "IN_STOCK") candidates.add(it.url);
+      // släpp står som slut/kommande (Spelexperten).
+      if (/max\.?\s*\d/i.test(it.title) || it.stockStatus !== "IN_STOCK") candidates.set(it.url, it.title);
     }
     for (const [key, t] of Object.entries(this.deps.posted())) {
       if (key.startsWith(prefix) && !key.includes("#") && now - t < 14 * 86_400_000) {
-        candidates.add(key.slice(prefix.length));
+        const url = key.slice(prefix.length);
+        if (!candidates.has(url)) candidates.set(url, this.deps.routes[url]?.title ?? "");
       }
     }
-    for (const u of this.newUrls.get(store) ?? []) candidates.add(u);
-    for (const [u, p] of Object.entries(this.data.pages)) if (p.store === store && p.instruction) candidates.add(u);
+    for (const u of this.newUrls.get(store) ?? []) if (!candidates.has(u)) candidates.set(u, "");
+    for (const [u, p] of Object.entries(this.data.pages)) {
+      if (p.store === store && p.instruction && !candidates.has(u)) candidates.set(u, p.title);
+    }
 
-    const due: { url: string; active: boolean }[] = [];
-    for (const url of candidates) {
+    const cdn = store !== "Spelexperten";
+    const due: { url: string; rank: number; age: number }[] = [];
+    for (const [url, title] of candidates) {
       const p = this.data.pages[url];
       const active = !!p?.instruction;
+      const hotPage = isHot(url, title || p?.title || "");
       const age = p ? now - p.checkedAt : Infinity;
-      if (age >= (active ? RECHECK_ACTIVE_MS : RECHECK_OTHER_MS)) due.push({ url, active });
+      const every = active
+        ? cdn
+          ? RECHECK_ACTIVE_CDN_MS
+          : RECHECK_ACTIVE_OWN_MS
+        : hotPage
+          ? RECHECK_HOT_MS
+          : RECHECK_OTHER_MS;
+      if (age < every) continue;
+      due.push({ url, rank: active ? 0 : hotPage ? 1 : p ? 3 : 2, age });
     }
-    due.sort((a, b) => Number(b.active) - Number(a.active));
+    due.sort((a, b) => a.rank - b.rank || b.age - a.age);
     return due.slice(0, PAGES_PER_TICK).map((d) => d.url);
   }
 
@@ -245,6 +297,11 @@ export class DropWatcher {
       instruction &&
       (instruction.kind === "code" || instruction.phase === "live") &&
       !(prev?.instruction && (prev.instruction.kind === "code" || prev.instruction.phase === "live"));
+    const codes = codesOf(instruction).join(",");
+    // "Ny kod" = den ÄNDRADES på en sida vi kände, eller står på en helt ny sida. En kod vi
+    // bara läser för första gången (t.ex. första jobbet efter deployen) är inte en nyhet.
+    const knownBefore = !!prev || !!this.newUrls.get(store)?.has(url);
+    const codesChanged = codes !== codesOf(prev?.instruction).join(",") && knownBefore;
     this.data.pages[url] = {
       store,
       title,
@@ -253,6 +310,7 @@ export class DropWatcher {
       imageKeys: [...new Set(images.map(imageKey).filter(Boolean))],
       checkedAt: Date.now(),
       liveAt: becameLive ? Date.now() : instruction ? prev?.liveAt : undefined,
+      codesSeenAt: codes ? (codesChanged ? Date.now() : (prev?.codesSeenAt ?? 0)) : undefined,
     };
     this.dirty = true;
     if (instruction && (!prev?.instruction || becameLive)) {
@@ -265,12 +323,15 @@ export class DropWatcher {
   /** Leta efter den dolda sidan för butikens aktiva instruktioner. */
   private async hunt(store: string) {
     const now = Date.now();
+    // ⛔ Koder jagas SÅ LÄNGE DE STÅR KVAR: Spelexperten låter koden stå mellan släppen och
+    //    kan återanvända samma sida + kod — ett tidsfönster hade tystat nästa släpp. Rebusen
+    //    jagas LIVE_WINDOW_MS (bland nyaste produkter, där en gammal rebus bara ger brus).
     const active = Object.entries(this.data.pages).filter(
       ([, p]) =>
         p.store === store &&
         p.instruction &&
-        (p.instruction.kind === "code" || p.instruction.phase === "live") &&
-        now - (p.liveAt ?? now) < LIVE_WINDOW_MS
+        (p.instruction.kind === "code" ||
+          (p.instruction.phase === "live" && now - (p.liveAt ?? now) < LIVE_WINDOW_MS))
     );
     if (!active.length) return;
 
@@ -290,17 +351,26 @@ export class DropWatcher {
     }
 
     if (store === "Spelexperten") {
-      // Varje (sida, kod)-par i tur och ordning — två koder på samma sida söks båda.
-      const pairs: [string, DropPage, string][] = [];
+      // Varje (sida, kod)-par — två koder på samma sida söks båda. Nya/ändrade koder
+      // (sedda < 1 h) söks VARJE varv; resten turas om med de platser som blir över.
+      const urgent: [string, DropPage, string][] = [];
+      const rest: [string, DropPage, string][] = [];
       for (const [url, p] of active) {
         if (this.wasAlerted(`${store}\t${url}#found`)) continue;
-        for (const code of codesOf(p.instruction)) pairs.push([url, p, code]);
+        const fresh = p.codesSeenAt != null && now - p.codesSeenAt < CODE_PRIORITY_MS;
+        for (const code of codesOf(p.instruction)) (fresh ? urgent : rest).push([url, p, code]);
       }
-      if (!pairs.length) return;
-      for (let i = 0; i < Math.min(SEARCHES_PER_TICK, pairs.length); i++) {
-        const turn = (this.codeTurn.get(store) ?? 0) % pairs.length;
-        this.codeTurn.set(store, turn + 1);
-        const [url, p, code] = pairs[turn];
+      const picks: [string, DropPage, string][] = [];
+      const take = (list: [string, DropPage, string][], key: string) => {
+        for (let i = 0; i < list.length && picks.length < SEARCHES_PER_TICK; i++) {
+          const turn = (this.codeTurn.get(key) ?? 0) % list.length;
+          this.codeTurn.set(key, turn + 1);
+          if (!picks.includes(list[turn])) picks.push(list[turn]);
+        }
+      };
+      take(urgent, `${store}#urgent`);
+      take(rest, store);
+      for (const [url, p, code] of picks) {
         if (this.wasAlerted(`${store}\t${url}#found`)) continue;
         await this.searchSpelexperten(store, url, p, code);
       }
