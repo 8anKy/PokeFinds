@@ -10,6 +10,7 @@ import {
   pickHiddenCandidate,
   readDropInstruction,
   spelexpertenArtnr,
+  spelexpertenLiveSearchLinks,
   spelexpertenSearchLinks,
 } from "@/lib/drop-pages";
 import { buildRestockEmbed, type RestockPost } from "@/lib/discord-restock";
@@ -73,6 +74,15 @@ describe("readDropInstruction", () => {
 describe("Spelexperten", () => {
   it("artikelnumret ur produktsidan", () => {
     expect(spelexpertenArtnr(SPELEXPERTEN_PAGE)).toBe("POK10463-101-SYL");
+  });
+
+  it("snabbsöket (rullgardinen): produktlänkarna ur LSS_Artikel, inget annat", () => {
+    const html = `<ul class="LSS_Artiklar"><li><a href="/sallskapsspel/pokemon/pokemon-tcg-30th-celebration-sylveon-ex-box.html" class="LSS_Artikel row middle-xs">
+      </a></li></ul><a class="SokMer" href="/cgi-bin/ibutik/AIR_ibutik.fcgi?funk=gor_sokning&term=X">Se fler</a>`;
+    expect(spelexpertenLiveSearchLinks(html, "https://www.spelexperten.com")).toEqual([
+      "https://www.spelexperten.com/sallskapsspel/pokemon/pokemon-tcg-30th-celebration-sylveon-ex-box.html",
+    ]);
+    expect(spelexpertenLiveSearchLinks("<!-- LSS-Ingatraffar-Start -->", "https://www.spelexperten.com")).toEqual([]);
   });
 
   it("sökträffarna är bara produktkorten, aldrig menylänkarna", () => {

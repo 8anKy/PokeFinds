@@ -27,7 +27,9 @@ import {
   readDropInstruction,
   riddleExcerpt,
   spelexpertenArtnr,
+  spelexpertenLiveSearchLinks,
   spelexpertenSearchLinks,
+  SPELEXPERTEN_CODE_PHRASE,
   type DropInstruction,
   type HiddenCandidate,
 } from "../../src/lib/drop-pages";
@@ -40,13 +42,13 @@ const RECHECK_ACTIVE_OWN_MS = 10 * 60_000;
 /** Sida i ett HETT set (lanen postat om setet senaste veckan, t.ex. 30th Celebration). */
 const RECHECK_HOT_MS = 15 * 60_000;
 /** Spelexperten: en ny kod syns bara genom att läsa sidan — heta sidor var 5:e min i snabbloopen. */
-const RECHECK_HOT_OWN_MS = 5 * 60_000;
+const RECHECK_HOT_OWN_MS = 15 * 60_000;
 const RECHECK_OTHER_MS = 6 * 3600_000;
 const HOT_SET_DAYS = 7;
 /** Rebusen jagas så här länge efter att den blev live. Koder jagas så länge de står kvar. */
 const LIVE_WINDOW_MS = 6 * 3600_000;
 /** En ny/ändrad kod söks FÖRST så här länge — släppet är troligen nu. */
-const CODE_PRIORITY_MS = 60 * 60_000;
+const CODE_PRIORITY_MS = 10 * 60_000;
 const REPOST_AFTER_MS = 24 * 3600_000;
 const NEWEST_MAX_AGE_MS = 48 * 3600_000;
 const PAGES_PER_TICK = 2;
@@ -55,8 +57,22 @@ const PAGES_PER_TICK = 2;
  * glesas butikens vanliga feed (~12 förfrågningar) ut till 120 s (0,1/s) — totalen stannar
  * kring dagens ~0,27 förfr./s, under taket för egna servrar (restock-poll-interval.ts).
  */
-export const FAST_CODE_MS = 6_000;
-export const SLOW_FEED_WHILE_CODES_MS = 120_000;
+export const FAST_CODE_MS = 3_000;
+export const SLOW_FEED_WHILE_CODES_MS = 180_000;
+/**
+ * SPELEXPERTENS TAKTER (2026-10-12). Upptäckten (fullsök ~330 kB) var 10:e s dagtid, var
+ * 60:e s 00–07 svensk tid; kända koder via snabbsöket (~2 kB) var 12:e s; en NY kod var 4:e s
+ * i 10 min (släppet är NU); sidläsning (reserv) högst var 30:e s. Med feeden glesad till 180 s
+ * blir totalen ~0,3 förfr./s — samma nivå som feeden ensam gav förut. Under de 10 minuterna
+ * efter en ny kod är det en kortare topp, en gång per släpp.
+ */
+const CODE_SEARCH_EVERY_MS = 12_000;
+const URGENT_CODE_EVERY_MS = 4_000;
+const PAGE_READ_EVERY_MS = 30_000;
+function discoverEveryMs(): number {
+  const h = Number(new Date().toLocaleString("sv-SE", { timeZone: "Europe/Stockholm", hour: "2-digit", hour12: false }));
+  return h >= 0 && h < 7 ? 60_000 : 10_000;
+}
 
 /** Koderna ur en instruktion (äldre drops.json bar ett ensamt `code`). */
 function codesOf(i: DropInstruction | null | undefined): string[] {
@@ -88,6 +104,8 @@ interface DropPage {
 
 interface DropFile {
   pages: Record<string, DropPage>;
+  /** Heta set (gemener) → senast sedda i lanens cooldown-karta (ms). */
+  hot?: Record<string, number>;
   /** Postade nycklar → tid (dold sida / rebus), så vi inte postar samma sak igen. */
   alerted: Record<string, number>;
 }
@@ -139,6 +157,7 @@ export class DropWatcher {
   private feed = new Map<string, FeedSeen[]>();
   private newUrls = new Map<string, Set<string>>();
   private codeTurn = new Map<string, number>();
+  private lastRun = new Map<string, number>();
   found = 0;
   riddles = 0;
 
@@ -146,7 +165,7 @@ export class DropWatcher {
     try {
       if (existsSync(deps.file)) {
         const raw = JSON.parse(readFileSync(deps.file, "utf8")) as Partial<DropFile>;
-        this.data = { pages: raw.pages ?? {}, alerted: raw.alerted ?? {} };
+        this.data = { pages: raw.pages ?? {}, alerted: raw.alerted ?? {}, hot: raw.hot ?? {} };
       }
     } catch {
       this.data = { pages: {}, alerted: {} };
@@ -183,13 +202,23 @@ export class DropWatcher {
 
   /** Set lanen postat om (alla butiker) senaste veckan — där händer släppen. */
   private hotSets(): Set<string> {
+    // ⛔ Lanens cooldown-karta bär bara 24 h (FLAP_WINDOW_HOURS) — minnet i drops.json gör
+    //    att "senaste veckan" faktiskt betyder det. Utan det läste första produktionsjobbet
+    //    (2026-10-11) slumpvisa sidor i stället för 30th-sidorna.
     const now = Date.now();
-    const sets = new Set<string>();
+    const hot = (this.data.hot ??= {});
     for (const [key, t] of Object.entries(this.deps.posted())) {
-      if (now - t > HOT_SET_DAYS * 86_400_000) continue;
       const url = key.slice(key.indexOf("\t") + 1).split("#")[0];
-      const set = this.deps.routes[url]?.setName;
-      if (set) sets.add(set.toLowerCase());
+      const set = this.deps.routes[url]?.setName?.toLowerCase();
+      if (set && (hot[set] ?? 0) < t) {
+        hot[set] = t;
+        this.dirty = true;
+      }
+    }
+    const sets = new Set<string>();
+    for (const [set, t] of Object.entries(hot)) {
+      if (now - t > HOT_SET_DAYS * 86_400_000) delete hot[set];
+      else sets.add(set);
     }
     return sets;
   }
@@ -466,31 +495,40 @@ export class DropWatcher {
     if (stopAt && Date.now() >= stopAt) return;
     this.busy.add(`${store}#fast`);
     try {
-      // EN förfrågan per anrop, i den här ordningen: ny/ändrad kod → en sida som ska läsas
-      // om (heta set var 5:e min — så hittas en ny kod) → övriga koder i tur och ordning.
+      const now = Date.now();
+      const last = (k: string) => this.lastRun.get(`${store}#${k}`) ?? 0;
+      const stamp = (k: string) => this.lastRun.set(`${store}#${k}`, Date.now());
+
+      // 1. UPPTÄCKT: fullsök på kodrutans ordalydelse ⇒ alla sidor som JUST NU bär en kod.
+      //    Koden läggs ut VID släppet (ägaren 2026-10-12: "koden syns först när de säger att
+      //    det släpps") — det här är vägen som ser den inom sekunder. Ny sida i träffarna ⇒
+      //    läs den och sök koden direkt, i samma anrop.
+      if (now - last("discover") >= discoverEveryMs()) {
+        stamp("discover");
+        await this.discoverSpelexperten(store);
+        return;
+      }
+      // 2. Kända koder via snabbsöket (~2 kB) i tur och ordning.
       const { urgent, rest } = this.codePairs(store);
-      if (!urgent.length) {
-        // Kalla sidor (inte hett set, ingen instruktion) får var tredje plats när koder jagas —
-        // annars hade första svepet över ~300 sidor stängt ute kodsökningen i en halvtimme.
-        // Var tredje plats är ALLTID en kodsökning när koder finns — en känd kod söks alltså
-        // minst var 18:e s även medan sidor läses (första svepet över 19 heta sidor tog 2 min).
-        const slot = (this.codeTurn.get(`${store}#slot`) ?? 0) + 1;
-        this.codeTurn.set(`${store}#slot`, slot);
-        const forceCode = rest.length > 0 && slot % 3 === 0;
-        const [due] = forceCode ? [] : this.duePages(store, 1, rest.length && slot % 3 !== 1 ? 1 : 3);
+      const list = urgent.length ? urgent : rest;
+      if (list.length && now - last("code") >= (urgent.length ? URGENT_CODE_EVERY_MS : CODE_SEARCH_EVERY_MS)) {
+        stamp("code");
+        const key = urgent.length ? `${store}#urgent` : store;
+        const turn = (this.codeTurn.get(key) ?? 0) % list.length;
+        this.codeTurn.set(key, turn + 1);
+        const [url, p, code] = list[turn];
+        await this.searchSpelexperten(store, url, p, code);
+        return;
+      }
+      // 3. Reserv om ordalydelsen ändras: heta sidor läses om var 15:e min, övriga var 6:e h.
+      if (now - last("page") >= PAGE_READ_EVERY_MS) {
+        const [due] = this.duePages(store, 1);
         if (due) {
+          stamp("page");
           await this.readPage(store, due);
           this.newUrls.get(store)?.delete(due);
-          return;
         }
       }
-      const list = urgent.length ? urgent : rest;
-      if (!list.length) return;
-      const key = urgent.length ? `${store}#urgent` : store;
-      const turn = (this.codeTurn.get(key) ?? 0) % list.length;
-      this.codeTurn.set(key, turn + 1);
-      const [url, p, code] = list[turn];
-      await this.searchSpelexperten(store, url, p, code);
     } catch (e) {
       console.warn(`[drop-watch] ${store} kodsök:`, e instanceof Error ? e.message : e);
     } finally {
@@ -498,14 +536,58 @@ export class DropWatcher {
     }
   }
 
-  private async searchSpelexperten(store: string, url: string, p: DropPage, code: string) {
-    if (process.env.DROP_WATCH_DEBUG === "1") console.log(`[drop-watch] sök ${code} ${new Date().toISOString()}`);
+  /**
+   * Fullsök på kodrutans ordalydelse. Varje träff är en sida som NU bär en kod; en sida vi
+   * inte redan läst med kod (eller inte läst på en minut) läses direkt, och en ny kod söks
+   * i samma anrop — upptäckt → kod → dold sida utan att vänta på nästa plats i loopen.
+   */
+  private async discoverSpelexperten(store: string) {
+    if (process.env.DROP_WATCH_DEBUG === "1") console.log(`[drop-watch] upptäck ${new Date().toISOString()}`);
     const res = await politeFetch(
-      `${SPELEXPERTEN}/cgi-bin/ibutik/AIR_ibutik.fcgi?funk=gor_sokning&term=${encodeURIComponent(code)}`,
+      `${SPELEXPERTEN}/cgi-bin/ibutik/AIR_ibutik.fcgi?funk=gor_sokning&term=${encodeURIComponent(SPELEXPERTEN_CODE_PHRASE)}`,
       { delayMs: 1000 }
     );
     if (!res.ok) return;
-    const links = spelexpertenSearchLinks(await res.text(), SPELEXPERTEN).filter((u) => u !== url);
+    const now = Date.now();
+    for (const url of spelexpertenSearchLinks(await res.text(), SPELEXPERTEN).slice(0, 5)) {
+      const known = this.data.pages[url];
+      const hasCode = codesOf(known?.instruction).length > 0;
+      if (hasCode && now - known!.checkedAt < 60_000) continue;
+      const before = codesOf(known?.instruction).join(",");
+      // En sida som dyker upp här är per definition ändrad/ny ⇒ dess kod är brådskande.
+      this.newUrls.set(store, (this.newUrls.get(store) ?? new Set()).add(url));
+      await this.readPage(store, url);
+      const p = this.data.pages[url];
+      const codes = codesOf(p?.instruction);
+      if (!p || !codes.length || codes.join(",") === before) continue;
+      p.codesSeenAt = Date.now();
+      this.dirty = true;
+      for (const code of codes) {
+        if (this.wasAlerted(`${store}	${url}#found`)) break;
+        await this.searchSpelexperten(store, url, p, code);
+      }
+    }
+  }
+
+  private async searchSpelexperten(store: string, url: string, p: DropPage, code: string) {
+    if (process.env.DROP_WATCH_DEBUG === "1") console.log(`[drop-watch] sök ${code} ${new Date().toISOString()}`);
+    // Snabbsöket (rullgardinen) matchar artikelnummer — ~2 kB. Fullsöket är reserven.
+    const live = await politeFetch(
+      `${SPELEXPERTEN}/cgi-bin/ibutik/API.fcgi?funk=as_fil&chars=${encodeURIComponent(code)}&retur=html&Sprak_Suffix=SV`,
+      { delayMs: 1000 }
+    );
+    let links: string[];
+    if (live.ok) {
+      links = spelexpertenLiveSearchLinks(await live.text(), SPELEXPERTEN);
+    } else {
+      const res = await politeFetch(
+        `${SPELEXPERTEN}/cgi-bin/ibutik/AIR_ibutik.fcgi?funk=gor_sokning&term=${encodeURIComponent(code)}`,
+        { delayMs: 1000 }
+      );
+      if (!res.ok) return;
+      links = spelexpertenSearchLinks(await res.text(), SPELEXPERTEN);
+    }
+    links = links.filter((u) => u !== url);
     for (const link of links.slice(0, 3)) {
       const key = `${store}\t${link}`;
       if (this.wasAlerted(key)) return;

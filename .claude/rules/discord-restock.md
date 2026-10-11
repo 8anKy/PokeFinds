@@ -43,11 +43,14 @@ instruktion och den köpbara sidan har en orelaterad titel ⇒ utanför kategori
   sidor med instruktion var 90:e s (Shopify) / 10:e min (Spelexperten). ≤ 2 sidor + ≤ 3 sökningar per varv.
   ⛔ Koder jagas SÅ LÄNGE DE STÅR KVAR (Spelexperten låter koden stå mellan släppen); ny/ändrad kod söks först i 1 h.
   Tillstånd i `.discord-restock-cache/drops.json` (följer cachen och överlämningen).
-- ⚡ **SPELEXPERTEN = SNABBLOOP** (`fastTick`, en förfrågan var 6:e s, `FAST_CODE_MS`): ny/ändrad kod → het sida som
-  ska läsas om (var 5:e min) → kända koder i tur; var tredje plats är ALLTID en kodsökning ⇒ en känd kod söks var
-  6–18 s. Medan koder jagas glesas Spelexpertens vanliga feed till 120 s (`SLOW_FEED_WHILE_CODES_MS`) — totalt
-  ~0,29 förfr./s. Mätt i torrkörning 2026-10-11: SYL-01 söktes var 6–18 s. ⛔ En kod som läggs ut först VID släppet
-  syns först när sidan läses om (≤ 5 min) — den latensen går bara att korta genom att läsa sidorna oftare.
+- ⚡ **SPELEXPERTEN = SNABBLOOP** (`fastTick` var 3:e s; ägaren 2026-10-12: sidan finns hela tiden men KODEN läggs ut
+  först vid släppet). (1) UPPTÄCKT: fullsök på kodrutans ordalydelse `"artikelnumret nedan"` (söket indexerar
+  beskrivningar — träffar exakt de sidor som NU bär en kod) var 10:e s dagtid / 60:e s 00–07; ny/ändrad sida läses
+  direkt och koden söks i samma anrop. (2) KODSÖK via SNABBSÖKET `API.fcgi?funk=as_fil&chars=<kod>` (~2 kB, ~0,1 s,
+  matchar artikelnummer, inte beskrivningar) — ny kod var 4:e s i 10 min, kända var 12:e s. (3) Reserv: heta sidor
+  läses om var 15:e min. Feeden glesas till 180 s medan koder jagas ⇒ ~0,3 förfr./s. Förväntad latens kod → inlägg
+  ~10–20 s dagtid. ⛔ Lanens cooldown-karta bär bara 24 h — heta set minns i `drops.json.hot` (7 d).
+  ⚠️ OVERIFIERAT: att fullsökets index uppdateras direkt när koden läggs till (svarstiden ~3 s tyder på livefråga).
 - **Kod** ("skriver du artikelnumret … i sökrutan: SYL-01"): Spelexperten ⇒ butikens sök
   (`AIR_ibutik.fcgi?funk=gor_sokning&term=`), träffen vars **Artnr ÄR koden** + JSON-LD i lager ⇒ post.
   ⛔ TVÅ KODER (en lockkod) ⇒ båda söks; träffen måste dessutom vara Pokémon i sin EGEN titel/JSON-LD, ligga under

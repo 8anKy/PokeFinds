@@ -122,7 +122,23 @@ export function spelexpertenSearchLinks(html: string, base: string): string[] {
   return [...out];
 }
 
-// ---- Matchning av en dold sida (rebusvägen) ---------------------------------------------
+/**
+ * Produktlänkar ur SNABBSÖKET (`API.fcgi?funk=as_fil`, rullgardinen under sökrutan): ~2 kB
+ * och ~0,1 s mot fullsökets ~330 kB och ~3 s. Matchar namn och ARTIKELNUMMER men inte
+ * beskrivningar — precis det kodsökningen vill ha (originalsidan bär koden bara i texten).
+ */
+export function spelexpertenLiveSearchLinks(html: string, base: string): string[] {
+  const out = new Set<string>();
+  for (const m of html.matchAll(/<a href="((?:https?:\/\/[^"/]+)?\/[^"]+\.html)" class="LSS_Artikel/g)) {
+    out.add(m[1].startsWith("http") ? m[1] : `${base}${m[1]}`);
+  }
+  return [...out];
+}
+
+/** Ordalydelsen i Spelexpertens kodruta — fullsöket på den hittar ALLA sidor med en kod. */
+export const SPELEXPERTEN_CODE_PHRASE = "artikelnumret nedan";
+
+// ---- Matchning av en dold sida (rebusvägen)---------------------------------------------
 
 /** Bildens identitet: filnamnet utan sökväg, query och ändelse. */
 export function imageKey(url: string): string {
