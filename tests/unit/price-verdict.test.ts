@@ -1,5 +1,5 @@
 /**
- * KANTFÄRGEN I DISCORD — grön/orange/röd (ägarbeslut 2026-10-11), src/lib/market-compare.ts.
+ * KANTFÄRGEN I DISCORD — grön/gul/röd (ägarbeslut 2026-10-11), src/lib/market-compare.ts.
  * Orange = över Cardmarket men på/under Tradera-medianen; reservband 10 % utan Tradera.
  */
 import { describe, expect, it } from "vitest";
@@ -13,7 +13,7 @@ describe("priceVerdict", () => {
     expect(priceVerdict(67958, 67958, null, null)).toBe("good");
   });
 
-  it("mellan marknadsvärdet och Tradera-medianen = fair (orange)", () => {
+  it("mellan marknadsvärdet och Tradera-medianen = fair (gul)", () => {
     expect(priceVerdict(80000, 67958, 92700, 112)).toBe("fair");
     expect(priceVerdict(92700, 67958, 92700, 112)).toBe("fair");
   });
@@ -53,9 +53,9 @@ describe("priceVerdict", () => {
 });
 
 describe("priceEdgeColor", () => {
-  it("grön/orange/röd, annars varumärket", () => {
+  it("grön/gul/röd, annars varumärket", () => {
     expect(priceEdgeColor(BRAND, 64900, 67958)).toBe(PRICE_VERDICT_COLOR.good);
-    expect(priceEdgeColor(BRAND, 80000, 67958, 92700, 112)).toBe(0xf97316);
+    expect(priceEdgeColor(BRAND, 80000, 67958, 92700, 112)).toBe(0xeab308);
     expect(priceEdgeColor(BRAND, 99900, 67958, 92700, 112)).toBe(PRICE_VERDICT_COLOR.bad);
     expect(priceEdgeColor(BRAND, 50000, null)).toBe(BRAND);
   });

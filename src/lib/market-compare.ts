@@ -110,7 +110,7 @@ export const FAIR_FALLBACK_PERCENT = 10;
 
 export const PRICE_VERDICT_COLOR: Record<PriceVerdict, number> = {
   good: 0x22c55e,
-  fair: 0xf97316,
+  fair: 0xeab308,
   bad: 0xef4444,
 };
 

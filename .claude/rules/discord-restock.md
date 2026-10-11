@@ -34,10 +34,10 @@ hämtning ~12:59:40 UTC, nästa jobbs första 13:01:17); en konkurrent postade 1
   också kör. Rubriken (`run-name`) bär "← <föregångare>" — grinden/vakten läser den.
 - Pingern ger nu en kort grind-körning var 2:a min under kedjan (avstår). Sätt den gärna till 5 min.
 
-## KANTFÄRGEN: GRÖN / ORANGE / RÖD (ägarbeslut 2026-10-11)
-`priceVerdict` (`src/lib/market-compare.ts`): grön ≤ marknadsvärdet (CM), **orange** över CM men ≤ Tradera-
+## KANTFÄRGEN: GRÖN / GUL / RÖD (ägarbeslut 2026-10-11)
+`priceVerdict` (`src/lib/market-compare.ts`): grön ≤ marknadsvärdet (CM), **gul** (ägarbeslut: gul i stället för orange — orange läste som röd på den smala kanten) över CM men ≤ Tradera-
 medianen, röd över Tradera. Tradera under CM ⇒ inget mellanband. Bara Tradera ⇒ grön/röd mot medianen.
-Bara CM ⇒ reservband ≤ 10 % över = orange. Samma dom i kanalinlägg, Pro-spegel, `/pris` och DM.
+Bara CM ⇒ reservband ≤ 10 % över = gul. Samma dom i kanalinlägg, Pro-spegel, `/pris` och DM.
 **DM:et bär Butik/Pris/Marknadsvärde/Tradera sålt** (`buildAlertDmPricing` i `services/notifications.ts`,
 larmets egen butiks offer — samma källa som mejlet); förut bara "… finns i lager igen!".
 
@@ -573,7 +573,7 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
 
 - **MARKNADSVÄRDE + TRADERA SÅLT I INLÄGGET (ägarbeslut 2026-10-10, ersätter "Rek. pris")**: två rader på full
   bredd under Butik/Pris — `Marknadsvärde` ("699 kr · 21 % under") och `Tradera sålt` ("1 050 kr · median av 6
-  sålda, 30 d"). Kantfärgen: grön/orange/röd sedan 2026-10-11 (se avsnittet överst). Talen kommer ur ruttabellen
+  sålda, 30 d"). Kantfärgen: grön/gul/röd sedan 2026-10-11 (se avsnittet överst). Talen kommer ur ruttabellen
   (`scripts/lib/restock-routes.ts`): CM-värdet = `Product.settledValueOre` BARA när `settledValueFromCm` (reserven är
   lägsta butik och ingen marknad), sålt = EN aggregatfråga (percentile_cont) över `PriceObservation` för källan
   "Tradera sålt", `HAVING COUNT(*) >= 3`. MÄTT vid bygget: 4 312 av 4 491 rutter med marknadsvärde, 1 450 med sålt.
