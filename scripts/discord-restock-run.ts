@@ -1031,7 +1031,10 @@ async function main() {
     for (const [key, e] of Object.entries(state.absent ?? {})) {
       if (!key.startsWith(prefix) || key.includes("#") || vanishedChecked.has(key)) continue;
       if (!VANISHED_FROM.has(e.s) || now - e.t < VANISHED_CHECK_AFTER_MS) continue;
-      if (!routes[key.slice(prefix.length)]) continue;
+      // Ruttad ELLER något vi själva postat (cooldown-kartan): en helt ny butikssida får sin
+      // rutt först i nattens export, men appen band den redan i larm-hiten — just den sortens
+      // heta nyhet (Speltrollets 30th Bundle, ny URL 2026-10-11) är den som säljer slut först.
+      if (!routes[key.slice(prefix.length)] && state.posted[key] == null) continue;
       picks.push([key, e]);
       if (picks.length >= VANISHED_CHECKS_PER_RUN) break;
     }

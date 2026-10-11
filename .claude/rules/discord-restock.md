@@ -88,7 +88,7 @@ direkt EFTER ett levererat larmpaket** (`splitHitBatch`), dvs i ett fönster som
   motsäger synken, gör den inaktuell. Loggen: `Lagersynkar: N köade, M rättade i appen, K inaktuella`.
 - ⚠️ En tyst dag utan larm skickar inga synkar alls — då rättar nattkedjan, som förut.
 - **FÖRSVUNNEN UR FEEDEN ⇒ FRÅGA SIDAN (2026-10-11)**: Speltrollet tar BORT slutsålda varor (30th Booster
-  Bundle: borta ur feeden, sidan 404, appen "I lager" till natten). En ruttad URL som låg i lager och varit borta
+  Bundle: borta ur feeden, sidan 404, appen "I lager" till natten). En ruttad (eller av lanen postad) URL som låg i lager och varit borta
   ur en levererande, icke-roterande feed ≥ 10 min slås upp med `verifyStockForUrl` (`checkVanished` i scriptet,
   efter varvet utan await, ≤ 2 per butik och varv, en gång per URL och jobb). Slut ⇒ STOCK_SYNC i kön (åker med
   nästa larmpaket, ingen egen väckning) + frånvarominnet skrivs om till OUT_OF_STOCK (ingen omkoll; en återkomst
