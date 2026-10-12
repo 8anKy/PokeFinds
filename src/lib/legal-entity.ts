@@ -37,7 +37,7 @@ export function legalEntity(): LegalEntity | null {
   const name = process.env.LEGAL_ENTITY_NAME?.trim();
   const address = process.env.LEGAL_ENTITY_ADDRESS?.trim();
   const vatNumber = process.env.LEGAL_ENTITY_VAT?.trim();
-  const email = process.env.LEGAL_ENTITY_EMAIL?.trim() || "hej@foilio.se";
+  const email = process.env.LEGAL_ENTITY_EMAIL?.trim() || "hej@scoutr.se";
   if (!name || !address || !vatNumber) return null;
 
   const addressLines = address

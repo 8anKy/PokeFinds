@@ -14,8 +14,8 @@ import { SubpageHeader } from "@/components/layout/subpage-header";
  * Grinden sitter på LAYOUTEN, inte per sida: ett ställe täcker alla adminvyer och
  * en ny vy ärver titeln automatiskt i stället för att någon ska minnas den. En sida
  * som vill vara mer specifik skriver över den själv — `anvandare/[id]` gör redan
- * det ("Användare · Admin"). Rot-layoutens `template: "%s | Foilio"` gör detta till
- * "Admin | Foilio".
+ * det ("Användare · Admin"). Rot-layoutens `template: "%s | Scoutr"` gör detta till
+ * "Admin | Scoutr".
  */
 export const metadata: Metadata = { title: "Admin" };
 

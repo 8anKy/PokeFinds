@@ -17,7 +17,7 @@ import type { AppRelease } from "@/lib/app-release";
  * `src/data/app-release.json` och en knapp till App Store / Google Play. När den
  * visas och för vilken version avgör `updatePrompt` (lib/app-release.ts, testad).
  *
- * VARFÖR I WEBBEN: appen är ett WebView-skal över foilio.se, så skärmen når varje
+ * VARFÖR I WEBBEN: appen är ett WebView-skal över scoutr.se, så skärmen når varje
  * installerad version — även den som aldrig uppdaterats. Inget native-bygge behövs.
  *
  * ⛔ RÖR ALDRIG ETT PLUGIN SOM INTE FINNS I BYGGET: `isPluginAvailable("App")` före
@@ -166,7 +166,7 @@ export function UpdateScreen() {
           "Du har …" scrollas aldrig bort — bara nyhetslistan under rör sig. */}
       <div className="relative mx-auto flex w-full max-w-md shrink-0 flex-col px-6 pt-8">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/foilio-mark.svg" alt="Foilio" width={46} height={58} className="mb-5 h-auto w-[46px]" />
+        <img src="/brand/scoutr-mark.svg" alt="Scoutr" width={56} height={56} className="mb-5 h-14 w-14" />
         <span
           className={`self-start rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${
             required ? "border-fall/40 bg-fall/10 text-fall" : "border-holo-cyan/30 bg-holo-cyan/10 text-holo-cyan"
@@ -175,7 +175,7 @@ export function UpdateScreen() {
           {required ? t("pillRequired") : t("pill")}
         </span>
         <h1 id="update-screen-title" className="mt-3 text-[34px] font-extrabold leading-none tracking-[-0.035em]">
-          Foilio{" "}
+          Scoutr{" "}
           <span
             className="bg-clip-text text-transparent"
             style={{ backgroundImage: "linear-gradient(100deg, #2dd4bf, #5cc468 45%, #a78bfa 80%, #f472b6)" }}

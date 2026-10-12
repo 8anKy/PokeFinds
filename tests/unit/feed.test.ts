@@ -61,7 +61,7 @@ describe("clampSummary", () => {
 });
 
 describe("newsItemSchema.url", () => {
-  const base = { id: "a", title: "Rubrik här", source: "Foilio", publishedAt: new Date().toISOString() };
+  const base = { id: "a", title: "Rubrik här", source: "Scoutr", publishedAt: new Date().toISOString() };
   it("accepterar https och interna vägar", () => {
     expect(newsItemSchema.safeParse({ ...base, url: "https://example.com/x" }).success).toBe(true);
     expect(newsItemSchema.safeParse({ ...base, url: "/sets/sv12" }).success).toBe(true);
@@ -125,7 +125,7 @@ describe("lane-invarianten", () => {
     const payload = feedPublishSchema.parse({
       lane: "foilio",
       generatedAt: new Date().toISOString(),
-      news: [{ id: "x", title: "Setet släpps", url: "/sets/sv12", source: "Foilio", publishedAt: new Date().toISOString(), internal: true, lane: "foilio" }],
+      news: [{ id: "x", title: "Setet släpps", url: "/sets/sv12", source: "Scoutr", publishedAt: new Date().toISOString(), internal: true, lane: "foilio" }],
     });
     expect(payload.news[0].lane).toBe("foilio");
     // ⛔ `events` utelämnat ⇒ null ⇒ rutten rör inte evenemangen.
@@ -165,10 +165,10 @@ describe("kurerade poster (.github/feed/news.json)", () => {
   it("en app-uppdatering pekar in i appen och öppnas i samma vy", () => {
     const parsed = newsItemSchema.parse({
       id: "x",
-      title: "Nyheter och evenemang finns nu i Foilio",
+      title: "Nyheter och evenemang finns nu i Scoutr",
       url: "/nyheter",
       internal: true,
-      source: "Foilio",
+      source: "Scoutr",
       category: "APP",
       publishedAt: "2026-09-09",
     });

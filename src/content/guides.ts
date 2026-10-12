@@ -1,5 +1,5 @@
 /**
- * /guider — Foilios egna set-guider och köpguider (ägarbeslut 2026-09-23).
+ * /guider — Scoutrs egna set-guider och köpguider (ägarbeslut 2026-09-23).
  *
  * VARFÖR EN EGEN YTA OCH INTE /nyheter: nyheterna är appens flöde (kort livslängd,
  * godkänns i admin, dolt bakom en spak). En guide är tvärtom EVERGREEN — den ska
@@ -133,13 +133,13 @@ export const GUIDES: Guide[] = [
       { type: "h", text: "Så missar du inte släppet" },
       {
         type: "p",
-        text: "Populära set tar ofta slut snabbt i de svenska butikerna. Bevaka en produkt i Foilio så säger vi till när den kommer i lager hos någon av de över 40 butikerna vi följer. I vår Discord postas påfyllningarna, oftast inom en minut.",
+        text: "Populära set tar ofta slut snabbt i de svenska butikerna. Bevaka en produkt i Scoutr så säger vi till när den kommer i lager hos någon av de över 40 butikerna vi följer. I vår Discord postas påfyllningarna, oftast inom en minut.",
       },
       {
         type: "links",
         items: [
           { href: "/sets/cmtnj78kh0000ecn60yv8dti6", label: "Alla Delta Reign-produkter", note: "Setsidan med aktuella priser" },
-          { href: "/discord", label: "Foilios Discord", note: "Restock-larm från svenska butiker" },
+          { href: "/discord", label: "Scoutrs Discord", note: "Restock-larm från svenska butiker" },
           { href: "/sets/cmsj7zlx400bcn4gaklmtzqk2", label: "Storm Emeralda (japanska)", note: "Samma kort, släppta i Japan i juli" },
           { href: "/guider/kommande-pokemon-set", label: "Alla kommande set", note: "Engelska och japanska släppdatum" },
         ],
@@ -426,13 +426,13 @@ export const GUIDES: Guide[] = [
       { type: "h", text: "Missa inte släppen" },
       {
         type: "p",
-        text: "Bevaka en produkt i Foilio så säger vi till när den kommer i lager hos någon av de över 40 svenska butikerna vi följer. I vår Discord postas påfyllningarna, oftast inom en minut.",
+        text: "Bevaka en produkt i Scoutr så säger vi till när den kommer i lager hos någon av de över 40 svenska butikerna vi följer. I vår Discord postas påfyllningarna, oftast inom en minut.",
       },
       {
         type: "links",
         items: [
           { href: "/sets", label: "Alla set", note: "Engelska och japanska" },
-          { href: "/discord", label: "Foilios Discord", note: "Restock-larm från svenska butiker" },
+          { href: "/discord", label: "Scoutrs Discord", note: "Restock-larm från svenska butiker" },
         ],
       },
     ],
@@ -638,7 +638,7 @@ export const GUIDES: Guide[] = [
       { type: "h", text: "Eget pris för varje språk" },
       {
         type: "p",
-        text: "Ett japanskt och ett engelskt exemplar av samma kort är olika varor med olika marknader och priser. Ibland är det japanska billigare, ibland dyrare. Jämför därför alltid med priset för samma språk som ditt kort. Foilio har japanska singlar och sealed i katalogen, med egna priser skilda från de engelska.",
+        text: "Ett japanskt och ett engelskt exemplar av samma kort är olika varor med olika marknader och priser. Ibland är det japanska billigare, ibland dyrare. Jämför därför alltid med priset för samma språk som ditt kort. Scoutr har japanska singlar och sealed i katalogen, med egna priser skilda från de engelska.",
       },
       {
         type: "links",
@@ -701,7 +701,7 @@ export const GUIDES: Guide[] = [
       { type: "h", text: "Snabbast: skanna kortet" },
       {
         type: "p",
-        text: "I Foilio-appen kan du skanna kortet med kameran. Vi läser av numret och setet och visar kortets pris direkt. Lägg korten i din samling så räknar vi ut samlingens värde utifrån Cardmarkets priser och följer hur det förändras.",
+        text: "I Scoutr-appen kan du skanna kortet med kameran. Vi läser av numret och setet och visar kortets pris direkt. Lägg korten i din samling så räknar vi ut samlingens värde utifrån Cardmarkets priser och följer hur det förändras.",
       },
       {
         type: "links",
@@ -740,7 +740,7 @@ export const GUIDES: Guide[] = [
       { type: "h", text: "Jämför köpbara erbjudanden" },
       {
         type: "p",
-        text: "Öppna produkten på Foilio för att se de butikserbjudanden vi känner till. Titta både på priset och om varan finns i lager. Ett lågt pris hjälper inte om produkten är slutsåld. Gå alltid vidare till butikens egen sida och kontrollera slutpris, frakt och lagerstatus innan du betalar; uppgifterna kan ändras mellan våra uppdateringar.",
+        text: "Öppna produkten på Scoutr för att se de butikserbjudanden vi känner till. Titta både på priset och om varan finns i lager. Ett lågt pris hjälper inte om produkten är slutsåld. Gå alltid vidare till butikens egen sida och kontrollera slutpris, frakt och lagerstatus innan du betalar; uppgifterna kan ändras mellan våra uppdateringar.",
       },
       { type: "h", text: "Välj efter vad du vill samla" },
       {
@@ -781,7 +781,7 @@ export const GUIDES: Guide[] = [
       { type: "h", text: "Kontrollera set, språk och innehåll" },
       {
         type: "p",
-        text: "Börja med att kontrollera att du tittar på rätt set och språk. Läs sedan vad som faktiskt ingår i varje produkt. En Elite Trainer Box kan innehålla tillbehör utöver boosters; exakt innehåll varierar mellan utgåvor. Utgå aldrig från att två boxar har samma antal paket. Där Foilio har verifierade uppgifter visas de på produktsidan.",
+        text: "Börja med att kontrollera att du tittar på rätt set och språk. Läs sedan vad som faktiskt ingår i varje produkt. En Elite Trainer Box kan innehålla tillbehör utöver boosters; exakt innehåll varierar mellan utgåvor. Utgå aldrig från att två boxar har samma antal paket. Där Scoutr har verifierade uppgifter visas de på produktsidan.",
       },
       { type: "h", text: "Jämför kostnaden för det du vill ha" },
       {
@@ -791,7 +791,7 @@ export const GUIDES: Guide[] = [
       { type: "h", text: "Se vilka erbjudanden som går att köpa" },
       {
         type: "p",
-        text: "Sök upp den exakta boxen på Foilio och jämför kända butikserbjudanden och lagerstatus. Öppna sedan butiken för att bekräfta pris, innehåll och leveransvillkor. Om en produkt saknar säkra innehållsuppgifter är butikens produktbeskrivning viktigare än en gissad jämförelse per paket.",
+        text: "Sök upp den exakta boxen på Scoutr och jämför kända butikserbjudanden och lagerstatus. Öppna sedan butiken för att bekräfta pris, innehåll och leveransvillkor. Om en produkt saknar säkra innehållsuppgifter är butikens produktbeskrivning viktigare än en gissad jämförelse per paket.",
       },
       {
         type: "links",

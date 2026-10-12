@@ -11,7 +11,7 @@ import type { OAuthProvider } from "@/lib/oauth-id-token";
 import { baseDisplayName, uniqueDisplayName } from "@/lib/display-name";
 
 /**
- * Ett Foilio-konto ur en verifierad Google-/Apple-identitet — delad av BÅDA
+ * Ett Scoutr-konto ur en verifierad Google-/Apple-identitet — delad av BÅDA
  * vägarna in (NextAuths webbflöde och appens nativa id_token), så de aldrig kan
  * glida isär i vad ett OAuth-konto får med sig.
  *

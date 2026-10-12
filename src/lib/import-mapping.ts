@@ -233,7 +233,7 @@ const CONTAINS: Partial<Record<ImportField, string[]>> = {
   grade: ["grade"],
 };
 
-/** Vilken enhet penningkolumnerna är i. Foilios egen export skriver ÖRE. */
+/** Vilken enhet penningkolumnerna är i. Scoutrs egen export skriver ÖRE. */
 export type MoneyUnit = "major" | "ore";
 
 export interface ImportProfile {
@@ -252,7 +252,7 @@ export interface ImportProfile {
 export const IMPORT_PROFILES: ImportProfile[] = [
   {
     id: "foilio",
-    label: "Foilio",
+    label: "Scoutr",
     // Vår egen export. `estimatedvalue` + `purchaseprice` i SAMMA fil är
     // signaturen — och den enda fil där beloppen är i öre.
     signature: ["name", "quantity", "condition", "language", "purchaseprice", "estimatedvalue"],

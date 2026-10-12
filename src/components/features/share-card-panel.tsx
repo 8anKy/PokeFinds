@@ -8,11 +8,11 @@
  * hinner annars förbruka den tillfälliga aktiveringen (Safari nekar då tyst).
  * Förhandsvisningen är dessutom själva poängen — man delar det man ser.
  *
- * Inloggade får sin PERSONLIGA inbjudningslänk tryckt i sidfoten (foilio.se/i/<kod>,
+ * Inloggade får sin PERSONLIGA inbjudningslänk tryckt i sidfoten (scoutr.se/i/<kod>,
  * lib/invite-link.ts) — utom där `printLink={false}` (graderingens slab: ägarbeslut
  * 2026-10-01) — och en "Länk"-knapp som kopierar den. Länken skickas INTE med i
  * delningen: en bild + text/URL i samma ark kan få Instagram-storyn att falla bort
- * ur iOS-arket, och storyn är huvudfallet. Gäster får bara foilio.se.
+ * ur iOS-arket, och storyn är huvudfallet. Gäster får bara scoutr.se.
  *
  * VIDEO (2026-10-01, `spin`): "Bild | Video" ovanför förhandsvisningen. Videon
  * kodas DIREKT när Video väljs, aldrig i trycket på Dela — av samma skäl som
@@ -44,7 +44,7 @@ interface InviteLink {
   url: string;
 }
 
-/** En hämtning per sidladdning; null = gäst eller fel (bilden får då "foilio.se"). */
+/** En hämtning per sidladdning; null = gäst eller fel (bilden får då "scoutr.se"). */
 let inviteLinkPromise: Promise<InviteLink | null> | null = null;
 function loadInviteLink(): Promise<InviteLink | null> {
   inviteLinkPromise ??= fetch("/api/invites/link")
@@ -53,7 +53,7 @@ function loadInviteLink(): Promise<InviteLink | null> {
   return inviteLinkPromise;
 }
 
-/** Länken får aldrig hålla bilden som gisslan: efter 3 s ritas den med foilio.se. */
+/** Länken får aldrig hålla bilden som gisslan: efter 3 s ritas den med scoutr.se. */
 function inviteLinkWithin(ms: number): Promise<InviteLink | null> {
   return Promise.race([
     loadInviteLink(),
@@ -73,7 +73,7 @@ export interface SharePage {
 export function ShareCardPanel(props: {
   /**
    * Ritar bilden — `renderShareCard` (skanning) eller `renderGradeShareCard`.
-   * `domain` är sidfotens adress: den personliga länken, eller "foilio.se".
+   * `domain` är sidfotens adress: den personliga länken, eller "scoutr.se".
    */
   render?: (domain: string) => Promise<Blob>;
   /** Flera bilder att svepa mellan (ersätter `render`). Första sidan visas först. */
@@ -91,7 +91,7 @@ export function ShareCardPanel(props: {
    * så knappen hamnade under den på iPhone (ägarens skärmdump 2026-10-01).
    */
   safeBottom?: boolean;
-  /** false ⇒ bilden får "foilio.se", aldrig den personliga länken (kopieringen finns kvar). */
+  /** false ⇒ bilden får "scoutr.se", aldrig den personliga länken (kopieringen finns kvar). */
   printLink?: boolean;
   /** Lagren för den snurrande slabben ⇒ "Bild | Video" visas (om telefonen kan koda video). */
   spin?: (domain: string) => Promise<GradeSpinLayers>;
@@ -143,7 +143,7 @@ export function ShareCardPanel(props: {
     inviteLinkWithin(3000)
       .then(async (l) => {
         if (alive) setLink(l);
-        const domain = printLink ? l?.label ?? "foilio.se" : "foilio.se";
+        const domain = printLink ? l?.label ?? "scoutr.se" : "scoutr.se";
         // En i taget: första sidan syns så fort den är klar.
         for (let i = 0; i < pages.length; i++) {
           const b = await pages[i].render(domain);
@@ -169,7 +169,7 @@ export function ShareCardPanel(props: {
     let alive = true;
     track("share_card", `${source}:video_open`);
     props
-      .spin(printLink ? link?.label ?? "foilio.se" : "foilio.se")
+      .spin(printLink ? link?.label ?? "scoutr.se" : "scoutr.se")
       .then(async (l) => {
         if (!alive) return;
         setLayers(l);

@@ -1,5 +1,5 @@
 /**
- * Foilio seed-script.
+ * Scoutr seed-script.
  *
  * RIKTIG DATA: sets, kort, bilder och butiker är verkliga.
  *  - Sets/kort/bilder kommer från en statisk snapshot av officiella
@@ -148,7 +148,7 @@ function rarityFallbackOre(rarity: string): number {
 }
 
 async function main() {
-  console.log("🌱 Seedar Foilio (riktiga sets/kort/butiker, offline-snapshot)...");
+  console.log("🌱 Seedar Scoutr (riktiga sets/kort/butiker, offline-snapshot)...");
 
   // Rensa i beroendeordning
   await prisma.analyticsEvent.deleteMany();
@@ -290,7 +290,7 @@ async function main() {
         isActive: hasAdapter && r.robotsAllowed === true,
         config: {
           robots: { checkedAt: r.robotsAllowed === null ? null : ROBOTS_CHECKED_AT, allowed: r.robotsAllowed, note: r.robotsNote },
-          userAgent: "FoilioBot/1.0 (+kontakt: hej@foilio.se)",
+          userAgent: "FoilioBot/1.0 (+kontakt: hej@scoutr.se)",
           etik: "Respektera robots.txt och rate limits. Ingen captcha-/login-bypass.",
           adapterImplemented: hasAdapter,
         },

@@ -1,6 +1,6 @@
 {
-  "name": "Foilio",
-  "short_name": "Foilio",
+  "name": "Scoutr",
+  "short_name": "Scoutr",
   "description": "Din kontrollpanel för Pokémon TCG-marknaden. Bevaka priser, lagerstatus och värdet på din samling.",
   "lang": "sv",
   "start_url": "/",

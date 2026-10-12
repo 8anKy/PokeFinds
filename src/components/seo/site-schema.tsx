@@ -8,7 +8,7 @@ import { APP_STORE_URL, DISCORD_URL, INSTAGRAM_URL, PLAY_STORE_URL, TIKTOK_URL }
  * ska bli EN samlad träff i stället för en platt lista av lösa sidor.
  *
  * ⛔ VARFÖR FILEN FINNS (2026-08-11): sajten hade INGET av det här. En
- * inkognitosökning på "www.foilio.se" gav sex separata blå träffar — överst
+ * inkognitosökning på "www.scoutr.se" gav sex separata blå träffar — överst
  * `/logga-in` — plus en AI-översikt som påstod att adressen "inte leder till en
  * aktiv svensk webbplats". Roten var att `/` var en 307 (nu 308), men Google
  * saknade dessutom varje strukturerad signal om vem vi är.
@@ -19,7 +19,7 @@ import { APP_STORE_URL, DISCORD_URL, INSTAGRAM_URL, PLAY_STORE_URL, TIKTOK_URL }
  * Flyttas startsidan tillbaka till `/` ska den här komponenten flytta med.
  *
  * ⛔ IDENTITETEN ÄR DOMÄNEN, INTE SPRÅKVERSIONEN. `url`/`@id` byggs på roten även
- * på /en: Foilio är samma organisation oavsett vilket språk sidan renderas på, och
+ * på /en: Scoutr är samma organisation oavsett vilket språk sidan renderas på, och
  * två olika `@id` per locale hade beskrivit två olika företag. Kanoniska URL:er är
  * en annan fråga och sköts av `alternatesFor()`.
  *
@@ -43,16 +43,16 @@ export function SiteSchema({ locale }: { locale: string }) {
       {
         "@type": "Organization",
         "@id": `${origin}/#organization`,
-        name: "Foilio",
+        name: "Scoutr",
         url: root,
-        logo: `${origin}/brand/foilio-logo.png`,
+        logo: `${origin}/brand/scoutr-logo.png`,
         // VAD vi är, i en mening (2026-09-28, AI-synlighet): noden sa förut bara
         // namn + logotyp, så en assistent fick gissa verksamheten ur sidinnehållet.
         // Samma påstående som /om och /llms.txt — ändra dem tillsammans.
         description:
           locale === "en"
-            ? "Foilio compares Pokémon TCG prices and stock across more than 40 Swedish online stores, with restock alerts and collection tracking."
-            : "Foilio jämför priser och lagerstatus på Pokémon TCG från över 40 svenska webbutiker, med restock-larm och samlingsverktyg.",
+            ? "Scoutr compares Pokémon TCG prices and stock across more than 40 Swedish online stores, with restock alerts and collection tracking."
+            : "Scoutr jämför priser och lagerstatus på Pokémon TCG från över 40 svenska webbutiker, med restock-larm och samlingsverktyg.",
         areaServed: { "@type": "Country", name: "Sverige" },
         // ⛔ VAD `sameAs` FAKTISKT GÖR — och inte gör. Det är en IDENTITETSSIGNAL:
         // "profilerna nedan är samma enhet som den här domänen". Den används för
@@ -60,10 +60,10 @@ export function SiteSchema({ locale }: { locale: string }) {
         // vinsten. Den får INTE discord.gg att ranka på något — utgående länkar har
         // aldrig kunnat lyfta målet, och en `sameAs` är inte ens en klickbar länk.
         // Lova aldrig annat i en rapport.
-        // ⛔ VARFÖR DET ÄNDÅ ÄR VÄRT DET: "Foilio" är ett namn vi delar med minst två
+        // ⛔ VARFÖR DET ÄNDÅ ÄR VÄRT DET: "Scoutr" är ett namn vi delar med minst två
         // orelaterade verksamheter, och utan sameAs finns ingen maskinläsbar tråd
         // mellan domänen, App Store-appen och våra konton — Google får klustra på
-        // gissning. Det här är dessutom den ENDA strukturerade signalen om att Foilio
+        // gissning. Det här är dessutom den ENDA strukturerade signalen om att Scoutr
         // har en Discord; den syns annars bara som en vanlig länk i sidfoten.
         // ⛔ BARA PROFILER VI ÄGER. `sameAs` är ett påstående om identitet: en butiks-,
         // återförsäljar- eller omnämnandelänk här beskriver oss som någon annan.
@@ -79,7 +79,7 @@ export function SiteSchema({ locale }: { locale: string }) {
       {
         "@type": "WebSite",
         "@id": `${origin}/#website`,
-        name: "Foilio",
+        name: "Scoutr",
         url: root,
         publisher: { "@id": `${origin}/#organization` },
         inLanguage: locale === "en" ? "en" : "sv-SE",

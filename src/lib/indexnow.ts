@@ -3,7 +3,7 @@
  * URL är ny eller ändrad, i stället för att vänta på nästa sitemap-läsning.
  *
  * ⛔ VARFÖR (2026-10-07): ChatGPT:s webbsök vilar främst på BINGS index, inte Googles.
- * En sökning på en icke-Google-motor gav NOLL foilio.se-sidor; sajten var aldrig
+ * En sökning på en icke-Google-motor gav NOLL scoutr.se-sidor; sajten var aldrig
  * anmäld hos Bing. Bing Webmaster Tools är nu kopplat (ägaren, sitemap inskickad) —
  * det här är den andra halvan: nya sidor når indexet samma natt.
  *

@@ -81,7 +81,7 @@ async function lookupStoreVersion(): Promise<{ version: string; released: string
     const res = await fetch(lookupUrl(), {
       signal: ctrl.signal,
       cache: "no-store",
-      headers: { "user-agent": "Foilio/1.0 (+https://foilio.se)" },
+      headers: { "user-agent": "Scoutr/1.0 (+https://scoutr.se)" },
     });
     if (!res.ok) return null;
     const json = (await res.json()) as { results?: { version?: unknown; currentVersionReleaseDate?: unknown }[] };

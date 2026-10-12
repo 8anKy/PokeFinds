@@ -43,7 +43,7 @@ describe("suggestDomain", () => {
 
   it("gissar inte på domäner som inte liknar någon känd", () => {
     for (const domain of [
-      "foilio.se",
+      "scoutr.se",
       "kth.se",
       "student.liu.se",
       "mittforetag.com",

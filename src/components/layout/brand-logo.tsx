@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Foilio-varumärkeslås: löv-F-märket + ordmärket "Foilio". Märket bär grönt
+ * Scoutr-varumärkeslås: löv-F-märket + ordmärket "Scoutr". Märket bär grönt
  * (varumärkesfärg); ordmärket är neutralt så det inte krockar med UI:ts turkosa
  * accent eller med pris-upp/ner-färgerna.
  */
@@ -18,14 +18,14 @@ export function BrandLogo({
     <span className={cn("inline-flex items-center gap-2", className)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/brand/foilio-mark.png"
-        alt="Foilio"
+        src="/brand/scoutr-mark.png"
+        alt="Scoutr"
         width={markSize}
         height={markSize}
         style={{ width: markSize, height: markSize }}
         className="shrink-0"
       />
-      <span className={cn("font-bold tracking-tight text-ink", textClass)}>Foilio</span>
+      <span className={cn("font-bold tracking-tight text-ink", textClass)}>Scoutr</span>
     </span>
   );
 }

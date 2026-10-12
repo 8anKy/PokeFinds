@@ -8,7 +8,7 @@
  *   1. `COMMUNITY_V2_PUBLIC=1` (Railway, speglas till NEXT_PUBLIC_ vid BYGGET) —
  *      lanseringsspaken. Öppnar för ALLA: webben och varje appversion.
  *   2. ADMIN/SUPERADMIN-roll i sessionen — ägaren testar på webben och i den
- *      app som redan är installerad (appen är en WebView över foilio.se).
+ *      app som redan är installerad (appen är en WebView över scoutr.se).
  *   3. En native-byggnad som bär `FoilioApp/<version>` i sin User-Agent
  *      (`appendUserAgent` i capacitor.config.ts, med i binären sedan 1.2).
  *      Ingen tidigare byggnad har taggen, så "taggen finns" = "ny byggnad" —

@@ -117,7 +117,7 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
   // Discord hör inte hemma i en transaktionsretry, och syncDiscordRoles kastar
   // aldrig — ett Discord-fel får inte ge 500 här, för då gör Stripe om försöket
   // i tre dygn för något som nattjobbet ändå rättar inom ett dygn.
-  await syncDiscordRoles(userId, "Foilio: Stripe-prenumerationen ändrades");
+  await syncDiscordRoles(userId, "Scoutr: Stripe-prenumerationen ändrades");
 
   if (event.type === "checkout.session.completed" && proUntil) {
     const session = event.data.object as Stripe.Checkout.Session;

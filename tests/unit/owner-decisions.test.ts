@@ -16,13 +16,13 @@ describe("slugOf", () => {
   it("läser slugen ur alla länkformer ägaren kan klistra in", () => {
     const want = "jungle-booster-pack-unlimited-scyther";
     for (const form of [
-      `https://www.foilio.se/produkter/${want}`,
-      `https://foilio.se/produkter/${want}`,
-      `https://www.foilio.se/en/produkter/${want}`,
+      `https://www.scoutr.se/produkter/${want}`,
+      `https://scoutr.se/produkter/${want}`,
+      `https://www.scoutr.se/en/produkter/${want}`,
       `/produkter/${want}`,
       `produkter/${want}`,
-      `  https://www.foilio.se/produkter/${want}?utm_source=app  `,
-      `https://www.foilio.se/produkter/${want}#pris`,
+      `  https://www.scoutr.se/produkter/${want}?utm_source=app  `,
+      `https://www.scoutr.se/produkter/${want}#pris`,
     ]) {
       expect(slugOf(form), form).toBe(want);
     }
@@ -38,9 +38,9 @@ describe("slugOf", () => {
 });
 
 describe("parseDecisions", () => {
-  const A = "https://www.foilio.se/produkter/stub-a";
-  const B = "https://www.foilio.se/produkter/stub-b";
-  const K = "https://www.foilio.se/produkter/kanonisk";
+  const A = "https://www.scoutr.se/produkter/stub-a";
+  const B = "https://www.scoutr.se/produkter/stub-b";
+  const K = "https://www.scoutr.se/produkter/kanonisk";
 
   it("läser ägarens eget format", () => {
     const { decisions } = parseDecisions(`Duplicates\n${A}\n${B}\nGoes to\n${K}\n`);
@@ -77,7 +77,7 @@ describe("parseDecisions", () => {
 
   it("tomrad avslutar gruppen — två beslut blandas aldrig ihop", () => {
     const { decisions } = parseDecisions(
-      `Duplicates\n${A}\nGoes to\n${K}\n\nDuplicates\n${B}\nGoes to\nhttps://www.foilio.se/produkter/annan\n`
+      `Duplicates\n${A}\nGoes to\n${K}\n\nDuplicates\n${B}\nGoes to\nhttps://www.scoutr.se/produkter/annan\n`
     );
     expect(decisions).toHaveLength(2);
     expect(decisions[0].keep).toBe("kanonisk");
@@ -95,7 +95,7 @@ describe("parseDecisions", () => {
 
   it("ett andra mål i samma grupp rapporteras i stället för att skriva över det första", () => {
     // Att TYST byta mål vore det värsta utfallet: fel produkt hade överlevt.
-    const { problems } = parseDecisions(`Duplicates\n${A}\nGoes to ${K}\nGoes to https://www.foilio.se/produkter/fel\n`);
+    const { problems } = parseDecisions(`Duplicates\n${A}\nGoes to ${K}\nGoes to https://www.scoutr.se/produkter/fel\n`);
     expect(problems.length).toBeGreaterThan(0);
   });
 
@@ -151,7 +151,7 @@ describe("validateDecisions", () => {
  *     bort-listan. Det failade visserligen högt på "grupp utan mål", men bara av tur.
  */
 describe("ägarens riktiga skrivsätt (13 aug)", () => {
-  const P = (s: string) => `https://www.foilio.se/en/produkter/${s}`;
+  const P = (s: string) => `https://www.scoutr.se/en/produkter/${s}`;
   // Slugs måste vara ≥3 tecken (SLUG_RE) — korta platshållare hade testat fel sak.
 
   it("läser BÅDA länkarna när två står på samma rad", () => {
@@ -219,9 +219,9 @@ describe("ägarens riktiga skrivsätt (13 aug)", () => {
   it("en set-filterlänk är INTE en produkt och blir inget mål", () => {
     // Ägaren klistrade in "…/produkter?set=cmsj3qf6s…" som mål för Inferno X.
     // Den får aldrig tolkas som en produkt — då hade fel rad överlevt.
-    expect(slugsOf("https://www.foilio.se/en/produkter?set=cmsj3qf6s000214oinl6dk20h")).toEqual([]);
+    expect(slugsOf("https://www.scoutr.se/en/produkter?set=cmsj3qf6s000214oinl6dk20h")).toEqual([]);
     const { decisions } = parseDecisions(
-      `These ${P("pack-a")}\nGo to https://www.foilio.se/en/produkter?set=cmsj3qf6s000214oinl6dk20h\n`
+      `These ${P("pack-a")}\nGo to https://www.scoutr.se/en/produkter?set=cmsj3qf6s000214oinl6dk20h\n`
     );
     const { errors } = validateDecisions(decisions, new Set(["pack-a"]));
     expect(errors.some((e) => e.includes("utan mål"))).toBe(true);
@@ -334,7 +334,7 @@ describe("herrelösa URL:er räknas över HELA gruppen, i merge-ordning", () => 
 });
 
 describe("målmarkören: alla former ägaren faktiskt skriver", () => {
-  const P = (s: string) => `https://www.foilio.se/en/produkter/${s}`;
+  const P = (s: string) => `https://www.scoutr.se/en/produkter/${s}`;
   it('accepterar bart "Go" utan "to"', () => {
     // Omgång 4: en hel grupp föll på "dubblettgrupp utan mål" för att raden löd
     // "Go <länk>". Felet var högljutt — men det stoppade 7 korrekta mergar.

@@ -87,7 +87,7 @@ function post(over: Partial<RestockPost> = {}): RestockPost {
     setName: "Pitch Black",
     series: "Mega Evolution",
     language: "EN",
-    productUrl: "https://foilio.se/produkter/pitch-black-etb",
+    productUrl: "https://scoutr.se/produkter/pitch-black-etb",
     productSlug: "pitch-black-etb",
     transition: { from: "OUT_OF_STOCK", to: "IN_STOCK" },
     ...over,
@@ -228,18 +228,18 @@ describe("sendRestockHits — transporten", () => {
 
   it("POST:ar till /api/cron/restock-hit med x-cron-secret och tolkar räknarna", async () => {
     const f = fetchWith(200, { ok: true, paused: false, received: 1, matched: 1, events: 1, alerts: 3, skipped: {} });
-    const res = await sendRestockHits([hit()], { baseUrl: "https://foilio.se/", secret: "s3", fetchImpl: f });
+    const res = await sendRestockHits([hit()], { baseUrl: "https://scoutr.se/", secret: "s3", fetchImpl: f });
     expect(res).toMatchObject({ ok: true, paused: false, permanent: false, status: 200 });
     expect(res.result?.alerts).toBe(3);
     const [url, init] = (f as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://foilio.se/api/cron/restock-hit");
+    expect(url).toBe("https://scoutr.se/api/cron/restock-hit");
     expect((init.headers as Record<string, string>)["x-cron-secret"]).toBe("s3");
     expect(JSON.parse(init.body as string)).toEqual({ hits: [hit()] });
   });
 
   it("'paused' från appen ⇒ ok men inga räknare — hitsen är inte värda att spara", async () => {
     const res = await sendRestockHits([hit()], {
-      baseUrl: "https://foilio.se",
+      baseUrl: "https://scoutr.se",
       secret: "s3",
       fetchImpl: fetchWith(200, { ok: true, paused: true, received: 1 }),
     });

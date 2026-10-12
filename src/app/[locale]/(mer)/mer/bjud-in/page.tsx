@@ -87,7 +87,7 @@ export default function InvitePage() {
     const touch = window.matchMedia("(pointer: coarse)").matches;
     if (touch && navigator.share) {
       try {
-        await navigator.share({ title: "Foilio", text: t("shareText"), url });
+        await navigator.share({ title: "Scoutr", text: t("shareText"), url });
         return;
       } catch {
         // avbruten delning → fall igenom till kopiering

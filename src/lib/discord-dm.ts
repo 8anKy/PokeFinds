@@ -81,7 +81,7 @@ export function buildAlertDmEmbed(c: AlertDmContent) {
     color: p ? priceEdgeColor(BRAND_COLOR, p.priceOre, p.marketValueOre, p.soldMedianOre, p.soldCount) : BRAND_COLOR,
     ...(fields.length ? { fields } : {}),
     ...(c.imageUrl ? { thumbnail: { url: c.imageUrl } } : {}),
-    footer: { text: "Foilio Pro · stäng av under Inställningar → Notiser" },
+    footer: { text: "Scoutr Pro · stäng av under Inställningar → Notiser" },
     timestamp: new Date().toISOString(),
   };
 }

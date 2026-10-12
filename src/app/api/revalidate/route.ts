@@ -13,7 +13,7 @@
  * renderas aldrig om, besökta sidor renderas om EN gång extra per jobb.
  *
  * Anropas av de schemalagda jobben när de faktiskt skrivit något:
- *   curl -X POST -H "x-cron-secret: $CRON_SECRET" https://www.foilio.se/api/revalidate
+ *   curl -X POST -H "x-cron-secret: $CRON_SECRET" https://www.scoutr.se/api/revalidate
  *
  * Utan hemlighet i miljön svarar rutten 503 och gör INGENTING (samma självläkande
  * mönster som workflow-vakterna) — en öppen invalideringsknapp vore en gratis väg

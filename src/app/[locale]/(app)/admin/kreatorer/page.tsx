@@ -30,7 +30,7 @@ export default async function AdminCreatorCodesPage({
     getCreatorCodeStats(),
     getStripePromotionRedemptions(page, query),
   ]);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://scoutr.se";
 
   return <CreatorCodesClient rows={rows} redemptions={redemptions} appUrl={appUrl} />;
 }

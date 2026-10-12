@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Capacitor } from "@capacitor/core";
 
 /**
- * Ingen anslutning-skärm (#21, Stitch-design "No Connection Screen - Foilio
+ * Ingen anslutning-skärm (#21, Stitch-design "No Connection Screen - Scoutr
  * Branded"): fullskärms-överlägg när enheten tappar nätet — wifi-off-ikon,
  * rubrik, beskrivning och en "Försök igen"-knapp. ENDAST i appen (ägaren): en
  * webbsajt har ingen sådan skärm. Lyssnar på webbläsarens online/offline-events.

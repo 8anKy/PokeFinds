@@ -79,7 +79,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   });
   if (!set) return { title: t("notFound") };
   return {
-    // Bara `set.name` gav en flik och en SERP-rad som lyder "Surging Sparks | Foilio"
+    // Bara `set.name` gav en flik och en SERP-rad som lyder "Surging Sparks | Scoutr"
     // — ett setnamn utan ett ord om att sidan visar PRISER och kort. Den som söker
     // "surging sparks pris" har ingen anledning att klicka på ett bart namn.
     title: t("detailTitle", { name: set.name }),

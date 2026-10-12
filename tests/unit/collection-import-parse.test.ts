@@ -70,7 +70,7 @@ describe("kolumnmappningen", () => {
     });
   });
 
-  it("känner igen och mappar Foilios camelCase-backup inklusive öresbeloppen", () => {
+  it("känner igen och mappar Scoutrs camelCase-backup inklusive öresbeloppen", () => {
     const headers = [
       "name", "quantity", "condition", "language", "purchasePrice",
       "purchaseDate", "estimatedValue", "gradingCompany", "grade", "notes",
@@ -161,7 +161,7 @@ describe("utkastrader", () => {
     expect(looksSealed(built.rows[0])).toBe(true);
   });
 
-  it("återställer marknadsvärdet bara ur Foilios egen öresbackup", () => {
+  it("återställer marknadsvärdet bara ur Scoutrs egen öresbackup", () => {
     const parsed = parseCsv("name,estimatedValue\nPikachu,24950");
     const mapping = autoMapColumns(parsed.headers).mapping;
     const built = buildDraftRows(parsed, mapping, {

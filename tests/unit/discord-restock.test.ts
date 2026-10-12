@@ -45,7 +45,7 @@ import { hitsFromPosts } from "@/lib/restock-hits";
 
 const POLICY: FlapPolicy = { minAwayMinutes: 20, flapMaxTransitions: 6, flapCooldownHours: 24 };
 const NOW = new Date("2026-08-11T12:00:00Z");
-const BASE = "https://www.foilio.se";
+const BASE = "https://www.scoutr.se";
 
 const ROUTES: RouteTable = {
   "https://butik.se/pitch-black-etb": {
@@ -433,7 +433,7 @@ describe("deriveRestockPosts", () => {
 
     /**
      * ⛔ VARJE INLÄGG SOM KAN HA EN VÄG TILLBAKA TILL OSS SKA HA DET. Ägaren såg ett
-     * katalogfritt inlägg utan "Se på Foilio" och frågade efter länken — den saknades
+     * katalogfritt inlägg utan "Se på Scoutr" och frågade efter länken — den saknades
      * för att vi inte vet VILKEN produkt butikens URL är. Setet vet vi ändå.
      * ⛔ Fritextsök (`?q=`) duger INTE som reserv: katalogfiltret kräver att ALLA ord
      *    finns i produktens normalizedTitle, och butikstiteln bär prefix, språktaggar
@@ -953,7 +953,7 @@ describe("buildRestockEmbed", () => {
     expect(embed.title).toBe("Pitch Black Elite Trainer Box");
     expect(embed.description).toBe("Finns i lager igen.");
     expect(embed.fields.some((f) => f.name === "Källa")).toBe(false);
-    expect(embed.footer.text).toBe("Foilio · foilio.se");
+    expect(embed.footer.text).toBe("Scoutr · scoutr.se");
   });
 
   it("marknadsvärde: grön kant på/under, röd över — ingen emoji i texten", () => {

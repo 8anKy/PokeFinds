@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const body = bodySchema.parse(await req.json());
     const id = params.id;
     const now = new Date().toISOString();
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se";
 
     let found = false;
     const doc = await updateInbox(async (inbox) => {

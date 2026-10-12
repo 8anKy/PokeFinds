@@ -12,7 +12,7 @@
  * ligger på OKLCH L≈0,79 och faller utanför bandet 0,48–0,67 tillsammans med
  * violett/guld/rosa — serierna blir då jämnljusa och skiljs bara på kulör, vilket
  * är precis det en färgblind läsare inte kan. #13a99b är den ljusaste turkos som
- * klarar bandet och läser fortfarande som Foilios färgfamilj. Prisgrafen på
+ * klarar bandet och läser fortfarande som Scoutrs färgfamilj. Prisgrafen på
  * produktsidan behåller varumärkesturkosen: den har ETT dataspår och alltså
  * ingen separationsfråga att lösa.
  *

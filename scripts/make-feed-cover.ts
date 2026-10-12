@@ -1,5 +1,5 @@
 /**
- * OMSLAG TILL EN NYHET — ett Foilio-kort med stor rubrik, i stället för ingen bild.
+ * OMSLAG TILL EN NYHET — ett Scoutr-kort med stor rubrik, i stället för ingen bild.
  *
  * VARFÖR DET HÄR FINNS: våra egna nyheter (appuppdateringar) har ingen bild att
  * hämta någonstans, och en artikel hos någon annan har inte alltid en heller
@@ -125,13 +125,13 @@ async function main() {
     .join("\n  ")}
 
   <text x="${PAD + 48}" y="${H - PAD}" font-family="Arial, Helvetica, sans-serif" font-size="26"
-        font-weight="700" letter-spacing="-0.5" fill="#a1a1aa">Foilio</text>
+        font-weight="700" letter-spacing="-0.5" fill="#a1a1aa">Scoutr</text>
 </svg>`;
 
   let image = sharp(Buffer.from(svg)).png();
 
   // Riktiga märket, inte en ritad platta — kortet ska bära samma logotyp som appen.
-  const mark = await sharp("public/brand/foilio-mark.png").resize(34, 34, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+  const mark = await sharp("public/brand/scoutr-mark.png").resize(34, 34, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
   image = sharp(await image.toBuffer())
     .composite([{ input: mark, left: PAD, top: H - PAD - 26 }])
     .png();

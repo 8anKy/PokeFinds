@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * `"use client"` och kan därför inte exportera egen `metadata` — de ärvde
  * rot-layoutens `Meta.title`/`Meta.description` ORDAGRANT och blev därmed
  * omöjliga att skilja från startsidan. Följden mättes i produktion: en
- * inkognitosökning på "www.foilio.se" gav `/logga-in` som ÖVERSTA träff, med
+ * inkognitosökning på "www.scoutr.se" gav `/logga-in` som ÖVERSTA träff, med
  * sajtens flaggskeppsrubrik. Roten var att `/` var en 307 (se
  * (marketing)/page.tsx) så det inte fanns någon startsida att ranka i stället —
  * men en inloggningsruta ska inte vara ett sökresultat oavsett.
@@ -39,7 +39,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           allt som inte är formuläret kostade höjd och tvingade fram scroll. */}
       <div className="w-full max-w-md sm:card-surface sm:p-8 sm:shadow-card">{children}</div>
       <p className="mt-8 hidden text-center text-xs text-ink-faint sm:block">
-        © Foilio · Sveriges marknadsplats för Pokémon TCG
+        © Scoutr · Sveriges marknadsplats för Pokémon TCG
       </p>
     </AuthShell>
   );

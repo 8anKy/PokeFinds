@@ -2,7 +2,7 @@
  * Lägsta app-version vi vill att användarna kör — driver "Ny version finns"-remsan
  * i appen (`components/update-screen.tsx`).
  *
- * VARFÖR I WEBBEN: appen är ett tunt WebView-skal över foilio.se, så webben når
+ * VARFÖR I WEBBEN: appen är ett tunt WebView-skal över scoutr.se, så webben når
  * VARJE installerad version — även den som aldrig uppdaterats. Webben läser den
  * installerade versionen via `@capacitor/app` (med i binären sedan första bygget
  * 2026-06-15) och jämför. Ingen DB, inget nytt native-bygge för att tända remsan.

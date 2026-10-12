@@ -27,6 +27,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="scoutr.se" />
                 <data android:scheme="https" android:host="foilio.se" />
             </intent-filter>
         </activity>

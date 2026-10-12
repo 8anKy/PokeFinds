@@ -28,13 +28,13 @@ const TEMPLATES: Record<string, () => EmailContent> = {
   "apple-relay": () => appleRelayLinkedEmail(NAME, "milos@example.com"),
   // Avanmälningslänken är en attrapp här: `unsubscribeUrl()` signerar med en
   // hemlighet som inte finns lokalt, och förhandsvisningen ska aldrig behöva den.
-  giveaway: () => giveawayEmail({ name: NAME, unsubscribeUrl: "https://foilio.se/avregistrera?demo=1" }),
+  giveaway: () => giveawayEmail({ name: NAME, unsubscribeUrl: "https://scoutr.se/avregistrera?demo=1" }),
   restock: () =>
     restockAlertEmail(
       NAME,
       "Prismatic Evolutions Elite Trainer Box",
       "Dragon's Lair",
-      "https://foilio.se",
+      "https://scoutr.se",
       89900
     ),
 };

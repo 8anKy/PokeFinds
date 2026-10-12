@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 /**
  * Startsidan ÄR Utforska (ägarbeslut 2026-08-06).
  *
- * Marknadsförings-startsidan är borttagen: den som söker upp foilio.se ska mötas
+ * Marknadsförings-startsidan är borttagen: den som söker upp scoutr.se ska mötas
  * av katalogen, inte av en "gå med"-pitch. Native-appen gjorde redan precis det —
  * `NativeHomeRedirect` skickade Capacitor-användare vidare till /produkter med
  * motiveringen "app-användare ska inte mötas av en pitch". Webben gör nu samma sak,
@@ -25,12 +25,12 @@ export const dynamic = "force-dynamic";
  * ("det som förloras är lite länkkraft-konsolidering") var MÄTBART FEL. En
  * temporär omdirigering säger åt Google att `/` fortfarande är sin egen URL, så
  * signalerna konsolideras ALDRIG in i målet: Google får ingen post för
- * foilio.se och kan inte peka ut någon startsida för varumärket. Utfallet i
- * produktion (inkognitosökning på "www.foilio.se", 2026-08-11):
+ * scoutr.se och kan inte peka ut någon startsida för varumärket. Utfallet i
+ * produktion (inkognitosökning på "www.scoutr.se", 2026-08-11):
  *   · ingen samlad träff med sitelinks — bara en platt lista av lösa sidor,
  *   · ÖVERST låg `/logga-in`, som ärver `Meta.title`/`Meta.description` ordagrant
  *     och därmed utgav sig för att VARA startsidan (nu noindex, se (auth)/layout),
- *   · Googles AI-översikt påstod rakt ut att "Adressen www.foilio.se leder inte
+ *   · Googles AI-översikt påstod rakt ut att "Adressen www.scoutr.se leder inte
  *     till en aktiv svensk webbplats".
  * Med 308 ärver /produkter rotens varumärkessignaler och blir sajtens ingång.
  *

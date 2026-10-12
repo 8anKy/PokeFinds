@@ -1,5 +1,5 @@
 /**
- * Personlig inbjudningslänk (2026-10-01): foilio.se/i/<kod> på varje delningsbild.
+ * Personlig inbjudningslänk (2026-10-01): scoutr.se/i/<kod> på varje delningsbild.
  *
  * Länken är ÅTERANVÄNDBAR — till skillnad från engångskoderna i /mer/bjud-in.
  * Varje ny användare som skapar konto via den blir en vanlig Invite-rad
@@ -48,7 +48,7 @@ export function inviteCodeFromPath(path: string): string | null {
 
 /** Det som trycks på bilden och kopieras: utan protokoll, kort nog att skriva av. */
 export function inviteLinkLabel(code: string): string {
-  return `foilio.se/i/${code}`;
+  return `scoutr.se/i/${code}`;
 }
 
 export function inviteLinkUrl(code: string): string {

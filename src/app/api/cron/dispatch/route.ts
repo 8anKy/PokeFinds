@@ -23,7 +23,7 @@ const ALLOWED: Record<string, string> = {
 };
 
 // (Tombstonen för "restock-watch-manatorsk" togs bort 2026-08-11: cron-job.org-jobbet
-// "Foilio restock Manatörsk fast" existerar inte längre — det skrevs om till
+// "Scoutr restock Manatörsk fast" existerar inte längre — det skrevs om till
 // Discord-pingaren — så ingen extern anropare kan träffa den vägen. Villkoret för
 // borttagning stod i kommentaren den ersatte.)
 

@@ -589,13 +589,13 @@ export function buildRestockEmbed(
   if (post.productUrl) {
     fields.push({
       name: "Prishistorik",
-      value: clamp(`[Se på Foilio](${post.productUrl})`, MAX_FIELD_VALUE),
+      value: clamp(`[Se på Scoutr](${post.productUrl})`, MAX_FIELD_VALUE),
       inline: false,
     });
   } else if (post.setUrl) {
     fields.push({
       name: "Hos oss",
-      value: clamp(`[Se hela setet på Foilio](${post.setUrl})`, MAX_FIELD_VALUE),
+      value: clamp(`[Se hela setet på Scoutr](${post.setUrl})`, MAX_FIELD_VALUE),
       inline: false,
     });
   }
@@ -646,8 +646,8 @@ export function buildRestockEmbed(
       //    (restock-poll-interval.ts) och saldot kan dessutom ändras mellan två
       //    pollningar — "uppdateras varje timme" hade varit ett löfte vi inte håller.
       text: storeOnly
-        ? "Foilio · Butikslagret kan ändras snabbt — ring butiken innan du åker."
-        : "Foilio · foilio.se",
+        ? "Scoutr · Butikslagret kan ändras snabbt — ring butiken innan du åker."
+        : "Scoutr · scoutr.se",
     },
     timestamp: new Date(opts.at ?? Date.now()).toISOString(),
   };
@@ -781,12 +781,12 @@ export async function postTestMessages(
       body: JSON.stringify({
         embeds: [
           {
-            title: "Testinlägg från Foilio",
+            title: "Testinlägg från Scoutr",
             description:
               `Den här kanalen tar emot restock-larm för **${t.rule}**.\n\n` +
               "Ser du det här är boten rätt kopplad. Inlägget går att radera.",
             color: BRAND_COLOR,
-            footer: { text: "Foilio · foilio.se" },
+            footer: { text: "Scoutr · scoutr.se" },
           },
         ],
       }),

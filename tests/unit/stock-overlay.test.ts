@@ -51,7 +51,7 @@ describe("applyStockOverlay + /pris", () => {
     };
     const live = applyStockOverlay(entry(), overlay);
     expect(live.updatedAt).toBe(SNAP_AT + 13 * 3600_000);
-    const embed = buildPriceEmbed(live.entry, null, "https://foilio.se", live.updatedAt);
+    const embed = buildPriceEmbed(live.entry, null, "https://scoutr.se", live.updatedAt);
     const stores = embed.fields.find((f) => f.name === "I lager i butik")!.value;
     expect(stores).not.toContain("Speltrollet");
     expect(stores).toContain("Rogerz");

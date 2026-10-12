@@ -76,7 +76,7 @@ describe("buildMarketMessage", () => {
     expect(MAX_MARKET_PHOTOS).toBe(4);
     expect(m.attachments).toHaveLength(4);
     expect(m.embeds).toHaveLength(4);
-    expect((m.embeds[0] as ReturnType<typeof buildMarketEmbed>).fields.find((f) => f.name === "Fler bilder")?.value).toBe("+2 bilder i annonsen på Foilio");
+    expect((m.embeds[0] as ReturnType<typeof buildMarketEmbed>).fields.find((f) => f.name === "Fler bilder")?.value).toBe("+2 bilder i annonsen på Scoutr");
   });
 
   it("okänd bildtyp blir jpg", () => {

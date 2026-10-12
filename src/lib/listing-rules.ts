@@ -2,7 +2,7 @@
  * Regler för köp/sälj/byt-trådar i forumet. REN modul (ingen Prisma, ingen Next)
  * så att API-rutten och testerna delar exakt samma dom.
  *
- * ⛔ Foilio är aldrig part i affären — tråden är en anslagstavla. Reglerna här
+ * ⛔ Scoutr är aldrig part i affären — tråden är en anslagstavla. Reglerna här
  * handlar bara om att en annons ska vara BEGRIPLIG: en "Säljes" utan pris är
  * ett gissningsspel, en "Bytes" med pris är en försäljning i förklädnad, och
  * marknadsfält i en vanlig diskussionsgrupp gör flödet oläsligt.

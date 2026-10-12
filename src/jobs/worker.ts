@@ -77,7 +77,7 @@ async function processJob(job: Job): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log("[worker] Foilio jobb-worker startar...");
+  console.log("[worker] Scoutr jobb-worker startar...");
 
   // Ge Redis-anslutningen en kort stund att etableras
   await new Promise((resolve) => setTimeout(resolve, 1500));

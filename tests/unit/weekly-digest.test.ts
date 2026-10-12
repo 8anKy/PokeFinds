@@ -127,9 +127,9 @@ describe("movers: en rad per VARA, aldrig en per lot", () => {
   });
   // Två LOTS av samma produkt (två köp till olika pris) + en annan vara.
   const refs = new Map<string, CollectionRef>([
-    ["lot-1", { key: "product:prismatic-spc", url: "https://foilio.se/produkter/a" }],
-    ["lot-2", { key: "product:prismatic-spc", url: "https://foilio.se/produkter/a" }],
-    ["lot-3", { key: "card:umbreon-vmax", url: "https://foilio.se/produkter/b" }],
+    ["lot-1", { key: "product:prismatic-spc", url: "https://scoutr.se/produkter/a" }],
+    ["lot-2", { key: "product:prismatic-spc", url: "https://scoutr.se/produkter/a" }],
+    ["lot-3", { key: "card:umbreon-vmax", url: "https://scoutr.se/produkter/b" }],
   ]);
 
   it("dedupar på varans identitet — det skarpa brevet listade samma box två gånger", () => {
@@ -168,7 +168,7 @@ describe("movers: en rad per VARA, aldrig en per lot", () => {
     const out = pickMovers([mover({ id: "lot-1", percent: 9.5 }), mover({ id: "lot-2", percent: 2.1 })], refs);
     expect(out).toHaveLength(1);
     expect(out[0].percent).toBe(9.5);
-    expect(out[0].url).toBe("https://foilio.se/produkter/a");
+    expect(out[0].url).toBe("https://scoutr.se/produkter/a");
   });
 
   it("faller tillbaka på namn+set när posten saknas i uppslaget — hellre än en dubblett", () => {
@@ -196,9 +196,9 @@ describe("movers: en rad per VARA, aldrig en per lot", () => {
 describe("weeklyDigestEmail", () => {
   const base = {
     name: "Anna",
-    unsubscribeUrl: "https://foilio.se/api/unsubscribe?token=abc",
+    unsubscribeUrl: "https://scoutr.se/api/unsubscribe?token=abc",
     // Bas-URL:en injiceras av jobbet — mallen läser aldrig miljön själv.
-    appUrl: "https://foilio.se",
+    appUrl: "https://scoutr.se",
     drops: [],
     restocks: [],
     pulse: {
@@ -223,21 +223,21 @@ describe("weeklyDigestEmail", () => {
   it("restock-avsnittet säljer Pro till gratiskontot — och ingenting till Pro", () => {
     const restock = {
       title: "Prismatic Evolutions ETB",
-      url: "https://foilio.se/produkter/pe-etb",
+      url: "https://scoutr.se/produkter/pe-etb",
       retailerName: "Butiken",
       priceOre: 89900,
       imageUrl: null,
     };
     const free = weeklyDigestEmail({ ...base, restocks: [restock], freeRestockNudge: true });
     expect(free.html).toContain("Pro-medlemmar fick larm om varje");
-    expect(free.html).toContain("https://foilio.se/priser");
-    expect(free.text).toContain("Få larmen direkt med Pro: https://foilio.se/priser");
+    expect(free.html).toContain("https://scoutr.se/priser");
+    expect(free.text).toContain("Få larmen direkt med Pro: https://scoutr.se/priser");
     expect(free.text).not.toContain("Sköt dina bevakningar");
 
     const pro = weeklyDigestEmail({ ...base, restocks: [restock], freeRestockNudge: false });
     expect(pro.html).not.toContain("Pro-medlemmar fick larm");
-    expect(pro.html).toContain("https://foilio.se/bevakningar");
-    expect(pro.text).toContain("Sköt dina bevakningar: https://foilio.se/bevakningar");
+    expect(pro.html).toContain("https://scoutr.se/bevakningar");
+    expect(pro.text).toContain("Sköt dina bevakningar: https://scoutr.se/bevakningar");
   });
 
   it("bär avanmälan i BÅDE html och text — text-only-läsare måste också kunna säga nej", () => {

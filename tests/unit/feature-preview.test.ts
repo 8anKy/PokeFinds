@@ -18,9 +18,9 @@ describe("previewAllowed — förhandsvisning bara för ägaren tills spaken sl�
     expect(previewAllowed({ feature: "PUSH_TO_STORE", role: "MODERATOR" })).toBe(false);
   });
   it("öppnas för e-post i FEATURE_PREVIEW_EMAILS, skiftlägesokänsligt, med luft", () => {
-    const previewEmails = " Test@Foilio.se, other@x.se ,";
-    expect(previewAllowed({ feature: "SCAN_COUNTER", role: "USER", email: "test@foilio.se", previewEmails })).toBe(true);
-    expect(previewAllowed({ feature: "SCAN_COUNTER", role: "USER", email: "nope@foilio.se", previewEmails })).toBe(false);
+    const previewEmails = " Test@Scoutr.se, other@x.se ,";
+    expect(previewAllowed({ feature: "SCAN_COUNTER", role: "USER", email: "test@scoutr.se", previewEmails })).toBe(true);
+    expect(previewAllowed({ feature: "SCAN_COUNTER", role: "USER", email: "nope@scoutr.se", previewEmails })).toBe(false);
     expect(previewAllowed({ feature: "SCAN_COUNTER", role: "USER", email: "", previewEmails: "," })).toBe(false);
   });
   it("guidade turen (APP_TOUR): admin ser den, gäster först när den släppts", () => {

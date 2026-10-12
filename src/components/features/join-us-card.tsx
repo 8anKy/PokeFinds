@@ -5,7 +5,7 @@ import type { IconProps } from "@/components/ui/icons";
 
 /**
  * Kanalerna i visningsordning (Discord först — det är communityn, inte bara en
- * följ-knapp). Delas med /mer:s "Följ Foilio"-kort så listorna aldrig glider isär.
+ * följ-knapp). Delas med /mer:s "Följ Scoutr"-kort så listorna aldrig glider isär.
  * Etiketterna är varumärkesnamn och översätts inte.
  *
  * ⛔ REDDIT ÄR BORTTAGET (ägarbeslut 2026-08-21) och ska inte tillbaka utan att

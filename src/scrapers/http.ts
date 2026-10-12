@@ -9,7 +9,7 @@
  *  - vi kringgår ALDRIG captcha, inloggning eller betalväggar
  */
 
-export const BOT_USER_AGENT = "FoilioBot/1.0 (+kontakt: hej@foilio.se)";
+export const BOT_USER_AGENT = "FoilioBot/1.0 (+kontakt: hej@scoutr.se)";
 
 /** Standardfördröjning mellan förfrågningar mot samma värd. */
 const DEFAULT_DELAY_MS = 1500;

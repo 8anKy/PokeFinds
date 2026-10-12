@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       console.error("creditInviteOnVerify misslyckades:", e);
     }
 
-    return jsonOk({ message: "Din e-postadress är nu bekräftad. Välkommen till Foilio!" });
+    return jsonOk({ message: "Din e-postadress är nu bekräftad. Välkommen till Scoutr!" });
   } catch (e) {
     return apiError(e);
   }

@@ -6,7 +6,7 @@ import { IconDiscord } from "@/components/ui/brand-icons";
 import { landingInviteUrl } from "@/lib/discord-invites";
 
 /**
- * Landningssidan för Foilios Discord-server.
+ * Landningssidan för Scoutrs Discord-server.
  *
  * ⛔ VARFÖR SIDAN FINNS (2026-08-17, ägarbeslut). Målet var "ligg överst när någon
  * söker på pokemon tcg sverige discord". Det målet går INTE att nå med metadata:
@@ -37,8 +37,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: "Discord" });
   return {
-    // `absolute`: titeln börjar redan med "Foilio" (namnet Googles AI-översikt använder,
-    // "Foilio Discord") — mallens "| Foilio" hade bara upprepat det.
+    // `absolute`: titeln börjar redan med "Scoutr" (namnet Googles AI-översikt använder,
+    // "Scoutr Discord") — mallens "| Scoutr" hade bara upprepat det.
     title: { absolute: t("metaTitle") },
     description: t("metaDescription"),
     alternates: alternatesFor(params.locale, "/discord"),
@@ -55,7 +55,7 @@ export default async function DiscordPage({
   const insideItems = [1, 2, 3, 4] as const;
   const invite = landingInviteUrl();
   // Inbjudan som LÄSBAR TEXT (2026-10-07): AI-översikter och assistenter citerar text,
-  // inte knappar — Googles översikt nämnde "Foilio Discord" utan någon länk att klicka.
+  // inte knappar — Googles översikt nämnde "Scoutr Discord" utan någon länk att klicka.
   // ⛔ FAQPage-noden byggs ur EXAKT samma strängar som renderas (samma regel som /om).
   const inviteText = invite.replace(/^https:\/\//, "");
   const faq = (t.raw("faq") as { q: string; a: string }[]).map((f) => ({

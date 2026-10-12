@@ -54,7 +54,7 @@ export interface ImportDraftRow {
   notes: string | null;
   /** pokemontcg.io-id ("sv3pt5-25") när filen bär ett. */
   externalId: string | null;
-  /** Foilio-slug ur vår egen export — exakt nyckel även för sealed. */
+  /** Scoutr-slug ur vår egen export — exakt nyckel även för sealed. */
   slug: string | null;
   /** Filens egen varutyp ("Sealed", "Card") när den finns. */
   itemType: string | null;
@@ -77,7 +77,7 @@ export interface BuildDraftResult {
   skippedEmpty: number;
   /** Belopp vi släppte för att valutan inte var SEK. Redovisas i UI:t. */
   droppedForeignPrices: number;
-  /** Externa marknadsvärden som ersätts av Foilios livevärde efter matchning. */
+  /** Externa marknadsvärden som ersätts av Scoutrs livevärde efter matchning. */
   ignoredMarketValues: number;
   dateOrder: DateOrder;
 }

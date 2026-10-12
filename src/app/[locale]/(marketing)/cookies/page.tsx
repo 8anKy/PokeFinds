@@ -90,7 +90,7 @@ export default async function CookiesPage({
           <p className="mt-2">
             {t.rich("s6Body", {
               email: (chunks) => (
-                <a href="mailto:hej@foilio.se" className="text-holo-cyan hover:underline">
+                <a href="mailto:hej@scoutr.se" className="text-holo-cyan hover:underline">
                   {chunks}
                 </a>
               ),

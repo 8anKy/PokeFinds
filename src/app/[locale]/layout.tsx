@@ -42,10 +42,10 @@ export async function generateMetadata({
     // faller och HELA sajten svarar 500. Reserven är produktionsdomänen, inte localhost:
     // en absolut URL mot localhost hade i stället avindexerat sajten tyst. Vaktat av
     // tests/unit/env-empty-string-guard.test.ts.
-    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se"),
+    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se"),
     title: {
       default: t("title"),
-      template: "%s | Foilio",
+      template: "%s | Scoutr",
     },
     description: t("description"),
     // Basen (type/siteName/og:locale/delningsbild) bor i baseOpenGraph() eftersom
@@ -75,9 +75,9 @@ export async function generateMetadata({
     },
     manifest: "/manifest.json",
     // Ägarverifiering för Google Search Console. ⚠️ Egenskapen är sedan 2026-08-14 en
-    // DOMÄN-property för `foilio.se` (täcker apex + www, http + https i EN property och
+    // DOMÄN-property för `scoutr.se` (täcker apex + www, http + https i EN property och
     // håller ihop historiken över värdbytet) — inte bara URL-prefixet
-    // https://www.foilio.se, som var ENDA egenskapen när raden skrevs. Den propertyn
+    // https://www.scoutr.se, som var ENDA egenskapen när raden skrevs. Den propertyn
     // lever kvar (den hänger på en DNS-TXT utanför repot); apex blev kanonisk samma dag.
     // Domän-propertyn verifierades via DNS-TXT på `@`; den här taggen och
     // public/google892b920dceef4a34.html är de äldre bevisen. BÅDA stannar — vilket
@@ -151,7 +151,7 @@ export default async function LocaleLayout({
               '(function(){try{var d=document.documentElement,c=window.Capacitor;if(c&&typeof c.isNativePlatform==="function"&&c.isNativePlatform()){d.setAttribute("data-native","1")}if(document.cookie.split("; ").indexOf("fo_auth=1")>=0){d.setAttribute("data-auth","1")}}catch(e){}})();',
           }}
         />
-        {/* Ingen web-laddningsskärm: laddnings-UI:t (Stitch "Foilio - Loading") bor
+        {/* Ingen web-laddningsskärm: laddnings-UI:t (Stitch "Scoutr - Loading") bor
             i den NATIVE splashen (assets/splash.png + turkos native-spinner, se
             capacitor.config.ts) som täcker HELA app-starten tills webben är redo.
             AppBoot döljer splashen då. Webben har ingen laddningsskärm alls. */}
@@ -180,7 +180,7 @@ export default async function LocaleLayout({
                 finns → tidigare gick det förlorat på de routerna. */}
             <PushManager />
             {/* Universella länkar (mejlknappar, Discord): öppnar rätt sida när appen
-                startas eller väcks av en foilio.se-länk — lib/app-links.ts. */}
+                startas eller väcks av en scoutr.se-länk — lib/app-links.ts. */}
             <AppLinkHandler />
             <CookieBanner />
             <ServiceWorkerRegister />

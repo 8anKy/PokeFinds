@@ -54,7 +54,7 @@ export async function runDiscordReconcile(): Promise<DiscordReconcileResult> {
   let pro = 0;
   let failed = 0;
   await mapPool(users, CONCURRENCY, async (user) => {
-    const result = await syncDiscordRoles(user, "Foilio: nattlig avstämning");
+    const result = await syncDiscordRoles(user, "Scoutr: nattlig avstämning");
     if (result.pro) pro++;
     if (!result.ok) failed++;
   });

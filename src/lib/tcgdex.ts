@@ -32,7 +32,7 @@
  */
 export const TCGDEX_BASE = "https://api.tcgdex.net/v2";
 
-const UA = { "User-Agent": "FoilioBot/1.0 (+https://foilio.se)" };
+const UA = { "User-Agent": "FoilioBot/1.0 (+https://scoutr.se)" };
 
 export class TcgdexUnavailable extends Error {
   constructor(url: string, cause: unknown) {

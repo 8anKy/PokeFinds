@@ -11,7 +11,7 @@ const CONTENT = {
   title: "Åter i lager!",
   body: "Pitch Black ETB finns i lager hos Speltrollet.",
   url: "https://speltrollet.se/products/etb",
-  imageUrl: "https://foilio.se/api/cm-image/1",
+  imageUrl: "https://scoutr.se/api/cm-image/1",
 };
 
 describe("buildAlertDmEmbed", () => {

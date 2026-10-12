@@ -1,6 +1,6 @@
 /**
  * E-postmallar på svenska. Returnerar {subject, html, text}.
- * Mörkvänlig, enkel inline-stylad HTML med Foilio-branding.
+ * Mörkvänlig, enkel inline-stylad HTML med Scoutr-branding.
  */
 
 // ⛔ Bara rena konstanter får importeras hit: templates.ts når EDGE-bundlen via
@@ -26,7 +26,7 @@ export interface EmailContent {
 // ⛔ APEX, aldrig www: apex är kanonisk sedan 2026-08-14 och www 301:as av
 // Cloudflare. En webbläsare följer den redirecten, men maskinella URL:er ska ändå
 // peka rätt direkt.
-const APP_URL = "https://foilio.se";
+const APP_URL = "https://scoutr.se";
 
 function formatSek(ore: number): string {
   return `${(ore / 100).toLocaleString("sv-SE", { minimumFractionDigits: 2 })} kr`;
@@ -92,11 +92,11 @@ function absUrl(url: string | null | undefined): string | null {
 }
 
 /**
- * Sidhuvudet: märket som bild + "Foilio" som TEXT bredvid.
+ * Sidhuvudet: märket som bild + "Scoutr" som TEXT bredvid.
  *
  * ⛔ Texten bär namnet. Outlook blockerar bilder som standard och veckobrevet fick en
  * trasig logoruta 2026-08-16 (då av en tom bas-URL). Bilden har därför `alt=""` och
- * pekar på APP_URL-konstanten — blockeras den står "Foilio" kvar som text.
+ * pekar på APP_URL-konstanten — blockeras den står "Scoutr" kvar som text.
  */
 function brandHeader(label?: string): string {
   const suffix = label
@@ -104,8 +104,8 @@ function brandHeader(label?: string): string {
     : "";
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
             <tr>
-              <td width="34" style="width:34px;"><img src="${APP_URL}/brand/foilio-logo.png" alt="" width="34" height="34" style="display:block;width:34px;height:34px;border:0;"></td>
-              <td style="padding-left:6px;font-family:${D_FONT};font-size:19px;font-weight:700;letter-spacing:-0.3px;color:${D_WHITE};">Foilio</td>
+              <td width="34" style="width:34px;"><img src="${APP_URL}/brand/scoutr-logo.png" alt="" width="34" height="34" style="display:block;width:34px;height:34px;border:0;"></td>
+              <td style="padding-left:6px;font-family:${D_FONT};font-size:19px;font-weight:700;letter-spacing:-0.3px;color:${D_WHITE};">Scoutr</td>
               ${suffix}
             </tr>
           </table>`;
@@ -132,7 +132,7 @@ interface LayoutOptions {
 function layout(
   title: string,
   bodyHtml: string,
-  footerReason = "Du får detta mejl för att du har ett konto på Foilio.<br>Du kan ändra dina aviseringsinställningar i Foilio-appen.",
+  footerReason = "Du får detta mejl för att du har ett konto på Scoutr.<br>Du kan ändra dina aviseringsinställningar i Scoutr-appen.",
   opts: LayoutOptions = {}
 ): string {
   const hero = opts.hero ? `${opts.hero}` : "";
@@ -171,7 +171,7 @@ function layout(
           <tr>
             <td align="center" style="padding:20px 8px 0;font-family:${D_FONT};font-size:12px;line-height:1.6;color:${D_FAINT};background-color:${D_PAGE};">
               ${footerReason}<br>
-              Foilio · Sveriges marknadsplats för Pokémon TCG
+              Scoutr · Sveriges marknadsplats för Pokémon TCG
             </td>
           </tr>
         </table>
@@ -197,7 +197,7 @@ function button(url: string, label: string): string {
 const P_STYLE = `margin:0 0 12px;font-family:${D_FONT};font-size:15px;line-height:1.6;color:#cbd5e1;`;
 
 const textFooter =
-  "\n\nDu kan ändra dina aviseringsinställningar i Foilio-appen.\nFoilio · Sveriges marknadsplats för Pokémon TCG";
+  "\n\nDu kan ändra dina aviseringsinställningar i Scoutr-appen.\nScoutr · Sveriges marknadsplats för Pokémon TCG";
 
 /**
  * Lägger en notis SIST i mejlets kort (före sidfoten) — för rader som gäller
@@ -251,7 +251,7 @@ const WELCOME_STEPS: [string, string][] = [
 ];
 
 export function welcomeEmail(name: string): EmailContent {
-  const subject = "Välkommen till Foilio!";
+  const subject = "Välkommen till Scoutr!";
   const steps = WELCOME_STEPS.map(
     ([h, t]) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;margin:0 0 8px;">
         <tr><td bgcolor="${D_PANEL}" style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-radius:10px;padding:14px 16px;font-family:${D_FONT};">
@@ -261,10 +261,10 @@ export function welcomeEmail(name: string): EmailContent {
       </table>`
   ).join("");
   const html = layout(
-    `Välkommen till Foilio, ${name}`,
+    `Välkommen till Scoutr, ${name}`,
     `<p style="${P_STYLE}margin-bottom:18px;color:${D_MUTED};">Sveriges marknadsplats för Pokémon TCG. Jämför priser i svenska butiker, bevaka det du väntar på och håll koll på din samling. Så kommer du igång:</p>
      ${steps}
-     ${button(APP_URL, "Öppna Foilio")}
+     ${button(APP_URL, "Öppna Scoutr")}
      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:24px 0 0;">
        <tr><td style="padding-top:16px;border-top:1px solid ${D_LINE};font-family:${D_FONT};font-size:14px;line-height:1.6;color:${D_MUTED};">
          <strong style="color:${D_WHITE};">Restocks i Discord.</strong> Egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.
@@ -274,7 +274,7 @@ export function welcomeEmail(name: string): EmailContent {
     undefined,
     { eyebrow: "Välkommen" }
   );
-  const text = `Välkommen, ${name}!\n\nKul att ha dig här! Med Foilio kan du jämföra priser, bevaka produkter och få aviseringar vid prisfall och restocks.\n\nÖppna Foilio-appen för att komma igång.\n\n— Häng med oss på Discord —\nRestocks postas direkt i egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.\nGå med: ${DISCORD_URL}${textFooter}`;
+  const text = `Välkommen, ${name}!\n\nKul att ha dig här! Med Scoutr kan du jämföra priser, bevaka produkter och få aviseringar vid prisfall och restocks.\n\nÖppna Scoutr-appen för att komma igång.\n\n— Häng med oss på Discord —\nRestocks postas direkt i egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.\nGå med: ${DISCORD_URL}${textFooter}`;
   return { subject, html, text };
 }
 
@@ -288,11 +288,11 @@ export function welcomeEmail(name: string): EmailContent {
  */
 export function signupCodeEmail(code: string, ttlMs: number): EmailContent {
   const minutes = Math.round(ttlMs / 60_000);
-  const subject = "Din verifieringskod – Foilio";
-  const footerReason = "Du får detta mejl för att din adress angavs vid registrering på Foilio.";
+  const subject = "Din verifieringskod – Scoutr";
+  const footerReason = "Du får detta mejl för att din adress angavs vid registrering på Scoutr.";
   const html = layout(
-    "Din kod till Foilio",
-    `<p style="${P_STYLE}color:${D_MUTED};margin-bottom:20px;">Skriv in koden för att skapa ditt Foilio-konto. Den gäller i ${minutes} minuter.</p>
+    "Din kod till Scoutr",
+    `<p style="${P_STYLE}color:${D_MUTED};margin-bottom:20px;">Skriv in koden för att skapa ditt Scoutr-konto. Den gäller i ${minutes} minuter.</p>
      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;">
        <tr><td align="center" bgcolor="${D_PANEL}" style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-radius:12px;padding:22px 12px;font-family:${D_FONT};font-size:38px;font-weight:700;letter-spacing:12px;color:${D_WHITE};">${code}</td></tr>
      </table>
@@ -300,12 +300,12 @@ export function signupCodeEmail(code: string, ttlMs: number): EmailContent {
     footerReason,
     { eyebrow: "Verifieringskod" }
   );
-  const text = `Din verifieringskod för att skapa ett Foilio-konto: ${code}\n\nKoden gäller i ${minutes} minuter.\n\nFörsökte du inte skapa ett konto? Då kan du ignorera detta mejl — inget konto skapas utan koden.\n\nFoilio · Sveriges marknadsplats för Pokémon TCG`;
+  const text = `Din verifieringskod för att skapa ett Scoutr-konto: ${code}\n\nKoden gäller i ${minutes} minuter.\n\nFörsökte du inte skapa ett konto? Då kan du ignorera detta mejl — inget konto skapas utan koden.\n\nScoutr · Sveriges marknadsplats för Pokémon TCG`;
   return { subject, html, text };
 }
 
 export function verifyEmail(name: string, verifyUrl: string): EmailContent {
-  const subject = "Bekräfta din e-postadress – Foilio";
+  const subject = "Bekräfta din e-postadress – Scoutr";
   const html = layout(
     "Bekräfta din e-postadress",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Klicka på knappen nedan för att bekräfta din e-postadress och aktivera ditt konto.</p>
@@ -319,14 +319,14 @@ export function verifyEmail(name: string, verifyUrl: string): EmailContent {
 /** Referral-belöning (#10): 3 vänner verifierade → 1 månad Pro. */
 export function proRewardEmail(name: string, until: Date): EmailContent {
   const untilStr = until.toLocaleDateString("sv-SE", { year: "numeric", month: "long", day: "numeric" });
-  const subject = "Du har fått 1 månad Pro · Foilio";
+  const subject = "Du har fått 1 månad Pro · Scoutr";
   const html = layout(
     "Grattis, du har fått Pro!",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Tre av dina inbjudna vänner har nu bekräftat sina konton. Som tack får du en månad Foilio Pro, aktiv till och med <strong style="color:#ffffff;">${untilStr}</strong>.</p>
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Tre av dina inbjudna vänner har nu bekräftat sina konton. Som tack får du en månad Scoutr Pro, aktiv till och med <strong style="color:#ffffff;">${untilStr}</strong>.</p>
      <p style="line-height:1.6;color:#cbd5e1;">Pro ger dig prisbevakning med larm, restock-aviseringar och fler skanningar. Mycket nöje!</p>
      ${button(`${APP_URL}/bevakningar`, "Kom igång med dina larm")}`
   );
-  const text = `Hej ${name}!\n\nTre av dina inbjudna vänner har bekräftat sina konton. Som tack får du en månad Foilio Pro, aktiv till och med ${untilStr}.\n\nPro ger dig prisbevakning med larm, restock-aviseringar och fler skanningar: ${APP_URL}/bevakningar${textFooter}`;
+  const text = `Hej ${name}!\n\nTre av dina inbjudna vänner har bekräftat sina konton. Som tack får du en månad Scoutr Pro, aktiv till och med ${untilStr}.\n\nPro ger dig prisbevakning med larm, restock-aviseringar och fler skanningar: ${APP_URL}/bevakningar${textFooter}`;
   return { subject, html, text };
 }
 
@@ -335,33 +335,33 @@ export function proRewardEmail(name: string, until: Date): EmailContent {
  *
  * ⛔ DEN HÄR FÅR INTE UTEBLI. Restock-larm är Pro-only, så när perioden löper ut
  * SLUTAR larmen tyst — och en användare som inte fått veta varför drar slutsatsen
- * att Foilio är trasigt, inte att provperioden tog slut. Exakt det tysta bortfallet
+ * att Scoutr är trasigt, inte att provperioden tog slut. Exakt det tysta bortfallet
  * har redan hänt en gång (RevenueCat-EXPIRATION 2026-07-08, fyra dygn utan larm).
  */
 export function proExpiringEmail(name: string, until: Date, daysLeft: number): EmailContent {
   const untilStr = until.toLocaleDateString("sv-SE", { year: "numeric", month: "long", day: "numeric" });
   const dayWord = daysLeft === 1 ? "i morgon" : `om ${daysLeft} dagar`;
-  const subject = `Din gratisperiod med Pro tar slut ${dayWord} · Foilio`;
+  const subject = `Din gratisperiod med Pro tar slut ${dayWord} · Scoutr`;
   const html = layout(
     "Din Pro-period närmar sig slutet",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Din gratisperiod med Foilio Pro gäller till och med <strong style="color:#ffffff;">${untilStr}</strong>.</p>
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Din gratisperiod med Scoutr Pro gäller till och med <strong style="color:#ffffff;">${untilStr}</strong>.</p>
      <p style="line-height:1.6;color:#cbd5e1;">Efter det pausas dina <strong style="color:#ffffff;">restock-larm</strong> och du går tillbaka till gratisplanens gränser. Dina bevakningar och din samling ligger kvar — du behöver inte göra någonting för att spara dem.</p>
      <p style="line-height:1.6;color:#cbd5e1;">Vill du behålla larmen kostar Pro 49 kr i månaden och kan sägas upp när som helst.</p>
      ${button(`${APP_URL}/priser`, "Fortsätt med Pro")}`
   );
-  const text = `Hej ${name}!\n\nDin gratisperiod med Foilio Pro gäller till och med ${untilStr}.\n\nEfter det pausas dina restock-larm och du går tillbaka till gratisplanens gränser. Dina bevakningar och din samling ligger kvar.\n\nVill du behålla larmen kostar Pro 49 kr i månaden och kan sägas upp när som helst: ${APP_URL}/priser${textFooter}`;
+  const text = `Hej ${name}!\n\nDin gratisperiod med Scoutr Pro gäller till och med ${untilStr}.\n\nEfter det pausas dina restock-larm och du går tillbaka till gratisplanens gränser. Dina bevakningar och din samling ligger kvar.\n\nVill du behålla larmen kostar Pro 49 kr i månaden och kan sägas upp när som helst: ${APP_URL}/priser${textFooter}`;
   return { subject, html, text };
 }
 
 /**
  * Bild + butikslogga till ett produktlarm. Allt valfritt: saknas en bild blir det
- * ingen tom ruta, saknas Foilio-länken (feed-först-larm utan katalogprodukt) blir
+ * ingen tom ruta, saknas Scoutr-länken (feed-först-larm utan katalogprodukt) blir
  * det ingen "Jämför"-rad. URL:erna får vara relativa — `absUrl` gör dem absoluta.
  */
 export interface AlertMedia {
   imageUrl?: string | null;
   storeLogoUrl?: string | null;
-  /** Vår produktsida — "Jämför alla butiker i Foilio". */
+  /** Vår produktsida — "Jämför alla butiker i Scoutr". */
   foilioUrl?: string | null;
 }
 
@@ -404,7 +404,7 @@ function productAlertBody(p: {
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 14px;"><tr>${logo}<td style="font-family:${D_FONT};font-size:14px;font-weight:600;color:${D_TEXT};">${esc(p.storeName)}</td></tr></table>`
     : "";
   const compare = p.foilioUrl
-    ? `<p style="margin:14px 0 0;text-align:center;font-family:${D_FONT};font-size:13px;"><a href="${esc(p.foilioUrl)}" style="color:${D_ACCENT};text-decoration:none;font-weight:600;">Jämför alla butiker i Foilio</a></p>`
+    ? `<p style="margin:14px 0 0;text-align:center;font-family:${D_FONT};font-size:13px;"><a href="${esc(p.foilioUrl)}" style="color:${D_ACCENT};text-decoration:none;font-weight:600;">Jämför alla butiker i Scoutr</a></p>`
     : "";
   return `${price}${store}
      <p style="margin:0;font-family:${D_FONT};font-size:14px;line-height:1.6;color:${D_MUTED};">${p.lead}</p>
@@ -604,9 +604,9 @@ export function preorderEmail(
  * `notificationSettings.email` är den enda spak mottagaren har.
  */
 export function discordInviteEmail(name: string): EmailContent {
-  const subject = "Foilio finns på Discord – restocks direkt i mobilen";
+  const subject = "Scoutr finns på Discord – restocks direkt i mobilen";
   const footerReason =
-    "Du får detta mejl för att du har ett konto på Foilio. Det här är ett engångsutskick om vår community.<br>Vill du inte ha mejl från oss stänger du av e-post under Inställningar i Foilio-appen.";
+    "Du får detta mejl för att du har ett konto på Scoutr. Det här är ett engångsutskick om vår community.<br>Vill du inte ha mejl från oss stänger du av e-post under Inställningar i Scoutr-appen.";
   const html = layout(
     "Kom och häng med oss på Discord 👋",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Vi har öppnat en Discord-server för svenska Pokémon-samlare – och du är varmt välkommen in.</p>
@@ -614,10 +614,10 @@ export function discordInviteEmail(name: string): EmailContent {
      <ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:0;">
        <li><strong style="color:#ffffff;">Restocks postas direkt</strong> – egna kanaler per serie, så du slipper bruset från set du inte samlar på.</li>
        <li><strong style="color:#ffffff;">Fråga om priser och fynd</strong> – är 900 kr rimligt för lådan? Fråga folk som köper dem varje vecka.</li>
-       <li><strong style="color:#ffffff;">Påverka vad vi bygger</strong> – saknas din butik i Foilio? Säg till, så står den ofta på listan samma vecka.</li>
+       <li><strong style="color:#ffffff;">Påverka vad vi bygger</strong> – saknas din butik i Scoutr? Säg till, så står den ofta på listan samma vecka.</li>
      </ul>
      ${button(DISCORD_URL, "Gå med i Discord")}
-     <p style="line-height:1.6;color:#6b7280;font-size:13px;">Servern är gratis och öppen för alla. Du behöver inte koppla ditt Foilio-konto – det räcker med att klicka.</p>`,
+     <p style="line-height:1.6;color:#6b7280;font-size:13px;">Servern är gratis och öppen för alla. Du behöver inte koppla ditt Scoutr-konto – det räcker med att klicka.</p>`,
     footerReason
   );
   const text = `Hej ${name}!
@@ -627,14 +627,14 @@ Vi har öppnat en Discord-server för svenska Pokémon-samlare – och du är va
 Vad du får där:
 · Restocks postas direkt – egna kanaler per serie, så du slipper bruset från set du inte samlar på.
 · Fråga om priser och fynd – är 900 kr rimligt för lådan? Fråga folk som köper dem varje vecka.
-· Påverka vad vi bygger – saknas din butik i Foilio? Säg till, så står den ofta på listan samma vecka.
+· Påverka vad vi bygger – saknas din butik i Scoutr? Säg till, så står den ofta på listan samma vecka.
 
 Gå med här: ${DISCORD_URL}
 
-Servern är gratis och öppen för alla. Du behöver inte koppla ditt Foilio-konto – det räcker med att klicka.
+Servern är gratis och öppen för alla. Du behöver inte koppla ditt Scoutr-konto – det räcker med att klicka.
 
-Du får detta mejl för att du har ett konto på Foilio. Det här är ett engångsutskick om vår community. Vill du inte ha mejl från oss stänger du av e-post under Inställningar i Foilio-appen.
-Foilio · Sveriges marknadsplats för Pokémon TCG`;
+Du får detta mejl för att du har ett konto på Scoutr. Det här är ett engångsutskick om vår community. Vill du inte ha mejl från oss stänger du av e-post under Inställningar i Scoutr-appen.
+Scoutr · Sveriges marknadsplats för Pokémon TCG`;
   return { subject, html, text };
 }
 
@@ -861,7 +861,7 @@ function digestBlockHtml(block: DigestBlock, lead: boolean): string {
  * Brevets skal: samma sidhuvud och foliekant som larmen (riktning "Svart holo").
  *
  * ⛔ **NAMNET STÅR SOM TEXT.** Logotypen blev en trasig ruta i det skarpa utskicket
- * 2026-08-16 (tom bas-URL). Märket är nu en bild MED "Foilio" som text bredvid
+ * 2026-08-16 (tom bas-URL). Märket är nu en bild MED "Scoutr" som text bredvid
  * (`brandHeader`), och bilden pekar på APP_URL-konstanten, aldrig `data.appUrl` —
  * blockeras den (Outlook) står namnet kvar.
  */
@@ -929,13 +929,13 @@ function digestLayout(preheader: string, headline: string, bodyHtml: string, foo
  *
  * ⛔ **SIDFOTEN MÅSTE BÄRA AVANMÄLAN.** Det här är inget transaktionsmejl. Utan
  * en fungerande utloggad avregistreringslänk är spamknappen mottagarens enda
- * utväg, och den kostar foilio.se:s avsändarrykte permanent.
+ * utväg, och den kostar scoutr.se:s avsändarrykte permanent.
  */
 export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
   const { pulse } = data;
   // Trailing slash bort: `${base}/samling` får aldrig bli `//samling`. Reserven är
   // apex — den är kanonisk, och en tom sträng in ska inte kunna ge en relativ länk.
-  const base = (data.appUrl || "https://foilio.se").replace(/\/+$/, "");
+  const base = (data.appUrl || "https://scoutr.se").replace(/\/+$/, "");
   const setProgress = data.setProgress ?? [];
 
   const blocks: DigestBlock[] = [];
@@ -1178,8 +1178,8 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
         return {
           subject:
             n === 1
-              ? `Tillbaka i lager: ${first.title} · Foilio`
-              : `${n} av dina bevakade är i lager igen · Foilio`,
+              ? `Tillbaka i lager: ${first.title} · Scoutr`
+              : `${n} av dina bevakade är i lager igen · Scoutr`,
           headline:
             n === 1
               ? "Något du bevakar är tillbaka i lager"
@@ -1195,8 +1195,8 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
         return {
           subject:
             n === 1
-              ? `${pct(first.percent)} på ${first.title} · Foilio`
-              : `Prisfall på ${n} av dina bevakade · Foilio`,
+              ? `${pct(first.percent)} på ${first.title} · Scoutr`
+              : `Prisfall på ${n} av dina bevakade · Scoutr`,
           headline: n === 1 ? "Priset föll på något du bevakar" : `Priset föll på ${n} av dina bevakade`,
           preheader: `${first.title} ${pct(first.percent)}${
             first.priceOre != null ? ` — nu ${formatSek(first.priceOre)}` : ""
@@ -1206,7 +1206,7 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
       case "sets": {
         const left = firstSet ? Math.max(0, firstSet.total - firstSet.owned) : 0;
         return {
-          subject: `${left} kort kvar i ${firstSet?.setName ?? "ditt set"} · Foilio`,
+          subject: `${left} kort kvar i ${firstSet?.setName ?? "ditt set"} · Scoutr`,
           headline: `Du är ${left} kort från att fylla ${firstSet?.setName ?? "setet"}`,
           preheader: firstSet
             ? `${firstSet.owned} av ${firstSet.total} kort i hus. Vi visar vilka som fattas.`
@@ -1221,8 +1221,8 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
         const big = c.changePercent != null && Math.abs(c.changePercent) >= 1;
         return {
           subject: big
-            ? `Din samling ${pct(c.changePercent!)} den här veckan · Foilio`
-            : `Din samling: ${formatSek(c.totalValueOre)} · Foilio`,
+            ? `Din samling ${pct(c.changePercent!)} den här veckan · Scoutr`
+            : `Din samling: ${formatSek(c.totalValueOre)} · Scoutr`,
           headline: big
             ? `Din samling gick ${pct(c.changePercent!)} den här veckan`
             : `Din samling står i ${formatSek(c.totalValueOre)}`,
@@ -1235,8 +1235,8 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
         return {
           subject:
             pulse.underMarketCount > 0
-              ? `${pulse.underMarketCount} varor under marknadspris just nu · Foilio`
-              : "Veckan på Foilio",
+              ? `${pulse.underMarketCount} varor under marknadspris just nu · Scoutr`
+              : "Veckan på Scoutr",
           headline:
             pulse.underMarketCount > 0
               ? `${pulse.underMarketCount} varor ligger under marknadspris`
@@ -1245,8 +1245,8 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
         };
       default:
         return {
-          subject: "Veckan på Foilio",
-          headline: "Din vecka på Foilio",
+          subject: "Veckan på Scoutr",
+          headline: "Din vecka på Scoutr",
           preheader: "Lägg upp din samling så handlar nästa brev om dina kort.",
         };
     }
@@ -1258,7 +1258,7 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
     ? `Hej ${data.name}! Här är veckan som gick — dina kort, dina bevakningar och var fynden fanns.`
     : `Hej ${data.name}! Du har inget upplagt ännu, så det här brevet handlar om marknaden. Lägg upp din samling och bevaka det du jagar, så handlar nästa om dina kort.`;
 
-  // ---- "Det här kan Foilio" ----
+  // ---- "Det här kan Scoutr" ----
   // ⛔ Diskret och SIST. Den är för den som inte redan vet vad appen gör — inte en
   // funktionslista som konkurrerar med veckans nyhet. Max en mening per funktion.
   const capability = (label: string, path: string, line: string) =>
@@ -1270,7 +1270,7 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
   const capabilitiesHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:28px 0 0;">
         <tr>
           <td style="padding:22px 0 0;border-top:1px solid ${D_LINE};background-color:${D_CARD};">
-            <p style="margin:0 0 14px;font-family:${D_FONT};font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${D_MUTED};">Det här kan Foilio</p>
+            <p style="margin:0 0 14px;font-family:${D_FONT};font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${D_MUTED};">Det här kan Scoutr</p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
               ${capability("Skanna kort", "/skanna", "— rikta kameran mot kortet, vi hittar det och lägger det i samlingen.")}
               ${capability("Bevaka lager", "/bevakningar", "— vi håller koll på 42 svenska butiker och larmar när något du jagar dyker upp.")}
@@ -1280,7 +1280,7 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
           </td>
         </tr>
       </table>`;
-  const capabilitiesText = `— Det här kan Foilio —
+  const capabilitiesText = `— Det här kan Scoutr —
   · Skanna kort — rikta kameran mot kortet, vi hittar det och lägger det i samlingen: ${base}/skanna
   · Bevaka lager — vi håller koll på 42 svenska butiker och larmar när något du jagar dyker upp: ${base}/bevakningar
   · Värdera samlingen — dagsfärskt värde på varje kort, och kurvan bakåt: ${base}/samling
@@ -1294,7 +1294,7 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
     ? { url: `${base}/samling`, label: "Lägg upp din samling" }
     : data.drops.length === 0 && data.restocks.length === 0
     ? { url: `${base}/bevakningar`, label: "Bevaka det du jagar" }
-    : { url: `${base}/dashboard`, label: "Öppna Foilio" };
+    : { url: `${base}/dashboard`, label: "Öppna Scoutr" };
 
   const bodyHtml = `<p style="margin:0 0 22px;font-family:${D_FONT};font-size:15px;line-height:1.6;color:${D_TEXT};">${esc(
     intro
@@ -1305,9 +1305,9 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
 
   // ⛔ Avanmälan i BÅDE sidfoten och textversionen. En länk som bara finns i
   // HTML-halvan är osynlig för den som läser i ren text.
-  const footerHtml = `Du får det här brevet för att du har ett konto på Foilio.<br>
+  const footerHtml = `Du får det här brevet för att du har ett konto på Scoutr.<br>
               <a href="${esc(data.unsubscribeUrl)}" style="color:#9ca3af;">Avregistrera dig från veckobrevet</a> &middot; du behåller dina pris- och restock-larm.<br>
-              © Foilio &middot; Sveriges marknadsplats för Pokémon TCG`;
+              © Scoutr &middot; Sveriges marknadsplats för Pokémon TCG`;
 
   const html = digestLayout(esc(leadCopy.preheader), esc(leadCopy.headline), bodyHtml, footerHtml);
 
@@ -1323,15 +1323,15 @@ ${finalCta.label}: ${finalCta.url}
 
 ${capabilitiesText}
 
-Du får det här brevet för att du har ett konto på Foilio.
+Du får det här brevet för att du har ett konto på Scoutr.
 Avregistrera dig från veckobrevet: ${data.unsubscribeUrl}
-Foilio · Sveriges marknadsplats för Pokémon TCG`;
+Scoutr · Sveriges marknadsplats för Pokémon TCG`;
 
   return { subject: leadCopy.subject, html, text };
 }
 
 export function passwordResetEmail(name: string, resetUrl: string): EmailContent {
-  const subject = "Återställ ditt lösenord – Foilio";
+  const subject = "Återställ ditt lösenord – Scoutr";
   const html = layout(
     "Återställ ditt lösenord",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Vi fick en begäran om att återställa ditt lösenord. Klicka på knappen nedan för att välja ett nytt. Länken är giltig i 1 timme.</p>
@@ -1389,7 +1389,7 @@ export function restockPausedEmail(name: string): EmailContent {
  * Apples relay-tjänst. Driftmeddelande om eget konto ⇒ ingen `unsubscribeUrl`.
  */
 export function appleRelayLinkedEmail(name: string, originalEmail: string): EmailContent {
-  const subject = "Din Apple-inloggning är nu kopplad till ditt vanliga Foilio-konto";
+  const subject = "Din Apple-inloggning är nu kopplad till ditt vanliga Scoutr-konto";
   const html = layout(
     "Ditt konto är ihopkopplat igen",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}!</p>
@@ -1398,7 +1398,7 @@ export function appleRelayLinkedEmail(name: string, originalEmail: string): Emai
      <div style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-radius:10px;padding:20px;margin:24px 0;">
        <p style="margin:0;line-height:1.6;color:#cbd5e1;">Nästa gång du öppnar appen kan du logga in <strong style="color:#2dd4bf;">med Apple</strong> eller <strong style="color:#2dd4bf;">med e-post och lösenord</strong> som tidigare. Båda leder till samma konto, och du behöver inte ändra något i dina Apple-inställningar.</p>
      </div>
-     ${button(`${APP_URL}/logga-in`, "Öppna Foilio")}
+     ${button(`${APP_URL}/logga-in`, "Öppna Scoutr")}
      <p style="line-height:1.6;color:#6b7280;font-size:13px;margin:16px 0 0;">Ser något fel ut? Svara på det här mejlet så hjälper vi till.</p>`
   );
   const text =
@@ -1406,14 +1406,14 @@ export function appleRelayLinkedEmail(name: string, originalEmail: string): Emai
     `Vi såg att du loggade in med Apple den 1 september. Eftersom "Dölj min e-post" var valt fick vi en anonym adress från Apple i stället för din vanliga, och då kunde vi inte se att det var du. Därför skapades ett nytt, tomt konto i stället för att du hamnade i ditt eget.\n\n` +
     `Det är fixat nu. Din Apple-inloggning är kopplad till ditt ursprungliga konto (${originalEmail}) och det tomma dubbelkontot är borttaget. Din samling, dina skanningar och dina utmärkelser finns kvar precis som förut.\n\n` +
     `Nästa gång du öppnar appen kan du logga in med Apple eller med e-post och lösenord som tidigare. Båda leder till samma konto, och du behöver inte ändra något i dina Apple-inställningar.\n\n` +
-    `Öppna Foilio: ${APP_URL}/logga-in\n\n` +
+    `Öppna Scoutr: ${APP_URL}/logga-in\n\n` +
     `Ser något fel ut? Svara på det här mejlet så hjälper vi till.` +
     textFooter;
   return { subject, html, text };
 }
 
 /**
- * NYHETSMEJL PER SLÄPP — "det här är nytt i Foilio". Skickas av
+ * NYHETSMEJL PER SLÄPP — "det här är nytt i Scoutr". Skickas av
  * scripts/send-release-notes.ts (förhandsgranskning till ägaren först).
  *
  * ⛔ `unsubscribeUrl` ÄR OBLIGATORISK. Det här är produktnyheter, inte ett
@@ -1427,15 +1427,15 @@ export function appleRelayLinkedEmail(name: string, originalEmail: string): Emai
  */
 export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string }): EmailContent {
   const { name, unsubscribeUrl } = input;
-  const subject = "Nytt i Foilio: japanska singlar, Google-/Apple-inloggning och skanning utan konto";
+  const subject = "Nytt i Scoutr: japanska singlar, Google-/Apple-inloggning och skanning utan konto";
   const item = (title: string, body: string) =>
     `<div style="padding:14px 0;border-top:1px solid ${D_LINE};">
        <p style="margin:0 0 4px;font-weight:700;color:#ffffff;">${title}</p>
        <p style="margin:0;line-height:1.6;color:#cbd5e1;">${body}</p>
      </div>`;
   const html = layout(
-    "Det här är nytt i Foilio",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Vi har släppt en ny version av Foilio. Tre saker du kommer märka:</p>
+    "Det här är nytt i Scoutr",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Vi har släppt en ny version av Scoutr. Tre saker du kommer märka:</p>
      <div style="margin:20px 0 4px;">
        ${item(
          "🇯🇵 Japanska singlar",
@@ -1455,12 +1455,12 @@ export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string 
      </div>
      ${button(APP_STORE_URL, "Uppdatera appen")}
      <p style="line-height:1.6;color:#cbd5e1;margin:16px 0 0;">Frågor eller funderingar? Hoppa in i vår <a href="${DISCORD_URL}" style="color:#2dd4bf;font-weight:700;">Discord</a> — där svarar vi snabbast, och där släpper vi nyheterna först.</p>`,
-    `Du får det här mejlet för att du har ett konto på Foilio.<br>
+    `Du får det här mejlet för att du har ett konto på Scoutr.<br>
       <a href="${unsubscribeUrl}" style="color:#9ca3af;">Vill du inte ha nyhetsmejl? Avregistrera dig</a> &middot; dina larm och ditt veckobrev rörs inte.`
   );
   const text =
     `Hej ${name}!\n\n` +
-    `Vi har släppt en ny version av Foilio. Tre saker du kommer märka:\n\n` +
+    `Vi har släppt en ny version av Scoutr. Tre saker du kommer märka:\n\n` +
     `JAPANSKA SINGLAR\n` +
     `Över 5 500 japanska kort från 46 set finns nu i katalogen — sök upp dem och lägg dem i samlingen precis som de engelska.\n\n` +
     `LOGGA IN MED GOOGLE ELLER APPLE\n` +
@@ -1473,7 +1473,7 @@ export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string 
     `${DISCORD_URL}\n\n` +
     `Vill du inte ha nyhetsmejl? Avregistrera dig: ${unsubscribeUrl}\n` +
     `Dina larm och ditt veckobrev rörs inte.\n` +
-    `Foilio · Sveriges marknadsplats för Pokémon TCG`;
+    `Scoutr · Sveriges marknadsplats för Pokémon TCG`;
   return { subject, html, text };
 }
 
@@ -1489,7 +1489,7 @@ export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string 
  * frågade "vad kan man vinna? det avslöjar vi därinne" — den skrevs om: en
  * gåta gör mejlet till ett trick, och den som inte biter får aldrig veta att
  * det fanns något att vinna. Ett rakt påstående är både ärligare och räcker.
- * ⛔ Skriv därför aldrig in vinsten (Foilio Pro) här — den står i servern.
+ * ⛔ Skriv därför aldrig in vinsten (Scoutr Pro) här — den står i servern.
  *
  * ⛔ **SIFFRAN ÄR ETT ÄGARBESLUT, INTE EN MÄTNING** (2026-09-03). Mätt mot
  * prod-DB samma dag: 100 konton TOTALT, 13 nya senaste 7 dygnen, 95 senaste 30.
@@ -1505,7 +1505,7 @@ export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string 
  * Neon-väckning. Delas koden med headern går det aldrig att se om mejlet levererade.
  *
  * ⛔ VILLKORSRADEN ÄR INTE PYNT: ett gratislotteri utan insats är lagligt i
- * Sverige, men dragningsdatum, "inget köp krävs" och att arrangören är Foilio
+ * Sverige, men dragningsdatum, "inget köp krävs" och att arrangören är Scoutr
  * (inte Discord) måste stå någonstans. Den korta raden längst ner är den platsen.
  */
 export function giveawayEmail(input: { name: string; unsubscribeUrl: string }): EmailContent {
@@ -1516,7 +1516,7 @@ export function giveawayEmail(input: { name: string; unsubscribeUrl: string }): 
   const subject = "100 nya medlemmar den här veckan 🎉 Giveaway pågår i vår Discord";
   const html = layout(
     "Tack – 100 nya medlemmar den här veckan 🎉",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Den här veckan fick Foilio <strong style="color:#ffffff;">100 nya medlemmar</strong>. Det gick fortare än vi vågade hoppas på, och det är din förtjänst.</p>
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Den här veckan fick Scoutr <strong style="color:#ffffff;">100 nya medlemmar</strong>. Det gick fortare än vi vågade hoppas på, och det är din förtjänst.</p>
      <p style="line-height:1.6;color:#cbd5e1;">Så vi firar på enda rimliga sättet.</p>
      <div style="background-color:${D_PANEL};border:1px solid ${D_ACCENT};border-radius:10px;padding:22px;margin:24px 0;">
        <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#2dd4bf;">🎁 Just nu kör vi en giveaway i vår Discord</p>
@@ -1528,15 +1528,15 @@ export function giveawayEmail(input: { name: string; unsubscribeUrl: string }): 
      <ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:0;">
        <li><strong style="color:#ffffff;">Restocks postas direkt</strong> – egna kanaler per serie, så du slipper bruset från set du inte samlar på.</li>
        <li><strong style="color:#ffffff;">Fråga om priser och fynd</strong> – är 900 kr rimligt för lådan? Fråga folk som köper dem varje vecka.</li>
-       <li><strong style="color:#ffffff;">Nyheterna först</strong> – och saknas din butik i Foilio hamnar den ofta på listan samma vecka.</li>
+       <li><strong style="color:#ffffff;">Nyheterna först</strong> – och saknas din butik i Scoutr hamnar den ofta på listan samma vecka.</li>
      </ul>
-     <p style="line-height:1.6;color:#6b7280;font-size:12px;margin:24px 0 0;">Utlottningen arrangeras av Foilio och har inget samband med Discord. Vinnaren dras slumpmässigt bland serverns medlemmar ${drawDate} och kontaktas i Discord. Inget köp krävs.</p>`,
-    `Du får det här mejlet för att du har ett konto på Foilio.<br>
+     <p style="line-height:1.6;color:#6b7280;font-size:12px;margin:24px 0 0;">Utlottningen arrangeras av Scoutr och har inget samband med Discord. Vinnaren dras slumpmässigt bland serverns medlemmar ${drawDate} och kontaktas i Discord. Inget köp krävs.</p>`,
+    `Du får det här mejlet för att du har ett konto på Scoutr.<br>
       <a href="${unsubscribeUrl}" style="color:#9ca3af;">Vill du inte ha nyhetsmejl? Avregistrera dig</a> &middot; dina larm och ditt veckobrev rörs inte.`
   );
   const text =
     `Hej ${name}!\n\n` +
-    `Den här veckan fick Foilio 100 nya medlemmar. Det gick fortare än vi vågade hoppas på, och det är din förtjänst.\n\n` +
+    `Den här veckan fick Scoutr 100 nya medlemmar. Det gick fortare än vi vågade hoppas på, och det är din förtjänst.\n\n` +
     `Så vi firar på enda rimliga sättet.\n\n` +
     `JUST NU KÖR VI EN GIVEAWAY I VÅR DISCORD\n` +
     `Vi drar en vinnare bland serverns medlemmar ${drawDate}. Ingen anmälan, inget köp, inga formulär – är du medlem när vi drar är du med.\n\n` +
@@ -1545,10 +1545,10 @@ export function giveawayEmail(input: { name: string; unsubscribeUrl: string }): 
     `OCH DU BLIR KVAR FÖR DET HÄR\n` +
     `· Restocks postas direkt – egna kanaler per serie, så du slipper bruset från set du inte samlar på.\n` +
     `· Fråga om priser och fynd – är 900 kr rimligt för lådan? Fråga folk som köper dem varje vecka.\n` +
-    `· Nyheterna först – och saknas din butik i Foilio hamnar den ofta på listan samma vecka.\n\n` +
-    `Utlottningen arrangeras av Foilio och har inget samband med Discord. Vinnaren dras slumpmässigt bland serverns medlemmar ${drawDate} och kontaktas i Discord. Inget köp krävs.\n\n` +
+    `· Nyheterna först – och saknas din butik i Scoutr hamnar den ofta på listan samma vecka.\n\n` +
+    `Utlottningen arrangeras av Scoutr och har inget samband med Discord. Vinnaren dras slumpmässigt bland serverns medlemmar ${drawDate} och kontaktas i Discord. Inget köp krävs.\n\n` +
     `Vill du inte ha nyhetsmejl? Avregistrera dig: ${unsubscribeUrl}\n` +
     `Dina larm och ditt veckobrev rörs inte.\n` +
-    `Foilio · Sveriges marknadsplats för Pokémon TCG`;
+    `Scoutr · Sveriges marknadsplats för Pokémon TCG`;
   return { subject, html, text };
 }

@@ -230,7 +230,7 @@ async function tryRewardInviter(inviterId: string): Promise<void> {
     // den inte i Discord förrän nattens avstämning. ⛔ UTANFÖR transaktionen:
     // ett HTTP-anrop mot Discord hör inte hemma i en DB-transaktion (den hålls
     // öppen medan vi väntar på ett nätverkssvar).
-    await syncDiscordRoles(inviterId, "Foilio: Pro via inbjudningar");
+    await syncDiscordRoles(inviterId, "Scoutr: Pro via inbjudningar");
     try {
       await sendMail({ to: granted.email, ...proRewardEmail(granted.name, granted.until) });
     } catch (e) {

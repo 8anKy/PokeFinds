@@ -5,7 +5,7 @@
  *   npx tsx scripts/indexnow-submit.ts                 # senaste 26 h (marginal mot jobbets drift)
  * Manuellt:
  *   node scripts/with-prod-db.mjs npx tsx scripts/indexnow-submit.ts --since-hours=168 --dry
- *   npx tsx scripts/indexnow-submit.ts --urls=https://foilio.se/discord,https://foilio.se/om
+ *   npx tsx scripts/indexnow-submit.ts --urls=https://scoutr.se/discord,https://scoutr.se/om
  *
  * Urvalet speglar sitemapen (src/app/sitemap.ts): synliga produkter, set med minst en
  * synlig produkt, guider vars `updatedAt` ligger i fönstret. ⛔ Aldrig hela katalogen —
@@ -30,7 +30,7 @@ import { buildIndexNowPayloads, submitIndexNow } from "../src/lib/indexnow";
 
 // ⛔ Inte NEXT_PUBLIC_APP_URL: lokalt pekar den på localhost, och IndexNow gäller bara
 // den publika domänen. SITE_URL är samma repo-variabel som workflowens curl-steg läser.
-const BASE_URL = process.env.SITE_URL || "https://foilio.se";
+const BASE_URL = process.env.SITE_URL || "https://scoutr.se";
 const arg = (name: string) =>
   process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const dry = process.argv.includes("--dry");

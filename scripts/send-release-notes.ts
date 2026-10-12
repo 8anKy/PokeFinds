@@ -1,5 +1,5 @@
 /**
- * NYHETSMEJL PER SLÄPPT VERSION — "det här är nytt i Foilio".
+ * NYHETSMEJL PER SLÄPPT VERSION — "det här är nytt i Scoutr".
  *
  * Mallen bor i src/emails/templates.ts (`releaseNotesEmail`); vid nästa släpp
  * byts innehållet DÄR och det här skriptet körs igen via
@@ -32,7 +32,7 @@ import { requireUnsubscribeSecret, unsubscribeUrl } from "@/lib/unsubscribe-toke
 const OWNER = "milostheking88@gmail.com";
 // `||`, inte `??`: workflowet kan sätta variabeln till TOM sträng (2026-08-16 gav
 // det relativa länkar i veckobrevet). Apex, aldrig www.
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se";
 const sendToAll = process.argv.includes("--send-to-all");
 /** Skicka bara till EN adress — för att komplettera efter ett delvis misslyckat utskick. */
 const only = /--only=(\S+)/.exec(process.argv.join(" "))?.[1];

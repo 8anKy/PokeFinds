@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { waitForUpdateCheck } from "@/lib/boot-gate";
 
 /**
- * Döljer den NATIVE splash-skärmen när appen är redo (#21). Splashen ("Foilio" +
+ * Döljer den NATIVE splash-skärmen när appen är redo (#21). Splashen ("Scoutr" +
  * F-märket på mörk yta, ingen spinner sedan 2026-09-17) hålls uppe tills nu
  * (launchAutoHide:false) så att app-starten inte visar en svart skärm medan
  * WebView:en laddar den hostade webben över nätet; här — efter hydrering

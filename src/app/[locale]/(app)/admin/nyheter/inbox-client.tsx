@@ -28,7 +28,7 @@ import { EVENT_CATEGORIES, NEWS_CATEGORIES, type EventCategory, type NewsCategor
 import type { ApproveEventInput, ApproveInput, DraftStatus, InboxDocument, InboxEntry, InboxEventEntry } from "@/lib/feed-inbox";
 import { cn } from "@/lib/utils";
 
-const CATEGORY_LABEL: Record<NewsCategory, string> = { RELEASE: "Släpp", MARKET: "Marknad", STORE: "Butik", APP: "Foilio" };
+const CATEGORY_LABEL: Record<NewsCategory, string> = { RELEASE: "Släpp", MARKET: "Marknad", STORE: "Butik", APP: "Scoutr" };
 const EVENT_CATEGORY_LABEL: Record<EventCategory, string> = { EXPO: "Mässa", PRERELEASE: "Prerelease", TOURNAMENT: "Turnering", OTHER: "Övrigt" };
 const ORIGIN_LABEL = { email: "Nyhetsbrev", web: "Webben" } as const;
 const STATUS_LABEL: Record<DraftStatus, string> = { pending: "Väntar", approved: "Godkända", rejected: "Avvisade" };

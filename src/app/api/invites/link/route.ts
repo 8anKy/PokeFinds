@@ -1,6 +1,6 @@
 /**
  * Min personliga inbjudningslänk (lib/invite-link.ts) — trycks på delningsbilderna.
- * Koden skapas lat första gången. 401 för gäster ⇒ bilden visar bara foilio.se.
+ * Koden skapas lat första gången. 401 för gäster ⇒ bilden visar bara scoutr.se.
  */
 import { requireUser } from "@/lib/auth";
 import { apiError, jsonOk } from "@/lib/api";

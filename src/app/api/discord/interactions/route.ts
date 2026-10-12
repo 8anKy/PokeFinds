@@ -38,7 +38,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 // ⛔ `||`, inte `??`: en tom sträng är felläget (se notifications.ts).
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se").replace(/\/$/, "");
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se").replace(/\/$/, "");
 
 function reply(data: Record<string, unknown>) {
   return NextResponse.json({ type: ResponseType.MESSAGE, data });
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
   }
 
   if (!interaction.member) {
-    return reply({ content: "Använd /pris i Foilios Discord-server.", flags: EPHEMERAL });
+    return reply({ content: "Använd /pris i Scoutrs Discord-server.", flags: EPHEMERAL });
   }
   if (!isPro) return reply(proRequiredMessage(APP_URL));
 

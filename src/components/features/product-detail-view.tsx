@@ -102,7 +102,7 @@ function shellToDetail(shell: ProductShellData): ProductDetailData {
  *     (`isCrawlerClient`): de får skalet och "–" som pris, och Neon får sova.
  *     Skälet till hela uppdelningen står i produkter/[slug]/page.tsx.
  *
- * LAYOUTEN "HJÄLTE" (ägarbeslut 2026-09-05, design-canvasen "Foilio Produktvy"):
+ * LAYOUTEN "HJÄLTE" (ägarbeslut 2026-09-05, design-canvasen "Scoutr Produktvy"):
  * på mobil är produktbilden en SCEN över hela bredden med en flytande bakåtcirkel,
  * och ett rundat ARK glider upp över den med titel → pris → knappar → graf →
  * en rad som leder till butikerna. Inget logotyphuvud, inga brödsmulor, ingen

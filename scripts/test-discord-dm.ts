@@ -17,7 +17,7 @@ import { formatPrice } from "../src/lib/format";
 import { buyLink } from "../src/lib/cart-url";
 import { exitJob } from "../src/lib/job-exit";
 
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se").replace(/\/$/, "");
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se").replace(/\/$/, "");
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -55,7 +55,7 @@ async function main() {
 
   const content = {
     title: "Åter i lager! (test)",
-    body: `${offer.product.title} finns i lager hos ${offer.retailer.name} för ${formatPrice(offer.price)}. Det här är ett testmeddelande från Foilio.`,
+    body: `${offer.product.title} finns i lager hos ${offer.retailer.name} för ${formatPrice(offer.price)}. Det här är ett testmeddelande från Scoutr.`,
     url: settings.pushTarget === "foilio" ? `${APP_URL}/produkter/${offer.product.slug}` : buyLink(offer.cartUrl, offer.url),
     imageUrl: offer.product.imageUrl?.startsWith("/") ? `${APP_URL}${offer.product.imageUrl}` : offer.product.imageUrl,
   };

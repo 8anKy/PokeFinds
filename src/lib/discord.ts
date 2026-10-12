@@ -143,7 +143,7 @@ export async function discordFetch(
       Authorization: authorization,
       // Bilagor skickas som multipart — då sätter fetch själv gränssträngen.
       ...(rest.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-      "User-Agent": "Foilio (https://www.foilio.se, 1.0)",
+      "User-Agent": "Scoutr (https://www.scoutr.se, 1.0)",
     },
     cache: "no-store",
   });

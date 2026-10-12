@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
       console.error(`[register] Välkomstmejlet till ${user.email} gick inte att skicka:`, mailError);
     }
 
-    return jsonOk({ message: "Kontot har skapats. Välkommen till Foilio!" }, { status: 201 });
+    return jsonOk({ message: "Kontot har skapats. Välkommen till Scoutr!" }, { status: 201 });
   } catch (e) {
     return apiError(e);
   }

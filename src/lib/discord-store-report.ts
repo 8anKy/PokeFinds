@@ -33,7 +33,7 @@ const DISPUTED_COLOR = 0xf59e0b;
 const MAX_TITLE = 256;
 const MAX_DESCRIPTION = 400;
 const MAX_FIELD_VALUE = 1024;
-const SITE = "https://foilio.se";
+const SITE = "https://scoutr.se";
 
 export interface StoreReportPost {
   postId: string;
@@ -166,7 +166,7 @@ export function buildStoreReportEmbed(post: StoreReportPost) {
       ? [`[Prishistorik](${localeUrl("sv", `/produkter/${post.productSlug}`)})`]
       : []),
   ];
-  fields.push({ name: "På Foilio", value: links.join(" · "), inline: false });
+  fields.push({ name: "På Scoutr", value: links.join(" · "), inline: false });
 
   const comment = post.comment?.replace(/\s+/g, " ").trim();
   const lead = seen
@@ -182,7 +182,7 @@ export function buildStoreReportEmbed(post: StoreReportPost) {
       url: storeUrl,
       ...(logo ? { icon_url: logo } : {}),
     },
-    // Ingen titellänk (ägarbeslut 2026-10-05): länkarna står i "På Foilio".
+    // Ingen titellänk (ägarbeslut 2026-10-05): länkarna står i "På Scoutr".
     title: clamp(`${seen ? "Finns på hyllan" : "Slut i butiken"}: ${post.productLabel}`, MAX_TITLE),
     description: clamp(comment ? `${lead}\n> ${comment}` : lead, MAX_DESCRIPTION),
     // Senaste rösten säger emot rapporten ⇒ gul kant: läsaren ska se direkt att
@@ -194,7 +194,7 @@ export function buildStoreReportEmbed(post: StoreReportPost) {
     ...(photo ? { image: { url: photo } } : {}),
     ...(productImage ? { thumbnail: { url: productImage } } : {}),
     footer: {
-      text: "Foilio Community · Medlemsrapport, inget garanterat lager — ring butiken innan du åker.",
+      text: "Scoutr Community · Medlemsrapport, inget garanterat lager — ring butiken innan du åker.",
     },
     timestamp: post.observedAt.toISOString(),
   };

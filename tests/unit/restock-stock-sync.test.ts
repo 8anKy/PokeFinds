@@ -86,7 +86,7 @@ function derive(state: DiscordRestockState, groups: FullFeedGroup[], routes: Rou
     now: NOW,
     policy: POLICY,
     cooldownHours: 0.25,
-    baseUrl: "https://foilio.se",
+    baseUrl: "https://scoutr.se",
     priceDrops: null,
   });
 }

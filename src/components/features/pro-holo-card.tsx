@@ -12,7 +12,7 @@ const MAX_TILT = 12;
  * Pro-kortet — ett holografiskt "full art"-kort som lutar under fingret och där
  * foilen, gnistorna och kantljuset följer ljuskällan.
  *
- * Varumärket heter Foilio: kortet ÄR säljargumentet, inte en illustration till det.
+ * Varumärket heter Scoutr: kortet ÄR säljargumentet, inte en illustration till det.
  * Kortanatomin är lånad från spelkortet så att en samlare läser det utan copy:
  * namn, "HP" = priset, attacker = förmånerna, sällsynthetsraden = villkoren.
  *
@@ -174,7 +174,7 @@ export function ProHoloCard({
                 />
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/brand/foilio-mark.png"
+                  src="/brand/scoutr-mark.png"
                   alt=""
                   width={hero ? 100 : 76}
                   height={hero ? 100 : 76}

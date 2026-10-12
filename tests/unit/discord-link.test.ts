@@ -37,7 +37,7 @@ const FULL_ENV = {
   DISCORD_GUILD_ID: "1522299359910166650",
   DISCORD_ROLE_VERIFIED: "1535392299037491260",
   DISCORD_ROLE_PRO: "1534614609363730703",
-  NEXT_PUBLIC_APP_URL: "https://www.foilio.se",
+  NEXT_PUBLIC_APP_URL: "https://www.scoutr.se",
 };
 
 const saved = { ...process.env };
@@ -113,12 +113,12 @@ describe("auktoriserings-URL:en", () => {
     expect(url.origin + url.pathname).toBe("https://discord.com/oauth2/authorize");
     expect(url.searchParams.get("state")).toBe("state-123");
     expect(url.searchParams.get("response_type")).toBe("code");
-    expect(url.searchParams.get("redirect_uri")).toBe("https://www.foilio.se/api/discord/callback");
+    expect(url.searchParams.get("redirect_uri")).toBe("https://www.scoutr.se/api/discord/callback");
   });
 
   it("callback-URL:en får aldrig dubbla snedstreck (måste matcha portalen ORDAGRANT)", () => {
-    process.env.NEXT_PUBLIC_APP_URL = "https://www.foilio.se/";
-    expect(discordRedirectUri()).toBe("https://www.foilio.se/api/discord/callback");
+    process.env.NEXT_PUBLIC_APP_URL = "https://www.scoutr.se/";
+    expect(discordRedirectUri()).toBe("https://www.scoutr.se/api/discord/callback");
   });
 });
 

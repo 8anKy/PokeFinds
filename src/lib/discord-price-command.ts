@@ -12,7 +12,7 @@
  *    samma roll som Discord-synken sätter ur `isPro()` — ingen egen regel, ingen DB-fråga.
  * Svaren är EFEMÄRA (bara den som frågade ser dem) — UTOM i pris-kanalen
  *    (`priceChannelId`, ägarbeslut 2026-10-10): där är svaren publika som skyltfönster för
- *    Pro. Datan är ändå gratis på foilio.se; det Pro betalar för är bekvämligheten. En
+ *    Pro. Datan är ändå gratis på scoutr.se; det Pro betalar för är bekvämligheten. En
  *    kanal i stället för överallt, så uppslagen aldrig tränger undan restock-larmen.
  */
 import { formatPrice } from "@/lib/format";
@@ -27,7 +27,7 @@ export const PRICE_COMMAND_OPTION = "produkt";
 /** Kommandots definition — registreras av scripts/register-discord-commands.ts. */
 export const PRICE_COMMAND = {
   name: PRICE_COMMAND_NAME,
-  description: "Priser i svenska butiker, marknadsvärde och Tradera sålt (Foilio Pro)",
+  description: "Priser i svenska butiker, marknadsvärde och Tradera sålt (Scoutr Pro)",
   type: 1,
   options: [
     {
@@ -198,7 +198,7 @@ export function buildPriceEmbed(
     color: priceEdgeColor(BRAND_COLOR, cheapest?.price, cm?.price, index?.sold?.[0], index?.sold?.[1]),
     fields,
     ...(absolute(entry.imageUrl, appUrl) ? { thumbnail: { url: absolute(entry.imageUrl, appUrl)! } } : {}),
-    footer: { text: "Foilio Pro · /pris" },
+    footer: { text: "Scoutr Pro · /pris" },
   };
 }
 
@@ -206,7 +206,7 @@ export function buildPriceEmbed(
 export function proRequiredMessage(appUrl: string) {
   return {
     content:
-      `**/pris ingår i Foilio Pro.** Svenska butikers priser, marknadsvärde och Tradera sålt direkt här i Discord.\n` +
+      `**/pris ingår i Scoutr Pro.** Svenska butikers priser, marknadsvärde och Tradera sålt direkt här i Discord.\n` +
       `Se exempel i <#${priceChannelId()}>. Skaffa Pro på ${appUrl}/priser och koppla Discord under Inställningar → Kopplingar så får du Pro-rollen.`,
     flags: EPHEMERAL,
   };

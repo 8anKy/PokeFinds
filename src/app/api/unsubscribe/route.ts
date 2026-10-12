@@ -28,13 +28,13 @@ import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://scoutr.se";
 
 /** Minimal, självbärande sida i appens färger (svart yta, turkos accent). */
 function page(title: string, body: string, status = 200): Response {
   const html = `<!DOCTYPE html>
 <html lang="sv">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} · Foilio</title></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} · Scoutr</title></head>
 <body style="margin:0;background-color:#0f1115;font-family:'Segoe UI',Arial,sans-serif;color:#e5e7eb;">
   <div style="max-width:520px;margin:0 auto;padding:48px 20px;">
     <div style="background-color:#1a1d24;border:1px solid #2a2e38;border-radius:12px;padding:32px 28px;">
@@ -42,7 +42,7 @@ function page(title: string, body: string, status = 200): Response {
       ${body}
     </div>
     <p style="text-align:center;padding-top:24px;font-size:12px;color:#6b7280;">
-      Foilio · Sveriges marknadsplats för Pokémon TCG
+      Scoutr · Sveriges marknadsplats för Pokémon TCG
     </p>
   </div>
 </body>
@@ -59,13 +59,13 @@ function page(title: string, body: string, status = 200): Response {
  */
 const KINDS: Record<UnsubscribeType, { what: string; title: string; keeps: string; resume: string }> = {
   weekly: {
-    what: "Foilios veckobrev",
+    what: "Scoutrs veckobrev",
     title: "veckobrevet",
     keeps: "Dina prislarm och restock-larm rörs inte — de är en egen inställning.",
     resume: "veckobrevet",
   },
   news: {
-    what: "Foilios nyhetsmejl",
+    what: "Scoutrs nyhetsmejl",
     title: "nyhetsmejlen",
     keeps: "Dina larm och ditt veckobrev rörs inte — de är egna inställningar.",
     resume: "nyhetsmejlen",
@@ -84,7 +84,7 @@ function kindOf(token: string | null | undefined): UnsubscribeType {
 
 function doneBody(type: UnsubscribeType): string {
   const k = KINDS[type];
-  return `<p style="line-height:1.6;color:#cbd5e1;">Du får inga fler ${k.what.replace("Foilios ", "")} från Foilio. ${k.keeps}</p>
+  return `<p style="line-height:1.6;color:#cbd5e1;">Du får inga fler ${k.what.replace("Scoutrs ", "")} från Scoutr. ${k.keeps}</p>
      <p style="line-height:1.6;color:#cbd5e1;">Ångrar du dig slår du på ${k.resume} igen under Inställningar i appen.</p>
      <p style="margin:24px 0 0;"><a href="${APP_URL}/installningar/notiser" style="display:inline-block;background-color:#2dd4bf;color:#08110f;text-decoration:none;font-weight:700;padding:12px 24px;border-radius:8px;">Öppna inställningar</a></p>`;
 }

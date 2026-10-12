@@ -39,7 +39,7 @@ import { routing } from "@/i18n/routing";
  * självförvållad. Inget felar, inget larmar; trafiken bara upphör. Samma reservvärde
  * som `src/services/notifications.ts` (djuplänkarna i larmen).
  */
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se";
 
 /**
  * Absolut URL för `path` på ett givet språk. `path` anges UTAN språkprefix
@@ -103,7 +103,7 @@ export function swedishCanonical(path: string): Metadata["alternates"] {
  * en incheckad statisk fil. Läs skriptet innan du ändrar bilden — det förklarar bl.a.
  * varför den medvetet INTE innehåller någon text.
  */
-const OG_IMAGE = "/brand/foilio-og.png";
+const OG_IMAGE = "/brand/scoutr-og.png";
 
 /**
  * Bas-fälten för `openGraph`. Spreadas av VARJE sida som sätter ett eget
@@ -129,8 +129,8 @@ const OG_IMAGE = "/brand/foilio-og.png";
 export function baseOpenGraph(locale: string) {
   return {
     type: "website" as const,
-    siteName: "Foilio",
+    siteName: "Scoutr",
     locale: locale === "en" ? "en_US" : "sv_SE",
-    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "Foilio" }],
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "Scoutr" }],
   };
 }

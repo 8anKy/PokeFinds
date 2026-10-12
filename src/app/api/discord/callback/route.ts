@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
   // Är Discord-kontot redan knutet till NÅGON ANNAN? Utan den här kontrollen
   // hade en enda Pro-prenumeration kunnat ge Pro-rollen via hur många
-  // Foilio-konton som helst. Kollas före skrivningen för att kunna ge ett
+  // Scoutr-konton som helst. Kollas före skrivningen för att kunna ge ett
   // begripligt besked; unik-indexet nedan är det som faktiskt garanterar det.
   const existing = await withDbRetry(() =>
     prisma.user.findUnique({
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
     })
   );
   if (previous?.discordUserId && previous.discordUserId !== identity.id) {
-    await revokeDiscordRoles(previous.discordUserId, "Foilio: kontot bytte Discord-konto");
+    await revokeDiscordRoles(previous.discordUserId, "Scoutr: kontot bytte Discord-konto");
   }
 
   // Lägg till i servern. ⛔ Rollerna sätts INTE här: Discord returnerar 204 utan
@@ -116,6 +116,6 @@ export async function GET(req: NextRequest) {
     console.error("[discord] kunde inte skriva AuditLog för länkningen:", err);
   }
 
-  const result = await syncDiscordRoles(user, "Foilio: kontot länkades");
+  const result = await syncDiscordRoles(user, "Scoutr: kontot länkades");
   return back(result.ok ? "ansluten" : "fel-roll");
 }

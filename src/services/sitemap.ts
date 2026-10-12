@@ -23,7 +23,7 @@ import { GUIDES } from "@/content/guides";
 
 // `||`, inte `??`: en tom variabel (GitHub Actions/Railway) hade gett relativa URL:er,
 // som är ogiltiga i en sitemap. Reserven är prod-apex, aldrig localhost.
-export const SITEMAP_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
+export const SITEMAP_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se";
 
 /** Delkartorna, i den ordning indexet listar dem. Namnet är URL:en: /sitemaps/<namn>.xml */
 export const SITEMAP_NAMES = ["sidor", "set", "forseglat", "kort", "kort-japanska"] as const;

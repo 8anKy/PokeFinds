@@ -25,7 +25,7 @@
  *            butikens produktsida — DEFAULT, det snabbaste sättet att hinna köpa
  *   store  = butikens produktsida (den som vill läsa "max per kund" först)
  *   foilio = vår produktsida (jämför butiker först)
- * Prislarm går ALLTID till Foilio — där är jämförelsen poängen. Servern väljer URL:en
+ * Prislarm går ALLTID till Scoutr — där är jämförelsen poängen. Servern väljer URL:en
  * vid utskicket (push-alert-url.ts), så inget nytt app-bygge krävs för spaken.
  */
 export type PushTarget = "cart" | "store" | "foilio";

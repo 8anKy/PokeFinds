@@ -38,7 +38,7 @@ Två källor, i den här ordningen:
      prova fler sökord (svenska + engelska, "Pokémon TCG" + gradering/PSA/Cardmarket/release/
      preorder/ETB/Play! Pokémon) innan du ger upp.
    - `category`: `RELEASE` för set/produkter som släpps, `MARKET` för priser/gradering/
-     marknad, `STORE` för butiksbesked. Aldrig `APP` (den är Foilios egen).
+     marknad, `STORE` för butiksbesked. Aldrig `APP` (den är Scoutrs egen).
    - `publishedAt` = artikelns datum. `origin` = `web`.
    - `imageUrl`: artikelns egen delningsbild om du kan läsa ut `og:image` ur sidan
      (`curl -sL <url> | grep -o '<meta[^>]*og:image[^>]*>'`). Hittar du ingen, lämna `null` —
@@ -90,7 +90,7 @@ Dubbletter mellan källor (samma nyhet hos två sajter) blir ETT utkast med den 
   1–2 meningar (≤ 240 tecken) **med egna ord** — återge aldrig artikelns text, och citera inte.
   Ingressen är teasern i listan: vad som händer och när.
 - **Brödtext (`body`) — en SAMMANFATTAD ARTIKEL, 300–500 ord i 5–7 stycken.** Posten får en
-  egen sida på foilio.se och läsaren ska få hela bilden utan att klicka vidare. **Läs källan
+  egen sida på scoutr.se och läsaren ska få hela bilden utan att klicka vidare. **Läs källan
   först** (WebFetch på artikel-URL:en; gärna även en andra källa) och skriv sedan med egna ord:
   1. ett inledande stycke som säger vad som händer och när;
   2. `## `-mellanrubrik + detaljerna: produkter, antal kort, nya rariteter, priser, datum och
@@ -102,7 +102,7 @@ Dubbletter mellan källor (samma nyhet hos två sajter) blir ETT utkast med den 
   mellanrubriker. Står en uppgift inte i någon källa, skriv den inte. ⛔ Blir källan ändå
   omöjlig att öppna: skriv det du kan belägga ur sökresultaten (kortare är då rätt), och skriv
   i `note` att källan inte kunde läsas, så ägaren vet att texten ska kontrolleras extra.
-- Nämn aldrig konkurrerande prisbevaknings-/samlarsajter eller -appar. Nämn aldrig Foilio
+- Nämn aldrig konkurrerande prisbevaknings-/samlarsajter eller -appar. Nämn aldrig Scoutr
   självt i utkasten — de handlar om världen utanför.
 - Inga påhittade priser, datum eller antal. Står det inte i källan, står det inte i utkastet.
 - Behåll produkt- och setnamn på engelska som de heter ("Elite Trainer Box", "Mega Evolution"),

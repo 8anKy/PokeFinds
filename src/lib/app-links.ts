@@ -1,7 +1,7 @@
 /**
- * UNIVERSAL LINKS / APP LINKS — vilken sida i appen en foilio.se-länk ska öppna.
+ * UNIVERSAL LINKS / APP LINKS — vilken sida i appen en scoutr.se-länk ska öppna.
  *
- * När appen är installerad öppnar telefonen en foilio.se-länk (mejlknappar, Discord,
+ * När appen är installerad öppnar telefonen en scoutr.se-länk (mejlknappar, Discord,
  * delade länkar) i APPEN i stället för i webbläsaren: iOS via
  * `public/.well-known/apple-app-site-association` + entitlementen
  * `com.apple.developer.associated-domains`, Android via `assetlinks.json` + ett
@@ -12,7 +12,8 @@
  * ⛔ `/api/*` hör aldrig hemma i appen (OAuth-callbacks, webhooks, JSON) — samma
  *    undantag som AASA-filen. Andra värdar ⇒ null (aldrig en öppen omdirigering).
  */
-const APP_HOSTS = new Set(["foilio.se", "www.foilio.se"]);
+// Gamla foilio.se-länkar (mejl, Discord, delningar före namnbytet 2026-10) öppnar också appen.
+const APP_HOSTS = new Set(["scoutr.se", "www.scoutr.se", "foilio.se", "www.foilio.se"]);
 
 export function appLinkPath(url: string | null | undefined): string | null {
   if (!url) return null;

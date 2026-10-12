@@ -31,7 +31,7 @@ export const CREATOR_REF_COOKIE = "fo_ref";
  */
 export const CREATOR_REF_MAX_AGE = 60 * 60 * 24 * 30;
 
-/** Query-parametern i kreatörslänken: https://www.foilio.se/?ref=EMMA */
+/** Query-parametern i kreatörslänken: https://www.scoutr.se/?ref=EMMA */
 export const CREATOR_REF_PARAM = "ref";
 
 /** Längdtak. Cookien är osignerad indata — den ska aldrig kunna bli en nyttolast. */

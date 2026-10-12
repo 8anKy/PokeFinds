@@ -16,7 +16,7 @@ import { ProfileCollectionGrid, type ProfileCollectionCell } from "./profile-col
 const MAX_CELLS = 60;
 
 /**
- * Profilens Portfölj-flik: personens samling på Foilio i SAMMA cellformat som
+ * Profilens Portfölj-flik: personens samling på Scoutr i SAMMA cellformat som
  * samlingens eget rutnät (ägarbeslut 2026-09-03: "cell format like we already
  * have", inte en rankad lista). Samma integritetsregel som förut — andra ser
  * objekt + antal när samlingen är publik, ALDRIG belopp; ägaren ser sina värden.

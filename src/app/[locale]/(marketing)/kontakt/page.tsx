@@ -44,10 +44,10 @@ export default async function ContactPage({
           <h2 className="font-display text-lg font-semibold text-ink">{t("emailTitle")}</h2>
           <p className="text-sm text-ink-muted">{t("emailBody")}</p>
           <a
-            href="mailto:hej@foilio.se"
+            href="mailto:hej@scoutr.se"
             className="mt-auto text-sm font-medium text-holo-cyan hover:underline"
           >
-            hej@foilio.se
+            hej@scoutr.se
           </a>
         </div>
 
@@ -58,10 +58,10 @@ export default async function ContactPage({
           <h2 className="font-display text-lg font-semibold text-ink">{t("securityTitle")}</h2>
           <p className="text-sm text-ink-muted">{t("securityBody")}</p>
           <a
-            href="mailto:hej@foilio.se"
+            href="mailto:hej@scoutr.se"
             className="mt-auto text-sm font-medium text-holo-cyan hover:underline"
           >
-            hej@foilio.se
+            hej@scoutr.se
           </a>
         </div>
       </div>

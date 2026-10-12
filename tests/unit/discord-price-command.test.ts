@@ -99,32 +99,32 @@ describe("svaret", () => {
   const nb = (s: string | undefined) => s?.replace(/ /g, " ");
 
   it("butiker i lager billigast först — aldrig slutsålda, aldrig marknadsplatser", () => {
-    const e = buildPriceEmbed(entry, INDEX[0], "https://foilio.se");
+    const e = buildPriceEmbed(entry, INDEX[0], "https://scoutr.se");
     const stores = nb(e.fields.find((f) => f.name === "I lager i butik")?.value);
     expect(stores).toBe("[Speltrollet](https://speltrollet.se/p) · 549 kr\n[Goblinen](https://goblinen.se/p) · 599 kr");
   });
 
   it("marknadsvärde mot billigaste butik, Tradera sålt, grön kant, nattens tid", () => {
-    const e = buildPriceEmbed(entry, INDEX[0], "https://foilio.se");
+    const e = buildPriceEmbed(entry, INDEX[0], "https://scoutr.se");
     expect(nb(e.fields.find((f) => f.name === "Marknadsvärde")?.value)).toBe("699 kr · 21 % under (billigaste butik)");
     expect(nb(e.fields.find((f) => f.name === "Tradera sålt")?.value)).toBe("1 050 kr · median av 6 sålda, 30 d");
     expect(e.color).toBe(0x22c55e);
     expect(e.description).toContain(`<t:${Date.parse("2026-10-10T03:00:00.000Z") / 1000}:R>`);
-    expect(e.url).toBe("https://foilio.se/produkter/pitch-black-etb");
-    expect(e.thumbnail).toEqual({ url: "https://foilio.se/api/cm-image/1" });
+    expect(e.url).toBe("https://scoutr.se/produkter/pitch-black-etb");
+    expect(e.thumbnail).toEqual({ url: "https://scoutr.se/api/cm-image/1" });
   });
 
   it("utan lager: säger det i stället för att tiga", () => {
     const empty = { ...entry, prices: { ...entry.prices, offers: [] } } as SnapshotEntry;
-    const e = buildPriceEmbed(empty, null, "https://foilio.se");
+    const e = buildPriceEmbed(empty, null, "https://scoutr.se");
     expect(e.fields[0].value).toContain("Ingen butik");
     expect(e.fields.some((f) => f.name === "Marknadsvärde")).toBe(false);
   });
 
   it("utan Pro: efemär uppmaning med länk till prissidan och pris-kanalen", () => {
-    const m = proRequiredMessage("https://foilio.se");
+    const m = proRequiredMessage("https://scoutr.se");
     expect(m.flags).toBe(64);
-    expect(m.content).toContain("https://foilio.se/priser");
+    expect(m.content).toContain("https://scoutr.se/priser");
     expect(m.content).toContain("<#1558526513937391868>");
   });
 

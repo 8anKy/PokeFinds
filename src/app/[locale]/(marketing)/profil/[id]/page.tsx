@@ -133,7 +133,7 @@ export default async function ProfilePage({ params, searchParams }: { params: { 
 
   /**
    * Förtroenderaden (community v2): kopplade konton + antal försäljningar via
-   * Foilio. Den finns för Köp/Sälj/Byt — en köpare som ska skicka pengar till en
+   * Scoutr. Den finns för Köp/Sälj/Byt — en köpare som ska skicka pengar till en
    * främling vill veta att personen är den hen utger sig för. ⚠️ Antalet
    * försäljningar är samma slags uppgift som utmärkelserna ovan håller privata
    * (personen säljer kort); här är det ägarbeslut 2026-09-03 att den tål att visas

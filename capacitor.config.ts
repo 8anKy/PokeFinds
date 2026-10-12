@@ -13,7 +13,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * Saknas den laddas det lokala offline-skalet (mobile-shell/index.html) som ber
  * dig sätta URL:en. Se docs/MOBILE.md.
  */
-const SERVER_URL = process.env.CAP_SERVER_URL?.trim() || "https://foilio.se";
+const SERVER_URL = process.env.CAP_SERVER_URL?.trim() || "https://scoutr.se";
 // Håll i takt med `NATIVE_UA_TAG` i src/lib/community-v2-gate.ts (kan inte
 // importeras här — filen evalueras av Capacitors CLI utan tsconfig-alias).
 const NATIVE_UA_TAG = `FoilioApp/${process.env.MARKETING_VERSION?.trim() || "1.2"}`;
@@ -22,7 +22,7 @@ const config: CapacitorConfig = {
   // android/ har applicationId se.foilio.app (build.gradle); intern namespace är
   // kvar som se.pokefinds.app med flit — osynligt för användare, se build.gradle.
   appId: "se.foilio.app",
-  appName: "Foilio",
+  appName: "Scoutr",
   webDir: "mobile-shell",
   backgroundColor: "#0a0a0c",
   server: SERVER_URL
@@ -50,6 +50,9 @@ const config: CapacitorConfig = {
         // SocialLogin-pluginet nedan). Google står INTE här med flit — Google
         // blockerar sitt webbflöde i WebViews, appen kör alltid nativt för Google.
         allowNavigation: [
+          "scoutr.se",
+          "www.scoutr.se",
+          // Gamla värden (Foilio → Scoutr 2026-10): äldre länkar och omdirigeringar stannar i appen.
           "foilio.se",
           "www.foilio.se",
           "api.tradera.com",

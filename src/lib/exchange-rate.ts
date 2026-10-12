@@ -119,7 +119,7 @@ export async function getRatesOre(): Promise<RatesOre> {
 
   try {
     const res = await fetch(FRANKFURTER_URL, {
-      headers: { "User-Agent": "Foilio/1.0 (+https://foilio.se)" },
+      headers: { "User-Agent": "Scoutr/1.0 (+https://scoutr.se)" },
     });
     if (res.ok) {
       const json = (await res.json()) as {

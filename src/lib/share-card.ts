@@ -1,7 +1,7 @@
 /**
  * DELA-KORTET (2026-10-01): en bild i berättelseformat (1080 × 1920) med kortets
  * konst, namn, set/nummer och värde — gjord för Instagram/TikTok-stories,
- * Snapchat och Discord. Varje delning är en riktig samlare som visar upp Foilio,
+ * Snapchat och Discord. Varje delning är en riktig samlare som visar upp Scoutr,
  * utan att ägaren behöver synas själv (tillväxtrapporten 2026-08-28).
  *
  * ⛔ RITAS I WEBBLÄSAREN, ALDRIG PÅ SERVERN. `next/og` i drift är bortvalt
@@ -48,7 +48,7 @@ export interface ShareCardInput {
   subtitle: string;
   /** null ⇒ inget värde visas (vi visar aldrig "0 kr" eller en gissning). */
   value: { label: string; text: string } | null;
-  /** Sidfoten, i två delar så domänen kan stå i vitt: "Värdera dina kort gratis på " + "foilio.se". */
+  /** Sidfoten, i två delar så domänen kan stå i vitt: "Värdera dina kort gratis på " + "scoutr.se". */
   footer: { lead: string; domain: string };
 }
 
@@ -210,7 +210,7 @@ function setTracking(ctx: CanvasRenderingContext2D, px: number) {
 
 /**
  * Bakgrunden: kortets egna färger som ett mjukt sken bakom det — varje delning
- * får sin egen ton men samma svarta Foilio-yta mot kanterna. Oskärpan görs
+ * får sin egen ton men samma svarta Scoutr-yta mot kanterna. Oskärpan görs
  * genom att skala ner konsten till några få pixlar och sedan upp igen, inte med
  * `ctx.filter` (saknas i äldre Safari).
  */
@@ -261,11 +261,11 @@ function drawAmbient(
 }
 
 /**
- * Märkets synliga yta i `foilio-mark.png` (320 × 320 med luft runt löv-F:et).
- * Ritas UTSKURET så att märket och ordmärket får rätt inbördes storlek och
- * avstånd — med luften kvar blev F:et hälften så högt som "Foilio".
+ * Märkets synliga yta i `scoutr-mark.png` (320 × 320). Scoutr-märket exporteras
+ * redan tätt beskuret (2 % luft) — hela rutan är märket. (Foilio-F:et hade luft runt
+ * sig och skars ut, annars blev det hälften så högt som ordmärket.)
  */
-const MARK_CROP = { x: 106, y: 70, w: 130, h: 165 };
+const MARK_CROP = { x: 0, y: 0, w: 320, h: 320 };
 
 function drawMark(ctx: CanvasRenderingContext2D, mark: HTMLImageElement, x: number, cy: number, h: number) {
   const w = (h * MARK_CROP.w) / MARK_CROP.h;
@@ -279,7 +279,7 @@ function drawBrand(ctx: CanvasRenderingContext2D, mark: HTMLImageElement | null,
   const gap = 14;
   ctx.font = `700 46px ${family}`;
   setTracking(ctx, -1);
-  const wordW = ctx.measureText("Foilio").width;
+  const wordW = ctx.measureText("Scoutr").width;
   const totalW = (mark ? markW + gap : 0) + wordW;
   let x = (SHARE_CARD_WIDTH - totalW) / 2;
   const cy = 236;
@@ -290,7 +290,7 @@ function drawBrand(ctx: CanvasRenderingContext2D, mark: HTMLImageElement | null,
   ctx.fillStyle = INK;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.fillText("Foilio", x, cy + 2);
+  ctx.fillText("Scoutr", x, cy + 2);
   setTracking(ctx, 0);
 }
 
@@ -353,7 +353,7 @@ function drawCardFace(ctx: CanvasRenderingContext2D, art: Art | null, mark: HTML
       ctx.globalAlpha = 1;
     }
   }
-  // Foliereflex: ett smalt diagonalt ljusband — namnet är "Foilio".
+  // Foliereflex: ett smalt diagonalt ljusband — namnet är "Scoutr".
   const sheen = ctx.createLinearGradient(CX, CY, CX + CW, CY + CH);
   sheen.addColorStop(0, "rgba(255,255,255,0)");
   sheen.addColorStop(0.3, "rgba(255,255,255,0)");
@@ -373,7 +373,7 @@ function drawCardFace(ctx: CanvasRenderingContext2D, art: Art | null, mark: HTML
   ctx.restore();
 }
 
-/** Den glödande turkosa linjen ur varumärkesbilden (foilio-og.png). */
+/** Den glödande turkosa linjen ur varumärkesbilden (scoutr-og.png). */
 function drawBrandLine(ctx: CanvasRenderingContext2D, y: number) {
   const w = 440;
   const x = (SHARE_CARD_WIDTH - w) / 2;
@@ -452,7 +452,7 @@ export async function renderShareCard(input: ShareCardInput): Promise<Blob> {
   const family = pageFontFamily();
   const [art, mark] = await Promise.all([
     loadArt(input),
-    loadImage("/brand/foilio-mark.png", false).catch(() => null),
+    loadImage("/brand/scoutr-mark.png", false).catch(() => null),
     ensureFonts(family),
   ]);
 
@@ -473,7 +473,7 @@ export async function renderShareCard(input: ShareCardInput): Promise<Blob> {
 }
 
 /* ===========================================================================
- * GRADERINGSKORTET (2026-10-01) — kortet i en "slab" med Foilios EGEN etikett.
+ * GRADERINGSKORTET (2026-10-01) — kortet i en "slab" med Scoutrs EGEN etikett.
  *
  * ⛔ Aldrig PSA:s röda etikett, typsnitt eller logga: det är deras varumärke, och
  *    en bild som ser ut som en riktig PSA-slab är ett påstående om en gradering
@@ -521,7 +521,7 @@ export interface GradeShareInput {
  * och en skugga mot golvet — det är tjockleken och glaset som får den att läsas
  * som ett föremål i stället för en ram.
  *
- * ⛔ Etiketten är Foilios egen (pärlemo + turkos list + folie-remsa), aldrig PSA:s
+ * ⛔ Etiketten är Scoutrs egen (pärlemo + turkos list + folie-remsa), aldrig PSA:s
  *    röda ram eller logga.
  */
 const TEX_W = 760;
@@ -951,7 +951,7 @@ async function loadGradeAssets(input: GradeShareInput) {
       value: null,
       footer: input.footer,
     }),
-    loadImage("/brand/foilio-mark.png", false).catch(() => null),
+    loadImage("/brand/scoutr-mark.png", false).catch(() => null),
     ensureFonts(family),
   ]);
   return { art, mark, family };
@@ -1049,7 +1049,7 @@ export async function prepareGradeSpinLayers(input: GradeShareInput): Promise<Gr
 }
 
 /**
- * Slabbens BAKSIDA: samma klara plast, etikettens baksida med Foilios märke och en
+ * Slabbens BAKSIDA: samma klara plast, etikettens baksida med Scoutrs märke och en
  * hologramdekal, och KORTETS BAKSIDA i brunnen — den japanska för japanska kort,
  * annars den internationella (ägarens önskan och filer 2026-10-01). Går bilden inte
  * att ladda blir det en neutral mörk kortbaksida.
@@ -1106,7 +1106,7 @@ function slabBackTexture(
   ctx.textBaseline = "alphabetic";
   ctx.font = `800 52px ${family}`;
   ctx.fillStyle = INK;
-  ctx.fillText("Foilio", tx, y + h / 2 + 4);
+  ctx.fillText("Scoutr", tx, y + h / 2 + 4);
   ctx.font = `700 22px ${family}`;
   setTracking(ctx, 3);
   ctx.fillStyle = CYAN;
@@ -1524,7 +1524,7 @@ async function loadProductAssets(input: ProductShareInput) {
   const family = pageFontFamily();
   const [img, mark] = await Promise.all([
     loadArt({ imageUrl: input.imageUrl, name: input.name, subtitle: "", value: null, footer: input.footer }),
-    loadImage("/brand/foilio-mark.png", false).catch(() => null),
+    loadImage("/brand/scoutr-mark.png", false).catch(() => null),
     ensureFonts(family),
   ]);
   return { art: prepareArt(img, input.shape), mark, family };
@@ -1650,7 +1650,7 @@ export async function renderProductWideShareCard(input: ProductShareInput): Prom
   setTracking(ctx, -1);
   ctx.fillStyle = INK;
   ctx.textBaseline = "middle";
-  ctx.fillText("Foilio", x0 + (mark ? (46 * MARK_CROP.w) / MARK_CROP.h + 12 : 0), 152);
+  ctx.fillText("Scoutr", x0 + (mark ? (46 * MARK_CROP.w) / MARK_CROP.h + 12 : 0), 152);
   setTracking(ctx, 0);
   ctx.textBaseline = "alphabetic";
 
@@ -1834,7 +1834,7 @@ export async function renderCollectionShareCard(input: CollectionShareInput): Pr
         })
       )
     ),
-    loadImage("/brand/foilio-mark.png", false).catch(() => null),
+    loadImage("/brand/scoutr-mark.png", false).catch(() => null),
     ensureFonts(family),
   ]);
   const arts = imgs.map((img, i) => prepareArt(img, top[i].shape));

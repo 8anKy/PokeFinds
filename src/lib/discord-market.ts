@@ -111,7 +111,7 @@ export function buildMarketEmbed(post: MarketThreadPost) {
   if (post.productSlug) {
     fields.push({
       name: "Marknadspris",
-      value: `[Se kortets pris på Foilio](${localeUrl("sv", `/produkter/${post.productSlug}`)})`,
+      value: `[Se kortets pris på Scoutr](${localeUrl("sv", `/produkter/${post.productSlug}`)})`,
       inline: false,
     });
   }
@@ -126,7 +126,7 @@ export function buildMarketEmbed(post: MarketThreadPost) {
     ),
     color: BRAND_COLOR,
     fields,
-    footer: { text: "Foilio Community · Köp, sälj & byt — svara i appen, inte här" },
+    footer: { text: "Scoutr Community · Köp, sälj & byt — svara i appen, inte här" },
     timestamp: new Date().toISOString(),
   };
 }
@@ -157,7 +157,7 @@ export function buildMarketMessage(post: MarketThreadPost, photos: Pick<MarketPh
   if (more > 0) {
     main.fields.push({
       name: "Fler bilder",
-      value: `+${more} ${more === 1 ? "bild" : "bilder"} i annonsen på Foilio`,
+      value: `+${more} ${more === 1 ? "bild" : "bilder"} i annonsen på Scoutr`,
       inline: false,
     });
   }
@@ -172,7 +172,7 @@ export function buildMarketMessage(post: MarketThreadPost, photos: Pick<MarketPh
     components: [
       {
         type: 1,
-        components: [{ type: 2, style: 5, label: "Öppna annonsen i Foilio", url: threadUrl(post.id) }],
+        components: [{ type: 2, style: 5, label: "Öppna annonsen i Scoutr", url: threadUrl(post.id) }],
       },
     ],
     // Ingen @everyone/@here eller rollping ur en medlems annonstext.

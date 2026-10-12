@@ -14,7 +14,7 @@ import { watchTipInviteUrl } from "@/lib/discord-invites";
  * "Bevaka" har i samma sekund talat om att hen vill ha restock-larm; då är "de kommer
  * snabbare i Discord" ett svar på en fråga användaren själv ställde. Samma mening på
  * startsidan, eller i en popup vid ankomsten, är ett avbrott — den hade mött folk som
- * ännu inte vet vad Foilio är, OCH alla befintliga medlemmar (vi kan inte veta vem
+ * ännu inte vet vad Scoutr är, OCH alla befintliga medlemmar (vi kan inte veta vem
  * som redan gått med utan att fråga servern, vilket kräver `auth()` och river ISR:en).
  *
  * ⚠️ COPYN LOVAR "OFTAST INOM EN MINUT", INTE "DIREKT". Mätt latens är ~45–60 s för

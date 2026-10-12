@@ -1,5 +1,5 @@
 /**
- * /guider — listan över Foilios set-guider och köpguider.
+ * /guider — listan över Scoutrs set-guider och köpguider.
  *
  * ⛔ INGEN DB, INGEN `auth()`: innehållet är en incheckad fil (`src/content/guides.ts`)
  *    och sidan är helstatisk. Nås via sidfoten, sitemapen och länken på setsidorna.

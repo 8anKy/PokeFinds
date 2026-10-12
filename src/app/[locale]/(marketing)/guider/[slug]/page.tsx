@@ -8,7 +8,7 @@
  * ⛔ INGEN `notFound()` (samma skäl som /nyheter/[slug]): rot-`not-found.tsx` läser
  *    locale ur headers och fäller en statisk rutt med HTTP 500. En okänd slug får en
  *    egen "finns inte"-vy med noindex.
- * ⛔ Article-JSON-LD påstår bara det sidan visar: rubrik, beskrivning, datum och Foilio
+ * ⛔ Article-JSON-LD påstår bara det sidan visar: rubrik, beskrivning, datum och Scoutr
  *    som utgivare. Ingen författarperson, inget betyg, ingen bild vi inte har.
  */
 import type { Metadata } from "next";
@@ -142,8 +142,8 @@ export default async function GuidePage({ params }: { params: { locale: string; 
       datePublished: guide.publishedAt,
       dateModified: guide.updatedAt,
       mainEntityOfPage: localeUrl("sv", path),
-      author: { "@type": "Organization", name: "Foilio", url: localeUrl("sv", "/") },
-      publisher: { "@type": "Organization", name: "Foilio", url: localeUrl("sv", "/") },
+      author: { "@type": "Organization", name: "Scoutr", url: localeUrl("sv", "/") },
+      publisher: { "@type": "Organization", name: "Scoutr", url: localeUrl("sv", "/") },
     },
     {
       "@context": "https://schema.org",

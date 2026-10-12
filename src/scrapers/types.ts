@@ -3,7 +3,7 @@
  *
  * ETIK & ANSVARSFULL DATAINSAMLING — alla adaptrar MÅSTE:
  *  - Respektera robots.txt (se src/scrapers/http.ts → checkRobotsTxt)
- *  - Identifiera sig med tydlig user-agent: "FoilioBot/1.0 (+kontakt: hej@foilio.se)"
+ *  - Identifiera sig med tydlig user-agent: "FoilioBot/1.0 (+kontakt: hej@scoutr.se)"
  *  - Vänta mellan förfrågningar (per-host-fördröjning) och använda exponentiell backoff
  *  - Stoppa automatiskt efter upprepade fel
  *  - ALDRIG kringgå captcha, inloggning eller betalväggar

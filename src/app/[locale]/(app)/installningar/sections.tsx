@@ -333,7 +333,7 @@ export function NotificationsSection({ user }: { user: SettingsUser }) {
         )}
         {row("push", t("notifPush"), t("notifPushHint"))}
         {/* Vart restock-pushen leder — servern väljer URL:en vid utskicket, så valet
-            slår igenom utan nytt app-bygge. Prislarm går alltid till Foilio. */}
+            slår igenom utan nytt app-bygge. Prislarm går alltid till Scoutr. */}
         <SettingsRow
           label={t("notifPushTarget")}
           hint={t("notifPushTargetHint")}
@@ -716,7 +716,7 @@ export function AccountSection() {
         <SettingsLinkRow
           label={t("exportData")}
           onClick={() =>
-            void downloadFromApi("/api/users/me/export", "foilio-data.json").catch(() =>
+            void downloadFromApi("/api/users/me/export", "scoutr-data.json").catch(() =>
               toast({ title: t("genericFail"), variant: "error" })
             )
           }

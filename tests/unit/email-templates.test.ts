@@ -15,7 +15,7 @@ function expectValidEmail(email: EmailContent) {
   expect(email.subject.length).toBeGreaterThan(0);
   expect(email.html).toContain("<!DOCTYPE html>");
   expect(email.html).toContain('lang="sv"');
-  expect(email.html).toContain("Foilio");
+  expect(email.html).toContain("Scoutr");
   expect(email.text.length).toBeGreaterThan(0);
   // Textversionen ska inte innehålla HTML-taggar
   expect(email.text).not.toMatch(/<[a-z][\s\S]*>/i);
@@ -134,13 +134,13 @@ describe("utseendet (riktning Svart holo, 2026-10-06)", () => {
   const media = {
     imageUrl: "/api/cm-image/895551",
     storeLogoUrl: "/retailer-logos/dragon-s-lair.png",
-    foilioUrl: "https://foilio.se/produkter/30th-celebration-elite-trainer-box",
+    foilioUrl: "https://scoutr.se/produkter/30th-celebration-elite-trainer-box",
   };
 
   it("relativa bild-URL:er ur databasen blir absoluta — en mejlklient har ingen bas-URL", () => {
     const email = restockAlertEmail("Milos", "30th Celebration ETB", "Dragon's Lair", "https://dragonslair.se/p", 94900, null, media);
-    expect(email.html).toContain('src="https://foilio.se/api/cm-image/895551"');
-    expect(email.html).toContain('src="https://foilio.se/retailer-logos/dragon-s-lair.png"');
+    expect(email.html).toContain('src="https://scoutr.se/api/cm-image/895551"');
+    expect(email.html).toContain('src="https://scoutr.se/retailer-logos/dragon-s-lair.png"');
     expect(email.html).not.toMatch(/src="\//);
   });
 
@@ -148,7 +148,7 @@ describe("utseendet (riktning Svart holo, 2026-10-06)", () => {
     const email = restockAlertEmail("Milos", "30th Celebration ETB", "Dragon's Lair", "https://dragonslair.se/p", 94900, null, media);
     expect(email.html).toContain('href="https://dragonslair.se/p"');
     expect(email.html).toContain(`href="${media.foilioUrl}"`);
-    expect(email.html).toContain("Jämför alla butiker i Foilio");
+    expect(email.html).toContain("Jämför alla butiker i Scoutr");
   });
 
   it("utan katalogprodukt (feed-först-larm) finns ingen 'Jämför'-rad och ingen tom bildruta", () => {

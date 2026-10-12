@@ -2,7 +2,7 @@
  * Köpförfrågningar på profilens samling ("Är den till salu?") — rena regler.
  *
  * Knappen på en annan persons Portfölj-flik öppnar parets chatt och skickar
- * EN automatisk fråga om objektet. Foilio är aldrig part: frågan är ett
+ * EN automatisk fråga om objektet. Scoutr är aldrig part: frågan är ett
  * meddelande, svaret och affären sker i chatten (samma princip som Köp/Sälj/Byt).
  *
  * Opt-outen bor i `User.preferences.allowPurchaseRequests` (fri JSON-kolumn som

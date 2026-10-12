@@ -1,5 +1,5 @@
 /**
- * Foilio ikonbibliotek — ett enhetligt set med stroke-ikoner (24×24, stroke 1.75).
+ * Scoutr ikonbibliotek — ett enhetligt set med stroke-ikoner (24×24, stroke 1.75).
  * Använd alltid dessa istället för emojis i UI:t.
  */
 import type { SVGProps } from "react";
@@ -239,7 +239,7 @@ export const IconChevronRight = (p: IconProps) => (
   </svg>
 );
 
-/** Extern länk (pil ut ur rutan) — länken lämnar Foilio/öppnar systemwebbläsaren. */
+/** Extern länk (pil ut ur rutan) — länken lämnar Scoutr/öppnar systemwebbläsaren. */
 export const IconExternalLink = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M14 4h6v6" />

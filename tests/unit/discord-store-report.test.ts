@@ -50,16 +50,16 @@ describe("butikslarm från communityrapporter", () => {
     // Titeln är ingen länk och "Se rapporten" är borttagen (ägarbeslut 2026-10-05).
     expect("url" in e).toBe(false);
     expect(e.color).toBe(0x22c55e);
-    expect(e.author.icon_url).toBe("https://foilio.se/retailer-logos/hemmakvall.png");
-    expect(e.thumbnail?.url).toBe("https://foilio.se/api/cm-image/123");
+    expect(e.author.icon_url).toBe("https://scoutr.se/retailer-logos/hemmakvall.png");
+    expect(e.thumbnail?.url).toBe("https://scoutr.se/api/cm-image/123");
     expect(e.image?.url).toBe("https://bucket.example/signed.jpg");
     const byName = Object.fromEntries(e.fields.map((f) => [f.name, f.value]));
     expect(byName["Butik"]).toBe("Hemmakväll Lund");
     expect(byName["Pris i butik"]).toMatch(/649/);
     expect(byName["Adress"]).toContain("Bankgatan 6, Lund");
-    expect(byName["På Foilio"]).toContain("/produkter/mega-evolution-etb");
-    expect(byName["På Foilio"]).toContain("Butikens status");
-    expect(byName["På Foilio"]).not.toContain("Se rapporten");
+    expect(byName["På Scoutr"]).toContain("/produkter/mega-evolution-etb");
+    expect(byName["På Scoutr"]).toContain("Butikens status");
+    expect(byName["På Scoutr"]).not.toContain("Se rapporten");
     expect(byName["Medlemmarna säger"]).toBeUndefined();
     expect(e.footer.text).toMatch(/inget garanterat lager/);
   });

@@ -348,7 +348,7 @@ export type ApproveEventInput = z.infer<typeof approveEventInputSchema>;
  * (evenemang HAR alltid en sida). ⛔ `eventItemSchema.imageUrl` kräver en full URL —
  * ett uppladdat omslag (`/api/feed-cover/…`) görs absolut mot apex här.
  */
-export function draftToEventItem(entry: Pick<InboxEventEntry, "id">, input: ApproveEventInput, baseUrl = "https://foilio.se"): EventItem {
+export function draftToEventItem(entry: Pick<InboxEventEntry, "id">, input: ApproveEventInput, baseUrl = "https://scoutr.se"): EventItem {
   const imageUrl = input.imageUrl && input.imageUrl.startsWith("/") ? `${baseUrl.replace(/\/+$/, "")}${input.imageUrl}` : input.imageUrl;
   return eventItemSchema.parse({
     id: entry.id,

@@ -11,7 +11,7 @@ import { NOTIFICATION_DEFAULTS, parseNotificationSettings } from "@/lib/notifica
 import { createUnsubscribeToken, unsubscribeUrl, verifyUnsubscribeToken } from "@/lib/unsubscribe-token";
 
 describe("releaseNotesEmail", () => {
-  const unsub = "https://foilio.se/api/unsubscribe?token=news.abc.sig";
+  const unsub = "https://scoutr.se/api/unsubscribe?token=news.abc.sig";
   const mail = releaseNotesEmail({ name: "Milos", unsubscribeUrl: unsub });
 
   it("bär avanmälan i både html och text, och App Store-knappen", () => {
@@ -52,8 +52,8 @@ describe("unsubscribe-token: typen news", () => {
   });
 
   it("bygger URL:en mot apex", () => {
-    expect(unsubscribeUrl("https://foilio.se", "user_1", "news")).toMatch(
-      /^https:\/\/foilio\.se\/api\/unsubscribe\?token=news\.user_1\./
+    expect(unsubscribeUrl("https://scoutr.se", "user_1", "news")).toMatch(
+      /^https:\/\/scoutr\.se\/api\/unsubscribe\?token=news\.user_1\./
     );
   });
 });

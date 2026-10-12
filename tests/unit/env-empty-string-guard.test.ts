@@ -11,13 +11,13 @@ import { describe, expect, it, vi } from "vitest";
  * igenom den — reservvärdet används ALDRIG.
  *
  * Buggen slog till TVÅ gånger på ETT dygn (2026-08-16), i tre filer:
- *   · `mailer.ts`      — `EMAIL_FROM ?? "Foilio <noreply@foilio.se>"` → tom avsändare
+ *   · `mailer.ts`      — `EMAIL_FROM ?? "Scoutr <noreply@scoutr.se>"` → tom avsändare
  *                        → Resend `422 "The domain is invalid"`, hela veckobrevet dog.
  *                        Latent även i scrape-alls pro-expiry-steg, som bara mejlar när
  *                        någon håller på att förlora Pro — dvs det hade smällt först i
  *                        exakt det ögonblick meddelandet betyder något.
  *   · `templates.ts`
- *   · `weekly-digest.ts` — `NEXT_PUBLIC_APP_URL ?? "https://foilio.se"` → `href="/produkter"`
+ *   · `weekly-digest.ts` — `NEXT_PUBLIC_APP_URL ?? "https://scoutr.se"` → `href="/produkter"`
  *                        i ett SKARPT massutskick. Mejlklienten har ingen bas-URL att
  *                        lösa relativa länkar mot → `http:///produkter` och trasig logga.
  *
@@ -70,7 +70,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
 /**
  * Är reservvärdet SANNINGSVÄRT? Bara då spelar `??` vs `||` roll.
  * `x ?? ""` och `x || ""` ger båda `""` för en tom variabel — inget hål.
- * `x ?? "https://foilio.se"` ger `""`. Det är hålet.
+ * `x ?? "https://scoutr.se"` ger `""`. Det är hålet.
  */
 function fallbackIsTruthy(raw: string): boolean {
   const s = raw.trim();
@@ -133,7 +133,7 @@ const KNOWN_GAPS: readonly string[] = [
   "src/jobs/hot-card-refresh.ts:CARDMARKET_RAPIDAPI_HOST",
   "src/jobs/sealed-set-label.ts:CARDMARKET_RAPIDAPI_HOST",
   // Städat 2026-08-17 (SEO-passet): robots.ts, sitemap.ts, [locale]/layout.tsx och
-  // lib/canonical.ts läser nu med `||` mot "https://foilio.se". Alla fyra byggde
+  // lib/canonical.ts läser nu med `||` mot "https://scoutr.se". Alla fyra byggde
   // ABSOLUTA URL:er som Google läser — en tom variabel gav `http://localhost:3000` i
   // canonical/sitemap (tyst självavindexering) och ett kastande `new URL("")` i
   // rot-layouten. Raderna är borta här med flit: listan får bara krympa.
@@ -213,7 +213,7 @@ const APP_URL = "https://digest-vakt.example";
 function digestData(): WeeklyDigestArg {
   return {
     name: "Milos",
-    unsubscribeUrl: "https://foilio.se/avregistrera?token=abc123",
+    unsubscribeUrl: "https://scoutr.se/avregistrera?token=abc123",
     appUrl: APP_URL,
     collection: {
       totalValueOre: 1_234_500,
@@ -327,12 +327,12 @@ describe("weeklyDigestEmail: absoluta URL:er i ett skarpt massutskick", () => {
     expect(email.text).not.toContain("http:///");
     expect(email.text).not.toContain("undefined/");
     // Avanmälan MÅSTE finnas i textversionen — utan den är spamknappen enda utvägen.
-    expect(email.text).toContain("https://foilio.se/avregistrera?token=abc123");
+    expect(email.text).toContain("https://scoutr.se/avregistrera?token=abc123");
   });
 
   it("avanmälningslänken är absolut även den", async () => {
     const email = await renderWith("");
-    expect(email.html).toContain('href="https://foilio.se/avregistrera?token=abc123"');
+    expect(email.html).toContain('href="https://scoutr.se/avregistrera?token=abc123"');
   });
 });
 

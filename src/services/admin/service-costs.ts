@@ -311,7 +311,7 @@ export async function getAnthropicCost(): Promise<CostSource<AnthropicCost>> {
         headers: {
           "x-api-key": key,
           "anthropic-version": "2023-06-01",
-          "user-agent": "Foilio/1.0 (https://foilio.se)",
+          "user-agent": "Scoutr/1.0 (https://scoutr.se)",
         },
       })) as {
         data?: { results?: { amount?: string; currency?: string; description?: string | null }[] }[];

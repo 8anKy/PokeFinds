@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { appLinkPath } from "@/lib/app-links";
 
 /**
- * Öppnar rätt sida när appen startas från en foilio.se-länk (mejlknapp, Discord,
+ * Öppnar rätt sida när appen startas från en scoutr.se-länk (mejlknapp, Discord,
  * delad länk). Utan den här landade varje universell länk på startsidan: iOS/Android
  * öppnar APPEN, men WebView:en laddar `server.url` och vet inget om länken.
  *

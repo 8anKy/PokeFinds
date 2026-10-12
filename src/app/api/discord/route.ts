@@ -20,7 +20,7 @@ export async function DELETE() {
       select: { discordUserId: true },
     });
 
-    await revokeDiscordRoles(user?.discordUserId, "Foilio: användaren kopplade från kontot");
+    await revokeDiscordRoles(user?.discordUserId, "Scoutr: användaren kopplade från kontot");
 
     await prisma.user.update({
       where: { id: sessionUser.id },

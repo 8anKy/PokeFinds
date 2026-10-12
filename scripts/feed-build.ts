@@ -32,7 +32,7 @@ import {
 import { feedDraftSchema, feedEventDraftSchema, inboxFileSchema, inboxPublishSchema, type FeedDraft, type FeedEventDraft } from "../src/lib/feed-inbox";
 import { extractOgImage } from "../src/lib/rss";
 
-const UA = "FoilioBot/1.0 (+https://foilio.se; nyhetsflode)";
+const UA = "FoilioBot/1.0 (+https://scoutr.se; nyhetsflode)";
 const FETCH_TIMEOUT_MS = 20_000;
 
 /**
@@ -250,7 +250,7 @@ async function main() {
     return;
   }
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se").replace(/\/+$/, "");
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se").replace(/\/+$/, "");
   const secret = process.env.CRON_SECRET;
   if (!secret) throw new Error("CRON_SECRET saknas — flödet kan inte publiceras.");
 

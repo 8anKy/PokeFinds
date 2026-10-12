@@ -12,7 +12,7 @@ describe("loginHintKey", () => {
 
   it("språkprefix och absoluta URL:er räknas som samma väg", () => {
     expect(loginHintKey("/en/samling")).toBe("hintCollection");
-    expect(loginHintKey("https://foilio.se/en/bevakningar")).toBe("hintWatches");
+    expect(loginHintKey("https://scoutr.se/en/bevakningar")).toBe("hintWatches");
   });
 
   it("okänd väg, tomt eller skräp ⇒ ingen rad", () => {

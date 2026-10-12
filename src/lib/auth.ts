@@ -239,7 +239,7 @@ export const authOptions: NextAuthOptions = {
      * Webbflödet (Google/Apple via NextAuth): här byts leverantörens profil mot
      * VÅRT konto. Utan adapter är `user` annars leverantörens profilobjekt
      * (id = deras `sub`), och jwt-callbacken hade stoppat det i token:en som om
-     * det vore ett Foilio-id. Objektet muteras på plats — samma referens når
+     * det vore ett Scoutr-id. Objektet muteras på plats — samma referens når
      * jwt-callbacken direkt efter. `false` ⇒ /logga-in?error=AccessDenied.
      */
     async signIn({ user, account, profile }) {

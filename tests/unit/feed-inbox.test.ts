@@ -187,7 +187,7 @@ describe("godkännandet", () => {
 
 describe("scripts/feed-inbox-add.mjs (rutinens beroendefria hjälpare)", () => {
   it("stableId ger samma tal som appens", () => {
-    for (const s of ["https://foilio.se/x", "https://www.exempel.se/products/etb?a=1", "åäö", ""]) {
+    for (const s of ["https://scoutr.se/x", "https://www.exempel.se/products/etb?a=1", "åäö", ""]) {
       expect(scriptStableId(s)).toBe(stableId(s));
     }
   });
@@ -276,11 +276,11 @@ describe("evenemangsutkast", () => {
         summary: "Kortmässa.",
         body: ["## Öppettider", "Lördag 12–17."],
       }),
-      "https://foilio.se"
+      "https://scoutr.se"
     );
     expect(item.lane).toBe("curated");
     expect(item.slug).toBe("card-expo-sweden-2026");
-    expect(item.imageUrl).toBe("https://foilio.se/api/feed-cover/ev1-deadbeef.jpg");
+    expect(item.imageUrl).toBe("https://scoutr.se/api/feed-cover/ev1-deadbeef.jpg");
     expect(item.body).toEqual([
       { type: "h", text: "Öppettider" },
       { type: "p", text: "Lördag 12–17." },

@@ -35,6 +35,6 @@ describe("personlig inbjudningslänk", () => {
   });
 
   it("trycks utan protokoll på apex", () => {
-    expect(inviteLinkLabel("k7m2pqx")).toBe("foilio.se/i/k7m2pqx");
+    expect(inviteLinkLabel("k7m2pqx")).toBe("scoutr.se/i/k7m2pqx");
   });
 });

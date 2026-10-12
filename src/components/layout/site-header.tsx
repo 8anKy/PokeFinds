@@ -21,7 +21,7 @@ export function SiteHeader() {
             startsidan ÄR Utforska försvann det skälet, så logon får bete sig som
             användare förväntar sig. Pekar på /produkter, inte "/", så klicket inte
             kostar en onödig omdirigering. */}
-        <Link href="/produkter" aria-label="Foilio">
+        <Link href="/produkter" aria-label="Scoutr">
           <BrandLogo />
         </Link>
         <HeaderNav />

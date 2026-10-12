@@ -32,7 +32,7 @@
  * ⛔ **AVREGISTRERING ÄR ETT KRAV.** Jobbet VÄGRAR skicka om den signerade
  *    avanmälningsnyckeln saknas (`requireUnsubscribeSecret`) — ett massutskick med
  *    döda avregistreringslänkar lämnar spamknappen som enda utväg, och den kostar
- *    foilio.se:s avsändarrykte permanent. `notificationSettings.email` är
+ *    scoutr.se:s avsändarrykte permanent. `notificationSettings.email` är
  *    fortfarande MASTER; `weekly` är den egna spaken.
  *
  * ⛔ **INGET TOMT BREV.** Saknar en mottagare både personligt innehåll OCH en puls
@@ -161,7 +161,7 @@ const MAX_SET_PROGRESS = 3;
  * letar efter att det saknas" (samma som `variantLabel`-vakten 07-28). Läser du
  * en `process.env`-default i den här kodbasen: `||`, och fäll tomma strängar.
  */
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se";
 
 /**
  * Bild-URL som fungerar i EN MEJLKLIENT. Katalogens bilder är absoluta och går

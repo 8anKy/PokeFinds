@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       select: { id: true, onboardingCompleted: true, preferences: true, notificationSettings: true },
     });
 
-    return jsonOk({ message: "Onboarding klar. Välkommen till Foilio!", user });
+    return jsonOk({ message: "Onboarding klar. Välkommen till Scoutr!", user });
   } catch (e) {
     return apiError(e);
   }

@@ -16,7 +16,7 @@ workflows:
         - ios_signing        # innehåller CERTIFICATE_PRIVATE_KEY (Codemagic-UI, Secure)
       vars:
         # Appen öppnar direkt på Utforska (ingen blink av marknadsförings-startsidan).
-        CAP_SERVER_URL: "https://foilio.se/produkter"
+        CAP_SERVER_URL: "https://scoutr.se/produkter"
         # Google-inloggning i appen: iOS-klient-id:t (publikt, står i binären ändå).
         GOOGLE_IOS_CLIENT_ID: "920300522039-odqr8p38snk5ouptk3mp4g1e6ntmtojj.apps.googleusercontent.com"
         BUNDLE_ID: "se.foilio.app"
@@ -28,7 +28,7 @@ workflows:
         # src/lib/app-version.ts är bara ett golv och behöver inte höjas.
         # 1.3 = push-trycket öppnar butikens korg-/produktlänk natively (AppDelegate),
         #       utan att vänta på WebView:en — lib/community-v2-gate.ts läser taggen.
-        MARKETING_VERSION: "1.4"
+        MARKETING_VERSION: "1.5"
         # Capacitor 8 = SPM-mall: inget CocoaPods, ingen .xcworkspace — bygg xcodeproj:t direkt.
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
@@ -129,13 +129,14 @@ workflows:
             </array>
             <key>com.apple.developer.associated-domains</key>
             <array>
+              <string>applinks:scoutr.se</string>
               <string>applinks:foilio.se</string>
             </array>
           </dict>
           </plist>
           PLIST
           grep -q applesignin ios/App/App/App.entitlements
-          grep -q "applinks:foilio.se" ios/App/App/App.entitlements
+          grep -q "applinks:scoutr.se" ios/App/App/App.entitlements
           # Google-inloggning (nativt GoogleSignIn-SDK via @capgo/capacitor-social-login):
           # GIDClientID = iOS-klient-id:t (Google Cloud → Clients → "Foilio iOS", bundle
           # se.foilio.app) och URL-schemat är SAMMA id BAKLÄNGES — dit återvänder Googles

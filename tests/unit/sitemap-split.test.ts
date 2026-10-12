@@ -9,8 +9,8 @@ describe("uppdelad sitemap", () => {
   });
 
   it("urlset escapar och bär lastmod bara när den finns", () => {
-    const xml = urlsetXml([{ loc: "https://foilio.se/a?b=1&c=2" }, { loc: "https://foilio.se/g", lastmod: "2026-10-07" }]);
-    expect(xml).toContain("<loc>https://foilio.se/a?b=1&amp;c=2</loc></url>");
+    const xml = urlsetXml([{ loc: "https://scoutr.se/a?b=1&c=2" }, { loc: "https://scoutr.se/g", lastmod: "2026-10-07" }]);
+    expect(xml).toContain("<loc>https://scoutr.se/a?b=1&amp;c=2</loc></url>");
     expect(xml).toContain("<lastmod>2026-10-07</lastmod>");
   });
 });

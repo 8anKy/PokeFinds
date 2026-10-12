@@ -168,9 +168,9 @@ describe("pickJpSetImage", () => {
     expect(
       pickJpSetImage([
         { category: "BOOSTER_PACK", imageUrl: "https://cdn.shopify.com/s/files/butiksfoto.jpg" },
-        { category: "BOOSTER_BOX", imageUrl: "https://www.foilio.se/api/cm-image/831328" },
+        { category: "BOOSTER_BOX", imageUrl: "https://www.scoutr.se/api/cm-image/831328" },
       ])
-    ).toBe("https://www.foilio.se/api/cm-image/831328");
+    ).toBe("https://www.scoutr.se/api/cm-image/831328");
   });
 
   it("tar vad som finns hellre än ingenting", () => {

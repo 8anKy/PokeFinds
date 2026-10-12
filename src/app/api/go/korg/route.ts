@@ -28,7 +28,7 @@ export function GET(req: Request) {
     .join("");
   const html = `<!doctype html>
 <html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>Lägger i korgen hos ${esc(form.shopName)} · Foilio</title>
+<meta name="robots" content="noindex,nofollow"><title>Lägger i korgen hos ${esc(form.shopName)} · Scoutr</title>
 <style>
 html,body{margin:0;min-height:100%;background:#000;color:#fff;font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}

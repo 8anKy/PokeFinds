@@ -16,7 +16,7 @@ export function AuthBrand() {
   const logo = <BrandLogo markSize={32} textClass="text-2xl font-extrabold" />;
   if (locked) return <div className="mb-5">{logo}</div>;
   return (
-    <Link href="/" className="mb-5" aria-label="Foilio startsida">
+    <Link href="/" className="mb-5" aria-label="Scoutr startsida">
       {logo}
     </Link>
   );

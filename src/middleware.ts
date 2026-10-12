@@ -4,6 +4,7 @@ import { encode, getToken, type JWT } from "next-auth/jwt";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "@/i18n/routing";
 import { isBlockedBot } from "@/lib/blocked-bots";
+import { legacyHostRedirect } from "@/lib/legacy-host";
 import { AI_INDEXER, aiIndexerMayFetch } from "@/lib/ai-crawlers";
 import {
   CREATOR_REF_COOKIE,
@@ -194,6 +195,16 @@ async function renewSession(req: NextRequest, res: NextResponse, token: JWT): Pr
 
 export async function middleware(req: NextRequest) {
   const ua = req.headers.get("user-agent") ?? "";
+  // Foilio → Scoutr (2026-10): webbläsare och sökmotorer på foilio.se ⇒ 301 till samma
+  // sida på scoutr.se; de installerade apparna stannar (lib/legacy-host.ts). Först av
+  // allt, så att även en blockerad bot får flyttbeskedet i stället för 403 på fel värd.
+  const moved = legacyHostRedirect(
+    req.headers.get("host"),
+    req.nextUrl.pathname + req.nextUrl.search,
+    ua,
+    process.env.LEGACY_HOST_REDIRECT_TO
+  );
+  if (moved) return NextResponse.redirect(moved, 301);
   // ⛔ `isBlockedBot`, inte `BLOCKED_BOTS.test` — namnlistan är bara HALVA domen sedan
   // 2026-08-26. Det största svepet den dagen bar inget crawler-namn alls utan en
   // förfalskad webbläsarsträng från 321 roterande IP-adresser; se blocked-bots.ts.

@@ -3,7 +3,7 @@
  *
  * Veckobrevet är appens första icke-transaktionella massutskick. Den som får det
  * i mobilen, i en mejlklient hen aldrig loggat in i, måste kunna säga nej på ETT
- * klick — inte "logga in på foilio.se och leta upp Inställningar". Därför en
+ * klick — inte "logga in på scoutr.se och leta upp Inställningar". Därför en
  * HMAC över (userId, typ) i stället för en session.
  *
  * ⛔ INGEN DB-SLAGNING FÖR ATT VALIDERA. Token är självbärande: signaturen är

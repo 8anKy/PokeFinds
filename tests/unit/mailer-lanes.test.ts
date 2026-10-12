@@ -44,7 +44,7 @@ describe("mailer-lanes", () => {
       subject: "Hej",
       html: "<p>x</p>",
       text: "x",
-      unsubscribeUrl: "https://foilio.se/api/unsubscribe?token=news.u.s",
+      unsubscribeUrl: "https://scoutr.se/api/unsubscribe?token=news.u.s",
       lane: "bulk",
     });
     expect(calls).toHaveLength(1);
@@ -52,8 +52,8 @@ describe("mailer-lanes", () => {
     expect((calls[0].init.headers as Record<string, string>)["api-key"]).toBe("xkeysib_test");
     const body = JSON.parse(String(calls[0].init.body));
     expect(body.to).toEqual([{ email: "a@b.se" }]);
-    expect(body.sender.email).toMatch(/@foilio\.se$/);
-    expect(body.headers["List-Unsubscribe"]).toBe("<https://foilio.se/api/unsubscribe?token=news.u.s>");
+    expect(body.sender.email).toMatch(/@scoutr\.se$/);
+    expect(body.headers["List-Unsubscribe"]).toBe("<https://scoutr.se/api/unsubscribe?token=news.u.s>");
     expect(body.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
     expect(res.provider).toBe("brevo");
     expect(res.id).toBe("<b1@brevo>");

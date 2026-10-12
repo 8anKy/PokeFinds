@@ -170,7 +170,7 @@ function embedFor(store: string, handle: string, m: Media) {
     url: m.permalink,
     description: excerpt || undefined,
     ...(thumb ? { thumbnail: { url: thumb } } : {}),
-    footer: { text: "Butiksnyheter · Foilio" },
+    footer: { text: "Butiksnyheter · Scoutr" },
     timestamp: m.timestamp,
   };
 }
@@ -195,7 +195,7 @@ async function main() {
       color: COLOR,
       title: "Testinlägg: butiksnyheter",
       description: "Butikernas Instagram-inlägg om Pokémon-släpp hamnar i den här kanalen.",
-      footer: { text: "Butiksnyheter · Foilio" },
+      footer: { text: "Butiksnyheter · Scoutr" },
     });
     if (!ok) process.exit(1);
     console.log("[store-social] Testinlägget postades.");

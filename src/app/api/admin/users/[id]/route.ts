@@ -108,7 +108,7 @@ export async function PATCH(
       input.role !== undefined ||
       input.bonusProUntil !== undefined
     ) {
-      await syncDiscordRoles(params.id, "Foilio: planen ändrades i adminpanelen");
+      await syncDiscordRoles(params.id, "Scoutr: planen ändrades i adminpanelen");
     }
 
     return jsonOk(updated);

@@ -154,7 +154,7 @@ export function CreatorCodesClient({ rows, redemptions, appUrl }: Props) {
           </h2>
           <p className="mt-1 text-sm text-ink-muted">
             Slutförda Pro-köp där en rabattkod användes. Namnet hämtas från Stripe Checkout;
-            Foilio-kontot visas också för kontroll.
+            Scoutr-kontot visas också för kontroll.
           </p>
         </div>
         <form
@@ -193,14 +193,14 @@ export function CreatorCodesClient({ rows, redemptions, appUrl }: Props) {
         </p>
         {redemptions.rows.length === 0 ? (
           <div className="card-surface px-4 py-6 text-sm text-ink-muted">
-            Inga inlösningar hittades. Raderna fylls när en kod används i Foilios Stripe-kassa.
+            Inga inlösningar hittades. Raderna fylls när en kod används i Scoutrs Stripe-kassa.
           </div>
         ) : (
           <Table>
             <THead>
               <TR>
                 <TH>Kod</TH>
-                <TH>Namn / Foilio-konto</TH>
+                <TH>Namn / Scoutr-konto</TH>
                 <TH>Inlöst</TH>
                 <TH>Källa</TH>
               </TR>
@@ -222,7 +222,7 @@ export function CreatorCodesClient({ rows, redemptions, appUrl }: Props) {
                       {redemption.checkoutName || "Namn saknas i Stripe"}
                     </Link>
                     <span className="block text-xs text-ink-faint">
-                      Foilio: {redemption.user.name || redemption.user.email} · {redemption.user.email}
+                      Scoutr: {redemption.user.name || redemption.user.email} · {redemption.user.email}
                     </span>
                   </TD>
                   <TD className="whitespace-nowrap text-sm text-ink-muted">

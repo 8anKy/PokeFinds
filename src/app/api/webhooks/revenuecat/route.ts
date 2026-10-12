@@ -106,7 +106,7 @@ export async function POST(req: Request) {
     // FREE ovillkorligt — utan det här hade en utgången app-prenumeration behållit
     // Pro-rollen i servern till nästa nattkörning. Kastar aldrig. Bara vid en
     // PLAN-ändring: en uppsägning ändrar ingen roll förrän den löper ut.
-    if (plan) await syncDiscordRoles(userId, `Foilio: RevenueCat ${eventType}`);
+    if (plan) await syncDiscordRoles(userId, `Scoutr: RevenueCat ${eventType}`);
   }
 
   return new Response("ok", { status: 200 });

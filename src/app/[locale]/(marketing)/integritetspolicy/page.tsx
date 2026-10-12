@@ -35,7 +35,7 @@ export default async function PrivacyPage({
   // GDPR art. 13: den personuppgiftsansvarige ska anges som juridisk person, inte
   // bara ett varumärke. Namnet kommer från miljön (samma källa som /villkor);
   // saknas det faller texten tillbaka på varumärket hellre än att sidan kraschar.
-  const entityName = legalEntity()?.name ?? "Foilio";
+  const entityName = legalEntity()?.name ?? "Scoutr";
 
   const LeadList = ({ items }: { items: LeadItem[] }) => (
     <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -61,7 +61,7 @@ export default async function PrivacyPage({
             {t.rich("s1Body", {
               entity: entityName,
               email: (chunks) => (
-                <a href="mailto:hej@foilio.se" className="text-holo-cyan hover:underline">
+                <a href="mailto:hej@scoutr.se" className="text-holo-cyan hover:underline">
                   {chunks}
                 </a>
               ),

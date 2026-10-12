@@ -103,7 +103,7 @@ export default async function PricingPage({
         {/* Vänster (mobil: överst): ordet, priset, kortet, köpknappen. Sticky på
             desktop så knappen står bredvid spec-bladet hela vägen ner. */}
         <section className="flex flex-col items-center text-center lg:sticky lg:top-24 lg:self-start lg:items-start lg:text-left">
-          {/* Ordet står EN gång här; kortet säger "Foilio", inte "Pro" igen
+          {/* Ordet står EN gång här; kortet säger "Scoutr", inte "Pro" igen
               (ägaren 2026-09-05: "Pro på alldeles för många ställen"). */}
           <h1 className="holo-word font-display text-[76px] font-extrabold leading-[0.9] tracking-[-0.05em] sm:text-[88px]">
             {t("heroWord")}

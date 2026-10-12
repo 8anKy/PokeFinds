@@ -148,7 +148,7 @@ export async function GET() {
 
     const exportData = {
       exportedAt: new Date().toISOString(),
-      service: "Foilio",
+      service: "Scoutr",
       description: "GDPR-dataexport. All data kopplad till ditt konto.",
       profile: {
         id: user.id,
@@ -230,7 +230,7 @@ export async function GET() {
       status: 200,
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="foilio-data.json"',
+        "Content-Disposition": 'attachment; filename="scoutr-data.json"',
       },
     });
   } catch (e) {

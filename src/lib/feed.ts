@@ -24,7 +24,7 @@ import { z } from "zod";
 
 /**
  * Nyhetens sort. Styr färgen på pillret och filterchipsen — håll listan kort.
- * `APP` = vad som är nytt i Foilio självt; den posten pekar alltid IN i appen.
+ * `APP` = vad som är nytt i Scoutr självt; den posten pekar alltid IN i appen.
  */
 export const NEWS_CATEGORIES = ["RELEASE", "MARKET", "STORE", "APP"] as const;
 export type NewsCategory = (typeof NEWS_CATEGORIES)[number];

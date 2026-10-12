@@ -14,12 +14,12 @@ export const dynamic = "force-dynamic";
  *
  * ⛔ ALDRIG `new URL(target, req.url)` här: i en route handler bakom Railways
  * proxy är `req.url` containerns INTERNA adress (localhost:8080), inte
- * foilio.se — Google-inloggningen slutade i "localhost refused to connect"
+ * scoutr.se — Google-inloggningen slutade i "localhost refused to connect"
  * med sessionen korrekt satt (upptäckt 2026-09-01). Middleware ser rätt host;
  * route handlers gör det inte. Bygg alltid mot BASE_URL-mönstret (`||`, inte
  * `??` — tom sträng är felläget).
  */
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se";
 
 export async function GET(req: NextRequest) {
   const session = await auth();

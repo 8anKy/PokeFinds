@@ -25,7 +25,7 @@ const unrouted = (): RestockPost => ({
   series: null,
   productUrl: null,
   productSlug: null,
-  setUrl: "https://foilio.se/sets/30th-celebration",
+  setUrl: "https://scoutr.se/sets/30th-celebration",
   preorder: true,
 });
 
@@ -47,9 +47,9 @@ describe("applyBoundToPost", () => {
     expect(before.fields.some((f) => f.name === "Hos oss")).toBe(true);
     expect(before.fields.some((f) => f.name === "Marknadsvärde")).toBe(false);
 
-    const post = applyBoundToPost(unrouted(), BOUND, "https://foilio.se/");
+    const post = applyBoundToPost(unrouted(), BOUND, "https://scoutr.se/");
     const after = buildRestockEmbed(post);
-    expect(post.productUrl).toBe("https://foilio.se/produkter/30th-upc-umbreon");
+    expect(post.productUrl).toBe("https://scoutr.se/produkter/30th-upc-umbreon");
     expect(after.title).toBe(BOUND.title);
     expect(after.fields.some((f) => f.name === "Hos oss")).toBe(false);
     expect(after.fields.find((f) => f.name === "Prishistorik")?.value).toContain("/produkter/30th-upc-umbreon");
@@ -58,7 +58,7 @@ describe("applyBoundToPost", () => {
   });
 
   it("utan CM-värde: bara länken rättas, ingen färgdom", () => {
-    const post = applyBoundToPost(unrouted(), { ...BOUND, marketValueOre: null }, "https://foilio.se");
+    const post = applyBoundToPost(unrouted(), { ...BOUND, marketValueOre: null }, "https://scoutr.se");
     const e = buildRestockEmbed(post);
     expect(e.fields.some((f) => f.name === "Prishistorik")).toBe(true);
     expect(e.color).toBe(0x2dd4bf);
@@ -89,7 +89,7 @@ describe("transport + redigering", () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true, paused: false, received: 1, matched: 1, bound: [BOUND] }), { status: 200 })
     );
-    const res = await sendRestockHits([], { baseUrl: "https://foilio.se", secret: "s", fetchImpl });
+    const res = await sendRestockHits([], { baseUrl: "https://scoutr.se", secret: "s", fetchImpl });
     expect(res.result?.bound).toEqual([BOUND]);
   });
 
@@ -101,7 +101,7 @@ describe("transport + redigering", () => {
     const msg = posted.messages[0];
     expect(msg).toMatchObject({ channelId: "ch-1", messageId: "msg-9", cart: false });
 
-    applyBoundToPost(msg.posts[0], BOUND, "https://foilio.se");
+    applyBoundToPost(msg.posts[0], BOUND, "https://scoutr.se");
     fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
     expect(await editRestockMessage(msg, config)).toBe(true);
     const [url, init] = fetchMock.mock.calls.at(-1)!;

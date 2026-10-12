@@ -1,5 +1,5 @@
 /**
- * Bygger sajtens delningsbild: `public/brand/foilio-og.png` (1200×630).
+ * Bygger sajtens delningsbild: `public/brand/scoutr-og.png` (1200×630).
  *
  * ⛔ KÖRS FÖR HAND, ALDRIG I BYGGET. Resultatet är en incheckad statisk fil — att
  * generera om den vid varje deploy hade lagt sharp i byggkedjan och gett en ny
@@ -29,8 +29,8 @@ import sharp from "sharp";
 
 const WIDTH = 1200;
 const HEIGHT = 630;
-const SOURCE = "public/brand/foilio-logo.png";
-const OUT = "public/brand/foilio-og.png";
+const SOURCE = "public/brand/scoutr-logo.png";
+const OUT = "public/brand/scoutr-og.png";
 
 /** Tokens ur tailwind.config.ts — håll dem i synk om paletten ändras. */
 const HOLO_CYAN = "#2dd4bf";

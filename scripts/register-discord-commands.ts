@@ -1,5 +1,5 @@
 /**
- * Registrerar Foilios slash-kommandon i servern (just nu /pris) och, med
+ * Registrerar Scoutrs slash-kommandon i servern (just nu /pris) och, med
  * `--endpoint`, pekar applikationens Interactions Endpoint URL mot oss.
  *
  * Körs av `.github/workflows/discord-commands.yml` (manuell) — bot-token + guild-id
@@ -17,7 +17,7 @@
 import { discordFetch } from "../src/lib/discord";
 import { PRICE_COMMAND } from "../src/lib/discord-price-command";
 
-const ENDPOINT_URL = `${(process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se").replace(/\/$/, "")}/api/discord/interactions`;
+const ENDPOINT_URL = `${(process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se").replace(/\/$/, "")}/api/discord/interactions`;
 
 async function main() {
   const token = process.env.DISCORD_BOT_TOKEN?.trim();

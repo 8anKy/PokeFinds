@@ -70,7 +70,7 @@ describe("blocklistan för bulk-crawlers", () => {
     ["Bingbot", "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)"],
     ["DuckDuckBot", "Mozilla/5.0 (compatible; DuckDuckBot-Https/1.1; https://duckduckgo.com/duckduckbot)"],
     // Länkförhandsvisare: hämtar EN delad URL, inte katalogen. Blockas de blir
-    // varje delad Foilio-länk en naken URL utan bild i flödet/chatten.
+    // varje delad Scoutr-länk en naken URL utan bild i flödet/chatten.
     ["facebookexternalhit", "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"],
     ["meta-externalfetcher", "meta-externalfetcher/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)"],
     ["Twitterbot", "Twitterbot/1.0"],
@@ -189,7 +189,7 @@ describe("isImpossibleVersionUa: frusna versionsfält som svepet inte fryser", (
     ["Googlebot (desktop)", "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/153.0.8010.52 Safari/537.36"],
     ["Googlebot (mobil)", "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.52 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"],
     ["Bingbot (desktop)", "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/116.0.1938.76 Safari/537.36"],
-    ["Foilio-appen", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 FoilioApp/1.3"],
+    ["Scoutr-appen", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 FoilioApp/1.3"],
   ])("släpper igenom %s", (_namn, ua) => {
     expect(isImpossibleVersionUa(ua)).toBe(false);
     expect(isBlockedBot(ua)).toBe(false);

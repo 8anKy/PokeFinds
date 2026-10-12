@@ -211,7 +211,7 @@ export async function DELETE() {
       where: { id: sessionUser.id },
       select: { discordUserId: true, stripeSubscriptionId: true },
     });
-    await revokeDiscordRoles(linked?.discordUserId, "Foilio: kontot raderades");
+    await revokeDiscordRoles(linked?.discordUserId, "Scoutr: kontot raderades");
 
     // ⛔ AVSLUTA STRIPE-PRENUMERATIONEN FÖRE raderingen. User-raden bär
     // stripeSubscriptionId; raderar vi den utan att säga upp fortsätter kortet

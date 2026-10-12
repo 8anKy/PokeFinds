@@ -333,7 +333,7 @@ function resolveOne(
     tcgById: Map<string, CardRow>;
   }
 ): RowDraft {
-  // 1. Foilio-slug: vår egen export, exakt även för sealed.
+  // 1. Scoutr-slug: vår egen export, exakt även för sealed.
   if (row.slug) {
     const product = ctx.productBySlug.get(row.slug);
     if (product) return { kind: "slug", cards: [], product };

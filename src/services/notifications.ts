@@ -26,7 +26,7 @@ const MAX_RETRIES = 3;
 // mejl som redan lämnat huset. Samma tomsträngsbugg dödade veckobrevet 2026-08-16.
 // Den här filen kör i scrape-all MED variabeln injicerad — se
 // tests/unit/env-empty-string-guard.test.ts.
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se";
 
 /** Bygger e-postinnehåll för en alert baserat på typ. */
 async function buildAlertEmail(alert: {
@@ -44,14 +44,14 @@ async function buildAlertEmail(alert: {
   user: { name: string };
 }): Promise<{ subject: string; html: string; text: string }> {
   // Feed-först-larm (ny produkt/restock utanför katalogen) — bygg mejlet från den
-  // råa annonsen och länka DIREKT till butiken (ingen Foilio-produktsida finns).
+  // råa annonsen och länka DIREKT till butiken (ingen Scoutr-produktsida finns).
   if (alert.storeListingId) {
     const listing = await prisma.storeListing.findUnique({
       where: { id: alert.storeListingId },
       include: { retailer: { select: { name: true, logoUrl: true } } },
     });
     if (listing) {
-      // Ingen Foilio-produktsida finns för en feed-först-annons ⇒ ingen "Jämför"-länk.
+      // Ingen Scoutr-produktsida finns för en feed-först-annons ⇒ ingen "Jämför"-länk.
       const media = { imageUrl: listing.imageUrl, storeLogoUrl: listing.retailer.logoUrl };
       const args = [
         alert.user.name,
@@ -159,7 +159,7 @@ async function buildAlertEmail(alert: {
       }
       if (alert.type === AlertType.NEW_LISTING) {
         // Ny produkt i lager = butiks-händelse. Mejlet länkar DIREKT till butikens
-        // egen produktsida (som RESTOCK ovan), inte vår Foilio-sida. Pushen länkar
+        // egen produktsida (som RESTOCK ovan), inte vår Scoutr-sida. Pushen länkar
         // fortfarande till vår produktsida (se sendAlertPush). PREORDER lagras som
         // NEW_LISTING → välj copy på offerns lagerstatus. Samma regel som RESTOCK:
         // larmets egen butiks-offer hämtas med egen fråga (prisfönstret ovan kan
@@ -189,7 +189,7 @@ async function buildAlertEmail(alert: {
   }
   // Generiskt fallback-mejl
   return {
-    subject: "Avisering från Foilio",
+    subject: "Avisering från Scoutr",
     html: `<p>Hej ${alert.user.name}!</p><p>${alert.message}</p>`,
     text: `Hej ${alert.user.name}!\n\n${alert.message}`,
   };
@@ -398,7 +398,7 @@ export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: n
     } catch (err) {
       // ⛔ FÖRSÖK ALDRIG OM ETT PERMANENT FEL. Ogiltig mottagare, avvisad domän
       // eller trasig payload (4xx från Resend) blir inte rätt av tre försök —
-      // varje försök är ännu en hård studs som skadar foilio.se:s avsändarrykte,
+      // varje försök är ännu en hård studs som skadar scoutr.se:s avsändarrykte,
       // och ett bränt rykte tar med sig ALLA larmmejl, inte bara det här.
       // Övergående fel (5xx, timeout, nät) behåller trappan på tre försök.
       const permanent = isPermanentMailError(err);

@@ -3,7 +3,7 @@
  *
  * Fram till nu låg VARJE AI-UA i blocklistan — i robots.txt OCH med 403 i middleware —
  * efter att deras svep hållit Neon vaken (Claude-SearchBot 08-09: 5,7 req/s, 63 % av
- * all trafik). Följden var att ChatGPT/Claude/Perplexity inte kunde läsa foilio.se alls,
+ * all trafik). Följden var att ChatGPT/Claude/Perplexity inte kunde läsa scoutr.se alls,
  * och en assistent kan inte rekommendera en sajt den aldrig fått se.
  *
  * Två klasser, två regler:

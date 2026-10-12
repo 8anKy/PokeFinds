@@ -106,7 +106,7 @@ export function AppShell({
     (p) => pathname === p || pathname?.startsWith(`${p}/`)
   );
   // Ett samtal eller en tråd äger hela mobilskärmen. Om SiteHeader får ligga
-  // kvar bakom visas Foilio-loggan redan I samtalet och ser ut som att
+  // kvar bakom visas Scoutr-loggan redan I samtalet och ser ut som att
   // bakåtsvepet har läckt igenom innan användaren ens börjat svepa.
   const immersiveMobileRoute = hidesBottomTabs(pathname);
 

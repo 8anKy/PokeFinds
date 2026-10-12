@@ -6,7 +6,7 @@ import { AI_HUB_PATHS, AI_INDEXER_UAS, AI_USER_FETCHER_UAS } from "@/lib/ai-craw
 // hade aldrig använts och `Sitemap:`-raden pekat på `/sitemap.xml` utan värd.
 // Reserven är prod-apex, inte localhost: en robots.txt som skickar crawlers till
 // localhost är värdelös, och apex är kanonisk sedan 2026-08-14.
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se";
 
 /**
  * Stängda vägar. DELAS av `*`-gruppen och Bingbot-gruppen — med flit.

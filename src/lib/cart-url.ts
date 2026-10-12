@@ -88,7 +88,7 @@ const NORDISK_ARTNR = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
  */
 const APP_URL = (() => {
   const v = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
-  return /^https:\/\//.test(v) ? v : "https://foilio.se";
+  return /^https:\/\//.test(v) ? v : "https://scoutr.se";
 })();
 
 /**

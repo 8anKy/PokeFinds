@@ -67,7 +67,7 @@ function derive(state: DiscordRestockState, groups: FullFeedGroup[]) {
     now: NOW,
     policy: POLICY,
     cooldownHours: 0.25,
-    baseUrl: "https://foilio.se",
+    baseUrl: "https://scoutr.se",
     priceDrops: null,
   });
 }
@@ -322,7 +322,7 @@ describe("SF-Bok: en ny butik postas fast en annan redan hade varan", () => {
       now: NOW,
       policy: POLICY,
       cooldownHours: 0.25,
-      baseUrl: "https://foilio.se",
+      baseUrl: "https://scoutr.se",
       priceDrops: null,
     });
 

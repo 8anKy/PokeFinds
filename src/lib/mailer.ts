@@ -12,7 +12,7 @@
  * hade hälften fått `429` — tyst, mitt i loopen. Ett andra Resend-konto var
  * inget alternativ (domänen kan bara DKIM-verifieras en gång per konto-typ, och
  * det är ett kringgående av deras gränser). Två leverantörer med varsin DKIM
- * på foilio.se är rent.
+ * på scoutr.se är rent.
  *
  * ⛔ ETT MEJL GÅR GENOM EXAKT EN LEVERANTÖR. `lane` är ett vägval, aldrig en
  * spridning — ingen mottagare får samma mejl två gånger.
@@ -68,7 +68,7 @@ export interface MailResult {
 /**
  * Fel från ett utskick, med en DOM om det är lönt att försöka igen.
  * `permanent` = mottagaren eller innehållet är fel och blir aldrig rätt av ett
- * omförsök. Varje sådant omförsök är ännu en hård studs mot foilio.se:s
+ * omförsök. Varje sådant omförsök är ännu en hård studs mot scoutr.se:s
  * avsändarrykte — därför slutar `dispatchPendingAlerts` genast på permanenta fel.
  */
 export class MailError extends Error {
@@ -97,13 +97,13 @@ export function isPermanentMailError(err: unknown): boolean {
 // exakt det ögonblick meddelandet betyder något, och tyst, bakom continue-on-error.
 // Samma familj som `variantLabel`-vakten 07-28: ett fält som FINNS men är tomt
 // passerar en vakt som bara letar efter att det saknas.
-const FROM = process.env.EMAIL_FROM || "Foilio <noreply@foilio.se>";
-// Avsändaren är noreply@ (DKIM-signerad via Resend på foilio.se). Men användare
+const FROM = process.env.EMAIL_FROM || "Scoutr <noreply@scoutr.se>";
+// Avsändaren är noreply@ (DKIM-signerad via Resend på scoutr.se). Men användare
 // svarar ändå på larmmejlen ("priset har sjunkit" → "har ni kvar den?"). Utan
 // reply_to landar svaret på noreply@, som inte finns i Google Workspace → studs
 // med "user unknown" och frågan når oss aldrig. Peka svaren på den bemannade lådan.
 // `||` av samma skäl som FROM ovan — en tom variabel är inte ett val, den är ett hål.
-const REPLY_TO = process.env.EMAIL_REPLY_TO || "hej@foilio.se";
+const REPLY_TO = process.env.EMAIL_REPLY_TO || "hej@scoutr.se";
 
 /**
  * Konsolläge är ett UTTRYCKLIGT val (EMAIL_MODE=console) eller utveckling utan
@@ -127,7 +127,7 @@ export function providerFor(input: Pick<MailInput, "lane">): "brevo" | "resend" 
   return null;
 }
 
-/** "Foilio <noreply@foilio.se>" → { name, email }. Brevo tar sender som objekt. */
+/** "Scoutr <noreply@scoutr.se>" → { name, email }. Brevo tar sender som objekt. */
 function parseAddress(value: string): { name?: string; email: string } {
   const m = /^\s*(?:"?([^"<]*?)"?\s*)?<([^>]+)>\s*$/.exec(value);
   if (m) return { ...(m[1]?.trim() ? { name: m[1].trim() } : {}), email: m[2].trim() };

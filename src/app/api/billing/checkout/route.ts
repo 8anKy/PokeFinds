@@ -144,7 +144,7 @@ export async function POST() {
             // inte rättsligt hade kunden BEHÅLLIT full ångerrätt, vilket är sämre
             // för oss än att lova pro rata. Se villkoren avsnitt 12 + jurist-TODO.
             message:
-              "Foilio Pro levereras direkt. Genom att godkänna samtycker du till att leveransen påbörjas under ångerfristen; ångrar du dig inom 14 dagar betalar du för den tid du haft tillgång och får resten åter.",
+              "Scoutr Pro levereras direkt. Genom att godkänna samtycker du till att leveransen påbörjas under ångerfristen; ångrar du dig inom 14 dagar betalar du för den tid du haft tillgång och får resten åter.",
           },
         },
         success_url: `${appUrl}/priser?checkout=klar&session_id={CHECKOUT_SESSION_ID}`,

@@ -34,10 +34,10 @@ describe("cart-url — lägg-i-korgen-länkar (ägarbeslut 2026-09-17)", () => {
 
   it("Nordisk e-handel: korgen tar bara POST ⇒ länken går via bryggan /api/go/korg", () => {
     expect(nordiskCartUrl("https://www.maxgaming.se", "41363")).toBe(
-      "https://foilio.se/api/go/korg?shop=www.maxgaming.se&artnr=41363"
+      "https://scoutr.se/api/go/korg?shop=www.maxgaming.se&artnr=41363"
     );
     expect(nordiskCartUrl("https://www.spelexperten.com", "HABG7161681")).toBe(
-      "https://foilio.se/api/go/korg?shop=www.spelexperten.com&artnr=HABG7161681"
+      "https://scoutr.se/api/go/korg?shop=www.spelexperten.com&artnr=HABG7161681"
     );
     // ⛔ .env:s http://localhost:3000 får ALDRIG in i prod-databasen (hände 2026-09-18) — bara https räknas
     expect(nordiskCartUrl("https://www.maxgaming.se", "1")).toMatch(/^https:\/\//);
@@ -113,7 +113,7 @@ describe("pushAlertUrl — användarens val (notificationSettings.pushTarget, 20
   it("foilio ⇒ vår produktsida", () => {
     expect(pushAlertUrl({ ...base, target: "foilio" })).toBe("/produkter/30th-celebration-elite-trainer-box");
   });
-  it("prislarm går till Foilio oavsett val", () => {
+  it("prislarm går till Scoutr oavsett val", () => {
     expect(pushAlertUrl({ ...base, type: "PRICE_DROP", target: "cart" })).toBe("/produkter/30th-celebration-elite-trainer-box");
   });
 });
