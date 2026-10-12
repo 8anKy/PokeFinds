@@ -11,6 +11,10 @@
  *    att söka på. Vi postar rebusen (läsarna löser den) och letar samtidigt bland butikens
  *    NYASTE produkter efter en som matchar originalet på MINST TVÅ av: samma pris, samma
  *    bild, köpgräns i beskrivningen. Bara om EXAKT EN gör det postas länken.
+ *  · LÄNK (Spelexperten 2026-10-12): beskrivningen säger "klicka på det röda ordet" och
+ *    ordet länkar till den dolda sidan (rotnivå-URL, titel "POK 30 12 oktober 15:30").
+ *    Vi följer LÄNKEN, aldrig ordalydelsen, och bevakar den dolda sidans lager; tiden i
+ *    dess titel styr hur tätt.
  * Ren modul: ingen I/O, testad (tests/unit/drop-pages.test.ts).
  */
 
@@ -53,6 +57,12 @@ export type DropInstruction =
    * (scripts/lib/drop-watch.ts söker varje kod).
    */
   | { kind: "code"; codes: string[] }
+  /**
+   * LÄNK I BESKRIVNINGEN (Spelexperten 2026-10-12: "klickar du på länken där det står
+   * 'röd'" / "klicka här för att komma till rätt produkt"). Ordalydelsen byts varje släpp —
+   * vi läser den inte, bara LÄNKARNA i beskrivningen till andra produktsidor i butiken.
+   */
+  | { kind: "link"; urls: string[] }
   | { kind: "riddle"; phase: "announced" | "live"; text: string };
 
 /** Ord som pekar på en sökinstruktion; koden står strax efter. */
@@ -135,6 +145,127 @@ export function spelexpertenLiveSearchLinks(html: string, base: string): string[
   return [...out];
 }
 
+/** Produktbeskrivningen (iButik: mellan UTSKRIFT:PRODUKTINFO-markörerna), eller null. */
+export function spelexpertenDescriptionHtml(html: string): string | null {
+  const m = html.match(/<!--\s*UTSKRIFT:PRODUKTINFO:START\s*-->([\s\S]*?)<!--\s*UTSKRIFT:PRODUKTINFO:STOPP\s*-->/i);
+  if (m) return m[1];
+  return html.match(/id="read-more-text"[^>]*>([\s\S]*?)<\/article>/i)?.[1] ?? null;
+}
+
+/** href → ren URL: entiteter, mellanslag och "%20" i slutet bort (butiken skrev ".html%20"). */
+function cleanHref(href: string): string {
+  return href
+    .replace(/&amp;/g, "&")
+    .trim()
+    .replace(/(?:%20|\s)+$/i, "")
+    .split("#")[0];
+}
+
+/**
+ * Länkar i beskrivningen till ANDRA produktsidor hos Spelexperten (`….html`), inte sidan
+ * själv, inte cgi-bin. ⛔ Bara beskrivningen — menyn och sidfoten bär hundratals länkar.
+ */
+export function spelexpertenDropLinks(html: string, base: string, selfUrl: string): string[] {
+  const desc = spelexpertenDescriptionHtml(html);
+  if (!desc) return [];
+  const host = new URL(base).hostname.replace(/^www\./, "");
+  const self = selfUrl.split(/[?#]/)[0];
+  const out: string[] = [];
+  for (const m of desc.matchAll(/<a\b[^>]*\bhref\s*=\s*"([^"]+)"/gi)) {
+    let u: URL;
+    try {
+      u = new URL(cleanHref(m[1]), base);
+    } catch {
+      continue;
+    }
+    if (u.hostname.replace(/^www\./, "") !== host || !/\.html$/i.test(u.pathname) || /cgi-bin/i.test(u.pathname)) continue;
+    const url = `${base.replace(/\/$/, "")}${u.pathname}`;
+    if (url !== self && !out.includes(url)) out.push(url);
+  }
+  return out;
+}
+
+/** Shopify: länkar i beskrivningen till andra `/products/<handle>` i samma butik. */
+export function shopifyDropLinks(descriptionHtml: string, origin: string, selfHandle: string): string[] {
+  const host = new URL(origin).hostname.replace(/^www\./, "");
+  const out: string[] = [];
+  for (const m of descriptionHtml.matchAll(/<a\b[^>]*\bhref\s*=\s*"([^"]+)"/gi)) {
+    let u: URL;
+    try {
+      u = new URL(cleanHref(m[1]), origin);
+    } catch {
+      continue;
+    }
+    if (u.hostname.replace(/^www\./, "") !== host) continue;
+    const handle = u.pathname.match(/\/products\/([^/?#]+)/)?.[1];
+    if (!handle || handle === selfHandle) continue;
+    const url = `${origin}/products/${handle}`;
+    if (!out.includes(url)) out.push(url);
+  }
+  return out;
+}
+
+/** Spelexpertens vanliga produktsidor ligger under en kategori; den dolda låg i roten. */
+export function isRootLevelPage(url: string): boolean {
+  try {
+    return new URL(url).pathname.split("/").filter(Boolean).length === 1;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Är den länkade sidan den dolda varan? ⛔ En länk i en beskrivning kan också vara ett
+ * vanligt "se även" — därför:
+ *  · en sida som står i butikens VANLIGA feed (kategorin) är inte dold — den sköts av den
+ *    vanliga påfyllningsvägen;
+ *  · samma pris som originalet räcker (båda släppen 2026-10-12: 689/689 och 349/349);
+ *  · annars måste den ligga i ROTEN (utanför kategorierna) OCH bära Pokémon/"POK" i titeln.
+ */
+export function linkTargetPlausible(t: {
+  origPriceOre: number | null;
+  priceOre: number | null;
+  inFeed: boolean;
+  rootLevel: boolean;
+  title: string;
+}): boolean {
+  if (t.inFeed) return false;
+  if (t.origPriceOre != null && t.origPriceOre > 0 && t.priceOre === t.origPriceOre) return true;
+  return t.rootLevel && /\bpok(?:[eé]mon)?\b/i.test(t.title);
+}
+
+const MONTHS = ["januari", "februari", "mars", "april", "maj", "juni", "juli", "augusti", "september", "oktober", "november", "december"];
+
+/** Stockholmstid (väggklocka) → UTC-ms. */
+function stockholmToUtc(y: number, mo: number, d: number, h: number, mi: number): number {
+  const guess = Date.UTC(y, mo, d, h, mi);
+  const wall = new Date(guess).toLocaleString("sv-SE", { timeZone: "Europe/Stockholm", hourCycle: "h23" });
+  const [date, time] = wall.split(" ");
+  const [Y, M, D] = date.split("-").map(Number);
+  const [H, Mi] = time.split(":").map(Number);
+  return guess - (Date.UTC(Y, M - 1, D, H, Mi) - guess);
+}
+
+/**
+ * Släpptiden ur den dolda sidans titel ("POK 30 12 oktober 15:30" ⇒ 12 okt 15:30 svensk
+ * tid). Bara en klockslag ⇒ i dag. null när titeln inte bär någon tid. Styr bara HUR
+ * TÄTT sidan läses — lagret avgör fortfarande när vi postar.
+ */
+export function releaseTimeFromTitle(title: string, now = Date.now()): number | null {
+  const t = title.toLowerCase();
+  const time = t.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
+  if (!time) return null;
+  const today = new Date(now).toLocaleString("sv-SE", { timeZone: "Europe/Stockholm", hourCycle: "h23" }).split(" ")[0];
+  let [y, mo, d] = today.split("-").map(Number);
+  mo -= 1;
+  const date = t.match(new RegExp(`\\b(\\d{1,2})\\s+(${MONTHS.join("|")})\\b`));
+  if (date) {
+    d = Number(date[1]);
+    mo = MONTHS.indexOf(date[2]);
+  }
+  return stockholmToUtc(y, mo, d, Number(time[1]), Number(time[2]));
+}
+
 /** Ordalydelsen i Spelexpertens kodruta — fullsöket på den hittar ALLA sidor med en kod. */
 export const SPELEXPERTEN_CODE_PHRASE = "artikelnumret nedan";
 
@@ -146,7 +277,13 @@ export function imageKey(url: string): string {
   return base.replace(/\.[a-z0-9]+$/i, "").toLowerCase();
 }
 
-const PURCHASE_LIMIT = /(max\.?\s*\d+\s*(?:\/|per|st)?\s*(?:kund|hushåll|person)|köpgräns|per hushåll|1 per kund)/i;
+const PURCHASE_LIMIT =
+  /(max\.?\s*\d+\s*(?:\/|per|st)?\s*(?:kund|hushåll|person)|köpgräns|per hushåll|1 per kund|begränsad till \d+\s*(?:\/|per|st)?\s*(?:kund|hushåll|person))/i;
+
+/** Köpgräns i texten ("Denna artikel är begränsad till 1/hushåll") — hypade varor. */
+export function hasPurchaseLimit(text: string): boolean {
+  return PURCHASE_LIMIT.test(text);
+}
 
 export interface DropOriginal {
   url: string;

@@ -51,6 +51,20 @@ instruktion och den köpbara sidan har en orelaterad titel ⇒ utanför kategori
   läses om var 15:e min. Feeden glesas till 180 s medan koder jagas ⇒ ~0,3 förfr./s. Förväntad latens kod → inlägg
   ~10–20 s dagtid. ⛔ Lanens cooldown-karta bär bara 24 h — heta set minns i `drops.json.hot` (7 d).
   ⚠️ OVERIFIERAT: att fullsökets index uppdateras direkt när koden läggs till (svarstiden ~3 s tyder på livefråga).
+  ⛔ Söket matchar INTE å/ä/ö-termer ("kunna beställa", "länken nedan" = 0 träffar, mätt 2026-10-12) — upptäckt
+  via sök fungerar bara för ASCII-ordalydelse. Takter sedan 2026-10-12: fullsök var 15:e s (2 min natt), en het
+  originalsida läses var 6:e s (1 min natt): köpgränssidor ("begränsad till 1/hushåll", 18 av 19 30th-sidor)
+  var 2:a min, andra heta var 10:e.
+- 🔗 **LÄNK** (Spelexperten 2026-10-12, båda 30th-släppen 15:00/15:30 missades): beskrivningen säger "klicka på
+  länken där det står 'röd'" / "klicka här för att komma till rätt produkt" och ORDET länkar till den dolda sidan
+  (`/pok-30-12-oktober-1530.html` — rotnivå, titel med släpptiden, Artnr `P-TIN`/`P-BUN`, samma pris). Vi läser
+  ALDRIG ordalydelsen (den byts varje släpp) — bara `<a href>` INOM beskrivningen (`UTSKRIFT:PRODUKTINFO`-
+  markörerna; menyn bär hundratals länkar), `spelexpertenDropLinks` / `shopifyDropLinks`. Länkmålet läses
+  (`checkLinkTarget`): H1-rubrikens tid ("15:30", `releaseTimeFromTitle`) ⇒ var 5:e s från −90 s till +15 min,
+  var 5:e min innan; utan tid var 5:e s i 15 min efter att länken dök upp, sedan 30 s. Länkmål tar högst varannan
+  tick (upptäckt/koder svälts aldrig). Post när målet är i lager OCH `linkTargetPlausible`: inte i butikens
+  vanliga feed, samma pris som originalet ELLER rotnivå + "POK/Pokémon" i titeln. Den dolda sidan fanns 6 h före
+  släppet (bildens `m=`-stämpel 08:50) — läses länken i förväg är vi på plats när knappen tänds.
 - **Kod** ("skriver du artikelnumret … i sökrutan: SYL-01"): Spelexperten ⇒ butikens sök
   (`AIR_ibutik.fcgi?funk=gor_sokning&term=`), träffen vars **Artnr ÄR koden** + JSON-LD i lager ⇒ post.
   ⛔ TVÅ KODER (en lockkod) ⇒ båda söks; träffen måste dessutom vara Pokémon i sin EGEN titel/JSON-LD, ligga under
@@ -67,6 +81,10 @@ instruktion och den köpbara sidan har en orelaterad titel ⇒ utanför kategori
 `priceVerdict` (`src/lib/market-compare.ts`): grön ≤ marknadsvärdet (CM), **gul** (ägarbeslut: gul i stället för orange — orange läste som röd på den smala kanten) över CM men ≤ Tradera-
 medianen, röd över Tradera. Tradera under CM ⇒ inget mellanband. Bara Tradera ⇒ grön/röd mot medianen.
 Bara CM ⇒ reservband ≤ 10 % över = gul. Samma dom i kanalinlägg, Pro-spegel, `/pris` och DM.
+⛔ **`/pris` = nattens snapshot + LAGERÖVERLÄGGET** (`src/lib/stock-overlay.ts`, 2026-10-12): varje hit till
+`/api/cron/restock-hit` (påfyllning, prissänkning, lagersynk) skrivs FÖRST till `catalog-snapshot/stock-overlay.json`
+på volymen — även när DB-skrivningen skjuts upp (`onlyIfAwake`) eller larmen är pausade. Utan det stod Speltrollet
+"i lager" i `/pris` 14 h efter att lanen sett slut. Nyckel = exakt (butik, URL); bara besked nyare än snapshoten.
 **DM:et bär Butik/Pris/Marknadsvärde/Tradera sålt** (`buildAlertDmPricing` i `services/notifications.ts`,
 larmets egen butiks offer — samma källa som mejlet); förut bara "… finns i lager igen!".
 

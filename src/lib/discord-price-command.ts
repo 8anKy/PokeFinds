@@ -7,6 +7,7 @@
  * ⛔ Kommandot väcker ALDRIG Neon — en fråga per kommando (och per tangenttryck i
  *    autocomplete) hade köpt minst 300 s vaken tid varje gång.
  * ⛔ Priser och lager är NATTENS — svaret säger det ("Priser från <t:…:R>"), aldrig "nu".
+ *    Lanens nyare lagerbesked läggs ovanpå (lib/stock-overlay.ts) och tiden för dem står ut.
  * ⛔ Pro avgörs av Pro-ROLLEN på medlemmen i interaktionen (Discord skickar rollerna med),
  *    samma roll som Discord-synken sätter ur `isPro()` — ingen egen regel, ingen DB-fråga.
  * Svaren är EFEMÄRA (bara den som frågade ser dem) — UTOM i pris-kanalen
@@ -146,7 +147,13 @@ function absolute(url: string | null, appUrl: string): string | null {
 }
 
 /** Svaret på /pris: ett embed byggt ur snapshotens skal + priser. */
-export function buildPriceEmbed(entry: SnapshotEntry, index: SnapshotIndexEntry | null, appUrl: string) {
+export function buildPriceEmbed(
+  entry: SnapshotEntry,
+  index: SnapshotIndexEntry | null,
+  appUrl: string,
+  /** Senaste lagerbesked från lanen som ändrade svaret (lib/stock-overlay.ts), ms. */
+  stockUpdatedAt: number | null = null
+) {
   const offers = entry.prices.offers.filter((o) => o.price != null && o.price > 0);
   const stores = offers
     .filter((o) => isStoreRetailer(o.retailer.name) && (o.stockStatus === "IN_STOCK" || o.stockStatus === "LIMITED"))
@@ -184,7 +191,8 @@ export function buildPriceEmbed(entry: SnapshotEntry, index: SnapshotIndexEntry 
     url: productUrl,
     description:
       `${entry.set?.name ? `${entry.set.name} · ` : ""}` +
-      `Priser och lager från ${Number.isFinite(at) ? `<t:${Math.floor(at / 1000)}:R>` : "senaste natten"}. ` +
+      `Priser och lager från ${Number.isFinite(at) ? `<t:${Math.floor(at / 1000)}:R>` : "senaste natten"}` +
+      `${stockUpdatedAt ? `, lager uppdaterat <t:${Math.floor(stockUpdatedAt / 1000)}:R>` : ""}. ` +
       `[Prishistorik och alla butiker](${productUrl})`,
     // Grön/orange/röd för den billigaste butiken — samma dom som påfyllningsinläggen.
     color: priceEdgeColor(BRAND_COLOR, cheapest?.price, cm?.price, index?.sold?.[0], index?.sold?.[1]),

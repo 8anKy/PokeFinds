@@ -25,6 +25,7 @@ import { ServiceError } from "@/lib/errors";
 import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { hitKind, restockHitBatchSchema } from "@/lib/restock-hits";
+import { recordStockOverlay } from "@/lib/stock-overlay";
 import { applyRestockHits } from "@/services/restock-hits";
 import { dispatchPendingAlerts } from "@/services/notifications";
 import { FREE_RESTOCK_ALERT_DELAY_MS } from "@/lib/free-restock-alert";
@@ -64,6 +65,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Ogiltig cron-hemlighet." }, { status: 401 });
     }
     const { hits, onlyIfAwake } = restockHitBatchSchema.parse(await req.json());
+
+    // /pris läser nattens snapshot — lanens besked läggs ovanpå DIREKT, utan DB, även när
+    // skrivningen nedan skjuts upp eller larmen är pausade (src/lib/stock-overlay.ts).
+    await recordStockOverlay(hits);
 
     // LAGERSYNKAR SOM INTE FÅR VÄCKA (2026-10-12): lanen erbjuder sina köade synkar en
     // gång i minuten. Har processen inte frågat databasen nyss sover Neon troligen — då

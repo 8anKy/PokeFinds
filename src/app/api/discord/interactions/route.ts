@@ -32,6 +32,7 @@ import {
   searchCatalogIndex,
 } from "@/lib/discord-price-command";
 import { readSnapshotEntry, readSnapshotIndex } from "@/lib/catalog-snapshot";
+import { applyStockOverlay, readStockOverlay } from "@/lib/stock-overlay";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -105,5 +106,7 @@ export async function POST(req: Request) {
   }
   // Publikt i #pris-koll (skyltfönster för Pro), efemärt i alla andra kanaler.
   const flags = answerFlags(interaction.channel_id);
-  return reply({ embeds: [buildPriceEmbed(entry, hit, APP_URL)], ...(flags ? { flags } : {}) });
+  // Lanens nyare lagerbesked ovanpå nattens priser (src/lib/stock-overlay.ts).
+  const live = applyStockOverlay(entry, await readStockOverlay());
+  return reply({ embeds: [buildPriceEmbed(live.entry, hit, APP_URL, live.updatedAt)], ...(flags ? { flags } : {}) });
 }
