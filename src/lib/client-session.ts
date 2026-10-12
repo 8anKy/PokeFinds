@@ -1,6 +1,6 @@
 "use client";
 
-import { getSession } from "next-auth/react";
+import { getCsrfToken, getSession } from "next-auth/react";
 import type { Session } from "next-auth";
 import { onAuthHintChange } from "./auth-hint";
 
@@ -58,4 +58,49 @@ export function getSharedSession(): Promise<Session | null> {
     });
   inflight = p;
   return p;
+}
+
+/**
+ * LÄS OM PLAN/ROLL/ONBOARDING UR DB IN I SESSIONSTOKEN — NU, inte om 30 minuter.
+ *
+ * ⛔ `useSession().update()` GÖR INGENTING HOS OSS. `SessionProvider` monteras med
+ * `session={null}` (providers.tsx — annars hämtar den /api/auth/session på varje
+ * sida), och NextAuth v4:s `update()` börjar med `if (loading || !session) return`.
+ * Sessionen i providern är alltid null ⇒ inget POST, inget fel, ingenting. MÄTT
+ * 2026-10-12 (Railways http-logg): en kund köpte Pro i iOS-appen 01:39:30, `/api/users/me`
+ * sa Pro direkt, men inget `POST /api/auth/session` gick ut — graderade priser,
+ * bulk-skanning m.m. var låsta tills token:ens 30-minuters-TTL löpte ut 01:59:40, och
+ * kunden fick logga ut och in. Samma POST som `update()` hade gjort, fast utan
+ * providerns tillstånd: servern kör jwt-callbacken med `trigger: "update"`
+ * (auth.ts) och skriver en ny cookie.
+ *
+ * Fel här får aldrig fälla anroparen — DB:n är redan rätt, token:en läker via TTL:n.
+ */
+export async function refreshSessionToken(): Promise<void> {
+  try {
+    const csrfToken = await getCsrfToken();
+    if (!csrfToken) return;
+    await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csrfToken, data: {} }),
+    });
+  } catch {
+    // Nätverksfel: TTL:n (30 min) tar det.
+  } finally {
+    invalidateSharedSession();
+  }
+}
+
+/**
+ * Självläkning utan nya anrop: där appen ÄNDÅ läser planen färskt ur DB
+ * (`/api/users/me`) jämförs svaret med sessionen, och skiljer de sig läses token:en
+ * om. Täcker det köpflödet inte ser: Pro köpt på en annan enhet/webben, en
+ * återställning, admin-ändrad plan, eller ett Pro som löpt ut.
+ */
+export async function reconcileSessionPlan(dbIsPro: boolean | undefined | null): Promise<void> {
+  if (typeof dbIsPro !== "boolean") return;
+  const s = await getSharedSession();
+  if (!s?.user) return;
+  if (!!s.user.isPro !== dbIsPro) await refreshSessionToken();
 }

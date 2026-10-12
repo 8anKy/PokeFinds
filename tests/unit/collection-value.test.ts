@@ -9,6 +9,8 @@ const findMany = vi.fn();
 vi.mock("@/lib/db", () => ({
   prisma: {
     collectionItem: { findMany: (...args: unknown[]) => findMany(...args) },
+    // Ingen frysmarkör ⇒ grafen beter sig som före 2026-10-12 (slutar idag).
+    jobMarker: { findUnique: async () => null },
   },
 }));
 

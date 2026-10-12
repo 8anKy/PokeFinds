@@ -32,9 +32,21 @@ import { titleCarriesNumber, titleFitsSet, type GradedAskProduct } from "../lib/
 import { listingCardLanguage } from "../lib/listing-language";
 import { listingFitsVariant } from "../lib/print-variant";
 import { JP_EXTERNAL_PREFIX } from "./jp-singles-refresh";
+import { GRADED_WINDOW_DAYS } from "../services/graded";
 
 const THROTTLE_MS = 120;
 const PER_PAGE = 100;
+/**
+ * ALLA SIDOR, INTE BARA DEN FÖRSTA (2026-10-12). Svepet läste en sida (≤ 100 affärer)
+ * per kort, och leverantören sorterar nyast först — så historiken var en tunn skiva:
+ * Umbreon VMAX 215 har 509 affärer på 6 sidor (tillbaka till sept 2025) och vi hade 100
+ * (≈ 5 veckor); Charizard ex 151 #199 har ~1 800 på 18 sidor och vi hade EN VECKA.
+ * Nu bläddras det bakåt tills affärerna passerar GRADED_WINDOW_DAYS (grafens år), sidorna
+ * tar slut, taket nås, eller — vid ett återbesök — en sida inte gav något nytt och
+ * kortets historik redan når fönstret. Ett avbrutet bakåtbläddrande fortsätter alltså
+ * nästa gång kortet roterar in.
+ */
+const MAX_PAGES_PER_CARD = Number(process.env.TCGGO_EBAY_SOLD_MAX_PAGES) || 20;
 
 export interface EbaySoldSweepOptions {
   budget?: number;
@@ -120,6 +132,9 @@ export async function runEbaySoldSweep(opts: EbaySoldSweepOptions = {}): Promise
   }
   res.ran = true;
   const budget = opts.budget ?? parseInt(process.env.TCGGO_EBAY_SOLD_DAILY_BUDGET ?? "2000", 10);
+  // Anropstak för hela körningen (sidor, inte kort). Ultra = 15 000/dygn, CM-jobben ~3 000.
+  const callBudget = parseInt(process.env.TCGGO_EBAY_SOLD_CALL_BUDGET ?? "5000", 10);
+  const cutoffMs = Date.now() - GRADED_WINDOW_DAYS * 86_400_000;
   const dryRun = opts.dryRun ?? false;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const rates = await getRatesOre();
@@ -135,29 +150,58 @@ export async function runEbaySoldSweep(opts: EbaySoldSweepOptions = {}): Promise
       ? `id=${encodeURIComponent(p.externalId.slice(JP_EXTERNAL_PREFIX.length))}`
       : `tcgid=${encodeURIComponent(p.externalId)}`;
     const game = p.language === "JP" ? "pokemon-jp" : "pokemon";
-    let offers: EbaySoldOffer[];
-    try {
-      const r = await fetchImpl(`https://${HOST}/${game}/ebay-sold-offers?${query}&per_page=${PER_PAGE}`, {
-        headers: { "x-rapidapi-host": HOST, "x-rapidapi-key": KEY },
-      });
-      res.apiCalls++;
-      if (r.status === 429) throw new QuotaError("429");
-      if (!r.ok) {
-        console.warn(`[ebay-sold] ${p.externalId}: HTTP ${r.status}`);
-        return;
+    // Vad vi redan har: id:n (sluta när en sida inte ger något nytt) och hur långt
+    // bakåt historiken når (har bakåtbläddrandet en gång gått hela vägen?).
+    const known = dryRun
+      ? []
+      : await prisma.gradedSale.findMany({
+          where: { productId: p.id, source: EBAY_SOLD_SOURCE },
+          select: { itemId: true, soldAt: true },
+        });
+    const knownIds = new Set(known.map((k) => k.itemId));
+    const reachesWindow = known.some((k) => k.soldAt.getTime() <= cutoffMs + 14 * 86_400_000);
+    const offers: EbaySoldOffer[] = [];
+    let fetchedAny = false;
+    for (let page = 1; page <= MAX_PAGES_PER_CARD; page++) {
+      if (stop || res.apiCalls >= callBudget) break;
+      let data: EbaySoldOffer[];
+      let totalPages = 1;
+      try {
+        const r = await fetchImpl(
+          `https://${HOST}/${game}/ebay-sold-offers?${query}&per_page=${PER_PAGE}&page=${page}`,
+          { headers: { "x-rapidapi-host": HOST, "x-rapidapi-key": KEY } }
+        );
+        res.apiCalls++;
+        if (r.status === 429) throw new QuotaError("429");
+        if (!r.ok) {
+          console.warn(`[ebay-sold] ${p.externalId} sida ${page}: HTTP ${r.status}`);
+          break;
+        }
+        const body = (await r.json()) as { data?: EbaySoldOffer[]; paging?: { total?: number } };
+        data = body.data ?? [];
+        totalPages = body.paging?.total ?? 1;
+      } catch (err) {
+        if (err instanceof QuotaError) {
+          stop = true;
+          res.quotaHit = true;
+          break;
+        }
+        console.error(`[ebay-sold] ${p.externalId}: ${err instanceof Error ? err.message : err}`);
+        break;
+      } finally {
+        await sleep(THROTTLE_MS);
       }
-      offers = ((await r.json()) as { data?: EbaySoldOffer[] }).data ?? [];
-    } catch (err) {
-      if (err instanceof QuotaError) {
-        stop = true;
-        res.quotaHit = true;
-        return;
-      }
-      console.error(`[ebay-sold] ${p.externalId}: ${err instanceof Error ? err.message : err}`);
-      return;
-    } finally {
-      await sleep(THROTTLE_MS);
+      fetchedAny = true;
+      offers.push(...data);
+      if (data.length === 0 || page >= totalPages) break;
+      // Sidan passerade grafens år — äldre affärer visas aldrig.
+      const oldest = Math.min(...data.map((o) => Date.parse(o.ended_at ?? "") || Infinity));
+      if (oldest < cutoffMs) break;
+      // Återbesök: inget nytt på sidan OCH historiken når redan fönstret ⇒ ikapp.
+      const anyNew = data.some((o) => !knownIds.has(`${EBAY_SOLD_SOURCE}:${o.ebay_item_id}`));
+      if (!anyNew && reachesWindow) break;
     }
+    if (!fetchedAny) return;
 
     const rows = offers.flatMap((o) => {
       // Bevisvakterna FÖRE priset: fel språk/nummer/set/tryckning är inte en affär

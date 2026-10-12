@@ -7,6 +7,9 @@ import { isDirectOfferUrl } from "@/lib/marketplace-urls";
  */
 export const CARDMARKET_RETAILER_NAME = "Cardmarket";
 
+/** JobMarker-nyckeln för "samlingsvärdet frystes" — portföljgrafens sista dag. */
+export const COLLECTION_SETTLE_MARKER = "collection-settle";
+
 export interface ValuedOffer {
   /** öre — null/0 = länk-offer utan känt pris */
   price: number | null;

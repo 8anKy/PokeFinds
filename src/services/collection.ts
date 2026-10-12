@@ -3,7 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { getCardValues, getProductValues, SETTLED_VALUE_SELECT } from "@/services/products";
-import { pickCardValue, settledMarketValue, type MarketValue } from "@/lib/market-value";
+import { COLLECTION_SETTLE_MARKER, pickCardValue, settledMarketValue, type MarketValue } from "@/lib/market-value";
+import { cachedRead } from "@/lib/cache";
 import { normalizePrinting, parseImportNumber } from "@/lib/import-normalize";
 import type { ImportDraftRow } from "@/lib/import-rows";
 import { resolveImportRows } from "@/services/collection-import";
@@ -296,6 +297,24 @@ function avgAtOrBefore(snaps: Snap[], end: number): number | null {
   return v ?? (snaps[0]?.avgPrice ?? null);
 }
 
+/** När samlingsvärdet senast frystes (JobMarker, skrivs sist av settle-steget). */
+async function readCollectionSettleMarker(): Promise<string | null> {
+  const m = await prisma.jobMarker.findUnique({ where: { key: COLLECTION_SETTLE_MARKER } });
+  return m?.at.toISOString() ?? null;
+}
+// PRICE_CACHE_TAG: CM-jobbets revalidate-steg (efter frysningen) kastar den.
+const cachedCollectionSettleMarker = cachedRead(readCollectionSettleMarker, "collection-settle-marker", 3600);
+async function collectionSettledAt(): Promise<Date | null> {
+  let iso: string | null;
+  try {
+    iso = await cachedCollectionSettleMarker();
+  } catch {
+    // Utanför Next (veckobrevet kör som jobb) finns ingen inkrementell cache.
+    iso = await readCollectionSettleMarker();
+  }
+  return iso ? new Date(iso) : null;
+}
+
 /**
  * Beräknar samlingens värde, kostnad, vinst, top movers och värdeutveckling över tid.
  *
@@ -365,7 +384,17 @@ export async function computeCollectionValue(
 
   // ---- Prissnapshots per objekt (för historik + movers) ----
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const ownedFrom = (i: (typeof items)[number]) => startOfDay(i.purchaseDate ?? i.createdAt);
+  // GRAFENS SISTA DAG = DAGEN VÄRDET SENAST FRYSTES (2026-10-12), inte "idag". Före
+  // nattens Cardmarket-jobb slutar kurvan alltså på gårdagen — annars dök en ny punkt upp
+  // vid midnatt och skalades mot snapshots andra jobb hunnit skriva (se settle-collection-values).
+  // Ingen markör (före första körningen) ⇒ gamla beteendet: idag, dagens snapshot som ankare.
+  const settledAt = await collectionSettledAt();
+  const endDate = startOfDay(settledAt ?? new Date());
+  const ownedFrom = (i: (typeof items)[number]) => {
+    const d = startOfDay(i.purchaseDate ?? i.createdAt);
+    // Tillagt efter frysningen: räknas in på sista dagen, så slutpunkten = Totalt värde.
+    return d > endDate ? endDate : d;
+  };
   const valued = items.filter((i) => valueOf(i.id) != null);
 
   const valueOverTime: { date: string; value: number }[] = [];
@@ -375,8 +404,10 @@ export async function computeCollectionValue(
     const startDay = valued.map(ownedFrom).reduce((a, b) => (b < a ? b : a));
     const cardIds = valued.map((i) => i.cardId).filter((v): v is string => v != null);
     const productIds = valued.map((i) => i.productId).filter((v): v is string => v != null);
+    // Med markör: bara snapshots FÖRE frysdagen — de skrivs aldrig om — och ankaret
+    // (frysdagens snapshot) läses ur `settledTrendOre`, fryst i samma ögonblick som värdet.
     const snapSelect = {
-      where: { date: { gte: startDay } },
+      where: { date: settledAt ? { gte: startDay, lt: endDate } : { gte: startDay } },
       select: { date: true, avgPrice: true },
       orderBy: { date: "asc" as const },
     };
@@ -385,13 +416,13 @@ export async function computeCollectionValue(
       cardIds.length
         ? prisma.product.findMany({
             where: { cardId: { in: cardIds } },
-            select: { cardId: true, ...SETTLED_VALUE_SELECT, offers: { select: SNAP_OFFER_SELECT }, priceSnapshots: snapSelect },
+            select: { cardId: true, ...SETTLED_VALUE_SELECT, settledTrendOre: true, offers: { select: SNAP_OFFER_SELECT }, priceSnapshots: snapSelect },
           })
         : Promise.resolve([]),
       productIds.length
         ? prisma.product.findMany({
             where: { id: { in: productIds } },
-            select: { id: true, offers: { select: SNAP_OFFER_SELECT }, priceSnapshots: snapSelect },
+            select: { id: true, settledTrendOre: true, offers: { select: SNAP_OFFER_SELECT }, priceSnapshots: snapSelect },
           })
         : Promise.resolve([]),
     ]);
@@ -399,28 +430,31 @@ export async function computeCollectionValue(
     // Per kort: snapshots från den produkt som SATTE värdet — samma urval som
     // `getCardValues` (Cardmarket först, lägsta som reserv). ⛔ Glider urvalen isär
     // ankras kurvan i en annan produkts trend än den siffra den ska förklara.
-    const cardSnaps = new Map<string, Snap[]>();
-    const cardCandidates = new Map<string, { value: MarketValue; snaps: Snap[] }[]>();
+    type SnapSeries = { snaps: Snap[]; anchor: number | null };
+    const cardSnaps = new Map<string, SnapSeries>();
+    const cardCandidates = new Map<string, { value: MarketValue; series: SnapSeries }[]>();
     for (const p of cardProducts) {
       if (!p.cardId) continue;
       const value = settledMarketValue(p);
       if (value.price == null) continue;
+      const series = { snaps: p.priceSnapshots, anchor: p.settledTrendOre };
       const bucket = cardCandidates.get(p.cardId);
-      if (bucket) bucket.push({ value, snaps: p.priceSnapshots });
-      else cardCandidates.set(p.cardId, [{ value, snaps: p.priceSnapshots }]);
+      if (bucket) bucket.push({ value, series });
+      else cardCandidates.set(p.cardId, [{ value, series }]);
     }
     for (const [cardId, candidates] of cardCandidates) {
       const winner = pickCardValue(candidates.map((c) => c.value));
       const match = candidates.find(
         (c) => c.value.price === winner.price && c.value.fromCardmarket === winner.fromCardmarket
       );
-      if (match) cardSnaps.set(cardId, match.snaps);
+      if (match) cardSnaps.set(cardId, match.series);
     }
-    const prodSnaps = new Map<string, Snap[]>();
-    for (const p of prods) prodSnaps.set(p.id, p.priceSnapshots);
+    const prodSnaps = new Map<string, SnapSeries>();
+    for (const p of prods) prodSnaps.set(p.id, { snaps: p.priceSnapshots, anchor: p.settledTrendOre });
 
-    const snapsForItem = (i: (typeof items)[number]): Snap[] | undefined =>
+    const seriesForItem = (i: (typeof items)[number]): SnapSeries | undefined =>
       i.cardId ? cardSnaps.get(i.cardId) : i.productId ? prodSnaps.get(i.productId) : undefined;
+    const snapsForItem = (i: (typeof items)[number]): Snap[] | undefined => seriesForItem(i)?.snaps;
 
     // Värdeutveckling: per objekt ANKRAS i dess AKTUELLA värde (samma källa som
     // "Totalt värde" → ingen klippa/enhetskrock), och CM-trenden används bara för
@@ -428,8 +462,13 @@ export async function computeCollectionValue(
     // Objekt utan trend → platt på nuvärdet. Slutpunkten = summan av nuvärden = Totalt värde.
     const nowMs = Date.now();
     const valuedInfo = valued.map((i) => {
-      const snaps = snapsForItem(i);
-      const trendNow = snaps && snaps.length ? avgAtOrBefore(snaps, nowMs) : null;
+      const series = seriesForItem(i);
+      const snaps = series?.snaps;
+      // Ankaret: frysögonblickets snapshot. Utan markör (eller aldrig fryst) ⇒ senaste.
+      const trendNow =
+        settledAt && series?.anchor != null && series.anchor > 0
+          ? series.anchor
+          : snaps && snaps.length ? avgAtOrBefore(snaps, nowMs) : null;
       return {
         quantity: i.quantity,
         current: valueOf(i.id) ?? 0,
@@ -439,7 +478,7 @@ export async function computeCollectionValue(
       };
     });
 
-    const endMs = startOfDay(new Date()).getTime();
+    const endMs = endDate.getTime();
     // Plan-tak: gratis-användare ser bara de senaste maxDays dagarna (premium = full).
     const capStart =
       opts?.maxDays != null
@@ -457,10 +496,12 @@ export async function computeCollectionValue(
         59
       ).getTime();
       let total = 0;
+      const isLastDay = cursor.getTime() === endMs;
       for (const v of valuedInfo) {
         if (v.from > cursor.getTime()) continue;
         let per = v.current;
-        if (v.snaps) {
+        // Sista dagen ÄR det frysta värdet (snapshots före frysdagen finns, men inte dess egen).
+        if (v.snaps && !isLastDay) {
           const t = avgAtOrBefore(v.snaps, dayEnd);
           if (t != null) per = Math.round(v.current * (t / v.trendNow));
         }

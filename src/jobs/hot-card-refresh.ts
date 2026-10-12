@@ -44,7 +44,7 @@ interface CmCard {
   // seten, och det är 1st Edition-raden som bär tcgid:t — därför räcker det inte
   // att ta data[0], se pickRowForProduct.
   version?: string | null;
-  prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null } | null } | null;
+  prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null; "7d_average"?: number | null } | null } | null;
 }
 
 export interface HotRefreshResult {
@@ -219,7 +219,12 @@ export async function runHotCardRefresh(
       guideNameMatches(cmNames.get(guideId), card.name)
         ? guide.get(guideId)
         : undefined;
-    const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
+    const priced = singlesHeadlineEur(
+      { from: cmp.lowest_near_mint, avg30: cmp["30d_average"], avg7: cmp["7d_average"] },
+      g,
+      // Tryckningar dömas inte av utropsvakten — samma regel som dagliga körningen.
+      { askGuard: !(isPrintVariantLabel(p.variantLabel) && p.variantLabel !== PRINT_UNLIMITED) },
+    );
     if (priced == null) return;
     // BARA UNLIMITED FÅR UPPSKATTAS — Shadowless och 1st Edition delar CM-produkt,
     // så en uppskattning hade gett båda samma värde. Samma regel som dagliga körningen.

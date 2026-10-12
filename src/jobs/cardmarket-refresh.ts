@@ -24,7 +24,7 @@ import {
 } from "../lib/marketplace-urls";
 import { judgeSameProduct } from "../lib/same-product";
 import { expansionSetJoin } from "../lib/cm-expansion-join";
-import { backfillCardmarketIds, buildCmIdByName } from "../lib/cm-catalog-names";
+import { backfillCardmarketIds, buildCmIdByName, cmCatalogNameKey } from "../lib/cm-catalog-names";
 import { adoptCmName } from "./adopt-cm-name";
 import { createSetLabeler } from "./sealed-set-label";
 import { runJapaneseSetLabels } from "./jp-set-label";
@@ -65,7 +65,7 @@ interface CmCard {
   // SET+NUMMER-RESERVEN nedan). `card_number` är ibland Int, ibland sträng.
   card_number?: string | number | null;
   episode?: { id?: number | null; name?: string | null } | null;
-  prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null } | null } | null;
+  prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null; "7d_average"?: number | null } | null } | null;
 }
 interface ApiProduct {
   name: string;
@@ -217,8 +217,40 @@ export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
 //
 // ⛔ Föreslå ALDRIG en ny per-kort-vakt byggd på price_guide_6.json. Den filen är inte
 //    CM:s From, och tre försök i rad (fromElseTrend, cmLow, cmMedian) har bevisat det.
+//
+// ── UNDANTAG: UTROP SOM INGEN KÖPER (ägarbeslut 2026-10-12) ──────────────────
+// Ägaren underkände "golvet rakt av" för de kort där den billigaste NM-annonsen är ett
+// utrop långt över ALLT som faktiskt säljs: Vulpix (JP) · Pokémon Web stod i 11 170 000 kr
+// (en annons på 1 000 000 € — feedens egna 30d/7d-snitt 33/40 €), Treecko · Nintendo Promos
+// 7 800 € mot 30d 131 €, Tropical Tidal Wave 30 000 € mot 307 €, Umbreon ★ POP 5 50 000 €
+// mot 7d 6 100 €. Talet ÄR CM:s From — men en From som ingen köper är inget marknadspris.
+// Mätt 2026-10-12 över 19 489 EN-singlar: 186 låg > 4x över sitt högsta försäljningssnitt.
+// Regeln skiljer sig från de tre rivna vakterna på två sätt: den FÄLLER bara (aldrig en
+// annan "From"), och den dömer mot det HÖGSTA av alla försäljningssnitt — feedens egna
+// 30d/7d plus guidens trend/avg/avg1/avg7/avg30. Guiden kan alltså bara GÖRA DET SVÅRARE
+// att fälla (max), aldrig orsaka en fällning feeden själv inte bär. Fälld From ⇒ samma
+// uppskattning som när From saknas (median, OUT_OF_STOCK ⇒ "Uppskattat värde").
+// ⛔ Tryckningar (1st Edition/Shadowless) dömas INTE: guide-raden delas med Unlimited,
+//    så ett 1st Edition-pris ligger med rätta långt över produktens snitt.
+export const FROM_ASK_MULT = Number(process.env.CM_FROM_ASK_MULT) || 4;
 const pos = (v: number | null | undefined): number | null =>
   typeof v === "number" && v > 0 ? v : null;
+
+/**
+ * Är `from` ett utrop långt över allt som säljs? Kräver minst TVÅ försäljningssnitt —
+ * ett ensamt (ev. korrupt) snitt får aldrig fälla en From. Ren, testad.
+ */
+export function fromIsOutlierAsk(
+  from: number | null | undefined,
+  saleRefs: (number | null | undefined)[],
+  mult: number = FROM_ASK_MULT,
+): boolean {
+  const f = pos(from);
+  if (f == null) return false;
+  const refs = saleRefs.map(pos).filter((v): v is number => v != null);
+  if (refs.length < 2) return false;
+  return f > mult * Math.max(...refs);
+}
 
 /**
  * Officiellt CM-namn → jämförbar form. Attack-parentesen (den långa) faller bort,
@@ -654,15 +686,21 @@ export interface CmGuideFields {
  * märks OUT_OF_STOCK, samma semantik som sealed/JP.
  */
 export function singlesHeadlineEur(
-  cm: { from?: number | null; avg30?: number | null },
+  cm: { from?: number | null; avg30?: number | null; avg7?: number | null },
   guide?: CmGuideFields | null,
-): { eur: number; from: boolean; via?: "from" | "estimate" } | null {
+  opts: { askGuard?: boolean } = {},
+): { eur: number; from: boolean; via?: "from" | "estimate"; askRejected?: boolean } | null {
   const g = guide;
   const from = pos(cm.from);
   // ÄGARENS REGEL: har feeden ett NM-engelskt lägstapris ÄR det priset. Ingen guide-rad,
   // ingen referens och ingen median får byta ut det — se blocket vid `pos` ovan för de
   // två vakter som försökte och vad de publicerade (215,61 kr på ett 37 000 €-kort).
-  if (from != null) return { eur: from, from: true, via: "from" };
+  // Enda undantaget: ett utrop > FROM_ASK_MULT × högsta försäljningssnittet (2026-10-12).
+  const askRejected =
+    from != null &&
+    opts.askGuard !== false &&
+    fromIsOutlierAsk(from, [cm.avg30, cm.avg7, g?.trend, g?.avg, g?.avg1, g?.avg7, g?.avg30]);
+  if (from != null && !askRejected) return { eur: from, from: true, via: "from" };
 
   // From SAKNAS helt → uppskattning (ingen känd köpbar NM-engelsk annons) →
   // OUT_OF_STOCK. Här duger INTE guidens `low`: den är lägsta över alla skick och
@@ -682,7 +720,7 @@ export function singlesHeadlineEur(
   refs.sort((a, b) => a - b);
   const mid = refs.length >> 1;
   const est = refs.length % 2 ? refs[mid] : (refs[mid - 1] + refs[mid]) / 2;
-  return { eur: est, from: false, via: "estimate" };
+  return { eur: est, from: false, via: "estimate", ...(askRejected ? { askRejected: true } : {}) };
 }
 
 /**
@@ -831,6 +869,28 @@ export function priceFromGuide(g: CmGuideEntry | undefined): { eur: number; acce
   return { eur, accepted: low != null && eur === low };
 }
 
+/**
+ * EN-GUIDE-FALLBACKENS PRIS (2026-10-12). Guidens `low` är lägsta annons på ALLA språk
+ * och skick — för en ENGELSK produkt är den alltså inte engelsk From: Prismatic
+ * Evolutions Booster Bundle stod i 39,99 € (en italiensk annons) när engelsk lägsta var
+ * 85 €, och 80-talet Battle Decks/Collector Chests i fallbacken låg systematiskt under
+ * sin trend av samma skäl. Finns en försäljningsreferens (trend → snitt) blir priset en
+ * UPPSKATTNING på den (`accepted: false` ⇒ OUT_OF_STOCK ⇒ "Uppskattat värde"). Utan
+ * referens vet vi inget bättre än golvet, och då gäller det gamla beteendet.
+ */
+export function englishGuideFallbackEur(g: CmGuideEntry | undefined): { eur: number; accepted: boolean } | null {
+  const ref = cmGuideRefEur(g);
+  if (ref != null) return { eur: ref, accepted: false };
+  return priceFromGuide(g);
+}
+
+/** Är guidens trend och snitt ense (inom HISTORY_TRUST_AGREE)? Saknas något ⇒ nej. */
+export function guideRefsAgree(g: CmGuideEntry | undefined): boolean {
+  const t = usable(g?.trend), a = usable(g?.avg);
+  if (t == null || a == null) return false;
+  return Math.max(t, a) / Math.min(t, a) <= HISTORY_TRUST_AGREE;
+}
+
 // ── VÅR STABILA HISTORIK SOM FACIT (ägarens regel-tillägg, 2026-07-15) ────────
 // Ägarens prisregel: FROM > TREND > 30-dagssnitt, aldrig 1-dagsspiken. Men CM-GUIDEN
 // SJÄLV glitchar ibland: Skyridge visade trend/avg ~97k€ (1-dagsspiken) i stället för
@@ -895,6 +955,7 @@ export async function fetchCmGuide(): Promise<Map<number, CmGuideEntry>> {
 let cmSealedIdsCache: Set<number> | null = null;
 let cmSealedExpansionsCache: Map<number, number> | null = null;
 let cmSealedIdByNameCache: Map<string, number> | null = null;
+let cmSealedNameByIdCache: Map<number, string> | null = null;
 export async function fetchCmSealedIds(): Promise<Set<number>> {
   if (cmSealedIdsCache) return cmSealedIdsCache;
   const r = await fetch(CM_NONSINGLES_URL);
@@ -908,7 +969,46 @@ export async function fetchCmSealedIds(): Promise<Set<number>> {
     cat.products.flatMap((p) => (p.idExpansion != null ? [[p.idProduct, p.idExpansion] as const] : []))
   );
   cmSealedIdByNameCache = buildCmIdByName(cat.products);
+  cmSealedNameByIdCache = new Map(cat.products.map((p) => [p.idProduct, p.name]));
   return cmSealedIdsCache;
+}
+
+/** idProduct → CM:s katalognamn ur SAMMA nedladdning (namnbryggan i sealed-fasen). */
+export async function fetchCmSealedNameById(): Promise<Map<number, string>> {
+  if (!cmSealedNameByIdCache) await fetchCmSealedIds();
+  return cmSealedNameByIdCache ?? new Map();
+}
+
+/**
+ * NAMNBRYGGAN (2026-10-12): vår produkt bär ett BEVISAT idProduct (offerns länk), men
+ * RapidAPI listar samma produkt under ETT ANNAT id. Mätt: "Prismatic Evolutions Booster
+ * Bundle" är 798924 hos Cardmarket (katalog + prisguide), men leverantörens rad bär
+ * 865562 — ett id som inte finns i CM:s katalog. Uppslaget på id missade, produkten föll
+ * till guide-fallbacken och publicerade guidens `low` = 39,99 € (den ITALIENSKA annonsen;
+ * guiden räknar alla språk) i stället för radens engelska `lowest` 85 €. 22 av 104
+ * guide-fallback-produkter hade en sådan rad.
+ *
+ * Domen är IDENTITET, inte pris: exakt samma katalognamn (bara skiftläge/blanktecken
+ * normaliseras), EN enda rad med namnet, och radens eget id får inte vara en ANNAN
+ * riktig CM-produkt (då vet vi inte vems pris raden bär — "Meowth VMAX Special
+ * Collection"-raden bär t.ex. en Tyrantrum-blisters id) eller ägas av en annan av våra.
+ * Rader med `cardmarket_id: null` bryggas inte: backfillen har redan provat dem och
+ * lämnat dem för att namnet var tvetydigt eller id:t upptaget.
+ */
+export function apiRowByCatalogName<T extends { name: string; cardmarket_id: number | null }>(
+  idProduct: number,
+  cmNameById: Map<number, string>,
+  apiByNameKey: Map<string, T[]>,
+  ownedCmIds: Set<number>,
+): T | null {
+  const cmName = cmNameById.get(idProduct);
+  if (!cmName) return null;
+  const cands = apiByNameKey.get(cmCatalogNameKey(cmName)) ?? [];
+  if (cands.length !== 1) return null;
+  const row = cands[0];
+  if (row.cardmarket_id == null) return null;
+  if (row.cardmarket_id !== idProduct && (cmNameById.has(row.cardmarket_id) || ownedCmIds.has(row.cardmarket_id))) return null;
+  return row;
 }
 
 /**
@@ -1229,6 +1329,9 @@ interface CmGuideEntry {
   low: number | null;
   trend: number | null;
   avg30: number | null;
+  // Finns i filen (singlar) — läses av utropsvakten i singlesHeadlineEur.
+  avg1?: number | null;
+  avg7?: number | null;
 }
 interface CmNonSingle {
   idProduct: number;
@@ -1779,7 +1882,7 @@ export async function runCardmarketRefresh(
     // CM:s officiella prisguide = trend/30d-fallback när From saknas (RapidAPI-
     // singlar saknar trend-fält; guiden har alltid trend/avg).
     const [guide, cmNames] = await Promise.all([fetchCmGuide(), fetchCmSingleNames()]);
-    let misIdentified = 0, notASingle = 0;
+    let misIdentified = 0, notASingle = 0, askRejectedCount = 0;
     // GOLVET RAKT AV (ägarbeslut 2026-07-24, se singlesHeadlineEur): From publiceras
     // EXAKT som CM listar den — ingen trend-substitution, ingen per-kort-dagklämma.
     // `from=false` ⇒ värdet är en trend/30d-UPPSKATTNING (ingen köpbar annons) ⇒
@@ -2004,7 +2107,13 @@ export async function runCardmarketRefresh(
           g = undefined;
           misIdentified++;
         }
-        const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
+        const priced = singlesHeadlineEur(
+          { from: cmp.lowest_near_mint, avg30: cmp["30d_average"], avg7: cmp["7d_average"] },
+          g,
+          // Tryckningar dömas inte: guide-raden delas med Unlimited (se FROM_ASK_MULT).
+          { askGuard: !(printEntry && printLabel !== PRINT_UNLIMITED) },
+        );
+        if (priced?.askRejected) askRejectedCount++;
         // ── BARA UNLIMITED FÅR UPPSKATTAS ─────────────────────────────────────
         // Shadowless och 1st Edition DELAR CM-produkt (1st Edition är en flagga på
         // annonsen där, inte en egen produkt), så deras guide-rad är densamma. En
@@ -2337,6 +2446,8 @@ export async function runCardmarketRefresh(
       );
     if (misIdentified)
       console.log(`[cm-refresh] Identitetsvakt: ${misIdentified} kort där RapidAPI:s cardmarket_id pekar på ett ANNAT kort i CM:s katalog → guide-raden ignorerad.`);
+    if (askRejectedCount)
+      console.log(`[cm-refresh] Utropsvakt: ${askRejectedCount} singlar vars From låg > ${FROM_ASK_MULT}x över högsta försäljningssnittet → uppskattning i stället.`);
     if (notASingle)
       console.log(`[cm-refresh] Identitetsvakt: ${notASingle} kort där cardmarket_id inte är en SINGEL alls (sealed/okänd idProduct) → guide-raden ignorerad, From publiceras rått.`);
     console.log(`[cm-refresh] Singlar: ${res.singlesUpdated} uppdaterade, ${res.singlesCreated} nya, ${res.historyPoints} historikpunkter.`);
@@ -2386,11 +2497,16 @@ export async function runCardmarketRefresh(
 
     const byEpisode = new Map<string, ApiProduct[]>();
     const apiByCmId = new Map<number, ApiProduct>();
+    const apiByNameKey = new Map<string, ApiProduct[]>();
     for (const p of apiProducts) {
       const ep = norm(p.episode?.name ?? "");
       if (ep) (byEpisode.get(ep) ?? byEpisode.set(ep, []).get(ep)!).push(p);
       if (p.cardmarket_id != null) apiByCmId.set(p.cardmarket_id, p);
+      const nk = cmCatalogNameKey(p.name ?? "");
+      if (nk) (apiByNameKey.get(nk) ?? apiByNameKey.set(nk, []).get(nk)!).push(p);
     }
+    const cmSealedNameById = await fetchCmSealedNameById();
+    let bridgedByName = 0;
     const ours = await prisma.product.findMany({
       where: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
       include: {
@@ -2460,6 +2576,19 @@ export async function runCardmarketRefresh(
       let exact = false;
       const idm = cmOffer?.url?.match(/idProduct=(\d+)/);
       if (idm) { best = apiByCmId.get(parseInt(idm[1], 10)) ?? null; exact = best != null; }
+      // 1a) NAMNBRYGGAN — samma CM-produkt under ett annat leverantörs-id (se
+      //     apiRowByCatalogName). Raden får VÅRT id: länk, guide-rad, bild och
+      //     ägarskap följer den produkt vi bevisat, priset kommer ur radens ENGELSKA
+      //     `lowest` i stället för guidens alla-språk-golv.
+      if (!best && idm) {
+        const gid = parseInt(idm[1], 10);
+        const row = apiRowByCatalogName(gid, cmSealedNameById, apiByNameKey, ownedCmIds);
+        if (row) {
+          best = { ...row, cardmarket_id: gid };
+          exact = true;
+          bridgedByName++;
+        }
+      }
       // 1b) EN-GUIDE-FALLBACK: känt idProduct som INTE finns i RapidAPI men i CM-guiden.
       //     RapidAPI-katalogen missar Trick or Trade, vintage m.m. → utan detta prissätts de
       //     ALDRIG dagligen och fryser (ägaren hittade T&T 2023/2024 stilla sedan 15 juli).
@@ -2485,13 +2614,18 @@ export async function runCardmarketRefresh(
             }
           }
           const gEntryGuide = cmGuide.get(gid);
-          const priced = priceFromGuide(gEntryGuide);
+          const priced = englishGuideFallbackEur(gEntryGuide);
           if (priced) {
             let eur = priced.eur;
             // Historik-vakt hoppas över när CM är självkonsistent (se cmSelfConsistent):
             // en accepterad From som stämmer med trend OCH 30d = facit, ingen förgiftad
             // historik-median får överrösta den (ratchet-fixen 2026-07-24, Mega Lucario).
-            const trustFrom = priced.accepted && cmSelfConsistent(priced.eur, gEntryGuide?.trend, gEntryGuide?.avg);
+            // Samma sak för uppskattningen när guidens trend och snitt är ENSE: vår
+            // historik är då byggd på alla-språk-golvet (fram till 2026-10-12) och hade
+            // annars hållit kvar just det fel rättelsen ska ta bort.
+            const trustFrom = priced.accepted
+              ? cmSelfConsistent(priced.eur, gEntryGuide?.trend, gEntryGuide?.avg)
+              : guideRefsAgree(gEntryGuide);
             const histOre = trustFrom
               ? null
               : stableHistoryOre(p.priceSnapshots.map((s) => s.avgPrice));
@@ -2569,7 +2703,15 @@ export async function runCardmarketRefresh(
       // finns att grinda den mot. Utan referens passerar en glitchad guide-From ogranskad
       // (mätt: pin-blister → 2000€, XY Kanto Starters → 22 080 kr). RapidAPI:s egen lowest
       // behåller sitt gamla beteende. Skräp-From fångas annars av sanePriceEur nedan.
-      const low = cmp.lowest ?? (ref != null ? usable(gEntry?.low) : null) ?? null;
+      // ⛔ ENGELSKA BARA (2026-10-12): guidens `low` är lägsta annons på ALLA språk och
+      // skick, så den får aldrig stå för radens engelska `lowest` — Towering Splash GX
+      // Box stod i 144,90 € (den italienska annonsen, `lowest_IT`) mot trend 238 €,
+      // Destined Rivals Build & Battle Kit i 59 € mot trend 183 €. Saknas engelsk
+      // `lowest` blir det en uppskattning (trend, OUT_OF_STOCK). Guidens golv lever
+      // bara kvar som SIGNAL till tunndata-vakten nedan: annonser finns, bara inte på
+      // engelska — på en tunn marknad är det samma "vet inte" som ett förkastat golv.
+      const low = cmp.lowest ?? null;
+      const otherLangLow = low == null && ref != null ? usable(gEntry?.low) : null;
       // Tunndata-vakt (vintage): ingen engelsk annons alls OCH billigaste annons på
       // NÅGOT språk ligger >3x över 30d-snittet → snittet är internt inkonsistent
       // med marknadens faktiska utbud och går inte att lita på (B&W Booster Box:
@@ -2656,7 +2798,7 @@ export async function runCardmarketRefresh(
       //      sitt gamla beteende (OUT_OF_STOCK + trend som uppskattning).
       //   3. Marknaden är tunn (≤THIN_ITEMS annonser).
       const accepted = low != null && eur === low;
-      if (low != null && !accepted && items <= THIN_ITEMS) {
+      if (((low != null && !accepted) || otherLangLow != null) && items <= THIN_ITEMS) {
         thinSkipped++;
         sealedOps.push({
           productId: p.id, offerId: cmOffer?.id, priceOre: null, refOre: null,
@@ -2749,6 +2891,7 @@ export async function runCardmarketRefresh(
     if (guarded) console.log(`[cm-refresh] Prisvakt: ${guarded} glitchade lowest ersatta av CM-referens (trend/30d).`);
     if (usedHist) console.log(`[cm-refresh] Historik-guard: ${usedHist} sealed där CM-guiden glitchade → vår stabila historik-median användes.`);
     if (thinSkipped) console.log(`[cm-refresh] Tunn marknad: ${thinSkipped} sealed utan tillförlitligt pris → "–" (≤${THIN_ITEMS} CM-annonser, reservvärdet går ej att lita på).`);
+    if (bridgedByName) console.log(`[cm-refresh] Namnbrygga: ${bridgedByName} sealed hittade sin RapidAPI-rad på exakt CM-katalognamn (leverantören bär ett annat id) → engelsk lowest i stället för guidens alla-språk-golv.`);
     if (guideFallback) console.log(`[cm-refresh] EN-guide-fallback: ${guideFallback} sealed vars idProduct saknas i RapidAPI prissatta direkt från CM-guiden (annars frusna).`);
     if (liquidFloored) console.log(`[cm-refresh] Likvid-golv: ${liquidFloored} skräp-From på likvid+stabil marknad → CM-trend istället:\n  ${liquidFlooredTitles.join("\n  ")}`);
     console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${pricedOps.length} historikpunkter.`);

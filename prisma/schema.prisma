@@ -610,6 +610,9 @@ model Product {
   settledValueOre    Int?
   settledValueFromCm Boolean         @default(false)
   settledValueAt     DateTime?
+  // Grafens ANKARE (2026-10-12): senaste snapshot-avgPrice när värdet frystes. Portföljgrafen
+  // räknar historiken relativt detta i stället för dagens (rörliga) snapshot.
+  settledTrendOre    Int?
   // ⛔ OANVÄND sedan 2026-10-10 (MSRP borttaget ur Discord-inläggen, ägarbeslut — ingen
   // rad hade någonsin ett värde). Ligger kvar tills en separat migration droppar den:
   // en drop i samma deploy hade slagit ut den gamla instansen under bytet.
@@ -1919,4 +1922,11 @@ model ModerationEvent {
 
   @@index([userId, createdAt])
   @@index([createdAt])
+}
+
+/// Tidsstämplar för nattjobb som läsvägar behöver — t.ex. "collection-settle" =
+/// när samlingsvärdet senast frystes (portföljgrafens sista dag).
+model JobMarker {
+  key String   @id
+  at  DateTime
 }

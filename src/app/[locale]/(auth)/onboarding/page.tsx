@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { useSession } from "next-auth/react";
+import { refreshSessionToken } from "@/lib/client-session";
 import { Button } from "@/components/ui/button";
 import { Checkbox, FieldError } from "@/components/ui/input";
 import { SafeImage } from "@/components/ui/safe-image";
@@ -45,7 +45,6 @@ export default function OnboardingPage() {
   const t = useTranslations("Auth.onboarding");
   const tError = useTranslations("Auth");
   const router = useRouter();
-  const { update } = useSession();
 
   const [step, setStep] = useState(1);
   const [sets, setSets] = useState<SetItem[]>([]);
@@ -123,7 +122,8 @@ export default function OnboardingPage() {
         setSubmitting(false);
         return;
       }
-      await update();
+      // ⛔ Inte `useSession().update()` — no-op hos oss (se refreshSessionToken).
+      await refreshSessionToken();
       router.push("/produkter");
       router.refresh();
     } catch {

@@ -37,7 +37,7 @@ interface CmCard {
   // (= ordinarie) och släpper igenom 1st Edition-priset. Ett fält som saknas på
   // objektet gör vakten tyst verkningslös; det har hänt två gånger den här veckan.
   version?: string | null;
-  prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null } | null } | null;
+  prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null; "7d_average"?: number | null } | null } | null;
 }
 
 async function main() {
@@ -103,7 +103,7 @@ async function main() {
       g = undefined;
       misId++;
     }
-    const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
+    const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"], avg7: cmp["7d_average"] }, g);
     if (priced == null) { noData++; return; }
     const priceOre = Math.round(priced.eur * rates.eurToOre);
     const url = isEnglishCardmarketUrl(t.url)

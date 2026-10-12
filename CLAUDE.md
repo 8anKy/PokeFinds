@@ -72,7 +72,14 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   **+ Japanska singlar sedan 2026-08-29** (~5 550 kort, 47 set; 24 JP-set saknar kort hos leverantören) —
   regler i `.claude/rules/jp-sets.md`. RapidAPI-baslinjen är nu ~1 880/3 000 per dygn.
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`;
-  graf/historik = CM trend.
+  graf/historik = CM trend. ⛔ **Sedan 2026-10-12 (ägarbeslut)**: en From > 4× högsta försäljningssnittet
+  är ett UTROP ⇒ uppskattning (EN + JP), och sealed tar ALDRIG guidens `low` (alla språk) som engelskt pris —
+  se `.claude/rules/cm-pricing.md` överst.
+- **PORTFÖLJGRAFEN FRYSES MED VÄRDET (2026-10-12)**: grafen slutar på dagen settle-steget senast körde
+  (`JobMarker["collection-settle"]`) och ankras i `Product.settledTrendOre` — före nattens CM-jobb syns
+  ingen ny dag, och snapshots andra jobb skriver rör inte kurvan.
+- ⛔ **`useSession().update()` ÄR EN NO-OP HOS OSS** (`SessionProvider session={null}`): använd
+  `refreshSessionToken()` (`lib/client-session.ts`). Köpt Pro syntes förut först efter 30 min/omlogg.
 - **GRADERADE PRISER = TRE KÄLLOR, ALLA LIVE**: Tradera-sålt (`GradedSale`), eBay-SÅLT ur PRISLEVERANTÖREN
   (RapidAPI `/ebay-sold-offers`, sedan 2026-09-16) och eBay-BEGÄRT via Browse (sedan 2026-09-15). Arket visar dem
   som separata märkta rader. ⚠️ Browse-svepet fick `401 invalid_client` i Actions VARJE natt 09-15 → 10-06 (felformad

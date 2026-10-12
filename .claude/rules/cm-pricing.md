@@ -17,6 +17,20 @@ paths:
 
 # Cardmarket-prispolicy för singlar (flyttad verbatim från CLAUDE.md 2026-08-12)
 
+> ⛔ **ÄNDRAT 2026-10-12 (ägarbeslut) — läs före "golvet rakt av" nedan.**
+> 1. **UTROPSVAKTEN**: en From > `FROM_ASK_MULT` (4) × det HÖGSTA av alla försäljningssnitt (feedens
+>    30d/7d + guidens trend/avg/avg1/avg7/avg30) fälls och ersätts av samma uppskattning som när From
+>    saknas (OUT_OF_STOCK ⇒ "Uppskattat värde"). Kräver ≥ 2 snitt; guiden kan bara göra det SVÅRARE att
+>    fälla (max). Tryckningar (1st Ed/Shadowless) dömas inte. Gäller EN (`singlesHeadlineEur`) och JP
+>    (`jpFromEur`). Utlöst av Vulpix (JP) 11 170 000 kr (1 000 000 €-annons, 30d 33 €); mätt: 186 av
+>    19 489 EN-singlar > 4x. Rayquaza ★ 37 000 € (6x) fälls nu — det är avsiktligt.
+> 2. **SEALED: GUIDENS `low` ÄR ALDRIG ENGELSK FROM** (den är lägsta på ALLA språk): Prismatic Evolutions
+>    Booster Bundle stod i 39,99 € (italiensk annons) mot engelsk 85 €. (a) NAMNBRYGGAN
+>    `apiRowByCatalogName`: vårt idProduct saknas i RapidAPI men en rad med EXAKT samma CM-katalognamn
+>    finns under ett annat id ⇒ radens engelska `lowest`. (b) Guide-fallbacken (`englishGuideFallbackEur`)
+>    och RapidAPI-rader utan `lowest` ger en UPPSKATTNING på trenden; guidens golv är bara en signal till
+>    tunndata-vakten.
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **Singelpris**: `Offer.price` på singlar = Cardmarkets engelska **NM-lägsta ("From")** × live-kurs, hämtat från **CardMarket API TCG (RapidAPI Pro)** — `CARDMARKET_RAPIDAPI_*` i .env, fältet `prices.cardmarket.lowest_near_mint` (DECIMAL EUR; bas-fältet är engelska, `_DE`/`_FR`/`_ES`/`_IT` = språk-överstyrningar). Detta ÄR det engelska From-pris som löste det gamla lowPrice-problemet (pokemontcg.io `lowPrice` = all-språk/all-skick-golv som grovt underskattade — använd ALDRIG). Fyll via `scripts/rapidapi-fill-singles.ts` (set-paginering `/pokemon/episodes/{id}/cards`, matcha på `tcgid`=`tcgExternalId`, ~1000 anrop för hela katalogen). Exakt uppslag = `?tcgid={id}` (1 träff). **GOLVET RAKT AV — HELA REGELN (ägarbeslut 2026-07-24, OMBEKRÄFTAT 2026-07-27)**:

@@ -41,7 +41,7 @@ import {
   isCardmarketJpSearchUrl,
 } from "@/lib/marketplace-urls";
 import { codeFromJpSetName, jpSetDisplayName } from "@/lib/jp-set-name";
-import { upsertTodaySnapshots } from "@/jobs/cardmarket-refresh";
+import { fromIsOutlierAsk, upsertTodaySnapshots } from "@/jobs/cardmarket-refresh";
 // ⛔ INGEN `fs`/`path` HÄR: modulen nås från cardmarket-refresh, som instrumentation.ts
 // importerar — och den kompileras även för Edge-runtimen, där Node-moduler inte
 // finns. Bygget föll på exakt det 2026-08-29 (deploy 389d8ca).
@@ -49,6 +49,21 @@ import { upsertTodaySnapshots } from "@/jobs/cardmarket-refresh";
 const DB_CONCURRENCY = 8;
 const THROTTLE_MS = 220;
 export const JP_EXTERNAL_PREFIX = "tcggo-jp:";
+
+/**
+ * JP NM-"From", utom när den är ett utrop långt över allt som säljs (ägarbeslut
+ * 2026-10-12, se FROM_ASK_MULT i cardmarket-refresh.ts): Vulpix · Pokémon Web 008/48
+ * stod i 11 170 000 kr på en annons à 1 000 000 € medan feedens 30d/7d-snitt var
+ * 33/40 €. Fälld ⇒ null ⇒ anroparen faller på 30d-snittet och märker OUT_OF_STOCK
+ * ("Uppskattat värde"), samma väg som när From saknas helt.
+ */
+export function jpFromEur(
+  cm: { lowest_near_mint_JP?: number | null; "30d_average"?: number | null; "7d_average"?: number | null } | null | undefined,
+): number | null {
+  const from = cm?.lowest_near_mint_JP ?? null;
+  if (fromIsOutlierAsk(from, [cm?.["30d_average"], cm?.["7d_average"]])) return null;
+  return from;
+}
 
 interface JpApiCard {
   id: number;
@@ -60,7 +75,7 @@ interface JpApiCard {
   cardmarket_id: number | null;
   image: string | null;
   artist: { name?: string | null } | null;
-  prices: { cardmarket?: { lowest_near_mint_JP?: number | null; "30d_average"?: number | null } | null } | null;
+  prices: { cardmarket?: { lowest_near_mint_JP?: number | null; "30d_average"?: number | null; "7d_average"?: number | null } | null } | null;
   episode: {
     id: number;
     name: string;
@@ -308,7 +323,7 @@ export async function runJapaneseSinglesRefresh(
     }
 
     // Pris + länk. Riktig produktsida vinner den dag leverantören ger cardmarket_id.
-    const from = priceOreFromEur(c.prices?.cardmarket?.lowest_near_mint_JP, rates);
+    const from = priceOreFromEur(jpFromEur(c.prices?.cardmarket), rates);
     const avg = priceOreFromEur(c.prices?.cardmarket?.["30d_average"], rates);
     const priceOre = from ?? avg;
     const stock = from ? "IN_STOCK" : "OUT_OF_STOCK";
@@ -419,7 +434,7 @@ export async function runJapaneseSinglesGapFill(
     for (const c of d.data ?? []) {
       const g = byExt.get(`${JP_EXTERNAL_PREFIX}${c.id}`);
       if (!g) continue;
-      const from = priceOreFromEur(c.prices?.cardmarket?.lowest_near_mint_JP, rates);
+      const from = priceOreFromEur(jpFromEur(c.prices?.cardmarket), rates);
       const priceOre = from ?? priceOreFromEur(c.prices?.cardmarket?.["30d_average"], rates);
       if (priceOre) filled.push({ offerId: g.id, productId: g.productId, priceOre, from: from != null });
     }

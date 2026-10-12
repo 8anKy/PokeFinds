@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { useSession } from "next-auth/react";
 import { Button, LinkButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { hasAuthHint } from "@/lib/auth-hint";
+import { reconcileSessionPlan, refreshSessionToken } from "@/lib/client-session";
 import { lastPaywallSource } from "@/lib/paywall";
 import { track } from "@/lib/track";
 
@@ -43,7 +43,6 @@ export function UpgradeButton({
 }) {
   const t = useTranslations("Upgrade");
   const router = useRouter();
-  const { update } = useSession();
   const [native, setNative] = useState(false);
   /** App-skal utan butiksköp (nyckel saknas) → aldrig Stripe, bara "kommer snart". */
   const [storeShellNoIap, setStoreShellNoIap] = useState(false);
@@ -79,12 +78,13 @@ export function UpgradeButton({
       if (me?.isPro) {
         // Låt token:en hinna ikapp så sidor som läser sessionen slipper vänta
         // ut TTL:n. Fel här får inte fälla köpet — Pro gäller redan i DB.
-        await update().catch(() => undefined);
+        // ⛔ Inte `useSession().update()` — den är en no-op hos oss (se refreshSessionToken).
+        await refreshSessionToken();
         return true;
       }
     }
     return false;
-  }, [update]);
+  }, []);
 
   /**
    * ⛔ ALLT SOM EFFEKTEN BEHÖVER LIGGER I REFS, OCH DEN KÖR EN GÅNG.
@@ -119,6 +119,7 @@ export function UpgradeButton({
         .then((me) => {
           setIsPro(!!me?.isPro);
           setProSource(me?.proSource ?? null);
+          void reconcileSessionPlan(me?.isPro);
         })
         .catch(() => undefined);
     }

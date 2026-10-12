@@ -124,10 +124,15 @@ jobs:
       # (~2 300 används av prisjobben, 15 000 totalt sedan Ultra 2026-09-16). Individuella affärer in i
       # GradedSale med source "ebay" — sålt ≠ begärt, eBay UK ≠ Tradera. Bevakade
       # kort varje natt, resten roterar på Product.ebaySoldCheckedAt.
+      # Sedan 2026-10-12 bläddras ALLA sidor bakåt ett år (var bara sida 1 = ≤ 100 affärer,
+      # en vecka på de populäraste korten). Anropstaket räknar sidor; stegets eget
+      # tidstak skyddar resten av jobbet (allt som hann skrivas ligger kvar — idempotent).
       - name: Graderade sålda på eBay (leverantören → GradedSale)
         if: steps.guard.outputs.ready == 'true' && !cancelled()
+        timeout-minutes: 40
         env:
           CARDMARKET_RAPIDAPI_HOST: ${{ secrets.CARDMARKET_RAPIDAPI_HOST }}
           CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}
           TCGGO_EBAY_SOLD_DAILY_BUDGET: "2000"
+          TCGGO_EBAY_SOLD_CALL_BUDGET: "5000"
         run: npx tsx scripts/ebay-sold-sweep.ts

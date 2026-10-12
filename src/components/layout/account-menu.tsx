@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import { Link, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { setAuthHint } from "@/lib/auth-hint";
+import { reconcileSessionPlan } from "@/lib/client-session";
 import {
   IconBell,
   IconChevronDown,
@@ -72,6 +73,8 @@ export function AccountMenu() {
           const data = (await res.json()) as { name?: string | null; isPro?: boolean };
           const next: CachedProfile = { name: data.name ?? null, isPro: !!data.isPro };
           setProfile(next);
+          // DB-färsk plan ≠ sessionens ⇒ läs om token:en (Pro köpt på annan enhet m.m.).
+          void reconcileSessionPlan(data.isPro);
           try {
             sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(next));
           } catch {

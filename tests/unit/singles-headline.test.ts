@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { jpFromEur } from "@/jobs/jp-singles-refresh";
 import {
   singlesHeadlineEur,
+  fromIsOutlierAsk,
   guideNameMatches,
   feedMoveShares,
   DAY_MOVE_MAX,
@@ -11,10 +13,10 @@ import {
 // Cardmarkets lägsta NM-annons på engelska; ingen guide-rad får byta ut det. Trend/30d
 // är BARA fallback när fältet saknas, och då en uppskattning märkt OUT_OF_STOCK.
 describe("singlesHeadlineEur (golvet rakt av)", () => {
-  it("From publiceras exakt som CM listar den, hur långt från trenden den än ligger", () => {
+  it("From publiceras exakt som CM listar den, även långt över trenden (upp till utropsgränsen)", () => {
     expect(
-      singlesHeadlineEur({ from: 37000, avg30: 4093.09 }, { low: 6000, trend: 6271.49, avg30: 4093.09 })
-    ).toEqual({ eur: 37000, from: true, via: "from" });
+      singlesHeadlineEur({ from: 20000, avg30: 4093.09 }, { low: 6000, trend: 6271.49, avg30: 4093.09 })
+    ).toEqual({ eur: 20000, from: true, via: "from" });
     expect(singlesHeadlineEur({ from: 3.5, avg30: 6.2 }, { low: 3.4, trend: 8.45, avg30: 6.2 })).toEqual({
       eur: 3.5,
       from: true,
@@ -116,5 +118,54 @@ describe("feedMoveShares", () => {
   it("trösklarna är de förväntade defaultvärdena", () => {
     expect(DAY_MOVE_MAX).toBe(3);
     expect(FEED_BREAKER_MULT).toBe(10);
+  });
+});
+
+// Ägarbeslut 2026-10-12: ett utrop > FROM_ASK_MULT × HÖGSTA försäljningssnittet är inget pris.
+describe("singlesHeadlineEur — utropsvakten", () => {
+  it("Treecko · Nintendo Promos: 7 800 € mot 30d 131 € ⇒ uppskattning", () => {
+    const r = singlesHeadlineEur(
+      { from: 7800.99, avg30: 130.81, avg7: 152.05 },
+      { low: 2999, trend: 182.73, avg: null, avg1: 200, avg7: 152.05, avg30: 130.81 },
+    )!;
+    expect(r.from).toBe(false);
+    expect(r.askRejected).toBe(true);
+    expect(r.eur).toBeGreaterThan(100);
+    expect(r.eur).toBeLessThan(250);
+  });
+
+  it("Rayquaza ★ · Deoxys (37 000 € mot högsta snitt 6 271 €) fälls nu", () => {
+    const r = singlesHeadlineEur({ from: 37000, avg30: 4093.09 }, { low: 6000, trend: 6271.49, avg30: 4093.09 })!;
+    expect(r).toMatchObject({ from: false, via: "estimate", askRejected: true });
+  });
+
+  it("guiden kan bara GÖRA DET SVÅRARE att fälla: ett högt avg1 räddar ett äkta hopp", () => {
+    // Mudkip ★: From 18 000, avg1 10 500 ⇒ 1,7x ⇒ står kvar.
+    expect(
+      singlesHeadlineEur(
+        { from: 18000, avg30: 4041.51, avg7: 7079.99 },
+        { trend: 5211.58, avg: 7979.99, avg1: 10500, avg7: 7079.99, avg30: 4041.51 },
+      ),
+    ).toEqual({ eur: 18000, from: true, via: "from" });
+  });
+
+  it("ett ensamt snitt fäller aldrig", () => {
+    expect(singlesHeadlineEur({ from: 5000, avg30: 10 }, null)).toEqual({ eur: 5000, from: true, via: "from" });
+  });
+
+  it("askGuard: false (tryckningar) publicerar From rakt av", () => {
+    expect(
+      singlesHeadlineEur({ from: 50000, avg30: 3000, avg7: 4000 }, { trend: 4625 }, { askGuard: false }),
+    ).toEqual({ eur: 50000, from: true, via: "from" });
+  });
+});
+
+describe("fromIsOutlierAsk / jpFromEur", () => {
+  it("Vulpix (JP) · Pokémon Web: 1 000 000 € mot 30d 33 € fälls", () => {
+    expect(fromIsOutlierAsk(1000000, [33.04, 39.71])).toBe(true);
+    expect(jpFromEur({ lowest_near_mint_JP: 1000000, "30d_average": 33.04, "7d_average": 39.71 })).toBeNull();
+  });
+  it("normal JP-From står kvar", () => {
+    expect(jpFromEur({ lowest_near_mint_JP: 4, "30d_average": 4.66, "7d_average": 4.34 })).toBe(4);
   });
 });
