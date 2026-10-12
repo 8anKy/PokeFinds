@@ -21,6 +21,6 @@ jobs:
           SITE_URL: ${{ vars.SITE_URL }}
         run: |
           if [ -z "${CRON_SECRET}" ]; then echo "::error::CRON_SECRET saknas i repo-secrets."; exit 1; fi
-          code=$(curl -sS -o snap.json -w '%{http_code}' --max-time 900 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://foilio.se}/api/cron/catalog-snapshot")
+          code=$(curl -sS -o snap.json -w '%{http_code}' --max-time 900 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://scoutr.se}/api/cron/catalog-snapshot")
           echo "catalog-snapshot → HTTP $code $(cat snap.json)"
           test "$code" = "200"

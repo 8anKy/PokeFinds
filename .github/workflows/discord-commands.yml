@@ -1,7 +1,7 @@
 name: Discord-kommandon (manuell)
 
 # Registrerar /pris i Foilios server och (valfritt) pekar applikationens
-# Interactions Endpoint URL mot https://foilio.se/api/discord/interactions.
+# Interactions Endpoint URL mot https://scoutr.se/api/discord/interactions.
 # Ingen databas — bara bot-token + guild-id. Se scripts/register-discord-commands.ts.
 #
 # ⛔ Sätt endpoint FÖRST när /api/discord/interactions är deployad: Discord PING:ar

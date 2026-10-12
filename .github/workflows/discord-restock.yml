@@ -356,7 +356,7 @@ jobs:
       # ⛔ Sätts BARA här. scrape-all och restock-watch kör EN hämtning per process och
       #    behåller defaulten (80 = alla) — där finns inget nästa varv att rotera till.
       WEBHALLEN_LIVE_POLL_MAX: "16"
-      NEXT_PUBLIC_APP_URL: "https://foilio.se"
+      NEXT_PUBLIC_APP_URL: "https://scoutr.se"
     steps:
       # Hoppa tyst och grönt när integrationen är avstängd — annars kör vi checkout
       # och npm var 2:a minut för att göra ingenting.

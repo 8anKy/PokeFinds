@@ -32,7 +32,7 @@ jobs:
             exit 0
           fi
           # ⛔ Apex direkt: en 301 följs inte av curl utan -L (CLAUDE.md).
-          url="${SITE_URL:-https://foilio.se}/api/cron/alerts-due"
+          url="${SITE_URL:-https://scoutr.se}/api/cron/alerts-due"
           code=$(curl -sS -o out.json -w '%{http_code}' --max-time 120 -X POST -H "x-cron-secret: ${CRON_SECRET}" "$url")
           echo "alerts-due → HTTP $code $(cat out.json)"
           test "$code" = "200"

@@ -190,7 +190,7 @@ jobs:
             echo "::notice::CRON_SECRET saknas i repo-secrets — hoppar över cache-invalidering (sidorna läker via TTL inom 1h)."
             exit 0
           fi
-          url="${SITE_URL:-https://foilio.se}/api/revalidate"
+          url="${SITE_URL:-https://scoutr.se}/api/revalidate"
           code=$(curl -sS -o reval.json -w '%{http_code}' -X POST -H "x-cron-secret: ${CRON_SECRET}" "$url")
           echo "revalidate → HTTP $code $(cat reval.json)"
           test "$code" = "200"
@@ -263,7 +263,7 @@ jobs:
           SITE_URL: ${{ vars.SITE_URL }}
         run: |
           if [ -z "${CRON_SECRET}" ]; then echo "::notice::CRON_SECRET saknas — hoppar över."; exit 0; fi
-          code=$(curl -sS -o sync.json -w '%{http_code}' --max-time 1100 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://foilio.se}/api/cron/engine-sync")
+          code=$(curl -sS -o sync.json -w '%{http_code}' --max-time 1100 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://scoutr.se}/api/cron/engine-sync")
           echo "engine-sync → HTTP $code $(cat sync.json)"
           test "$code" = "200"
 
@@ -287,7 +287,7 @@ jobs:
           SITE_URL: ${{ vars.SITE_URL }}
         run: |
           if [ -z "${CRON_SECRET}" ]; then echo "::notice::CRON_SECRET saknas — hoppar över."; exit 0; fi
-          code=$(curl -sS -o snap.json -w '%{http_code}' --max-time 900 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://foilio.se}/api/cron/catalog-snapshot")
+          code=$(curl -sS -o snap.json -w '%{http_code}' --max-time 900 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://scoutr.se}/api/cron/catalog-snapshot")
           echo "catalog-snapshot → HTTP $code $(cat snap.json)"
           test "$code" = "200"
 

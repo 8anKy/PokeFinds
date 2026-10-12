@@ -164,6 +164,6 @@ jobs:
           SITE_URL: ${{ vars.SITE_URL }}
         run: |
           if [ -z "${CRON_SECRET}" ]; then echo "::notice::CRON_SECRET saknas — hoppar över."; exit 0; fi
-          code=$(curl -sS -o sync.json -w '%{http_code}' --max-time 1100 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://foilio.se}/api/cron/engine-sync")
+          code=$(curl -sS -o sync.json -w '%{http_code}' --max-time 1100 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://scoutr.se}/api/cron/engine-sync")
           echo "engine-sync → HTTP $code $(cat sync.json)"
           test "$code" = "200"
