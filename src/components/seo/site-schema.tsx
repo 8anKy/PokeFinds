@@ -1,6 +1,6 @@
 import { routing } from "@/i18n/routing";
 import { localeUrl } from "@/lib/canonical";
-import { APP_STORE_URL, DISCORD_URL, INSTAGRAM_URL, TIKTOK_URL } from "@/lib/social-links";
+import { APP_STORE_URL, DISCORD_URL, INSTAGRAM_URL, PLAY_STORE_URL, TIKTOK_URL } from "@/lib/social-links";
 
 /**
  * `Organization` + `WebSite` som JSON-LD — schemat Google använder för att förstå
@@ -74,7 +74,7 @@ export function SiteSchema({ locale }: { locale: string }) {
         // vi inte längre står för. Vill ägaren ha tillbaka subredditen är det HÄR
         // identitetstråden återskapas, tillsammans med sidfotslänken — se
         // tombstonen i @/lib/social-links.
-        sameAs: [APP_STORE_URL, DISCORD_URL, INSTAGRAM_URL, TIKTOK_URL],
+        sameAs: [APP_STORE_URL, PLAY_STORE_URL, DISCORD_URL, INSTAGRAM_URL, TIKTOK_URL],
       },
       {
         "@type": "WebSite",

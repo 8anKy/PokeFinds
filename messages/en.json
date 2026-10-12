@@ -231,7 +231,9 @@
   "JoinUs": {
     "title": "Join us",
     "badgeAria": "Download Foilio on the App Store",
-    "badgeTagline": "Download on the"
+    "badgeTagline": "Download on the",
+    "playBadgeAria": "Get Foilio on Google Play",
+    "playBadgeTagline": "Get it on"
   },
   "Meta": {
     "title": "Foilio · Your control panel for the Pokémon TCG market",

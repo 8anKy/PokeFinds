@@ -2,8 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
-import { APP_STORE_URL } from "@/lib/social-links";
-import { IconAppleLogo } from "@/components/ui/brand-icons";
+import { APP_STORE_URL, PLAY_STORE_URL } from "@/lib/social-links";
+import { IconAppleLogo, IconGooglePlay } from "@/components/ui/brand-icons";
 
 /**
  * "Ladda ned på App Store"-brickan, ritad själv (glyf + text) i stället för
@@ -34,6 +34,15 @@ function isNativeApp(): boolean {
 const subscribeNoop = () => () => {};
 const serverSnapshot = () => false;
 
+const BADGE_CLASS =
+  "inline-flex items-center gap-2.5 rounded-xl border border-white/25 bg-black px-3.5 py-1.5 transition-colors hover:border-white/50";
+
+/**
+ * Båda butiksbrickorna sida vid sida (App Store först, Google Play bredvid —
+ * Android-appen är live sedan 2026-10-12). Alla visas för alla: servern vet inte
+ * vilken telefon besökaren har (ISR-cachad sida), och en klientbyte efter
+ * hydreringen hade hoppat i layouten.
+ */
 export function AppStoreBadge() {
   const t = useTranslations("JoinUs");
   const nativeApp = useSyncExternalStore(subscribeNoop, isNativeApp, serverSnapshot);
@@ -41,20 +50,35 @@ export function AppStoreBadge() {
   if (nativeApp) return null;
 
   return (
-    <a
-      href={APP_STORE_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={t("badgeAria")}
-      // `web-only`: gömd av CSS redan vid första målningen i appen (se rot-layoutens
-      // inline-skript) — useSyncExternalStore ovan tar bort den ur DOM:en efteråt.
-      className="web-only inline-flex items-center gap-2.5 rounded-xl border border-white/25 bg-black px-3.5 py-1.5 transition-colors hover:border-white/50"
-    >
-      <IconAppleLogo size={22} className="shrink-0 text-white" />
-      <span className="flex flex-col text-left leading-tight">
-        <span className="text-[10px] font-medium text-white/75">{t("badgeTagline")}</span>
-        <span className="-mt-0.5 text-sm font-semibold text-white">App Store</span>
-      </span>
-    </a>
+    // `web-only`: gömd av CSS redan vid första målningen i appen (se rot-layoutens
+    // inline-skript) — useSyncExternalStore ovan tar bort den ur DOM:en efteråt.
+    <div className="web-only flex items-center gap-2">
+      <a
+        href={APP_STORE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={t("badgeAria")}
+        className={BADGE_CLASS}
+      >
+        <IconAppleLogo size={22} className="shrink-0 text-white" />
+        <span className="flex flex-col text-left leading-tight">
+          <span className="text-[10px] font-medium text-white/75">{t("badgeTagline")}</span>
+          <span className="-mt-0.5 text-sm font-semibold text-white">App Store</span>
+        </span>
+      </a>
+      <a
+        href={PLAY_STORE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={t("playBadgeAria")}
+        className={BADGE_CLASS}
+      >
+        <IconGooglePlay size={20} className="shrink-0" />
+        <span className="flex flex-col text-left leading-tight">
+          <span className="text-[10px] font-medium text-white/75">{t("playBadgeTagline")}</span>
+          <span className="-mt-0.5 text-sm font-semibold text-white">Google Play</span>
+        </span>
+      </a>
+    </div>
   );
 }

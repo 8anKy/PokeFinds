@@ -231,7 +231,9 @@
   "JoinUs": {
     "title": "Häng med oss",
     "badgeAria": "Ladda ned Foilio i App Store",
-    "badgeTagline": "Ladda ned på"
+    "badgeTagline": "Ladda ned på",
+    "playBadgeAria": "Ladda ned Foilio på Google Play",
+    "playBadgeTagline": "Ladda ned på"
   },
   "Meta": {
     "title": "Foilio · Din kontrollpanel för Pokémon TCG-marknaden",

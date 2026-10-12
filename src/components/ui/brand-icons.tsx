@@ -24,6 +24,16 @@ export const IconAppleLogo = (p: IconProps) => (
   </svg>
 );
 
+/** Google Plays triangel — fyrfärgad som deras egen bricka, för "Ladda ned på Google Play". */
+export const IconGooglePlay = ({ size = 20, ...props }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden {...props}>
+    <path fill="#00D7FE" d="M3.6 1.8 13.4 12 3.6 22.2c-.4-.2-.6-.7-.6-1.2V3c0-.5.2-1 .6-1.2z" />
+    <path fill="#00F076" d="M16.8 8.6 13.4 12 3.6 1.8c.4-.2.9-.2 1.4.1l11.8 6.7z" />
+    <path fill="#FF3A44" d="M16.8 15.4 5 22.1c-.5.3-1 .3-1.4.1L13.4 12l3.4 3.4z" />
+    <path fill="#FFD500" d="M20.4 12c0 .5-.3 1-.8 1.3l-2.8 2.1-3.4-3.4 3.4-3.4 2.8 2.1c.5.3.8.8.8 1.3z" />
+  </svg>
+);
+
 /** Googles "G" — fyrfärgad enligt deras riktlinjer för inloggningsknappar. */
 export const IconGoogle = ({ size = 20, ...props }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden {...props}>
