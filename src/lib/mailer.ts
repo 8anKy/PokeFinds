@@ -6,6 +6,9 @@
  * - **Brevo** (`BREVO_API_KEY`) = massutskick (`lane: "bulk"`): veckobrevet och
  *   nyhetsmejlen. Gratisnivån tar 300 mejl/dygn. Finns nyckeln inte faller
  *   bulk-lanen tillbaka på Resend — samma mejl, samma mottagare.
+ *   ⛔ SEDAN 2026-10-12 SKICKAR VI INTE VIA BREVO (ägarbeslut): Resend är betald
+ *   (50 000/mån) och workflowsen sätter inte längre `BREVO_API_KEY`, så bulk går via
+ *   Resend. Koden står kvar så att lanen kan slås på igen med en nyckel.
  *
  * VARFÖR (2026-08-30): 92 konton, ~70 med e-post på. Veckobrevet ensamt närmar
  * sig Resends 100/dygn, och den dag ett nyhetsmejl landar samma dag som brevet
