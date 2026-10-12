@@ -68,6 +68,11 @@ export type RestockHit = z.infer<typeof restockHitSchema>;
 /** Kroppen i POST /api/cron/restock-hit. */
 export const restockHitBatchSchema = z.object({
   hits: z.array(restockHitSchema).min(1).max(100),
+  /**
+   * Bara lagersynkar, och bara om databasen redan är vaken (2026-10-12). Annars svarar
+   * appen `deferred: true` utan att röra DB:n och lanen försöker igen om en minut.
+   */
+  onlyIfAwake: z.boolean().default(false),
 });
 
 /**
@@ -347,6 +352,8 @@ export function removeDelivered(
 
 export interface SendHitsResult {
   ok: boolean;
+  /** `onlyIfAwake`: databasen sov — inget skrevs, hitsen ligger kvar i kön. */
+  deferred?: boolean;
   /** Appen svarade att larmen bakom HELA batchen är pausade → hitsen är inte värda att spara. */
   paused: boolean;
   /** 4xx: fel hemlighet eller ogiltig kropp — ett omförsök ger samma svar. */
@@ -363,7 +370,7 @@ export interface SendHitsResult {
  */
 export async function sendRestockHits(
   hits: readonly RestockHit[],
-  opts: { baseUrl: string; secret: string; timeoutMs?: number; fetchImpl?: typeof fetch }
+  opts: { baseUrl: string; secret: string; timeoutMs?: number; fetchImpl?: typeof fetch; onlyIfAwake?: boolean }
 ): Promise<SendHitsResult> {
   const doFetch = opts.fetchImpl ?? fetch;
   const url = `${opts.baseUrl.replace(/\/$/, "")}/api/cron/restock-hit`;
@@ -371,7 +378,7 @@ export async function sendRestockHits(
     const res = await doFetch(url, {
       method: "POST",
       headers: { "content-type": "application/json", "x-cron-secret": opts.secret },
-      body: JSON.stringify({ hits }),
+      body: JSON.stringify(opts.onlyIfAwake ? { hits, onlyIfAwake: true } : { hits }),
       signal: AbortSignal.timeout(opts.timeoutMs ?? 90_000),
     });
     const text = await res.text();
@@ -384,13 +391,14 @@ export async function sendRestockHits(
         detail: text.slice(0, 300),
       };
     }
-    let body: { paused?: boolean } & Partial<Omit<RestockHitApplyResult, "bound">> & { bound?: unknown } = {};
+    let body: { paused?: boolean; deferred?: boolean } & Partial<Omit<RestockHitApplyResult, "bound">> & { bound?: unknown } = {};
     try {
       body = JSON.parse(text) as typeof body;
     } catch {
       // Tomt/ogiltigt svar med 2xx → räkna som levererat utan detaljer.
     }
     const paused = body.paused === true;
+    if (body.deferred === true) return { ok: true, deferred: true, paused: false, permanent: false, status: res.status };
     return {
       ok: true,
       paused,

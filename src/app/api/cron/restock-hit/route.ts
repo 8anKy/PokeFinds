@@ -20,6 +20,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { apiError, jsonOk } from "@/lib/api";
 import { ensureDbAwake } from "@/lib/db";
+import { DB_AWAKE_PIGGYBACK_MS, dbIdleMs } from "@/lib/db-activity";
+import { ServiceError } from "@/lib/errors";
 import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { hitKind, restockHitBatchSchema } from "@/lib/restock-hits";
@@ -61,7 +63,19 @@ export async function POST(req: NextRequest) {
     if (req.headers.get("x-cron-secret") !== secret) {
       return NextResponse.json({ error: "Ogiltig cron-hemlighet." }, { status: 401 });
     }
-    const { hits } = restockHitBatchSchema.parse(await req.json());
+    const { hits, onlyIfAwake } = restockHitBatchSchema.parse(await req.json());
+
+    // LAGERSYNKAR SOM INTE FÅR VÄCKA (2026-10-12): lanen erbjuder sina köade synkar en
+    // gång i minuten. Har processen inte frågat databasen nyss sover Neon troligen — då
+    // rörs ingenting och lanen försöker igen. Se src/lib/db-activity.ts.
+    if (onlyIfAwake) {
+      if (hits.some((h) => hitKind(h) !== "STOCK_SYNC")) {
+        throw new ServiceError(400, "onlyIfAwake gäller bara lagersynkar.");
+      }
+      if (dbIdleMs() > DB_AWAKE_PIGGYBACK_MS) {
+        return jsonOk({ ok: true, deferred: true, received: hits.length });
+      }
+    }
 
     const restockPaused = restockAlertsPaused();
     const pricePaused = priceAlertsPaused();

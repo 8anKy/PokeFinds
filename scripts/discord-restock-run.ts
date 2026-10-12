@@ -490,6 +490,8 @@ async function main() {
   }
   let hitsDirty = false;
   let hitChain: Promise<void> = Promise.resolve();
+  const SYNC_OFFER_EVERY_MS = 60_000;
+  let lastSyncOfferAt = 0;
   let hitsPausedLogged = false;
   const hitTotals = { queued: 0, delivered: 0, alerts: 0, dropped: 0, syncsQueued: 0, synced: 0, syncsStale: 0 };
   // Senaste FEEDSTATUS per butiks-URL (rå, före lanens spår). En köad lagersynk som
@@ -520,10 +522,12 @@ async function main() {
    * alltså medan Neon ändå är vaken. De väcker aldrig databasen själva (ägarbeslut
    * 2026-09-28, alternativ A). Egna anrop, så ett fel här aldrig kan fälla ett larm.
    */
-  const sendSyncs = async (syncs: RestockHit[]) => {
+  const sendSyncs = async (syncs: RestockHit[], onlyIfAwake = false) => {
     for (let i = 0; i < syncs.length; i += 100) {
       const chunk = syncs.slice(i, i + 100);
-      const res = await sendRestockHits(chunk, { baseUrl, secret: hitSecret });
+      const res = await sendRestockHits(chunk, { baseUrl, secret: hitSecret, onlyIfAwake });
+      // Databasen sov: inget skrevs, synkarna ligger kvar till nästa erbjudande.
+      if (res.deferred) return;
       if (res.ok || res.permanent) {
         pendingHits = removeDelivered(pendingHits, chunk);
         hitsDirty = true;
@@ -581,7 +585,18 @@ async function main() {
           hitTotals.syncsStale += split.stale.length;
         }
         const batch = split.urgent;
-        if (!batch.length) return;
+        if (!batch.length) {
+          // INGET LARMPAKET ATT ÅKA MED (2026-10-12): synkarna väntade förut på nästa
+          // påfyllning/prissänkning — på natten timmar (Speltrollets 30th Bundle var 404
+          // från 2026-10-11 men "i lager" i appen tills nattkedjan). Nu erbjuds de appen
+          // högst en gång i minuten med `onlyIfAwake`: skrivs bara om Neon redan är vaken,
+          // annars svarar appen utan att röra databasen. Inga nya väckningar.
+          if (split.syncs.length && Date.now() - lastSyncOfferAt >= SYNC_OFFER_EVERY_MS) {
+            lastSyncOfferAt = Date.now();
+            await sendSyncs(split.syncs, true);
+          }
+          return;
+        }
         const res = await sendRestockHits(batch, { baseUrl, secret: hitSecret });
         if (res.ok) {
           pendingHits = removeDelivered(pendingHits, batch);
@@ -635,6 +650,12 @@ async function main() {
         console.warn("[discord-restock] Larm-hits: oväntat fel:", e instanceof Error ? e.message : e);
       });
   };
+  // Erbjud köade lagersynkar även när inga larm kommer (se flushHits). DB-fritt hos appen
+  // när Neon sover; ett litet HTTP-anrop i minuten mot Railway.
+  const syncOfferTimer = setInterval(() => {
+    if (pendingHits.some((h) => h.kind === "STOCK_SYNC")) flushHits();
+  }, SYNC_OFFER_EVERY_MS);
+  syncOfferTimer.unref?.();
   const queueHits = (hits: RestockHit[]) => {
     if (!hits.length) return;
     pendingHits = mergePendingHits(pendingHits, hits, new Date());
@@ -1214,6 +1235,7 @@ async function main() {
   flushHits();
   await hitChain;
   clearInterval(hitsTimer);
+  clearInterval(syncOfferTimer);
   writeHits();
 
   // ⛔ EN RAD SOM SVARAR PÅ "GJORDE LANEN SITT JOBB?". Ett jobb rör 42 butiker × ~20

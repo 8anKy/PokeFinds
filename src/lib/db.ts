@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { noteDbActivity } from "./db-activity";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
@@ -19,6 +20,21 @@ export const prisma =
   });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+// Senaste fråga i processen — lagersynkarna åker bara med när Neon redan är vaken
+// (src/lib/db-activity.ts). Markeras både före och efter: en lång fråga håller den vaken.
+const tracked = prisma as PrismaClient & { __activityTracked?: boolean };
+if (!tracked.__activityTracked && typeof prisma.$use === "function") {
+  tracked.__activityTracked = true;
+  prisma.$use(async (params, next) => {
+    noteDbActivity();
+    try {
+      return await next(params);
+    } finally {
+      noteDbActivity();
+    }
+  });
+}
 
 /**
  * Prisma-felkoder som betyder "anslutningen dog", inte "frågan var fel".
