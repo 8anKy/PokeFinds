@@ -49,6 +49,11 @@ export function buildGradedCards(
     else c.sale = s;
   }
   for (const h of history) cell(h.issuer, h.gradeTenths).history = h;
+  // ⛔ "ANNAT BOLAG" VISAS INTE (ägarbeslut 2026-10-12). OTHER = graderat men bolaget går
+  // inte att fastställa ("Gem Mint 10", okända småbolag, lotter med flera bolag) — ett
+  // sådant 10 är inte jämförbart med PSA/ACE 10, och på Gengar ex 30th 154 var chippet
+  // EN eBay-annons à 4 524 kr. Raderna ligger kvar i databasen; bara visningen fäller dem.
+  byIssuer.delete("OTHER");
   return [...byIssuer.entries()]
     .sort(([a], [b]) => ISSUER_ORDER.indexOf(a) - ISSUER_ORDER.indexOf(b))
     .map(([issuer, grades]) => ({

@@ -54,3 +54,11 @@ describe("buildGradedCards: eBay-sålt är en egen cell, aldrig Traderas", () =>
     expect(psa.grades[0].saleEbay?.medianOre).toBe(5_200_000);
   });
 });
+
+describe("buildGradedCards — Annat bolag", () => {
+  it("OTHER visas aldrig, oavsett källa", () => {
+    const ask = { source: "ebay", issuer: "OTHER", gradeTenths: 100, priceOre: 452433, originalMinor: 1, originalCurrency: "USD", listingCount: 1, url: "https://x", observedAt: "2026-10-12" };
+    const cards = buildGradedCards([ask as never], [], [{ issuer: "OTHER", gradeTenths: 100, asks: [], sold: [], soldEbay: [] } as never]);
+    expect(cards.find((c) => c.issuer === "OTHER")).toBeUndefined();
+  });
+});
