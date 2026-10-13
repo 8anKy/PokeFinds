@@ -24,7 +24,7 @@ export async function GuestMore() {
   // Dokumentrader utan ikon med flit — sex olika glyfer för sex texter hade
   // blivit samma dekorbrus som färgerna på den gamla sidan.
   const info: MenuLink[] = [
-    ...(giveawayPhase(giveawayConfig(), new Date()) !== "closed"
+    ...(giveawayPhase(giveawayConfig(), new Date()) === "open"
       ? [{ href: "/giveaway", label: t("giveawayRow") }]
       : []),
     { href: "/om", label: t("guestAbout") },

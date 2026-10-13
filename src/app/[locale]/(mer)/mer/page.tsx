@@ -157,8 +157,8 @@ export default async function MerPage() {
   const activity: MenuLink[] = [
     { href: "/bevakningar", label: t("watches"), icon: IconBell, tour: "watches-row" },
     { href: "/mer/utmarkelser", label: tA("title"), icon: IconMedal },
-    // Giveawayn (lib/giveaway.ts) — raden finns medan den pågår eller väntar.
-    ...(giveawayPhase(giveawayConfig(), new Date()) !== "closed"
+    // Giveawayn (lib/giveaway.ts) — raden finns bara medan den PÅGÅR (dold före starten).
+    ...(giveawayPhase(giveawayConfig(), new Date()) === "open"
       ? [{ href: "/giveaway", label: t("giveawayRow"), icon: IconGift }]
       : []),
   ];

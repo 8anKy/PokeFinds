@@ -161,12 +161,16 @@ export function invalidateGiveawayUser(userId: string): void {
 
 export async function joinGiveaway(
   userId: string,
-  input: { tiktokHandle: string; instagramHandle: string }
+  input: { tiktokHandle: string; instagramHandle: string },
+  opts: { preview?: boolean } = {}
 ): Promise<void> {
   const cfg = giveawayConfig();
-  if (giveawayPhase(cfg, new Date()) === "closed") {
+  const phase = giveawayPhase(cfg, new Date());
+  if (phase === "closed") {
     throw new ServiceError(400, "Giveawayn är avslutad.");
   }
+  // Dold före starten: bara admin (förhandsvisning) kan anmäla sig.
+  if (phase === "upcoming" && !opts.preview) throw new ServiceError(404, "Hittades inte.");
   const tiktokHandle = normalizeHandle(input.tiktokHandle);
   const instagramHandle = normalizeHandle(input.instagramHandle);
   if (!tiktokHandle || !instagramHandle) {

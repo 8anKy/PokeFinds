@@ -24,12 +24,15 @@ export interface GiveawayConfig {
 }
 
 /**
- * Aktuell giveaway. Start/slut kan flyttas med env utan kodändring:
+ * Aktuell giveaway. Start/slut kan flyttas med env utan kodändring
+ * (`GIVEAWAY_STARTS_AT` flyttar även när den blir synlig):
  * `GIVEAWAY_CLOSES_AT` (ISO) avslutar i förtid när målet (1 000 TikTok-följare)
  * nås — sätt den ~24 h framåt och meddela det.
  */
 export const GIVEAWAY_KEY = "30th-etb-2026";
-const DEFAULT_STARTS_AT = "2026-10-14T00:00:00+02:00";
+// Start = dagen ägaren tillkännager (2026-10-15, ägarbeslut). Före starten är
+// giveawayn DOLD för alla utom admin (sidan 404:ar, Mer-raden syns inte).
+const DEFAULT_STARTS_AT = "2026-10-15T00:00:00+02:00";
 const DEFAULT_CLOSES_AT = "2026-11-15T23:59:59+01:00";
 
 export const TICKETS = {

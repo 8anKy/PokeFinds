@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { auth, requireUser } from "@/lib/auth";
+import { auth, hasRole, requireUser } from "@/lib/auth";
 import { getGiveawayStatus, joinGiveaway } from "@/services/giveaway";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   try {
     const user = await requireUser();
     const input = joinSchema.parse(await req.json());
-    await joinGiveaway(user.id, input);
+    await joinGiveaway(user.id, input, { preview: hasRole(user.role, "MODERATOR") });
     return jsonOk(await getGiveawayStatus(user.id));
   } catch (e) {
     return apiError(e);
