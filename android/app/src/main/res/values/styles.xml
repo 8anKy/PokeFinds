@@ -22,7 +22,7 @@
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <!-- Android 12+ systemsplash: mörk bakgrund (#0a0a0c) matchar appen — annars
              visade OS:et en ljus/vit splash före appen. Äldre Android använder
-             @drawable/splash (numera mörk + Foilio-märke). postSplashScreenTheme
+             @drawable/splash (numera mörk + Scoutr-märke). postSplashScreenTheme
              lämnar över till app-temat. -->
         <item name="windowSplashScreenBackground">#0a0a0c</item>
         <item name="android:background">@drawable/splash</item>
