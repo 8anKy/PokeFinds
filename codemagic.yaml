@@ -78,13 +78,22 @@ workflows:
           # om Info.plist saknar NSCameraUsageDescription → appen visar "Kamera stöds
           # inte här". Lägg till usage-strings (Add faller om nyckeln finns → Set).
           PL=ios/App/App/Info.plist
-          CAM='Foilio använder kameran för att skanna dina Pokémon-kort.'
-          PHOTO='Foilio öppnar bildbiblioteket så att du kan välja en kortbild att skanna.'
+          CAM='Scoutr använder kameran för att skanna dina Pokémon-kort.'
+          PHOTO='Scoutr öppnar bildbiblioteket så att du kan välja en kortbild att skanna.'
           /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string \"$CAM\"" "$PL" || \
             /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription \"$CAM\"" "$PL"
           /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string \"$PHOTO\"" "$PL" || \
             /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription \"$PHOTO\"" "$PL"
           /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PL"
+          # SPRÅK I APP STORE: butiken listar språken ur bygget, inte ur App Store Connect.
+          # `cap add ios` deklarerar bara engelska ⇒ sidan sa "Engelska" för en svensk app.
+          # Svenska först (utvecklingsspråk), engelska som andra språk (appen har /en/).
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDevelopmentRegion sv" "$PL" ||             /usr/libexec/PlistBuddy -c "Add :CFBundleDevelopmentRegion string sv" "$PL"
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleLocalizations" "$PL" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations array" "$PL"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations:0 string sv" "$PL"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations:1 string en" "$PL"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleLocalizations" "$PL"
           # ⛔ Ingen NSLocationWhenInUseUsageDescription: appen läser aldrig platsen (ägarbeslut 2026-10-05).
           # Export compliance: appen använder BARA standard-HTTPS = undantagen kryptering.
           # Utan nyckeln laddas bygget upp och bearbetas klart, men TestFlight-inskicket
