@@ -1,5 +1,5 @@
 /**
- * Foilios officiella kanaler — EN definition, delad av alla ytor (header-bricka,
+ * Scoutrs officiella kanaler — EN definition, delad av alla ytor (header-bricka,
  * "Häng med oss"-kortet i katalogens sidofält, /mer). Ändra länkarna HÄR, aldrig
  * på anropsställena.
  *
@@ -14,8 +14,8 @@ export const APP_STORE_URL =
 export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=se.foilio.app";
 
 export const DISCORD_URL = "https://discord.gg/kpgmdEebgW";
-export const INSTAGRAM_URL = "https://www.instagram.com/foilio.se";
-export const TIKTOK_URL = "https://www.tiktok.com/@foilio.se";
+export const INSTAGRAM_URL = "https://www.instagram.com/scoutr.se";
+export const TIKTOK_URL = "https://www.tiktok.com/@scoutr.se";
 
 /**
  * Subredditen r/PokemonTCGSverige. ⛔ **TOMBSTONE — LÄNKAS INTE FRÅN NÅGONSTANS.**
