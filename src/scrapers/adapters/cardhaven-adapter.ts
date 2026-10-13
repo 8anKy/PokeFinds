@@ -7,9 +7,9 @@
  *     ⛔ /cards/pokemon och /shop/graded-cards är SINGLAR resp. GRADERAT — hämta dem
  *        aldrig här. Graderat är enligt katalogens regler en EGEN vara (se
  *        marketplace-tradera.md) och singlarna prissätts ur Cardmarket, inte ur butik.
- *   · Ingen paginering: båda kategorierna renderar hela sortimentet i ett svep
- *     (`Visa fler`-knapp saknas). ⚠️ Växer butiken förbi det tappar vi resten tyst —
- *     se sidräknarvarningen i `fetchProducts`.
+ *   · Paginering sedan butiken växte (2026-10-13): 20 kort/sida, `?page=N`, räknaren
+ *     "1-20 av 41" står på sidan. `fetchProducts` går sidorna tills räknaren är uppfylld
+ *     och skriver ett fel om den inte blir det (förr lästes bara sida 1 — 21 varor tappades tyst).
  *   · Varje kort:
  *       <a class="group flex flex-col" href="/shop/pokemon/{slug}">
  *         <img alt="Titel" src="https://holohaven.fra1.cdn.digitaloceanspaces.com/…">
@@ -59,6 +59,8 @@ import { guessListingCategory } from "../listing-category";
 const BASE_URL = "https://cardhaven.se";
 const CATEGORY_PATHS = ["/shop/pokemon", "/shop/pokemon-jp"];
 const PAGE_DELAY_MS = 1500;
+/** Tak per kategori (20 kort/sida). Mätt 2026-10-13: /shop/pokemon = 3 sidor. */
+const MAX_PAGES = 10;
 /** Bunden segmentlängd per produktkort — mot patologisk backtracking. */
 const ITEM_SLICE = 9_000;
 
@@ -107,10 +109,24 @@ function isCardHavenRaw(raw: unknown): raw is CardHavenRaw {
   return typeof raw === "object" && raw !== null && "priceOre" in raw && "stock" in raw;
 }
 
+/**
+ * Kortbadgar som betyder "går INTE att köpa/boka nu". Listningen har ingen positiv
+ * markör, så det här är en denylist (se filhuvudet).
+ *
+ * ⛔ "INKOMMANDE" ÄR INTE EN FÖRBESTÄLLNING (2026-10-13): Delta Reign lades upp med
+ *    badgen "Inkommande" + "Släpps 6 nov. 2026", och produktsidans enda knapp var
+ *    "Inkommande" — INAKTIV. Vi läste släppdatumet som förbeställning och Discord
+ *    postade "går nu att förhandsboka" för tre varor som inte gick att beställa.
+ *    När butiken öppnar bokningen försvinner badgen ⇒ en äkta OUT → PREORDER-flipp.
+ */
+const CARDHAVEN_NOT_BUYABLE = /Slut i lager|Inkommande|Kommer snart|Ej tillgänglig/i;
+
 export interface CardHavenParseResult {
   items: CardHavenItem[];
-  /** Hur många kort som bar "Slut i lager" — vakten i fetchProducts läser den. */
+  /** Hur många kort som bar en ej-köpbar-badge — vakten i fetchProducts läser den. */
   outOfStockBadges: number;
+  /** Butikens egen räknare "1-20 av 41" ⇒ 41; null när den saknas (en enda sida). */
+  totalCount: number | null;
 }
 
 /**
@@ -143,8 +159,8 @@ export function parseCardHavenListing(html: string): CardHavenParseResult {
     const priceM = seg.match(/>([0-9][0-9\s .,&nbsp;]*?(?:&nbsp;|\s)?kr)</i);
     const priceOre = priceM ? parseCardHavenPrice(priceM[1]) : null;
 
-    const hasOutBadge = /Slut i lager/i.test(seg);
-    if (hasOutBadge) outOfStockBadges++;
+    const notBuyable = CARDHAVEN_NOT_BUYABLE.test(seg);
+    if (notBuyable) outOfStockBadges++;
     // Förbeställning känns igen på släppdatumet ELLER på titeln — butiken sätter båda.
     const isPreorder = /Släpps\s+\d|\(Förbeställning\)/i.test(seg);
 
@@ -152,14 +168,17 @@ export function parseCardHavenListing(html: string): CardHavenParseResult {
       url,
       title,
       priceOre,
-      // Slutsåld vinner över förbeställning: en förbeställning som tagit slut går
-      // inte att köpa, och att kalla den PREORDER hade sett ut som en uppgradering.
-      stock: hasOutBadge ? "out" : isPreorder ? "preorder" : "in",
+      // Ej köpbar vinner över förbeställning: en förbeställning som tagit slut — eller
+      // som inte öppnat än ("Inkommande") — går inte att köpa, och att kalla den
+      // PREORDER postar "går nu att förhandsboka" om en inaktiv knapp.
+      stock: notBuyable ? "out" : isPreorder ? "preorder" : "in",
       imageUrl: seg.match(/src="(https?:\/\/[^"]+\.(?:jpe?g|png|webp)[^"]*)"/i)?.[1],
     });
   }
 
-  return { items, outOfStockBadges };
+  // React skriver räknaren med kommentarsmarkörer: "1<!-- -->-<!-- -->20<!-- --> av<!-- --> 41".
+  const countM = html.replace(/<!--[\s\S]*?-->/g, "").match(/\d+\s*-\s*\d+\s+av\s+(\d+)/);
+  return { items, outOfStockBadges, totalCount: countM ? Number(countM[1]) : null };
 }
 
 export class CardHavenAdapter implements SourceAdapter {
@@ -177,24 +196,46 @@ export class CardHavenAdapter implements SourceAdapter {
     let totalItems = 0;
 
     for (const path of CATEGORY_PATHS) {
-      let html: string;
-      try {
-        const res = await politeFetch(`${BASE_URL}${path}`, { delayMs: PAGE_DELAY_MS });
-        if (!res.ok) {
-          errors.push(`${this.name}: HTTP ${res.status} ${BASE_URL}${path}`);
-          continue;
+      // ⛔ PAGINERAT SEDAN BUTIKEN VÄXTE (2026-10-13): /shop/pokemon visar "1-20 av 41"
+      //    och `?page=N`. Bara sida 1 lästes ⇒ 21 varor var tyst osynliga. Vi går sidorna
+      //    tills butikens egen räknare är uppfylld eller en sida inte ger något nytt.
+      const pathItems: CardHavenItem[] = [];
+      let expected: number | null = null;
+      let failed = false;
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        const url = `${BASE_URL}${path}${page > 1 ? `?page=${page}` : ""}`;
+        let html: string;
+        try {
+          const res = await politeFetch(url, { delayMs: PAGE_DELAY_MS });
+          if (!res.ok) {
+            errors.push(`${this.name}: HTTP ${res.status} ${url}`);
+            failed = true;
+            break;
+          }
+          html = await res.text();
+        } catch (err) {
+          errors.push(`${this.name}: ${err instanceof Error ? err.message : String(err)}`);
+          failed = true;
+          break;
         }
-        html = await res.text();
-      } catch (err) {
-        errors.push(`${this.name}: ${err instanceof Error ? err.message : String(err)}`);
-        continue;
+        const parsed = parseCardHavenListing(html);
+        if (page === 1) expected = parsed.totalCount;
+        totalBadges += parsed.outOfStockBadges;
+        const before = pathItems.length;
+        for (const it of parsed.items) {
+          if (!pathItems.some((p) => p.url === it.url)) pathItems.push(it);
+        }
+        if (pathItems.length === before) break;
+        if (expected === null || pathItems.length >= expected) break;
       }
+      if (!failed && expected !== null && pathItems.length < expected) {
+        errors.push(
+          `${this.name}: ${path} gav ${pathItems.length} av butikens ${expected} — paginering ofullständig.`
+        );
+      }
+      totalItems += pathItems.length;
 
-      const { items, outOfStockBadges } = parseCardHavenListing(html);
-      totalBadges += outOfStockBadges;
-      totalItems += items.length;
-
-      for (const item of items) {
+      for (const item of pathItems) {
         if (seen.has(item.url)) continue;
         seen.add(item.url);
         products.push({

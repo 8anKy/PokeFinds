@@ -23,10 +23,10 @@ describe("sfbokStock — butikens egen webDisplay dömer", () => {
     expect(sfbokStock({ buttonState: 3, stockQuantity: 1 }).stock).toBe("in");
   });
 
-  it("buttonState 2 = Bevaka ⇒ slut, utom isPreOrder ⇒ förhandsbokning", () => {
+  it("buttonState 2 = Bevaka ⇒ slut, även med isPreOrder (Bevaka går inte att beställa)", () => {
     // 30th Celebration ETB på släppdagen: "Ej utgiven än", Bevaka, isPreOrder=false.
     expect(sfbokStock({ buttonState: 2, isPreOrder: false, stockQuantity: 0 }).stock).toBe("out");
-    expect(sfbokStock({ buttonState: 2, isPreOrder: true, stockQuantity: 0 }).stock).toBe("preorder");
+    expect(sfbokStock({ buttonState: 2, isPreOrder: true, stockQuantity: 0 }).stock).toBe("out");
   });
 
   it("okänd buttonState ⇒ unknown, aldrig en gissning", () => {

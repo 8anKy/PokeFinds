@@ -35,7 +35,7 @@
  *    Butikslagret = summan av de icke-primära lagren (`sfbokStoreStock`), med ORTEN per
  *    lagerkod ur butikens egen `/sv/butiker` (`sfbok-stores.ts`).
  *   buttonState 2  → "Bevaka" (ej utgiven / osäkert leveransdatum) ⇒ OUT_OF_STOCK,
- *                    utom isPreOrder=true ⇒ PREORDER (bokningsbar)
+ *                    ÄVEN med isPreOrder=true — Bevaka går inte att beställa (2026-10-13)
  *   annat          → UNKNOWN
  * ⛔ HELA POKÉMON TCG-SORTIMENTET VAR BUTIKSVARA VID PROBEN ("går inte att beställa
  *    via hemsidan, kan inte förhandsbokas, max 3 ex per kund"). Ett IN_STOCK härifrån
@@ -136,7 +136,11 @@ export function sfbokStock(input: {
     case 4:
       return { stock: qty > 0 ? "in" : "out", storeOnly: true };
     case 2:
-      return { stock: input.isPreOrder ? "preorder" : "out", storeOnly: false };
+      // ⛔ KNAPPEN ÄR "BEVAKA" OAVSETT `isPreOrder` (2026-10-13): Bevaka går inte att
+      //    beställa, så det är aldrig en förhandsbokning vi kan larma om. `isPreOrder` är
+      //    en produktflagga, inte en köpknapp — samma läxa som Card Haven "Inkommande"
+      //    och Webhallens nivålås. Öppnar SF-Bok riktig förbokning visar den en annan knapp.
+      return { stock: "out", storeOnly: false };
     default:
       return { stock: "unknown", storeOnly: false };
   }

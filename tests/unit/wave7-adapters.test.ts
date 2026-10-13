@@ -221,6 +221,31 @@ describe("parseCardHavenListing", () => {
     expect(items[0].stock).toBe("out");
   });
 
+  it("⛔ 'Inkommande' + släppdatum är INTE en förbeställning (Delta Reign 2026-10-13)", () => {
+    // Produktsidans enda knapp var "Inkommande", inaktiv — Discord postade ändå
+    // "går nu att förhandsboka" för tre varor som inte gick att beställa.
+    const { items, outOfStockBadges } = parseCardHavenListing(
+      cardHavenTile({
+        slug: "pokemon-mega-evolution-delta-reign-booster-box",
+        name: "Pokémon Mega Evolution: Delta Reign Booster Box",
+        price: "2&nbsp;699,00&nbsp;kr",
+        badge: "Inkommande",
+        release: "Släpps 6 nov. 2026",
+      })
+    );
+    expect(items[0].stock).toBe("out");
+    expect(outOfStockBadges).toBe(1);
+  });
+
+  it("läser butikens räknare '1-20 av 41' för pagineringen", () => {
+    // Riktig markup: React-kommentarer mellan varje del.
+    const html =
+      cardHavenTile({ slug: "a", name: "Vara A", price: "100,00 kr" }) +
+      "<p>1<!-- -->-<!-- -->20<!-- --> <!-- -->av<!-- --> <!-- -->41</p>";
+    expect(parseCardHavenListing(html).totalCount).toBe(41);
+    expect(parseCardHavenListing(cardHavenTile({ slug: "a", name: "A", price: "1,00 kr" })).totalCount).toBeNull();
+  });
+
   it("'Max N per order' är en köpgräns, inte ett lagerbesked", () => {
     const { items, outOfStockBadges } = parseCardHavenListing(
       cardHavenTile({

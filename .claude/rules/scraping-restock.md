@@ -437,6 +437,18 @@ paths:
   eller en felmatchning oavsett var det står. Rör den aldrig.
   Vaktat av `tests/unit/store-price-ceiling.test.ts`.
 
+- **⛔ PREORDER = EN AKTIV BOKA-/KÖPKNAPP, ALDRIG ETT SLÄPPDATUM ELLER EN FLAGGA (2026-10-13, ägarkrav:
+  "se till att ingen sajt vi kollar upprepar misstaget")**: Card Haven lade upp Delta Reign med badgen
+  "Inkommande" + "Släpps 6 nov. 2026"; produktsidans enda knapp var "Inkommande", INAKTIV. Adaptern läste
+  släppdatumet som förbeställning ⇒ Discord "går nu att förhandsboka" ×3. Tredje gången samma fel (Webhallen
+  nivålås 09-30, Alphaspel/MaxGaming åt andra hållet 09-17). Lagat: Card Haven "Inkommande/Kommer snart/Ej
+  tillgänglig" ⇒ OUT (`CARDHAVEN_NOT_BUYABLE`); SF-Bok `buttonState 2` ("Bevaka") ⇒ OUT även med `isPreOrder`.
+  **Revision samma dag** (`scripts/audit-preorder-claims.ts`, hämtar alla PREORDER-skrivande adaptrar live,
+  rör aldrig DB): Sweet Nerds 3 + Alphaspel 2 PREORDER — alla fem produktsidor har en AKTIV "Lägg i
+  varukorgen"/"Boka" ⇒ korrekta; SF-Bok/MaxGaming/WOBG/Webhallen 0. Kör revisionen när ett släpp närmar sig
+  och kontrollera VARJE rad mot sidans knapp. Ny adapter som skriver PREORDER ⇒ domen ska stå på knappen.
+  + Card Haven paginerar sedan butiken växte ("1-20 av 41", `?page=N`, räknaren har React-kommentarer
+  mellan siffrorna) — förr lästes bara sida 1 och 21 varor var osynliga.
 - **⛔ WEBHALLEN: NIVÅKRAV ÖVER TAKET = LÅST, INTE FÖRHANDSBOKNING (2026-09-30)**: Delta Reign lades upp
   med `minimumRankLevel: 26` + release 2026-11-06 ⇒ vi sa PREORDER och Discord postade "går att förhandsboka"
   för sex varor, men knappen sa "Ej tillgänglig för din medlemsnivå" för ALLA (högsta nivån är 24: sex klasser
