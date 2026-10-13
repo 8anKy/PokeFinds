@@ -1585,8 +1585,12 @@ export function rebrandEmail(input: { name: string; unsubscribeUrl: string }): E
          "Gamla foilio.se-länkar fungerar fortfarande och skickar dig automatiskt rätt."
        )}
        ${point(
-         "Appen heter Scoutr",
-         "Uppdatera till senaste versionen i App Store eller Google Play när den dyker upp, så får du den nya loggan och adressen."
+         "Nu även på Google Play",
+         `Har du Android kan du nu ladda ner Scoutr direkt från <a href="${PLAY_STORE_URL}" style="color:${D_ACCENT};font-weight:700;">Google Play</a>.`
+       )}
+       ${point(
+         "iPhone: uppdatering på väg",
+         "I App Store heter appen fortfarande Foilio en liten stund till. Uppdateringen till Scoutr är på väg – den fungerar precis som vanligt tills dess."
        )}
        ${point(
          "Mejl och kontakt",
@@ -1608,9 +1612,11 @@ export function rebrandEmail(input: { name: string; unsubscribeUrl: string }): E
     `Ditt konto, din samling, dina pärmar och dina bevakningar är kvar. Du loggar in precis som vanligt.\n\n` +
     `NY ADRESS: SCOUTR.SE\n` +
     `Gamla foilio.se-länkar fungerar fortfarande och skickar dig automatiskt rätt.\n\n` +
-    `APPEN HETER SCOUTR\n` +
-    `Uppdatera till senaste versionen i App Store eller Google Play när den dyker upp, så får du den nya loggan och adressen.\n` +
-    `App Store: ${APP_STORE_URL}\nGoogle Play: ${PLAY_STORE_URL}\n\n` +
+    `NU ÄVEN PÅ GOOGLE PLAY\n` +
+    `Har du Android kan du nu ladda ner Scoutr direkt från Google Play:\n${PLAY_STORE_URL}\n\n` +
+    `IPHONE: UPPDATERING PÅ VÄG\n` +
+    `I App Store heter appen fortfarande Foilio en liten stund till. Uppdateringen till Scoutr är på väg – den fungerar precis som vanligt tills dess.\n` +
+    `App Store: ${APP_STORE_URL}\n\n` +
     `MEJL OCH KONTAKT\n` +
     `Våra mejl kommer nu från scoutr.se. Vill du nå oss skriver du till hej@scoutr.se.\n\n` +
     `Öppna Scoutr: https://scoutr.se\n\n` +
