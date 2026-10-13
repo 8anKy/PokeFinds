@@ -220,7 +220,7 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   pekar på foilio.se fungerar. Mejl: scoutr.se är sekundär domän i Google Workspace (2026-10-13, hej/info/kontakt/support/milos@scoutr.se = alias på milos@foilio.se, MX smtp.google.com); `EMAIL_REPLY_TO`/`LEGAL_ENTITY_EMAIL=hej@scoutr.se`. ⛔ Behåll foilio.se ≥ 1 år (gamla appar, 301-ranking, Play-inloggningen milos@foilio.se). Memory:
   `project_rename_to_scoutr`.
 - **GIVEAWAY MED LOTTER (2026-10-13, ägarbeslut)**: `/giveaway` (routegrupp `(mer)`, gäster ser pris + krav), pris
-  30th Celebration ETB + 12 mån Pro, fem andrapris 3 mån Pro. Start 2026-10-14 00:00, slut 2026-11-15 23:59 svensk tid
+  30th Celebration ETB — ENDA vinsten (ägarbeslut 2026-10-13, inga Pro-pris). Start 2026-10-14 00:00, slut 2026-11-15 23:59 svensk tid
   ELLER i förtid vid 1 000 TikTok-följare: sätt `GIVEAWAY_CLOSES_AT` (ISO) i Railway ~24 h framåt och meddela det.
   Lotter (`lib/giveaway.ts`, ren + testad): anmäld 5 · skannat UNIKT kort i samlingen 1 st (max 100) · inbjuden vän
   som verifierat OCH återbesökt 10 st (max 10) · restock-larm 5 · Discord kopplat via "Koppla Discord" (lägger in

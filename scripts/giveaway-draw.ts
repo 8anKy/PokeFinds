@@ -1,12 +1,12 @@
 /**
  * Giveawayns dragning (lib/giveaway.ts + lib/giveaway-draw.ts).
  *
- *   node scripts/with-prod-db.mjs npx tsx scripts/giveaway-draw.ts [--seed <text>] [--count 16] [--out <fil>]
+ *   node scripts/with-prod-db.mjs npx tsx scripts/giveaway-draw.ts [--seed <text>] [--count 11] [--out <fil>]
  *
  * Räknar varje anmäld deltagares lotter vid giveawayns SLUT (closesAt, eller nu om
  * den pågår — då är det en provdragning) och drar `--count` deltagare viktat.
- * Ordningen = vinnaren, andraprisen, sedan reserver: uppfyller någon inte kraven
- * (följer, kommentar + 2 taggar) — hoppa till nästa i listan.
+ * Ordningen = vinnaren, sedan reserver: uppfyller vinnaren inte kraven
+ * (följer, kommentar + 2 taggar) — gå till nästa i listan.
  *
  * Discord-lotten kräver att personen FORTFARANDE är med i servern: medlemskapet
  * kollas här mot Discord (lämnat ⇒ lotten bort). Utan bot-env kan det inte
@@ -38,7 +38,7 @@ async function main() {
   const now = new Date();
   const phase = giveawayPhase(cfg, now);
   const seed = arg("seed") ?? randomBytes(16).toString("hex");
-  const count = Number(arg("count") ?? 16); // 1 vinnare + 5 andrapris + 10 reserver
+  const count = Number(arg("count") ?? 11); // 1 vinnare + 10 reserver
   const out = arg("out") ?? join(tmpdir(), `giveaway-${cfg.key}-${now.toISOString().replace(/[:.]/g, "-")}.json`);
 
   console.log(`Giveaway ${cfg.key} · ${phase}${phase !== "closed" ? " (PROVDRAGNING — pågår fortfarande)" : ""}`);
@@ -94,7 +94,7 @@ async function main() {
     `Deltagare: ${scored.length} · lotter: ${total} · lämnat Discord: ${leftDiscord} · seed: ${seed}\n`
   );
   winners.forEach((w, i) => {
-    const role = i === 0 ? "VINNARE" : i <= 5 ? "andrapris" : "reserv";
+    const role = i === 0 ? "VINNARE" : "reserv";
     console.log(
       `${String(i + 1).padStart(2)}. ${role.padEnd(9)} ${String(w.tickets).padStart(3)} lotter  ` +
         `${w.name ?? "–"} <${w.email}>  TikTok @${w.tiktok ?? "–"} · IG @${w.instagram ?? "–"}`
