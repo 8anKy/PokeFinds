@@ -130,7 +130,7 @@ const DERIVE_CUTOFF_MS = 10_000;
 /** Hur länge efter starten liggaren läses om före varje utskick (sena inlägg från förra jobbet). */
 const LEDGER_REFRESH_WINDOW_MS = 3 * 60_000;
 const LEDGER_REFRESH_TTL_MS = 5_000;
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://scoutr.se";
 const cooldownHours = Number(process.env.RESTOCK_ALERT_COOLDOWN_HOURS ?? 2);
 
 /**
