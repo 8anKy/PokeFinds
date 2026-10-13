@@ -61,6 +61,12 @@ export async function runPortfolioPush(
     return { ...result, skipped: "quiet-hours" };
   }
 
+  // ⛔ Utan APNs-nyckel är sendPush en tyst no-op — då hade loggen sagt "skickad" om
+  // notiser som aldrig lämnade huset (och markören bränt veckan). Hellre rött.
+  if (!opts?.dryRun && !process.env.APNS_KEY) {
+    throw new Error("APNS_KEY saknas — ingen push kan skickas. Kör med --dry-run lokalt.");
+  }
+
   const marker = await prisma.jobMarker.findUnique({ where: { key: PORTFOLIO_PUSH_MARKER } });
   if (!opts?.force && marker && now.getTime() - marker.at.getTime() < RESEND_WINDOW_MS) {
     console.log(`[portfolio-push] Redan skickad ${marker.at.toISOString()} — hoppar över.`);
