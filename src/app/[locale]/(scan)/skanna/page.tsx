@@ -2408,6 +2408,8 @@ function Scanner() {
               ? { estimatedValue: s.match!.estimatedValue }
               : {}),
             ...(portfolioIdRef.current ? { portfolioId: portfolioIdRef.current } : {}),
+            // Giveawayns lott: kortet kom ur en skanning (ett jobb = ett kort).
+            ...(s.jobId ? { scanJobId: s.jobId } : {}),
           }),
         });
         if (res.ok) {
@@ -2492,6 +2494,7 @@ function Scanner() {
           ? { estimatedValue: scan.match!.estimatedValue }
           : {}),
         ...(portfolioIdRef.current ? { portfolioId: portfolioIdRef.current } : {}),
+        ...(scan.jobId ? { scanJobId: scan.jobId } : {}),
       }),
     });
     if (!res.ok) throw new Error("collection");

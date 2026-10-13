@@ -26,6 +26,7 @@ const EXACT = new Set([
   "/samling/importera",
   "/mer/utmarkelser",
   "/mer/bjud-in",
+  "/giveaway",
 ]);
 
 // "/admin/" — alla adminvyer bär mobilraden via admin/layout.tsx (2026-09-17).

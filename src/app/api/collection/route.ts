@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { addCollectionItem, listCollection } from "@/services/collection";
+import { markScanAdded } from "@/services/giveaway";
 import { CardCondition, CardLanguage } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ const collectionItemSchema = z
     imageUrl: z.string().url().optional(),
     /** Pärm att lägga posten i. Utelämnad = standardpärmen. */
     portfolioId: z.string().min(1).optional(),
+    /** Skanningen kortet kom ur (skannern skickar den) — giveawayns "skanna = 1 lott". */
+    scanJobId: z.string().min(1).max(64).optional(),
   })
   .refine((d) => d.cardId || d.productId || d.notes, {
     message: "Ange kort, produkt eller en anteckning.",
@@ -40,8 +43,15 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const user = await requireUser();
-    const input = collectionItemSchema.parse(await req.json());
+    const { scanJobId, ...input } = collectionItemSchema.parse(await req.json());
     const item = await addCollectionItem(user.id, input);
+    // Bokföringen får aldrig fälla tillägget — kortet ÄR redan i samlingen.
+    const cardId = item.cardId;
+    if (scanJobId && cardId) {
+      await markScanAdded(user.id, scanJobId, cardId).catch((e) =>
+        console.error("[giveaway] kunde inte bokföra skanningen:", e)
+      );
+    }
     return jsonOk(item, { status: 201 });
   } catch (e) {
     return apiError(e);

@@ -267,6 +267,7 @@ model User {
   pushTokens        PushToken[]
   invitesSent       Invite[]                  @relation("InviteInviter")
   inviteUsed        Invite?                   @relation("InviteUsedBy")
+  giveawayEntries   GiveawayEntry[]
   sales             Sale[]
   achievements      UserAchievement[]
   guestDevices      GuestDevice[]
@@ -1729,12 +1730,35 @@ model ScannerJob {
   status     JobStatus @default(QUEUED)
   result     Json?
   confidence Float?
+  /// Kortet skanningen lade i samlingen (2026-10-13, giveawayns "skanna = 1 lott").
+  /// Sätts EN gång (ett jobb = ett kort) av POST /api/collection när skannern
+  /// skickar med `scanJobId`. NULL = skanningen lades aldrig till.
+  addedCardId String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// Giveaway-deltagare (2026-10-13). En rad = en anmälan till EN giveaway
+/// (`giveaway` = nyckeln i src/lib/giveaway.ts). Lotterna lagras INTE — de räknas
+/// ur befintlig data vid dragningen (src/services/giveaway.ts).
+model GiveawayEntry {
+  id              String   @id @default(cuid())
+  giveaway        String
+  userId          String
+  tiktokHandle    String?
+  instagramHandle String?
+  /// Bekräftade regler + ålder (13+, under 18 med målsmans godkännande).
+  acceptedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([giveaway, userId])
 }
 
 // AI-baserad kortgradering (PSA-liknande uppskattning från fram-/baksidesbild).

@@ -113,6 +113,9 @@ export async function GET() {
           select: { id: true, createdAt: true, usedAt: true, verifiedAt: true, rewardedAt: true },
         },
         inviteUsed: { select: { createdAt: true, usedAt: true, verifiedAt: true } },
+        giveawayEntries: {
+          select: { giveaway: true, tiktokHandle: true, instagramHandle: true, acceptedAt: true },
+        },
         // Meddelanden (2026-09-03): samtalen jag deltar i + MINA meddelanden.
         // Motpartens meddelanden är motpartens data och exporteras inte här —
         // bara vem jag pratat med, när, och vad jag själv skrivit.
@@ -210,6 +213,7 @@ export async function GET() {
       pushDevices: user.pushTokens,
       invitesSent: user.invitesSent,
       inviteUsed: user.inviteUsed,
+      giveawayEntries: user.giveawayEntries,
       messages: {
         conversations: user.conversations.map((c) => ({
           id: c.conversationId,

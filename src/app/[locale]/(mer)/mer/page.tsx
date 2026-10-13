@@ -17,7 +17,9 @@ import {
   IconSliders,
   IconChevronRight,
   IconInfo,
+  IconGift,
 } from "@/components/ui/icons";
+import { giveawayConfig, giveawayPhase } from "@/lib/giveaway";
 import { LogoutButton } from "./logout-button";
 import { GuestMore } from "./guest-more";
 import { FoilPanel, FollowTiles, MenuRow, Section, type MenuLink } from "./more-ui";
@@ -155,6 +157,10 @@ export default async function MerPage() {
   const activity: MenuLink[] = [
     { href: "/bevakningar", label: t("watches"), icon: IconBell, tour: "watches-row" },
     { href: "/mer/utmarkelser", label: tA("title"), icon: IconMedal },
+    // Giveawayn (lib/giveaway.ts) — raden finns medan den pågår eller väntar.
+    ...(giveawayPhase(giveawayConfig(), new Date()) !== "closed"
+      ? [{ href: "/giveaway", label: t("giveawayRow"), icon: IconGift }]
+      : []),
   ];
 
   const tools: MenuLink[] = [
