@@ -4,47 +4,57 @@ import { auth } from "@/lib/auth";
 import { prisma, withDbRetry } from "@/lib/db";
 import {
   discordLinkingEnabled,
+  DISCORD_RETURN_COOKIE,
+  DISCORD_RETURN_PATHS,
   DISCORD_STATE_COOKIE,
   exchangeCode,
   fetchIdentity,
   joinGuild,
 } from "@/lib/discord";
 import { revokeDiscordRoles, syncDiscordRoles, DISCORD_SYNC_SELECT } from "@/services/discord-sync";
+import { invalidateGiveawayUser } from "@/services/giveaway";
 
 export const dynamic = "force-dynamic";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-/** Alla utgångar går tillbaka till inställningarna med en statuskod i URL:en. */
-function back(status: string) {
-  const url = new URL("/installningar/kopplingar", APP_URL);
+/**
+ * Alla utgångar går tillbaka med en statuskod i URL:en — till inställningarna,
+ * eller till den vitlistade sidan kopplingen startades från (giveawayn).
+ */
+function back(status: string, returnTo: string | null = null) {
+  const url = new URL(returnTo ?? "/installningar/kopplingar", APP_URL);
   url.searchParams.set("discord", status);
   const res = NextResponse.redirect(url);
   res.cookies.set(DISCORD_STATE_COOKIE, "", { path: "/api/discord", maxAge: 0 });
+  res.cookies.set(DISCORD_RETURN_COOKIE, "", { path: "/api/discord", maxAge: 0 });
   return res;
 }
 
 export async function GET(req: NextRequest) {
-  if (!discordLinkingEnabled()) return back("fel-avstangd");
+  const ret = req.cookies.get(DISCORD_RETURN_COOKIE)?.value ?? null;
+  const returnTo = ret && DISCORD_RETURN_PATHS.includes(ret) ? ret : null;
+  const done = (status: string) => back(status, returnTo);
+  if (!discordLinkingEnabled()) return done("fel-avstangd");
 
   const session = await auth();
-  if (!session?.user) return back("fel-ingen-session");
+  if (!session?.user) return done("fel-ingen-session");
 
   // Användaren tryckte "Avbryt" i Discords ruta. Inte ett fel — ett val.
-  if (req.nextUrl.searchParams.get("error")) return back("nekad");
+  if (req.nextUrl.searchParams.get("error")) return done("nekad");
 
   const code = req.nextUrl.searchParams.get("code");
   const state = req.nextUrl.searchParams.get("state");
   const cookieState = req.cookies.get(DISCORD_STATE_COOKIE)?.value;
-  if (!code) return back("fel-ingen-kod");
+  if (!code) return done("fel-ingen-kod");
   // CSRF: `state` måste matcha cookien som /connect satte i DENNA webbläsare.
-  if (!state || !cookieState || state !== cookieState) return back("fel-state");
+  if (!state || !cookieState || state !== cookieState) return done("fel-state");
 
   const accessToken = await exchangeCode(code);
-  if (!accessToken) return back("fel-token");
+  if (!accessToken) return done("fel-token");
 
   const identity = await fetchIdentity(accessToken);
-  if (!identity) return back("fel-identitet");
+  if (!identity) return done("fel-identitet");
 
   // Är Discord-kontot redan knutet till NÅGON ANNAN? Utan den här kontrollen
   // hade en enda Pro-prenumeration kunnat ge Pro-rollen via hur många
@@ -56,7 +66,7 @@ export async function GET(req: NextRequest) {
       select: { id: true },
     })
   );
-  if (existing && existing.id !== session.user.id) return back("fel-redan-lankad");
+  if (existing && existing.id !== session.user.id) return done("fel-redan-lankad");
 
   // Bytte användaren Discord-konto? Ta rollerna från det gamla först — annars
   // ligger Pro-rollen kvar på ett konto vi inte längre följer och som därför
@@ -74,7 +84,7 @@ export async function GET(req: NextRequest) {
   // Lägg till i servern. ⛔ Rollerna sätts INTE här: Discord returnerar 204 utan
   // att applicera dem när personen redan är medlem. De sätts av syncDiscordRoles.
   const joined = await joinGuild(identity.id, accessToken);
-  if (!joined) return back("fel-servern");
+  if (!joined) return done("fel-servern");
   // Härefter behövs användartoken aldrig mer — den sparas ALDRIG (se lib/discord.ts).
 
   let user;
@@ -93,7 +103,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     // Kapplöpning mot unik-indexet: någon annan hann länka samma Discord-konto.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      return back("fel-redan-lankad");
+      return done("fel-redan-lankad");
     }
     throw err;
   }
@@ -117,5 +127,7 @@ export async function GET(req: NextRequest) {
   }
 
   const result = await syncDiscordRoles(user, "Scoutr: kontot länkades");
-  return back(result.ok ? "ansluten" : "fel-roll");
+  // Giveawayns Discord-lott ska synas direkt, inte efter cachens minut.
+  invalidateGiveawayUser(session.user.id);
+  return done(result.ok ? "ansluten" : "fel-roll");
 }

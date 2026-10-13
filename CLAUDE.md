@@ -28,7 +28,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   30th Celebration ETB + 12 mån Pro, fem andrapris 3 mån Pro. Start 2026-10-14 00:00, slut 2026-11-15 23:59 svensk tid
   ELLER i förtid vid 1 000 TikTok-följare: sätt `GIVEAWAY_CLOSES_AT` (ISO) i Railway ~24 h framåt och meddela det.
   Lotter (`lib/giveaway.ts`, ren + testad): anmäld 5 · skannat UNIKT kort i samlingen 1 st (max 100) · inbjuden vän
-  som verifierat OCH återbesökt 10 st (max 10) · restock-larm 5 ⇒ max 210. ⛔ Lotterna LAGRAS INTE — räknas ur
+  som verifierat OCH återbesökt 10 st (max 10) · restock-larm 5 · Discord kopplat via "Koppla Discord" (lägger in
+  personen i servern; dragningen kollar att hen är kvar) 5 ⇒ max 215. ⛔ Lotterna LAGRAS INTE — räknas ur
   `ScannerJob.addedCardId` (ett jobb = ett kort, satt av `POST /api/collection` när skannern skickar `scanJobId`),
   samlingen (borttaget kort dras av), `Invite` och `WatchlistItem` (`services/giveaway.ts`, 60 s personlig cache).
   ⛔ Bara SKANNADE kort ger lotter (ägarbeslut): Pro kan skanna fler än gratiskontots 30/mån — känd avvägning, tagen

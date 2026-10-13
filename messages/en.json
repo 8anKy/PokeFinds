@@ -3267,7 +3267,7 @@
       "Prizes: first prize is a Pokémon TCG 30th Celebration Elite Trainer Box and 12 months of Scoutr Pro. Five second prizes are 3 months of Scoutr Pro each. Prizes cannot be exchanged for cash.",
       "Entry is free. Tickets cannot be bought.",
       "To enter: have a Scoutr account, sign up on this page, follow Scoutr on TikTok and Instagram, and comment on the giveaway post on TikTok tagging two friends.",
-      "Tickets: 5 when you sign up; 1 per unique card you scan and add to your collection during the period (max 100); 10 per friend who creates an account with your invite link during the period and comes back on a later day (max 10 friends); 5 when you have a restock alert on a product.",
+      "Tickets: 5 when you sign up; 1 per unique card you scan and add to your collection during the period (max 100); 10 per friend who creates an account with your invite link during the period and comes back on a later day (max 10 friends); 5 when you have a restock alert on a product; 5 when you have joined Scoutr's Discord through Scoutr and are still a member at the draw.",
       "The same card only gives one ticket. Cards removed from the collection before the draw don't count.",
       "One account per person. Multiple accounts, fake accounts or other cheating disqualify.",
       "The draw happens within 7 days after the end, at random and weighted by number of tickets. The winner is checked against the requirements above; if they aren't met, a new winner is drawn.",
@@ -3275,6 +3275,10 @@
       "You must be at least 13. If you are under 18, a guardian's permission is required to receive the prize. Prizes are shipped to an address in Sweden.",
       "We only use your account and usernames to run the giveaway. The usernames are deleted no later than 3 months after the draw, or immediately if you delete your account.",
       "TikTok, Instagram (Meta), Apple and Google do not sponsor, endorse or administer the giveaway and have no responsibility for it."
-    ]
+    ],
+    "rowDiscord": "Discord",
+    "rowDiscordHint": "5 tickets when you join our Discord through Scoutr",
+    "ctaDiscord": "Join",
+    "discordError": "Connecting Discord failed. Try again."
   }
 }

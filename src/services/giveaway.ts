@@ -19,6 +19,7 @@ import {
   type GiveawayConfig,
   type TicketBreakdown,
 } from "@/lib/giveaway";
+import { discordLinkingEnabled } from "@/lib/discord";
 import { inviteeReturned } from "@/services/invites";
 
 const PERSONAL_TTL_SECONDS = 60;
@@ -76,7 +77,9 @@ export interface GiveawayUserTickets {
   tiktokHandle: string | null;
   instagramHandle: string | null;
   tickets: TicketBreakdown;
-  counts: { scannedCards: number; qualifiedInvites: number; hasRestockAlert: boolean };
+  counts: { scannedCards: number; qualifiedInvites: number; hasRestockAlert: boolean; discordLinked: boolean };
+  /** För dragningens medlemskapskoll — skickas aldrig till klienten. */
+  discordUserId: string | null;
 }
 
 /** Okachad — dragningsskriptet läser den här direkt. */
@@ -86,7 +89,7 @@ export async function loadUserTickets(
   now: Date = new Date()
 ): Promise<GiveawayUserTickets> {
   const end = windowEnd(cfg, now);
-  const [entry, scannedCards, qualifiedInvites, restockCount] = await Promise.all([
+  const [entry, scannedCards, qualifiedInvites, restockCount, account] = await Promise.all([
     prisma.giveawayEntry.findUnique({
       where: { giveaway_userId: { giveaway: cfg.key, userId } },
       select: { tiktokHandle: true, instagramHandle: true },
@@ -94,14 +97,22 @@ export async function loadUserTickets(
     countScannedCards(userId, cfg, end),
     countQualifiedInvites(userId, cfg, end),
     prisma.watchlistItem.count({ where: { userId, restockAlert: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { discordUserId: true } }),
   ]);
-  const counts = { scannedCards, qualifiedInvites, hasRestockAlert: restockCount > 0 };
+  const discordUserId = account?.discordUserId ?? null;
+  const counts = {
+    scannedCards,
+    qualifiedInvites,
+    hasRestockAlert: restockCount > 0,
+    discordLinked: !!discordUserId,
+  };
   return {
     joined: !!entry,
     tiktokHandle: entry?.tiktokHandle ?? null,
     instagramHandle: entry?.instagramHandle ?? null,
     tickets: computeTickets({ joined: !!entry, ...counts }),
     counts,
+    discordUserId,
   };
 }
 
@@ -120,13 +131,21 @@ export function giveawayPublicInfo(now: Date = new Date()) {
     phase: giveawayPhase(cfg, now),
     startsAt: cfg.startsAt.toISOString(),
     closesAt: cfg.closesAt.toISOString(),
+    /** "Koppla Discord" finns (env) — annars döljs Discord-raden. */
+    discordAvailable: discordLinkingEnabled(),
   };
 }
 
 export async function getGiveawayStatus(userId: string | null) {
   const info = giveawayPublicInfo();
   if (!userId) return { ...info, user: null };
-  return { ...info, user: await cachedUserTickets(userId) };
+  const { discordUserId: _omit, ...user } = await cachedUserTickets(userId);
+  return { ...info, user };
+}
+
+/** Lotternas cache för EN användare — när något utanför giveawayn ändrat dem (Discord-kopplingen). */
+export function invalidateGiveawayUser(userId: string): void {
+  revalidateTag(userTag(userId));
 }
 
 export async function joinGiveaway(

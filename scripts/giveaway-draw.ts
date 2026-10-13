@@ -8,6 +8,9 @@
  * Ordningen = vinnaren, andraprisen, sedan reserver: uppfyller någon inte kraven
  * (följer, kommentar + 2 taggar) — hoppa till nästa i listan.
  *
+ * Discord-lotten kräver att personen FORTFARANDE är med i servern: medlemskapet
+ * kollas här mot Discord (lämnat ⇒ lotten bort). Utan bot-env kan det inte
+ * kollas — skriptet säger det, och lotten står kvar.
  * ⛔ Samma seed + samma deltagare = samma utfall. Seeden skrivs ut; spara den
  * med loggen så dragningen kan visas i efterhand.
  * ⛔ Loggen bär e-post och namn ⇒ den skrivs till OS:ets temp-katalog som
@@ -20,7 +23,8 @@ import { join } from "node:path";
 import { prisma } from "../src/lib/db";
 import { mapPool } from "../src/lib/concurrency";
 import { exitJob } from "../src/lib/job-exit";
-import { giveawayConfig, giveawayPhase } from "../src/lib/giveaway";
+import { computeTickets, giveawayConfig, giveawayPhase } from "../src/lib/giveaway";
+import { discordBotConfig, isGuildMember } from "../src/lib/discord";
 import { drawWinners } from "../src/lib/giveaway-draw";
 import { loadUserTickets } from "../src/services/giveaway";
 
@@ -58,23 +62,37 @@ async function main() {
     instagram: string | null;
     breakdown: unknown;
   }> = [];
-  await mapPool(entries, 8, async (e) => {
+  const canCheckDiscord = !!discordBotConfig();
+  if (!canCheckDiscord) console.log("⚠️ Discord-boten saknas i env — medlemskapet kollas INTE.");
+  let leftDiscord = 0;
+  // 4 parallella: Discords gräns per rutt; discordFetch väntar ut 429 själv.
+  await mapPool(entries, 4, async (e) => {
     const t = await loadUserTickets(e.userId, cfg, now);
+    let tickets = t.tickets;
+    if (canCheckDiscord && t.discordUserId) {
+      const member = await isGuildMember(t.discordUserId);
+      if (member === false) {
+        leftDiscord++;
+        tickets = computeTickets({ joined: t.joined, ...t.counts, discordLinked: false });
+      }
+    }
     scored.push({
       id: e.userId,
-      tickets: t.tickets.total,
+      tickets: tickets.total,
       name: e.user.name,
       email: e.user.email,
       tiktok: e.tiktokHandle,
       instagram: e.instagramHandle,
-      breakdown: t.tickets,
+      breakdown: tickets,
     });
   });
 
   const total = scored.reduce((n, s) => n + s.tickets, 0);
   const winners = drawWinners(scored, seed, count);
 
-  console.log(`Deltagare: ${scored.length} · lotter: ${total} · seed: ${seed}\n`);
+  console.log(
+    `Deltagare: ${scored.length} · lotter: ${total} · lämnat Discord: ${leftDiscord} · seed: ${seed}\n`
+  );
   winners.forEach((w, i) => {
     const role = i === 0 ? "VINNARE" : i <= 5 ? "andrapris" : "reserv";
     console.log(

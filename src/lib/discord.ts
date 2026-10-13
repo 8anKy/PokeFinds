@@ -27,6 +27,9 @@ export const DISCORD_SCOPES = "identify guilds.join";
 
 /** Cookien som binder OAuth-`state` till webbläsaren som startade länkningen. */
 export const DISCORD_STATE_COOKIE = "discord_oauth_state";
+/** Vart kopplingen ska tillbaka (vitlistat, se DISCORD_RETURN_PATHS). */
+export const DISCORD_RETURN_COOKIE = "discord_oauth_return";
+export const DISCORD_RETURN_PATHS: readonly string[] = ["/giveaway"];
 
 export interface DiscordBotConfig {
   botToken: string;
@@ -225,6 +228,23 @@ export async function joinGuild(discordUserId: string, accessToken: string): Pro
   if (res.status === 201 || res.status === 204) return true;
   console.error(`[discord] kunde inte lägga till ${discordUserId} i servern: ${res.status}`);
   return false;
+}
+
+/**
+ * Är personen med i servern NU? true/false, null = vet inte (Discord svarade
+ * något annat än 200/404) — anroparen får aldrig läsa null som "inte med".
+ * Används av giveawayns dragning (lämnat servern ⇒ ingen Discord-lott).
+ */
+export async function isGuildMember(discordUserId: string): Promise<boolean | null> {
+  const config = requireBot();
+  const res = await discordFetch(`/guilds/${config.guildId}/members/${discordUserId}`, {
+    method: "GET",
+    authorization: `Bot ${config.botToken}`,
+  });
+  if (res.status === 200) return true;
+  if (res.status === 404) return false;
+  console.error(`[discord] medlemskoll gav ${res.status} för ${discordUserId}`);
+  return null;
 }
 
 /**

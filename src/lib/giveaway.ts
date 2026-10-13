@@ -7,6 +7,7 @@
  *   skannat kort lagt i samlingen          1/kort  max 100, unika kort, borttagna dras av
  *   inbjuden vän som blivit aktiv         10/vän  max 10 vänner (verifierad + återbesök)
  *   restock-larm på en produkt               5   en gång
+ *   Discord kopplat (= med i servern)        5   en gång; dragningen kollar medlemskapet
  *
  * ⛔ Bara skannade kort ger lotter (ägarbeslut, samma modell som branschen kör).
  * Gratiskontots skannerkvot är lägre än Pro:s — känd avvägning, tagen av ägaren.
@@ -36,13 +37,15 @@ export const TICKETS = {
   perInvite: 10,
   maxInvites: 10,
   restockAlert: 5,
+  discord: 5,
 } as const;
 
 export const MAX_TICKETS =
   TICKETS.account +
   TICKETS.perScan * TICKETS.maxScans +
   TICKETS.perInvite * TICKETS.maxInvites +
-  TICKETS.restockAlert;
+  TICKETS.restockAlert +
+  TICKETS.discord;
 
 function parseDate(raw: string | undefined, fallback: string): Date {
   const d = raw ? new Date(raw) : null;
@@ -72,6 +75,8 @@ export interface TicketInput {
   /** Inbjudna under perioden: verifierade OCH återbesökta. */
   qualifiedInvites: number;
   hasRestockAlert: boolean;
+  /** Discord-kontot kopplat via "Koppla Discord" (som lägger in personen i servern). */
+  discordLinked: boolean;
 }
 
 export interface TicketBreakdown {
@@ -79,6 +84,7 @@ export interface TicketBreakdown {
   scans: number;
   invites: number;
   restock: number;
+  discord: number;
   total: number;
 }
 
@@ -88,7 +94,8 @@ export function computeTickets(input: TicketInput): TicketBreakdown {
   const invites =
     Math.min(Math.max(0, input.qualifiedInvites), TICKETS.maxInvites) * TICKETS.perInvite;
   const restock = input.hasRestockAlert ? TICKETS.restockAlert : 0;
-  return { account, scans, invites, restock, total: account + scans + invites + restock };
+  const discord = input.discordLinked ? TICKETS.discord : 0;
+  return { account, scans, invites, restock, discord, total: account + scans + invites + restock + discord };
 }
 
 /**

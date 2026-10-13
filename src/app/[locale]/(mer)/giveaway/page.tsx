@@ -22,12 +22,18 @@ interface Status {
   phase: "upcoming" | "open" | "closed";
   startsAt: string;
   closesAt: string;
+  discordAvailable: boolean;
   user: {
     joined: boolean;
     tiktokHandle: string | null;
     instagramHandle: string | null;
     tickets: TicketBreakdown;
-    counts: { scannedCards: number; qualifiedInvites: number; hasRestockAlert: boolean };
+    counts: {
+      scannedCards: number;
+      qualifiedInvites: number;
+      hasRestockAlert: boolean;
+      discordLinked: boolean;
+    };
   } | null;
 }
 
@@ -39,6 +45,13 @@ export default function GiveawayPage() {
   const [editing, setEditing] = useState(false);
   const [invite, setInvite] = useState<{ url: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  // Tillbaka från "Koppla Discord" (/api/discord/callback) med ?discord=<status>.
+  const [discordFailed, setDiscordFailed] = useState(false);
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get("discord");
+    // "nekad" = användaren tryckte Avbryt hos Discord — ett val, inget fel.
+    if (status && status !== "ansluten" && status !== "nekad") setDiscordFailed(true);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -235,7 +248,29 @@ export default function GiveawayPage() {
                   ) : null
                 }
               />
+              {(status?.discordAvailable || user.counts.discordLinked) && (
+                <TicketRow
+                  label={t("rowDiscord")}
+                  hint={t("rowDiscordHint")}
+                  value={`${user.tickets.discord}/${TICKETS.discord}`}
+                  done={user.counts.discordLinked}
+                  action={
+                    !closed && !user.counts.discordLinked ? (
+                      // Vanlig länk, inte Link: OAuth-flödet lämnar appen och kommer tillbaka hit.
+                      <a
+                        href="/api/discord/connect?return=/giveaway"
+                        className="inline-flex h-8 shrink-0 items-center rounded-lg border border-surface-border px-3 text-sm font-medium text-ink transition hover:border-holo-cyan/40 hover:text-holo-cyan"
+                      >
+                        {t("ctaDiscord")}
+                      </a>
+                    ) : null
+                  }
+                />
+              )}
             </ul>
+            {discordFailed && !user.counts.discordLinked && (
+              <p className="text-sm text-fall">{t("discordError")}</p>
+            )}
 
             {!editing && (
               <div className="space-y-1 text-xs text-ink-muted">
