@@ -3222,7 +3222,7 @@
     "step1": "Follow Scoutr on TikTok",
     "step2": "Follow Scoutr on Instagram",
     "step3": "Comment on the giveaway post and tag 2 friends",
-    "step4": "Sign up here and collect tickets in the app",
+    "step4": "Sign up below – then collect tickets in the app",
     "open": "Open",
     "guestBody": "Create a free account to enter and collect tickets.",
     "guestRegister": "Create account",
@@ -3279,6 +3279,10 @@
     "rowDiscord": "Discord",
     "rowDiscordHint": "5 tickets when you join our Discord through Scoutr",
     "ctaDiscord": "Join",
-    "discordError": "Connecting Discord failed. Try again."
+    "discordError": "Connecting Discord failed. Try again.",
+    "earnTitle": "How to collect tickets",
+    "earnIntro": "The more tickets, the better your chance to win. Once you've signed up they're counted automatically as you use the app:",
+    "earnAccountHint": "Right away when you sign up below",
+    "earnOdds": "Max {max} tickets per person. The winner is drawn at random – every ticket is a chance."
   }
 }

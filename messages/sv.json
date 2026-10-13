@@ -3222,7 +3222,7 @@
     "step1": "Följ Scoutr på TikTok",
     "step2": "Följ Scoutr på Instagram",
     "step3": "Kommentera giveaway-inlägget och tagga 2 vänner",
-    "step4": "Anmäl dig här och samla lotter i appen",
+    "step4": "Anmäl dig nedan – sedan samlar du lotter i appen",
     "open": "Öppna",
     "guestBody": "Skapa ett gratis konto för att vara med och samla lotter.",
     "guestRegister": "Skapa konto",
@@ -3279,6 +3279,10 @@
     "rowDiscord": "Discord",
     "rowDiscordHint": "5 lotter när du går med i vår Discord via Scoutr",
     "ctaDiscord": "Gå med",
-    "discordError": "Discord-kopplingen misslyckades. Försök igen."
+    "discordError": "Discord-kopplingen misslyckades. Försök igen.",
+    "earnTitle": "Så samlar du lotter",
+    "earnIntro": "Ju fler lotter, desto större chans att vinna. När du anmält dig räknas de automatiskt när du använder appen:",
+    "earnAccountHint": "Direkt när du anmäler dig nedan",
+    "earnOdds": "Max {max} lotter per person. Vinnaren dras slumpvis – varje lott är en chans."
   }
 }

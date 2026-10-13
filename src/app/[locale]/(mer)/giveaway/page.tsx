@@ -159,6 +159,24 @@ export default function GiveawayPage() {
           </section>
         )}
 
+        {/* Hur lotterna samlas — syns FÖRE anmälan, annars förstår man inte vad man anmäler sig till. */}
+        {status && !closed && !user?.joined && (
+          <section>
+            <h2 className="text-sm font-semibold text-ink">{t("earnTitle")}</h2>
+            <p className="mt-1 text-xs text-ink-muted">{t("earnIntro")}</p>
+            <ul className="card-surface mt-2 divide-y divide-surface-border">
+              <EarnRow label={t("rowAccount")} hint={t("earnAccountHint")} amount={`+${TICKETS.account}`} />
+              <EarnRow label={t("rowScans")} hint={t("rowScansHint")} amount={`+${TICKETS.perScan}`} />
+              <EarnRow label={t("rowInvites")} hint={t("rowInvitesHint")} amount={`+${TICKETS.perInvite}`} />
+              <EarnRow label={t("rowRestock")} hint={t("rowRestockHint")} amount={`+${TICKETS.restockAlert}`} />
+              {status.discordAvailable && (
+                <EarnRow label={t("rowDiscord")} hint={t("rowDiscordHint")} amount={`+${TICKETS.discord}`} />
+              )}
+            </ul>
+            <p className="mt-2 text-xs text-ink-faint">{t("earnOdds", { max: MAX_TICKETS })}</p>
+          </section>
+        )}
+
         {/* Gäst: konto först */}
         {status && !user && !closed && (
           <div className="card-surface space-y-3 p-4">
@@ -351,6 +369,20 @@ function Step({
           {open}
         </a>
       )}
+    </li>
+  );
+}
+
+function EarnRow({ label, hint, amount }: { label: string; hint: string; amount: string }) {
+  return (
+    <li className="flex items-center gap-3 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-ink">{label}</p>
+        <p className="mt-0.5 text-xs text-ink-faint">{hint}</p>
+      </div>
+      <span className="shrink-0 rounded-full bg-holo-cyan/10 px-2.5 py-1 text-xs font-semibold tabular-nums text-holo-cyan">
+        {amount}
+      </span>
     </li>
   );
 }
