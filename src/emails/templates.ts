@@ -6,7 +6,7 @@
 // ⛔ Bara rena konstanter får importeras hit: templates.ts når EDGE-bundlen via
 // instrumentation → scheduler → notifications, där Node-API:er (t.ex. 'crypto')
 // inte finns. social-links.ts är enbart strängar — se signup-code-noten nedan.
-import { APP_STORE_URL, DISCORD_URL } from "@/lib/social-links";
+import { APP_STORE_URL, DISCORD_URL, PLAY_STORE_URL } from "@/lib/social-links";
 // ⛔ discord-invites.ts är också bara strängar — inga Node-API:er, se noten ovan.
 import { giveawayInviteUrl } from "@/lib/discord-invites";
 
@@ -1311,7 +1311,7 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
 
   const html = digestLayout(esc(leadCopy.preheader), esc(leadCopy.headline), bodyHtml, footerHtml);
 
-  const text = `FOILIO · VECKOBREVET
+  const text = `SCOUTR · VECKOBREVET
 
 ${leadCopy.headline}
 
@@ -1547,6 +1547,75 @@ export function giveawayEmail(input: { name: string; unsubscribeUrl: string }): 
     `· Fråga om priser och fynd – är 900 kr rimligt för lådan? Fråga folk som köper dem varje vecka.\n` +
     `· Nyheterna först – och saknas din butik i Scoutr hamnar den ofta på listan samma vecka.\n\n` +
     `Utlottningen arrangeras av Scoutr och har inget samband med Discord. Vinnaren dras slumpmässigt bland serverns medlemmar ${drawDate} och kontaktas i Discord. Inget köp krävs.\n\n` +
+    `Vill du inte ha nyhetsmejl? Avregistrera dig: ${unsubscribeUrl}\n` +
+    `Dina larm och ditt veckobrev rörs inte.\n` +
+    `Scoutr · Sveriges marknadsplats för Pokémon TCG`;
+  return { subject, html, text };
+}
+
+/**
+ * NAMNBYTET — "Foilio heter nu Scoutr" (2026-10-13).
+ *
+ * Skickas av scripts/send-rebrand-notice.ts (förhandsgranskning till ägaren först).
+ * Mejlets uppgift: lugna ("allt är kvar, du behöver inte göra något") och peka ut de
+ * två praktiska ändringarna — ny adress och appens nya namn.
+ *
+ * ⛔ SKÄLET TILL BYTET NÄMNS INTE (ägarbeslut; varumärkesfrågan är inte kundens sak).
+ * ⛔ `unsubscribeUrl` är obligatorisk — typen är `news`, samma som övriga nyhetsmejl.
+ */
+export function rebrandEmail(input: { name: string; unsubscribeUrl: string }): EmailContent {
+  const { name, unsubscribeUrl } = input;
+  const subject = "Foilio heter nu Scoutr";
+  const point = (title: string, body: string) =>
+    `<div style="padding:14px 0;border-top:1px solid ${D_LINE};">
+       <p style="margin:0 0 4px;font-weight:700;color:#ffffff;">${title}</p>
+       <p style="margin:0;line-height:1.6;color:#cbd5e1;">${body}</p>
+     </div>`;
+  const html = layout(
+    "Foilio heter nu Scoutr",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Vi har bytt namn. Det du känner som Foilio heter från och med nu <strong style="color:#ffffff;">Scoutr</strong>, med ny logga och ny adress.</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Allt annat är precis som förut: samma priser från över 40 svenska butiker, samma restock- och prislarm, samma skanner och samma samling.</p>
+     <div style="margin:20px 0 4px;">
+       ${point(
+         "Du behöver inte göra något",
+         "Ditt konto, din samling, dina pärmar och dina bevakningar är kvar. Du loggar in precis som vanligt."
+       )}
+       ${point(
+         "Ny adress: scoutr.se",
+         "Gamla foilio.se-länkar fungerar fortfarande och skickar dig automatiskt rätt."
+       )}
+       ${point(
+         "Appen heter Scoutr",
+         "Uppdatera till senaste versionen i App Store eller Google Play när den dyker upp, så får du den nya loggan och adressen."
+       )}
+       ${point(
+         "Mejl och kontakt",
+         `Våra mejl kommer nu från scoutr.se. Vill du nå oss skriver du till <a href="mailto:hej@scoutr.se" style="color:${D_ACCENT};font-weight:700;">hej@scoutr.se</a>.`
+       )}
+     </div>
+     ${button("https://scoutr.se", "Öppna Scoutr")}
+     <p style="line-height:1.6;color:#cbd5e1;margin:16px 0 0;text-align:center;font-size:13px;"><a href="${APP_STORE_URL}" style="color:${D_ACCENT};font-weight:600;text-decoration:none;">App Store</a> &middot; <a href="${PLAY_STORE_URL}" style="color:${D_ACCENT};font-weight:600;text-decoration:none;">Google Play</a></p>
+     <p style="line-height:1.6;color:#cbd5e1;margin:20px 0 0;">Frågor? Hoppa in i vår <a href="${DISCORD_URL}" style="color:${D_ACCENT};font-weight:700;">Discord</a>, där svarar vi snabbast.</p>
+     <p style="line-height:1.6;color:#cbd5e1;margin:16px 0 0;">Tack för att du är med!<br>/ Scoutr</p>`,
+    `Du får det här mejlet för att du har ett konto på Scoutr (tidigare Foilio).<br>
+      <a href="${unsubscribeUrl}" style="color:#9ca3af;">Vill du inte ha nyhetsmejl? Avregistrera dig</a> &middot; dina larm och ditt veckobrev rörs inte.`
+  );
+  const text =
+    `Hej ${name}!\n\n` +
+    `Vi har bytt namn. Det du känner som Foilio heter från och med nu Scoutr, med ny logga och ny adress.\n\n` +
+    `Allt annat är precis som förut: samma priser från över 40 svenska butiker, samma restock- och prislarm, samma skanner och samma samling.\n\n` +
+    `DU BEHÖVER INTE GÖRA NÅGOT\n` +
+    `Ditt konto, din samling, dina pärmar och dina bevakningar är kvar. Du loggar in precis som vanligt.\n\n` +
+    `NY ADRESS: SCOUTR.SE\n` +
+    `Gamla foilio.se-länkar fungerar fortfarande och skickar dig automatiskt rätt.\n\n` +
+    `APPEN HETER SCOUTR\n` +
+    `Uppdatera till senaste versionen i App Store eller Google Play när den dyker upp, så får du den nya loggan och adressen.\n` +
+    `App Store: ${APP_STORE_URL}\nGoogle Play: ${PLAY_STORE_URL}\n\n` +
+    `MEJL OCH KONTAKT\n` +
+    `Våra mejl kommer nu från scoutr.se. Vill du nå oss skriver du till hej@scoutr.se.\n\n` +
+    `Öppna Scoutr: https://scoutr.se\n\n` +
+    `Frågor? Hoppa in i vår Discord, där svarar vi snabbast:\n${DISCORD_URL}\n\n` +
+    `Tack för att du är med!\n/ Scoutr\n\n` +
     `Vill du inte ha nyhetsmejl? Avregistrera dig: ${unsubscribeUrl}\n` +
     `Dina larm och ditt veckobrev rörs inte.\n` +
     `Scoutr · Sveriges marknadsplats för Pokémon TCG`;

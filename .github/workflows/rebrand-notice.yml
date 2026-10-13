@@ -1,0 +1,72 @@
+name: Namnbytesmejl — "Foilio heter nu Scoutr" (manuellt utskick)
+
+# Engångsutskick om namnbytet. Mallen: src/emails/templates.ts (`rebrandEmail`).
+# Skriptet: scripts/send-rebrand-notice.ts. RESEND_API_KEY finns bara här (och i
+# Railway), lokalt går mailern i konsolläge och skriptet vägrar då köra.
+#
+# ⛔ ALDRIG PÅ SCHEMA. `send_to_all: false` (standard) = EN förhandsgranskning till
+# ägaren. `true` = skarpt till alla med e-post + nyheter påslagna. Går inte att ångra.
+on:
+  workflow_dispatch:
+    inputs:
+      send_to_all:
+        description: "SKARPT utskick till ALLA. Tomt/false = förhandsgranskning till ägaren."
+        type: boolean
+        default: false
+      only:
+        description: "Komplettera EN adress efter ett delvis misslyckat utskick (kräver send_to_all)."
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rebrand-notice
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      # Bulk-lanen (Brevo, 300/dygn). Saknas den går utskicket på Resend (100/dygn).
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
+      EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+      NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+    steps:
+      - name: Förkrav — hemligheterna måste vara satta
+        run: |
+          # Ett saknat förkrav här är ett FEL, inte en tyst no-op: någon har tryckt
+          # på knappen och väntar sig ett utskick.
+          missing=""
+          [ -z "${DATABASE_URL}" ] && missing="${missing} DATABASE_URL"
+          [ -z "${RESEND_API_KEY}" ] && missing="${missing} RESEND_API_KEY"
+          if [ -z "${UNSUBSCRIBE_SECRET}" ] && [ -z "${NEXTAUTH_SECRET}" ]; then
+            missing="${missing} UNSUBSCRIBE_SECRET/NEXTAUTH_SECRET"
+          fi
+          if [ -n "${missing}" ]; then
+            echo "::error::Saknade hemligheter:${missing}"
+            exit 1
+          fi
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+      - name: Skicka
+        run: |
+          if [ "${{ inputs.send_to_all }}" = "true" ]; then
+            if [ -n "${{ inputs.only }}" ]; then
+              npx tsx scripts/send-rebrand-notice.ts --send-to-all --only="${{ inputs.only }}"
+            else
+              npx tsx scripts/send-rebrand-notice.ts --send-to-all
+            fi
+          else
+            npx tsx scripts/send-rebrand-notice.ts
+          fi
