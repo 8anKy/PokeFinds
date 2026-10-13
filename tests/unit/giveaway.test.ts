@@ -13,18 +13,18 @@ import sv from "../../messages/sv.json";
 
 describe("computeTickets", () => {
   it("ger inget utan anmälan för kontot", () => {
-    expect(computeTickets({ joined: false, scannedCards: 0, qualifiedInvites: 0, hasRestockAlert: false, discordLinked: false }).total).toBe(0);
+    expect(computeTickets({ joined: false, scannedCards: 0, qualifiedInvites: 0, hasRestockAlert: false, discordLinked: false, gradings: 0 }).total).toBe(0);
   });
 
   it("kapar skanningar och inbjudningar", () => {
-    const t = computeTickets({ joined: true, scannedCards: 500, qualifiedInvites: 40, hasRestockAlert: true, discordLinked: true });
-    expect(t).toEqual({ account: 5, scans: 100, invites: 100, restock: 5, discord: 5, total: 215 });
+    const t = computeTickets({ joined: true, scannedCards: 500, qualifiedInvites: 40, hasRestockAlert: true, discordLinked: true, gradings: 9 });
+    expect(t).toEqual({ account: 5, scans: 100, invites: 100, restock: 5, discord: 5, grading: 9, total: 224 });
     expect(t.total).toBe(MAX_TICKETS);
   });
 
   it("räknar en lott per kort och tio per vän", () => {
-    const t = computeTickets({ joined: true, scannedCards: 7, qualifiedInvites: 2, hasRestockAlert: false, discordLinked: false });
-    expect(t.total).toBe(TICKETS.account + 7 + 20);
+    const t = computeTickets({ joined: true, scannedCards: 7, qualifiedInvites: 2, hasRestockAlert: false, discordLinked: false, gradings: 2 });
+    expect(t.total).toBe(TICKETS.account + 7 + 20 + 2 * TICKETS.perGrading);
   });
 });
 

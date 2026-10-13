@@ -77,7 +77,13 @@ export interface GiveawayUserTickets {
   tiktokHandle: string | null;
   instagramHandle: string | null;
   tickets: TicketBreakdown;
-  counts: { scannedCards: number; qualifiedInvites: number; hasRestockAlert: boolean; discordLinked: boolean };
+  counts: {
+    scannedCards: number;
+    qualifiedInvites: number;
+    hasRestockAlert: boolean;
+    discordLinked: boolean;
+    gradings: number;
+  };
   /** För dragningens medlemskapskoll — skickas aldrig till klienten. */
   discordUserId: string | null;
 }
@@ -89,7 +95,7 @@ export async function loadUserTickets(
   now: Date = new Date()
 ): Promise<GiveawayUserTickets> {
   const end = windowEnd(cfg, now);
-  const [entry, scannedCards, qualifiedInvites, restockCount, account] = await Promise.all([
+  const [entry, scannedCards, qualifiedInvites, restockCount, account, gradings] = await Promise.all([
     prisma.giveawayEntry.findUnique({
       where: { giveaway_userId: { giveaway: cfg.key, userId } },
       select: { tiktokHandle: true, instagramHandle: true },
@@ -98,6 +104,10 @@ export async function loadUserTickets(
     countQualifiedInvites(userId, cfg, end),
     prisma.watchlistItem.count({ where: { userId, restockAlert: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { discordUserId: true } }),
+    // Bara KLARA graderingar under perioden — ett misslyckat anrop är ingen gradering.
+    prisma.gradingJob.count({
+      where: { userId, status: "COMPLETED", createdAt: { gte: cfg.startsAt, lte: end } },
+    }),
   ]);
   const discordUserId = account?.discordUserId ?? null;
   const counts = {
@@ -105,6 +115,7 @@ export async function loadUserTickets(
     qualifiedInvites,
     hasRestockAlert: restockCount > 0,
     discordLinked: !!discordUserId,
+    gradings,
   };
   return {
     joined: !!entry,

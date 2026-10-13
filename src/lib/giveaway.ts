@@ -8,6 +8,8 @@
  *   inbjuden vän som blivit aktiv         10/vän  max 10 vänner (verifierad + återbesök)
  *   restock-larm på en produkt               5   en gång
  *   Discord kopplat (= med i servern)        5   en gång; dragningen kollar medlemskapet
+ *   AI-gradering (klar) under perioden     3/st  max 3 — gratiskontots månadskvot, så taket
+ *                                                 nås utan Pro (ägarbeslut 2026-10-13)
  *
  * ⛔ Bara skannade kort ger lotter (ägarbeslut, samma modell som branschen kör).
  * Gratiskontots skannerkvot är lägre än Pro:s — känd avvägning, tagen av ägaren.
@@ -38,6 +40,8 @@ export const TICKETS = {
   maxInvites: 10,
   restockAlert: 5,
   discord: 5,
+  perGrading: 3,
+  maxGradings: 3,
 } as const;
 
 export const MAX_TICKETS =
@@ -45,7 +49,8 @@ export const MAX_TICKETS =
   TICKETS.perScan * TICKETS.maxScans +
   TICKETS.perInvite * TICKETS.maxInvites +
   TICKETS.restockAlert +
-  TICKETS.discord;
+  TICKETS.discord +
+  TICKETS.perGrading * TICKETS.maxGradings;
 
 function parseDate(raw: string | undefined, fallback: string): Date {
   const d = raw ? new Date(raw) : null;
@@ -77,6 +82,8 @@ export interface TicketInput {
   hasRestockAlert: boolean;
   /** Discord-kontot kopplat via "Koppla Discord" (som lägger in personen i servern). */
   discordLinked: boolean;
+  /** Klara AI-graderingar under perioden. */
+  gradings: number;
 }
 
 export interface TicketBreakdown {
@@ -85,6 +92,7 @@ export interface TicketBreakdown {
   invites: number;
   restock: number;
   discord: number;
+  grading: number;
   total: number;
 }
 
@@ -95,7 +103,16 @@ export function computeTickets(input: TicketInput): TicketBreakdown {
     Math.min(Math.max(0, input.qualifiedInvites), TICKETS.maxInvites) * TICKETS.perInvite;
   const restock = input.hasRestockAlert ? TICKETS.restockAlert : 0;
   const discord = input.discordLinked ? TICKETS.discord : 0;
-  return { account, scans, invites, restock, discord, total: account + scans + invites + restock + discord };
+  const grading = Math.min(Math.max(0, input.gradings), TICKETS.maxGradings) * TICKETS.perGrading;
+  return {
+    account,
+    scans,
+    invites,
+    restock,
+    discord,
+    grading,
+    total: account + scans + invites + restock + discord + grading,
+  };
 }
 
 /**

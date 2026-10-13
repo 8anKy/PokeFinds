@@ -37,6 +37,7 @@ interface Status {
       qualifiedInvites: number;
       hasRestockAlert: boolean;
       discordLinked: boolean;
+      gradings: number;
     };
   } | null;
 }
@@ -188,6 +189,7 @@ export default function GiveawayPage() {
               <EarnRow label={t("rowScans")} hint={t("rowScansHint")} amount={`+${TICKETS.perScan}`} />
               <EarnRow label={t("rowInvites")} hint={t("rowInvitesHint")} amount={`+${TICKETS.perInvite}`} />
               <EarnRow label={t("rowRestock")} hint={t("rowRestockHint")} amount={`+${TICKETS.restockAlert}`} />
+              <EarnRow label={t("rowGrading")} hint={t("rowGradingHint")} amount={`+${TICKETS.perGrading}`} />
               {status.discordAvailable && (
                 <EarnRow label={t("rowDiscord")} hint={t("rowDiscordHint")} amount={`+${TICKETS.discord}`} />
               )}
@@ -281,6 +283,19 @@ export default function GiveawayPage() {
                   !closed && !user.counts.hasRestockAlert ? (
                     <LinkButton href="/produkter" size="sm" variant="outline">
                       {t("ctaWatch")}
+                    </LinkButton>
+                  ) : null
+                }
+              />
+              <TicketRow
+                label={t("rowGrading")}
+                hint={t("rowGradingHint")}
+                value={`${Math.min(user.counts.gradings, TICKETS.maxGradings)}/${TICKETS.maxGradings}`}
+                done={user.counts.gradings >= TICKETS.maxGradings}
+                action={
+                  !closed && user.counts.gradings < TICKETS.maxGradings ? (
+                    <LinkButton href="/gradera" size="sm" variant="outline">
+                      {t("ctaGrade")}
                     </LinkButton>
                   ) : null
                 }
