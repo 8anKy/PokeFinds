@@ -35,7 +35,7 @@ const subscribeNoop = () => () => {};
 const serverSnapshot = () => false;
 
 const BADGE_CLASS =
-  "inline-flex items-center gap-2 rounded-lg border border-white/25 bg-black px-2.5 py-1 transition-colors hover:border-white/50";
+  "inline-flex items-center gap-2.5 rounded-xl border border-white/25 bg-black px-3.5 py-1.5 transition-colors hover:border-white/50";
 
 /**
  * Båda butiksbrickorna sida vid sida (App Store först, Google Play bredvid —
@@ -60,10 +60,10 @@ export function AppStoreBadge() {
         aria-label={t("badgeAria")}
         className={BADGE_CLASS}
       >
-        <IconAppleLogo size={17} className="shrink-0 text-white" />
+        <IconAppleLogo size={22} className="shrink-0 text-white" />
         <span className="flex flex-col text-left leading-tight">
-          <span className="text-[8.5px] font-medium text-white/75">{t("badgeTagline")}</span>
-          <span className="-mt-0.5 text-xs font-semibold text-white">App Store</span>
+          <span className="text-[10px] font-medium text-white/75">{t("badgeTagline")}</span>
+          <span className="-mt-0.5 text-sm font-semibold text-white">App Store</span>
         </span>
       </a>
       <a
@@ -73,10 +73,10 @@ export function AppStoreBadge() {
         aria-label={t("playBadgeAria")}
         className={BADGE_CLASS}
       >
-        <IconGooglePlay size={15} className="shrink-0" />
+        <IconGooglePlay size={20} className="shrink-0" />
         <span className="flex flex-col text-left leading-tight">
-          <span className="text-[8.5px] font-medium text-white/75">{t("playBadgeTagline")}</span>
-          <span className="-mt-0.5 text-xs font-semibold text-white">Google Play</span>
+          <span className="text-[10px] font-medium text-white/75">{t("playBadgeTagline")}</span>
+          <span className="-mt-0.5 text-sm font-semibold text-white">Google Play</span>
         </span>
       </a>
     </div>

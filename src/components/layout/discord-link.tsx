@@ -34,7 +34,7 @@ export function DiscordLink() {
       title={t("discordLink")}
       className="inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-lg bg-discord px-2 text-white transition-colors hover:bg-discord-hover sm:px-2.5"
     >
-      <IconDiscord size={14} className="shrink-0" />
+      <IconDiscord size={16} className="shrink-0" />
       <span className="hidden text-xs font-semibold sm:inline">Discord</span>
     </a>
   );
