@@ -15,7 +15,7 @@ export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=se.
 
 export const DISCORD_URL = "https://discord.gg/kpgmdEebgW";
 export const INSTAGRAM_URL = "https://www.instagram.com/scoutr.se";
-export const TIKTOK_URL = "https://www.tiktok.com/@scoutr.se";
+export const TIKTOK_URL = "https://www.tiktok.com/@foilio.se";
 
 /**
  * Subredditen r/PokemonTCGSverige. ⛔ **TOMBSTONE — LÄNKAS INTE FRÅN NÅGONSTANS.**
