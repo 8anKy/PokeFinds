@@ -112,7 +112,7 @@ export default function InvitePage() {
   if (status?.earned) {
     return (
       <SwipeBack fallback="/mer" coverViewport>
-      <div className="mx-auto max-w-md space-y-6">
+      <div className="mx-auto max-w-md space-y-6 px-2.5 pb-[calc(var(--bottom-tabs-space)+1.5rem)] sm:px-6 lg:px-0 lg:pb-6">
         <SubpageHeader title={t("h1")} fallback="/mer" />
         <div className="rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 p-5 text-center">
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-holo-cyan/15 text-holo-cyan ring-1 ring-holo-cyan/30">
@@ -132,7 +132,7 @@ export default function InvitePage() {
 
   return (
     <SwipeBack fallback="/mer" coverViewport>
-    <div className="mx-auto max-w-md space-y-6">
+    <div className="mx-auto max-w-md space-y-6 px-2.5 pb-[calc(var(--bottom-tabs-space)+1.5rem)] sm:px-6 lg:px-0 lg:pb-6">
       <SubpageHeader title={t("h1")} subtitle={t("subtitle")} fallback="/mer" />
 
       {/* Framsteg mot nästa månad */}

@@ -18,6 +18,10 @@ import { SwipeBack } from "@/components/ui/swipe-back";
 import { INSTAGRAM_URL, TIKTOK_URL } from "@/lib/social-links";
 import { MAX_TICKETS, TICKETS, type TicketBreakdown } from "@/lib/giveaway";
 
+/** Priset i katalogen — bilden är produktens egen (CM-proxyn), länken går till produktsidan. */
+const PRIZE_SLUG = "30th-celebration-elite-trainer-box";
+const PRIZE_IMAGE = "/api/cm-image/895551";
+
 interface Status {
   phase: "upcoming" | "open" | "closed";
   startsAt: string;
@@ -111,11 +115,25 @@ export default function GiveawayPage() {
 
   return (
     <SwipeBack fallback="/mer" coverViewport>
-      <div className="mx-auto max-w-md space-y-6">
+      {/* coverViewport gör ytan FIXED: sidans px-2.5 och bottenflikarnas luft
+          följer inte med, så de står här (annars sidledsscroll + regler under flikarna). */}
+      <div className="mx-auto max-w-md space-y-6 px-2.5 pb-[calc(var(--bottom-tabs-space)+1.5rem)] sm:px-6 lg:px-0 lg:pb-6">
         <SubpageHeader title={t("h1")} subtitle={t("subtitle")} fallback="/mer" />
 
         {/* Priset */}
-        <div className="rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 p-5">
+        <div className="overflow-hidden rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10">
+          <Link
+            href={`/produkter/${PRIZE_SLUG}`}
+            className="flex h-56 items-center justify-center bg-surface-overlay/60 p-4"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={PRIZE_IMAGE}
+              alt={t("prizeTitle")}
+              className="h-full w-auto max-w-full object-contain drop-shadow-xl"
+            />
+          </Link>
+          <div className="p-5">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-holo-cyan ring-1 ring-holo-cyan/30">
               <IconGift size={22} />
@@ -140,6 +158,7 @@ export default function GiveawayPage() {
               {!closed && <p className="mt-0.5">{t("endsEarly")}</p>}
             </div>
           )}
+          </div>
         </div>
 
         {loadError && <p className="text-sm text-fall">{t("loadError")}</p>}
