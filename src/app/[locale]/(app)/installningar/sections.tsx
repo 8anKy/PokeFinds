@@ -305,11 +305,10 @@ export function NotificationsSection({ user }: { user: SettingsUser }) {
       {/* ⛔ E-POST ÄR EN HUVUDBRYTARE och de tre som beror på den ligger INDRAGNA.
           Beroendet bars förr av tre hinttexter som alla slutade med "Kräver att
           e-postnotiser är på" — formen säger samma sak utan att upprepa sig.
-          ⛔ Mastern styr fler utskick än larmen (veckobrev, kontomejl), så hinten
+          ⛔ Mastern styr fler utskick än larmen (nyheter, kontomejl), så hinten
           måste sluta säga "prislarm" medan de är pausade. */}
       <SettingsSection title={t("notifTitle")}>
         {row("email", t("notifEmail"), t(alertCopyKey("notifEmailHint", pricePaused)))}
-        {row("weekly", t("notifWeekly"), undefined, true)}
         {row("news", t("notifNews"), undefined, true)}
         {user.isPro ? (
           row(
@@ -332,6 +331,8 @@ export function NotificationsSection({ user }: { user: SettingsUser }) {
           />
         )}
         {row("push", t("notifPush"), t("notifPushHint"))}
+        {/* Veckopushen om samlingen (jobs/portfolio-push.ts) — ersatte veckobrevet. */}
+        {row("portfolioPush", t("notifPortfolioPush"), t("notifPortfolioPushHint"), true)}
         {/* Vart restock-pushen leder — servern väljer URL:en vid utskicket, så valet
             slår igenom utan nytt app-bygge. Prislarm går alltid till Scoutr. */}
         <SettingsRow

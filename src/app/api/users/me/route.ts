@@ -73,6 +73,8 @@ const notificationSettingsSchema = z.object({
   weekly: z.boolean().optional(),
   // Pro: larmen även som Discord-DM (lib/discord-dm.ts). ⛔ Zod strippar okända nycklar.
   discord: z.boolean().optional(),
+  // Veckopushen om samlingens värde. ⛔ Zod strippar okända nycklar.
+  portfolioPush: z.boolean().optional(),
 });
 
 const patchSchema = z.object({

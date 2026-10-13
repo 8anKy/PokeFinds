@@ -332,10 +332,22 @@ export async function computeCollectionValue(
     topItems?: number;
     /** En pärm i taget: värde, graf, vinst och topplista följer valet. */
     portfolio?: PortfolioFilter;
+    /**
+     * Bara poster som ägdes redan då (köpdatum, annars tillagd). Veckopushen räknar
+     * MARKNADENS rörelse på det man hade — annars hade nyskannade kort lästs som "vinst".
+     */
+    ownedOnOrBefore?: Date;
   }
 ) {
+  const owned = opts?.ownedOnOrBefore;
   const items = await prisma.collectionItem.findMany({
-    where: { userId, ...(opts?.portfolio ?? {}) },
+    where: {
+      userId,
+      ...(opts?.portfolio ?? {}),
+      ...(owned
+        ? { OR: [{ purchaseDate: { lte: owned } }, { purchaseDate: null, createdAt: { lte: owned } }] }
+        : {}),
+    },
     include: COLLECTION_INCLUDE,
   });
 

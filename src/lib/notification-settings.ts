@@ -67,6 +67,12 @@ export interface NotificationSettings {
    * utan att ha bett om det. Gratiskonton kan inte slå på den (users/me tystar).
    */
   discord: boolean;
+  /**
+   * Veckopushen om samlingens värde (src/jobs/portfolio-push.ts) — ersatte veckobrevet
+   * 2026-10-13 (ägarbeslut: brevet kändes spammigt). `push` är MASTER: är den av går
+   * ingen veckopush heller. Saknad nyckel läses som PÅ (ingen migration).
+   */
+  portfolioPush: boolean;
 }
 
 export const NOTIFICATION_DEFAULTS: NotificationSettings = {
@@ -82,6 +88,7 @@ export const NOTIFICATION_DEFAULTS: NotificationSettings = {
   // kundrelation), aldrig tredje part. Ett mejl per släpp, med avanmälan.
   news: true,
   discord: false,
+  portfolioPush: true,
 };
 
 /** Läser kolumnen till ett komplett objekt. Okända/felaktiga fält → default. */
@@ -101,5 +108,7 @@ export function parseNotificationSettings(json: unknown): NotificationSettings {
     weekly: typeof o.weekly === "boolean" ? o.weekly : NOTIFICATION_DEFAULTS.weekly,
     news: typeof o.news === "boolean" ? o.news : NOTIFICATION_DEFAULTS.news,
     discord: typeof o.discord === "boolean" ? o.discord : NOTIFICATION_DEFAULTS.discord,
+    portfolioPush:
+      typeof o.portfolioPush === "boolean" ? o.portfolioPush : NOTIFICATION_DEFAULTS.portfolioPush,
   };
 }

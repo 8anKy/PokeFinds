@@ -24,6 +24,13 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   (`app-release.json` `minVersion`). `/api`, `/.well-known` och filer hoppas av middleware-matchern ⇒ webhooks som
   pekar på foilio.se fungerar. Mejl: scoutr.se är sekundär domän i Google Workspace (2026-10-13, hej/info/kontakt/support/milos@scoutr.se = alias på milos@foilio.se, MX smtp.google.com); `EMAIL_REPLY_TO`/`LEGAL_ENTITY_EMAIL=hej@scoutr.se`. ⛔ Behåll foilio.se ≥ 1 år (gamla appar, 301-ranking, Play-inloggningen milos@foilio.se). Memory:
   `project_rename_to_scoutr`.
+- **VECKOBREVET ÄR STOPPAT — VECKOPUSH OM SAMLINGEN I STÄLLET (ägarbeslut 2026-10-13, brevet kändes spammigt)**:
+  mejlsteget i `scrape-all.yml` är borttaget (koden + `weekly-digest-manual.yml` finns kvar, inställningsraden är dold).
+  `src/jobs/portfolio-push.ts` = steg på samma plats: söndagar (UTC, `PORTFOLIO_PUSH_WEEKDAY`), aldrig under tysta
+  timmar, högst en gång/vecka (`JobMarker "portfolio-push"`, stämplas FÖRE utskicket). Text i `lib/portfolio-push.ts`
+  (testad): värde + MARKNADENS rörelse på poster ägda ≥ 8 d (nyskannat är ingen vinst; procent bara när de är ≥ 90 %
+  av värdet) + största lyft (≥ 20 kr, ≥ 5 %). Spak `notificationSettings.portfolioPush` (saknad = på), `push` är
+  master. iOS-only (APNs). Torrkörning: `scripts/portfolio-push-run.ts --dry-run --force` (70 mottagare 10-13).
 - **GIVEAWAY MED LOTTER (2026-10-13, ägarbeslut)**: `/giveaway` (routegrupp `(mer)`, gäster ser pris + krav), pris
   30th Celebration ETB — ENDA vinsten (ägarbeslut 2026-10-13, inga Pro-pris). Start 2026-10-15 00:00 (DOLD före: 404 + ingen Mer-rad, admin ser den; flytta med `GIVEAWAY_STARTS_AT`), slut 2026-11-15 23:59 svensk tid
   ELLER i förtid vid 1 000 TikTok-följare: sätt `GIVEAWAY_CLOSES_AT` (ISO) i Railway ~24 h framåt och meddela det.

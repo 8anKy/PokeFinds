@@ -35,10 +35,10 @@ export function SettingsIndex({ user }: { user: SettingsUser }) {
   const notifSummary = join(
     [
       notif.email && t("notifEmail"),
-      notif.weekly && t("notifWeekly"),
       notif.news && t("notifNews"),
       user.isPro && notif.allRestocks && t("notifAll"),
       notif.push && t("notifPush"),
+      notif.push && notif.portfolioPush && t("notifPortfolioPush"),
     ].filter((s): s is string => typeof s === "string")
   );
 

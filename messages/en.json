@@ -116,6 +116,8 @@
     "notifAllPausedHint": "Paused for now — no restock alerts are sent.",
     "notifPush": "Push notifications",
     "notifPushHint": "Straight to your device (app only).",
+    "notifPortfolioPush": "Weekly collection value",
+    "notifPortfolioPushHint": "A notification every Sunday: what your collection is worth and how the market moved it.",
     "notifPushTarget": "Restock push opens",
     "notifPushTargetHint": "What happens when you tap a restock alert. Price alerts always open Scoutr.",
     "notifPushTargetCart": "The store's cart",
@@ -177,7 +179,7 @@
     "discordCancelledToast": "Linking was cancelled.",
     "discordAlreadyLinkedToast": "That Discord account is already linked to another Scoutr account.",
     "discordErrorToast": "Could not link your Discord account.",
-    "notifEmailHintPaused": "Weekly digest and account email. Price alerts are paused right now.",
+    "notifEmailHintPaused": "News and account email. Price alerts are paused right now.",
     "planProDescPaused": "You have Pro. Unlimited watches, unlimited scanning and AI grading. Alerts are paused right now.",
     "planFreeDescPaused": "With Pro you get unlimited watches, more AI gradings and full price history.",
     "visibilityTitle": "Visibility",
@@ -2683,7 +2685,7 @@
         "pro": "✓"
       },
       {
-        "label": "Weekly digest with your collection's progress",
+        "label": "Weekly notification on your collection's value",
         "free": "✓",
         "pro": "✓"
       }
@@ -2714,7 +2716,7 @@
     ],
     "freeRowTitle": "Free",
     "freeRowPrice": "0 kr",
-    "freeRowDesc": "5 watches · 30 scans · 3 gradings a month · market data · weekly digest",
+    "freeRowDesc": "5 watches · 30 scans · 3 gradings a month · market data",
     "freeCta": "Create free account",
     "subRenewNote": "The subscription renews automatically every month until you cancel. Cancel at least 24 hours before it renews — in your App Store settings if you bought in the app.",
     "legalTerms": "Terms of Use",
