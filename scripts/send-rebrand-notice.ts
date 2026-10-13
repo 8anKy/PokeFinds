@@ -62,8 +62,17 @@ async function main() {
 
   if (!sendToAll) {
     // Förhandsgranskning: ETT mejl, till ägaren, med ägarens egen avanmälningslänk.
-    const me = recipients.find((r) => r.email === OWNER);
-    if (!me) throw new Error(`${OWNER} finns inte bland mottagarna — ingen förhandsgranskning att skicka.`);
+    // Ägaren kan ha nyhetsmejl AV (eller ett annat inloggningskonto) — förhandsgranskningen
+    // går ändå till OWNER, med avanmälningslänken från ägarens konto om det finns, annars
+    // från första SUPERADMIN (länken är bara till för att se att den renderas).
+    const me =
+      recipients.find((r) => r.email === OWNER) ??
+      (await prisma.user.findFirst({
+        where: { OR: [{ email: OWNER }, { role: "SUPERADMIN" }] },
+        select: { id: true, email: true, name: true },
+        orderBy: { createdAt: "asc" },
+      }));
+    if (!me) throw new Error("Hittade varken ägarkontot eller en SUPERADMIN — ingen förhandsgranskning att skicka.");
     const mail = mailFor(me, "Milos");
     console.log(`\n--- FÖRHANDSGRANSKNING (skickas BARA till ${OWNER}) ---`);
     console.log(`Ämne: ${mail.subject}\n`);
