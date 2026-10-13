@@ -1,8 +1,8 @@
 {
   "version": "1.5",
   "released": "2026-10-13",
-  "minVersion": "1.1",
-  "androidOnPlay": false,
+  "minVersion": "1.5",
+  "androidOnPlay": true,
   "notes": [
     {
       "icon": "spark",
