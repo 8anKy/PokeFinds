@@ -116,6 +116,12 @@ jobs:
         run: npm ci --legacy-peer-deps
       - if: steps.guard.outputs.ready == 'true'
         run: npx prisma generate
+      # MÄTSOND (2026-10-13, tillfällig): rör sig portföljen UNDER prissteget? Loggar
+      # bara "oförändrad"/procent (publikt repo). Ta bort när frågan är avgjord.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Portföljsond — före prissteget
+        continue-on-error: true
+        run: npx tsx scripts/portfolio-freeze-probe.ts --save
       - if: steps.guard.outputs.ready == 'true'
         name: Priser + historik (RapidAPI)
         run: npx tsx scripts/cardmarket-refresh-run.ts
@@ -167,6 +173,10 @@ jobs:
       # Portföljen ska röra sig EN gång per dygn, EFTER Cardmarket-priserna — inte när
       # hot-card-refresh/JP/butikssvep skriver. Implicit success(): blev prissteget rött
       # behålls gårdagens värde hellre än att frysa ett halvt uppdaterat dygn.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Portföljsond — efter prissteget, före frysningen
+        continue-on-error: true
+        run: npx tsx scripts/portfolio-freeze-probe.ts --compare
       - if: steps.guard.outputs.ready == 'true'
         name: Frys samlingsvärdet (portföljen följer CM-priserna)
         run: npx tsx scripts/settle-collection-values.ts
