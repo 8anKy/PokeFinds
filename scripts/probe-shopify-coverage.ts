@@ -19,7 +19,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
 const onlyStore = process.argv.find((a) => a.startsWith("--store="))?.slice("--store=".length);
-const H = { cookie: "localization=SE", "accept-language": "sv-SE", "user-agent": "FoilioBot/1.0 (+kontakt: hej@foilio.se)" };
+const H = { cookie: "localization=SE", "accept-language": "sv-SE", "user-agent": "FoilioBot/1.0 (+kontakt: hej@scoutr.se)" };
 const PAUSE = 400;
 
 /** Shopify-butiker som i dag går via kollektionsfiltret (dvs INTE wholeCatalog). */

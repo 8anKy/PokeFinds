@@ -55,7 +55,7 @@ const prisma = new PrismaClient();
 // dubbla namnvakter (blueprint-namn + CM-katalog) — en sidhämtning reviderar inget som
 // inte redan är maskinverifierat.
 const NON_STORE = ["Cardmarket", "Tradera", "CardTrader", "Pokémon TCG API", "TCGdex API"];
-const UA = "FoilioBot/1.0 (+kontakt: hej@foilio.se)";
+const UA = "FoilioBot/1.0 (+kontakt: hej@scoutr.se)";
 /** Per värd, INTE globalt: butikerna 429:ar om man skjuter parallellt mot samma domän. */
 const HOST_DELAY_MS = Number(process.env.AUDIT_DELAY_MS ?? 1500);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
