@@ -63,10 +63,18 @@ def _drop_cache(path):
     if hasattr(os, "posix_fadvise"):
         try:
             fd = os.open(path, os.O_RDONLY)
+            # Nyss skrivna sidor är "smutsiga" och släpps först när de skrivits till disk.
+            os.fdatasync(fd)
             os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
             os.close(fd)
         except OSError:
             pass
+
+
+def _owners_dtype(owners, next_idx=0):
+    """Kortindex per indexvektor: uint16 så länge korten ryms, annars int32."""
+    top = max(int(owners.max()) if len(owners) else 0, next_idx)
+    return owners.astype(np.uint16 if top < 65535 else np.int32, copy=False)
 
 
 def _norm(img):
@@ -84,11 +92,12 @@ class Engine:
         self.nn_dir = nn
         self.index = faiss.read_index(os.path.join(nn, "ivfpq.faiss"))
         self.index.nprobe = NPROBE
-        # I minnet (44 MB), inte memmap: add_cards() förlänger den.
-        self.owners = np.load(os.path.join(nn, "owners.npy"))
+        # I minnet, inte memmap: add_cards() förlänger den. uint16 när korten ryms (2026-10-15: 42 541 kort,
+        # tak 65 535) — halva minnet, samma värden, samma svar.
+        self.owners = _owners_dtype(np.load(os.path.join(nn, "owners.npy")))
         self.ids = json.load(open(os.path.join(nn, "cards.json")))
         # Filerna är inlästa i processen — släpp sidcachen (cgroupen räknar den som minne).
-        for f in ("ivfpq.faiss", "owners.npy"):
+        for f in ("ivfpq.faiss", "owners.npy", "cards.json"):
             _drop_cache(os.path.join(nn, f))
         rk = os.path.join(data_dir, "refkp")
         self.rk_dir = rk
@@ -114,6 +123,8 @@ class Engine:
         # Kortets språk (EN/JP) — SPRÅKTVILLINGAR avgörs alltid på textytan, se identify().
         cl = os.path.join(data_dir, "cards-lang.json")
         self.langs = json.load(open(cl)) if os.path.exists(cl) else {}
+        for f in (os.path.join(rk, "meta.json"), cm, cl):
+            _drop_cache(f)
         self.sift = cv2.SIFT_create(nfeatures=QUERY_KP)
         self.matcher = cv2.BFMatcher(cv2.NORM_L2)
         self._grays = OrderedDict()  # regionkontrollens referensbilder, LRU
@@ -137,6 +148,9 @@ class Engine:
         so.enable_cpu_mem_arena = False
         so.enable_mem_pattern = False
         sess = ort.InferenceSession(os.path.join(d, "model.onnx"), so, providers=["CPUExecutionProvider"])
+        # Modellen (191 MB) är inläst i sessionen — släpp filens sidcache. Mätt 2026-10-14 i loggarna:
+        # cgroupens "file" låg på 200–440 MB ovanpå 650 MB anon, och Railway fakturerar båda.
+        _drop_cache(os.path.join(d, "model.onnx"))
         ids = json.load(open(os.path.join(d, "ids.json")))
         G = np.load(os.path.join(d, "gallery.npy"))
         add_ids, add_g = os.path.join(d, "ids-add.json"), os.path.join(d, "gallery-add.npy")
@@ -147,7 +161,8 @@ class Engine:
         index.add(G.astype(np.float32))
         del G
         self.emb = {"sess": sess, "index": index, "ids": ids, "dir": d, "added_ids": [], "added": []}
-        _drop_cache(os.path.join(d, "gallery.npy"))
+        for f in ("gallery.npy", "ids.json", "gallery-add.npy", "ids-add.json"):
+            _drop_cache(os.path.join(d, f))
         print(f"embedding {EMB_VERSION}: {len(ids)} kort", flush=True)
 
     def _embed(self, bgr):
@@ -189,6 +204,8 @@ class Engine:
         os.replace(g_path + ".tmp.npy", g_path)
         os.replace(ids_path + ".tmp", ids_path)
         e["added_ids"], e["added"] = [], []
+        _drop_cache(g_path)
+        _drop_cache(ids_path)
 
     def refresh_urls(self, urls):
         """Byt bild-URL för kort motorn redan känner, när katalogen fått en ny (2026-10-08: 406 JP-kort
@@ -505,9 +522,12 @@ class Engine:
                 added.append(cid)
         if added:
             self.index.add(np.vstack(vecs).astype(np.float32))
-            self.owners = np.concatenate([self.owners] + owners_add)
+            self.owners = _owners_dtype(np.concatenate([self.owners.astype(np.int32)] + owners_add), len(self.ids))
             self._persist()
             self.emb_persist()
+            # Det nyss skrivna ligger i sidcachen — släpp det (cgroupen räknar den som minne).
+            for f in (self._add_d, self._add_p):
+                _drop_cache(f)
         return {"added": len(added), "failed": failed[:20], "failedCount": len(failed), "cards": len(self.ids)}
 
     def _persist(self):
@@ -524,3 +544,8 @@ class Engine:
         dump_json(os.path.join(self.rk_dir, "meta.json"), {"offsets": self.offsets, "shapes": self.shapes, "n": self.n_base, "n_add": self.n_add, "ref_kp": 600})
         dump_json(os.path.join(self.dir, "cards-meta.json"), self.image_urls)
         dump_json(os.path.join(self.dir, "cards-lang.json"), self.langs)
+        # Skrivna filer stannar i sidcachen (ivfpq ensam 171 MB) — släpp dem, allt är redan i processen.
+        for f in (os.path.join(self.nn_dir, "ivfpq.faiss"), os.path.join(self.nn_dir, "owners.npy"),
+                  os.path.join(self.nn_dir, "cards.json"), os.path.join(self.rk_dir, "meta.json"),
+                  os.path.join(self.dir, "cards-meta.json"), os.path.join(self.dir, "cards-lang.json")):
+            _drop_cache(f)
