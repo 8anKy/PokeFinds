@@ -348,6 +348,8 @@ export async function recordScanUsage(
     agree?: boolean;
     /** Språket klienten bad om vid lika konst (`langHint`), när det skickades. */
     lh?: string;
+    /** "Inget kort i bilden" — listan hölls tom med flit. */
+    nc?: boolean;
   } | null,
   /**
    * FÄLTAVTRYCKET (2026-08-30) — skrivs för ALLA användare. Ägarbeslut: målet
@@ -442,6 +444,8 @@ export async function recordScanUsage(
                 ...(recall.gm != null ? { gm: recall.gm } : {}),
                 ...(recall.agree ? { agree: true } : {}),
                 ...(recall.lh ? { lh: recall.lh } : {}),
+                // "Inget kort i bilden" — skickades in av rutten sedan 09-23 men skrevs aldrig (10-14).
+                ...(recall.nc ? { nc: true } : {}),
               },
               ...(fp && fp.color.length > 0
                 ? { fp: { v: 1, color: fp.color.slice(0, 7), struct: fp.struct.slice(0, 7) } }
@@ -2406,7 +2410,7 @@ async function identifyFromEngine(engine: EngineResponse, fingerprintMatches: Ar
     artDecided: true,
     engineDecided: true,
   } as const;
-  if (engineNoCard(bestInliers, fpTop)) {
+  if (engineNoCard(bestInliers, fpTop, typeof engine.embScore === "number" ? engine.embScore : null)) {
     // artCandidateIds = avtryckets lista (bildsökningen KÖRDES) ⇒ recall skrivs och `nc` bokförs —
     // med en tom lista hoppar recordScanUsage över hela recall och domen går inte att mäta.
     return {

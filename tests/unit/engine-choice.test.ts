@@ -8,6 +8,15 @@ describe("motorläget: inget kort i bilden", () => {
     // ägarens bord 2026-10-14: släpptes igenom av den första tröskeln (0,55)
     expect(engineNoCard(0, 0.569)).toBe(true);
   });
+  it("bildvektorn liknar inget kort och geometrin är svag (ägarens datorlåda: 28 inliers, 0,528)", () => {
+    expect(engineNoCard(28, 0.543, 0.528)).toBe(true);
+    expect(engineNoCard(39, 0.8, 0.5)).toBe(true);
+  });
+  it("stark geometri eller hög likhet ger en lista; utan bildvektor gäller bara noll-geometri-regeln", () => {
+    expect(engineNoCard(40, 0.5, 0.5)).toBe(false);
+    expect(engineNoCard(10, 0.5, 0.6)).toBe(false);
+    expect(engineNoCard(10, 0.5, null)).toBe(false);
+  });
   it("minsta geometri, eller ett avtryck som liknar ett kort, ger fortfarande en lista", () => {
     expect(engineNoCard(1, 0.3)).toBe(false);
     expect(engineNoCard(0, ENGINE_NO_CARD_FP_MAX)).toBe(false);

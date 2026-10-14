@@ -12,9 +12,25 @@
  */
 export const ENGINE_NO_CARD_FP_MAX = 0.62;
 
-/** Inget kort i bilden: motorn hittade INGEN geometri och konstavtrycket liknar inget kort. */
-export function engineNoCard(bestInliers: number, fingerprintTop: number | null): boolean {
-  return bestInliers <= 0 && (fingerprintTop === null || fingerprintTop < ENGINE_NO_CARD_FP_MAX);
+/**
+ * BILDVEKTORNS LIKHET (cos mot sin etta) under detta + svag geometri = inget kort (2026-10-14). Ägarens
+ * datorlåda fick 28 inliers mot Roserade JP — gallret är ett upprepat mönster som RANSAC passar in —
+ * men likheten var 0,528. Mätt lokalt (benchmark-mängderna): 8 foton utan kort 0,40–0,55; riktiga kort
+ * median 0,71 (Tradera suddade) – 0,82 (appen). < 0,57 & < 40 inliers ⇒ 8/8 utan kort, 30/738 riktiga
+ * (nästan alla ur den syntetiskt försämrade mängden; motorn hade 5 rätt), 2/69 riktiga fältskanningar.
+ */
+export const ENGINE_NO_CARD_EMB_MAX = 0.57;
+/** Över så här många inliers litar vi på geometrin oavsett likhet — ett riktigt kort med bländning. */
+export const ENGINE_NO_CARD_EMB_INLIERS = 40;
+
+/**
+ * Inget kort i bilden: (a) motorn hittade INGEN geometri och konstavtrycket liknar inget kort, eller
+ * (b) bildvektorn liknar inget kort och geometrin är för svag för att väga upp det.
+ * `embScore` null (motor utan bildvektor) ⇒ bara (a).
+ */
+export function engineNoCard(bestInliers: number, fingerprintTop: number | null, embScore: number | null = null): boolean {
+  if (bestInliers <= 0 && (fingerprintTop === null || fingerprintTop < ENGINE_NO_CARD_FP_MAX)) return true;
+  return embScore !== null && embScore < ENGINE_NO_CARD_EMB_MAX && bestInliers < ENGINE_NO_CARD_EMB_INLIERS;
 }
 
 /** Antal av motorns kort före konstavtryckets i valsteget, och valstegets platser (CHOOSE_OPTIONS_MAX). */
