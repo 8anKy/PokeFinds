@@ -2442,6 +2442,12 @@ export async function identifyCard(
     langHint?: string | null;
     /** Motorläge: skannermotorns svar ersätter bildsökningen OCH vision — se identifyFromEngine. */
     engine?: EngineResponse;
+    /**
+     * INGEN VISION ALLS (ägarbeslut 2026-10-14: "sluta använda Gemini helt för skannern"). Sätts i
+     * motorläge: svarar motorn inte (sover, fel, inga kandidater) avgör konstavtrycket ensamt, och är
+     * det osäkert visas valsteget i stället för ett vision-anrop.
+     */
+    noVision?: boolean;
   } = {}
 ): Promise<IdentifyResult> {
   if (opts.engine && !opts.engine.error && (opts.engine.candidates?.length ?? 0) > 0) {
@@ -2483,9 +2489,9 @@ export async function identifyCard(
   const artAgree = artFramesAgree(artMatches, detailed.frameTops, twins.isTwinOfTop);
 
   // `precise` = användaren bad uttryckligen om modellen — hoppa aldrig då.
-  const skipVision = artConfidentCardId !== null && !opts.precise;
+  const skipVision = !!opts.noVision || (artConfidentCardId !== null && !opts.precise);
   const ocr: OcrResult = skipVision
-    ? { rawText: "", confidence: 0.95 }
+    ? { rawText: "", confidence: artConfidentCardId !== null ? 0.95 : 0.4 }
     : await adapter.extractCardInfo(imageDataUrl, opts.detailDataUrl);
 
   // Bilden ensam räcker som signal — texten kan vara helt oläslig.
@@ -2495,12 +2501,15 @@ export async function identifyCard(
   ]);
   // INGET KORT I BILDEN (2026-09-23): en hand fick "Hisuian Samurott V" på 0,449.
   // Se NO_CARD_ART_MAX — vision tyst OCH bilden under slumpnivå ⇒ ingen lista.
+  // Utan vision (noVision) och utan säker bild finns ingen text att fråga — bilden ensam dömer.
   const noCard =
-    !skipVision &&
+    (!skipVision || (opts.noVision && artConfidentCardId === null)) &&
     !ocr.guessedName &&
     !ocr.guessedNumber &&
     (artMatches.length === 0 || artMatches[0].score < NO_CARD_ART_MAX);
   const candidates = noCard ? [] : matched;
+  // Bildens ordning utan bevis (noVision, osäker grind) — en gissning, aldrig ett säkert svar.
+  const artGuessOnly = !!opts.noVision && artConfidentCardId === null;
 
   // FABRICERADE NUMMER SER UT SOM BEVIS (mätt 2026-07-30): modellen läste
   // "Dragonite 4/102" ur en suddig fångst → exakt träff på Fossil Dragonite,
@@ -2530,10 +2539,11 @@ export async function identifyCard(
     confidence: ocr.confidence,
     usage: ocr.usage ?? null,
     candidates,
-    ambiguous: isAmbiguous(candidates) || numberContradictedByArt,
+    ambiguous: isAmbiguous(candidates) || numberContradictedByArt || artGuessOnly,
     // ⛔ SMALARE ÄN `ambiguous`, med flit — se TIE_MARGIN. Ett märke är gratis,
-    // en fråga är det inte.
-    tied: isTied(candidates),
+    // en fråga är det inte. Utan vision och utan säker bild är frågan ändå rätt:
+    // samma valsteg som en osäker motor (identifyFromEngine).
+    tied: isTied(candidates) || (artGuessOnly && new Set(candidates.map((c) => c.cardId)).size >= 2),
     artTop: artMatches.length > 0 ? artMatches[0].score : null,
     // Null, aldrig 0, när det inte FINNS en tvåa: 0 betyder "ingen marginal
     // alls" (två kort på exakt samma poäng), vilket är motsatsen till "vi hade

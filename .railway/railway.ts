@@ -64,8 +64,9 @@ export default defineRailway((ctx) => {
       // Skannermotorns skuggläge (src/lib/scanner-engine-shadow.ts) — privat nät, delad hemlighet.
       SCANNER_ENGINE_URL: "http://${{scanner-engine.RAILWAY_PRIVATE_DOMAIN}}:8080", SCANNER_ENGINE_SECRET: engine.env.ENGINE_SECRET,
       // MOTORLÄGE: "admin" = admin ser motorns svar (Gemini aldrig), alla andra dagens skanner + skugga.
-      // "all" = alla (Gemini av). Tomt/borttaget = bara skugga.
-      SCANNER_ENGINE_PRIMARY: "admin" },
+      // "all" = alla (Gemini av, även som reserv). Tomt/borttaget = bara skugga.
+      // "all" sedan 2026-10-14 (ägarbeslut efter skuggrapporten: motorn 85,8 % mot dagens 83,6 %).
+      SCANNER_ENGINE_PRIMARY: "all" },
   });
 
   return project("divine-reflection", {

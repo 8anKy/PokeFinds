@@ -171,14 +171,16 @@ export async function POST(req: Request) {
     // (b) klienten uttryckligen ber om det ("försök igen, skarpare") OCH är Pro.
     // Gäster får aldrig den dyra vägen — de har inte betalat med ett konto ens.
     const intro = user ? await isIntroScan(user.id) : false;
-    // MOTORLÄGE (2026-09-30, bara admin tills skuggrapporten avgjort): skannermotorn utan AI
-    // svarar och Gemini anropas aldrig. Faller motorn bort används dagens väg som reserv.
+    // MOTORLÄGE (2026-09-30 admin, ALLA sedan 2026-10-14 — ägarbeslut): skannermotorn utan AI
+    // svarar och Gemini anropas aldrig. Faller motorn bort avgör konstavtrycket ensamt (noVision).
     const engineMode = engineModeFor(user?.role);
     // Telefonens lästa nummer avgör mellan namnsyskon i motorns topp-5 (applyLocalNumber).
     const engine = engineMode ? await applyLocalNumber(await callEngine(image), localNumber?.num) : undefined;
     if (engine?.error) console.warn("[engine] motorläge föll tillbaka:", engine.error);
     const result = await identifyCard(image, {
       engine,
+      // Motorläge = ingen Gemini alls, inte ens som reserv när motorn inte svarar (ägarbeslut 2026-10-14).
+      noVision: engineMode,
       precise: intro || (precise && !!user && isPro(user)),
       detailDataUrl: detail,
       fingerprints,
