@@ -29,8 +29,8 @@ import { gradingVerdictFor, isGradedListing } from "../lib/graded-listing";
 import {
   matchProduct,
   matchListingToProduct,
-  isPlausibleListingPrice,
   getListingPriceGuard,
+  loadMatchIndex,
 } from "../scrapers/matching";
 import { traderaSearchUrlSpecific, TRADERA_CATEGORY } from "../lib/marketplace-urls";
 import { traderaItemUrl } from "@/lib/tradera-listing-options";
@@ -428,12 +428,24 @@ function makeSearchFns(appId: string, appKey: string): { name: string; fn: Searc
  * sökning går rakt på den. Använder samma SearchAdvanced-metod som SS.SearchAdv.
  */
 function searchAdvancedFor(
-  appId: string, appKey: string, words: string, catId: number, page = 1
+  appId: string, appKey: string, words: string, catId: number, page = 1, lane: SearchLane = "SA"
 ): Promise<string> {
+  if (lane === "PS") {
+    // PublicService.GetSearchResultAdvanced med ItemType FixedPrice — EGEN dygnskvot
+    // (10 000/metod). MÄTT 2026-10-14 på tre produkter: exakt samma annonser som
+    // SearchAdvanced/BuyItNow (45/45, 44/44, 36/36). "All" tappar annonser, och
+    // "BuyItNow"/"ShopItem" är inte giltiga värden här (SOAP-fault).
+    return callApi(PUBLIC_API,
+      `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:trad="http://api.tradera.com">${soapHeader(appId, appKey)}<soap:Body><trad:GetSearchResultAdvanced><trad:query><trad:SearchWords>${esc(words)}</trad:SearchWords><trad:CategoryId>${catId}</trad:CategoryId><trad:SearchInDescription>false</trad:SearchInDescription><trad:Mode>AllWords</trad:Mode><trad:PriceMinimum>0</trad:PriceMinimum><trad:PriceMaximum>9999999</trad:PriceMaximum><trad:BidsMinimum>0</trad:BidsMinimum><trad:BidsMaximum>0</trad:BidsMaximum><trad:CountyId>0</trad:CountyId><trad:OrderBy>PriceAscending</trad:OrderBy><trad:ItemStatus>Active</trad:ItemStatus><trad:ItemType>FixedPrice</trad:ItemType><trad:OnlyAuctionsWithBuyNow>false</trad:OnlyAuctionsWithBuyNow><trad:OnlyItemsWithThumbnail>false</trad:OnlyItemsWithThumbnail><trad:ItemsPerPage>50</trad:ItemsPerPage><trad:PageNumber>${page}</trad:PageNumber><trad:ItemCondition>All</trad:ItemCondition><trad:SellerType>All</trad:SellerType></trad:query></trad:GetSearchResultAdvanced></soap:Body></soap:Envelope>`,
+      "GetSearchResultAdvanced", appId, appKey);
+  }
   return callApi(SEARCH_API,
     `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><SearchAdvanced xmlns="http://api.tradera.com"><request><SearchWords>${esc(words)}</SearchWords><CategoryId>${catId}</CategoryId><SearchInDescription>false</SearchInDescription><PageNumber>${page}</PageNumber><OrderBy>PriceAscending</OrderBy><ItemStatus>Active</ItemStatus><ItemType>BuyItNow</ItemType><ItemsPerPage>50</ItemsPerPage><CountyId>0</CountyId><OnlyAuctionsWithBuyNow>false</OnlyAuctionsWithBuyNow><OnlyItemsWithThumbnail>false</OnlyItemsWithThumbnail></request></SearchAdvanced></soap:Body></soap:Envelope>`,
     "SearchAdvanced", appId, appKey);
 }
+
+/** Vilken Tradera-metod (= vilken dygnskvot) en riktad sökning går på. */
+type SearchLane = "SA" | "PS";
 
 // ─── Price ranges: spread calls across different price bands ─────────────────
 
@@ -525,6 +537,10 @@ export async function runTraderaSweep(
     process.env.TRADERA_SEARCH_BUDGET ?? process.env.TRADERA_HOT_LIMIT ?? "200",
     10
   );
+  // ANDRA KÖRFÄLTET (2026-10-14): lika många produkter till på PublicService-metodens
+  // egen kvot. Katalogen (~27k) varvades förut på ~5–6 dygn ⇒ annonskurvan fick en
+  // punkt i veckan; med två körfält ungefär var tredje dag. 0 stänger av.
+  const SEARCH_BUDGET_PS = parseInt(process.env.TRADERA_SEARCH_BUDGET_PS ?? "4500", 10);
   const SEARCH_CONCURRENCY = parseInt(process.env.TRADERA_SEARCH_CONCURRENCY ?? "6", 10);
   let hotCalls = 0;
   // Produkter vi FAKTISKT namn-sökte denna körning. Bara dessa får nollställas i
@@ -552,9 +568,12 @@ export async function runTraderaSweep(
         { traderaCheckedAt: { sort: "asc", nulls: "first" } },
         { viewCount: "desc" },
       ],
-      take: SEARCH_BUDGET,
+      take: SEARCH_BUDGET + Math.max(0, SEARCH_BUDGET_PS),
     });
-    let quotaHit = false;
+    // Första SEARCH_BUDGET på SearchAdvanced, resten på PublicService — kvoterna är per metod.
+    const laneOf = new Map(hot.map((p, i) => [p.id, (i < SEARCH_BUDGET ? "SA" : "PS") as SearchLane]));
+    const quotaHitByLane: Record<SearchLane, boolean> = { SA: false, PS: false };
+    let psCalls = 0;
     // Räddningssidor för syskonskuggade produkter (MÄTT 2026-08-12 på Mega Darkrai ex
     // 120/084): sökningen "Mega Darkrai ex Pitch Black" träffar 68 annonser, men sida 1
     // sorterad PriceAscending är HELT fylld av det billiga syskonkortet 048/084
@@ -564,10 +583,14 @@ export async function runTraderaSweep(
     // upp till TRADERA_HOT_MAX_PAGES, ur en delad extra-budget (håller Fas 0 under
     // metodkvoten 10k/dygn även om många produkter är skuggade).
     const HOT_MAX_PAGES = parseInt(process.env.TRADERA_HOT_MAX_PAGES ?? "4", 10);
-    let extraPagesLeft = parseInt(process.env.TRADERA_HOT_EXTRA_PAGES ?? "1500", 10);
+    const extraPagesLeftByLane: Record<SearchLane, number> = {
+      SA: parseInt(process.env.TRADERA_HOT_EXTRA_PAGES ?? "1500", 10),
+      PS: parseInt(process.env.TRADERA_HOT_EXTRA_PAGES_PS ?? "1500", 10),
+    };
     let extraPagesUsed = 0;
     await mapPool(hot, SEARCH_CONCURRENCY, async (p) => {
-      if (quotaHit) return;
+      const lane = laneOf.get(p.id) ?? "SA";
+      if (quotaHitByLane[lane]) return;
       const words = p.card ? `${p.card.name} ${p.card.set.name}` : p.title;
       const catId = p.card ? TRADERA_CATEGORY.SINGLE_CARD : (TRADERA_CATEGORY[p.category] ?? 293307);
 
@@ -575,20 +598,21 @@ export async function runTraderaSweep(
       let totalPages = 1;
       for (let page = 1; page <= HOT_MAX_PAGES; page++) {
         if (page > 1) {
-          if (page > totalPages || extraPagesLeft <= 0) break;
-          extraPagesLeft--;
+          if (page > totalPages || extraPagesLeftByLane[lane] <= 0) break;
+          extraPagesLeftByLane[lane]--;
           extraPagesUsed++;
         }
         let result;
         try {
-          const xml = await searchAdvancedFor(appId, appKey, words, catId, page);
+          const xml = await searchAdvancedFor(appId, appKey, words, catId, page, lane);
           result = parseItemsFromXml(xml);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          if (msg.includes("429") || msg.includes("AboveCallLimit")) quotaHit = true;
+          if (msg.includes("429") || msg.includes("AboveCallLimit")) quotaHitByLane[lane] = true;
           break;
         }
         hotCalls++;
+        if (lane === "PS") psCalls++;
         searchedProductIds.add(p.id);
         totalPages = result.totalPages;
 
@@ -628,10 +652,13 @@ export async function runTraderaSweep(
         data: { traderaCheckedAt: new Date() },
       });
     }
-    callsByMethod["Fas0.HotSearch"] = hotCalls;
+    callsByMethod["Fas0.HotSearch"] = hotCalls - psCalls;
+    callsByMethod["Fas0.HotSearch.PS"] = psCalls;
+    const laneQuota = (["SA", "PS"] as const).filter((l) => quotaHitByLane[l]);
     log(
-      `   ${hotCalls} sökningar (varav ${extraPagesUsed} räddningssidor) → ` +
-        `${directMatches.size} direkt-matchade produkter\n`
+      `   ${hotCalls} sökningar (varav ${extraPagesUsed} räddningssidor, ${psCalls} på PublicService-körfältet) → ` +
+        `${searchedProductIds.size} sökta produkter, ${directMatches.size} direkt-matchade` +
+        `${laneQuota.length ? ` [kvot slut: ${laneQuota.join(", ")}]` : ""}\n`
     );
   }
 
@@ -700,8 +727,13 @@ export async function runTraderaSweep(
   // äter första butiken hela fönstret. Höj via env när körtiden är mätt.
   log("\n📡 Fas 2: Top-säljare (GetSellerItems)...");
 
-  const SELLER_ITEM_CAP = parseInt(process.env.TRADERA_SELLER_ITEM_CAP ?? "1000", 10);
-  const SELLER_POOL_BUDGET = parseInt(process.env.TRADERA_SELLER_POOL_BUDGET ?? "4000", 10);
+  // 1000/4000 → 5000/25000 (2026-10-14): budgeten fanns för att varje pool-annons
+  // kostade 2–4 Neon-frågor i matchningen (8 000 annonser = 30 min, mätt 10-14). Nu
+  // matchas poolen mot det minnesinlästa indexet och prisvakten hämtas en gång per
+  // PRODUKT — samma natt kastades 21 304 redan hämtade annonser vid det gamla taket,
+  // och det är exakt de som hade gett annonskurvan fler punkter.
+  const SELLER_ITEM_CAP = parseInt(process.env.TRADERA_SELLER_ITEM_CAP ?? "5000", 10);
+  const SELLER_POOL_BUDGET = parseInt(process.env.TRADERA_SELLER_POOL_BUDGET ?? "25000", 10);
 
   const topSellers = [...sellerCounts.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -757,25 +789,35 @@ export async function runTraderaSweep(
 
   const itemsArr = [...allItems.values()];
   let processed = 0;
+  // ETT index i minnet i stället för 6–7 Neon-frågor per annons (matchProducts DB-väg),
+  // och prisvakten en gång per PRODUKT — se SELLER_POOL_BUDGET ovan.
+  const matchIndex = await loadMatchIndex();
+  const categoryById = new Map(
+    (await prisma.product.findMany({ select: { id: true, category: true } })).map((p) => [p.id, p.category])
+  );
+  const guardByProduct = new Map<string, Promise<(priceOre: number) => boolean>>();
+  const guardFor = (productId: string) => {
+    let g = guardByProduct.get(productId);
+    if (!g) guardByProduct.set(productId, (g = getListingPriceGuard(productId)));
+    return g;
+  };
   await mapPool(itemsArr, DB_CONCURRENCY, async (item) => {
     if (++processed % 2000 === 0) log(`   [${processed}/${itemsArr.length}] matchade: ${matched}`);
 
     const normalized = normalizeTitle(item.title);
     // Råtiteln MED: matchProducts vakter för singlar/antal läser parenteser och
     // bindestreck som normalizeTitle kastar (se @param rawTitle där).
-    const match = await matchProduct(normalized, undefined, item.title);
+    const match = await matchProduct(normalized, matchIndex, item.title);
     if (!match) { noMatch++; return; }
 
-    const product = await prisma.product.findUnique({
-      where: { id: match.productId },
-      select: { id: true, category: true },
-    });
-    if (!product) { noMatch++; return; }
+    const category = categoryById.get(match.productId);
+    if (!category) { noMatch++; return; }
+    const product = { id: match.productId, category };
 
     if (!traderaCategoryCompatible(product.category, item.categoryId)) { categoryMismatch++; return; }
     if (gradingBlocksListing(product.category, item)) { gradedBlocked++; return; }
 
-    if (!(await isPlausibleListingPrice(product.id, item.priceOre))) { implausible++; return; }
+    if (!(await guardFor(product.id))(item.priceOre)) { implausible++; return; }
 
     matched++;
     // get+set utan await emellan → atomiskt per task, säkert under mapPool.

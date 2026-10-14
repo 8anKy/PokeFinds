@@ -262,10 +262,108 @@ const FORM_WORDS = new Set([
 
 /** True om alla betydelsebärande ord i kortnamnet finns i den normaliserade titeln. */
 function cardNameInTitle(name: string, normalizedListing: string): boolean {
-  const words = significantTokens(normalizeTitle(name));
+  const { words } = cardNameWords(name);
   if (words.length === 0) return false;
-  const set = new Set(normalizedListing.split(" "));
+  const set = new Set<string>();
+  const tokens = splitHyphens(normalizedListing).split(" ");
+  for (const [i, t] of tokens.entries()) {
+    set.add(t);
+    // …och omvänt: "Iono's" ⇒ "iono s", katalogen skriver "Ionos".
+    if (tokens[i + 1] === "s") set.add(`${t}s`);
+    // "Team Rockets", "Professor Elms", "Mistys": säljaren skriver genitiv-s:et ihop,
+    // katalogen ("team rocket s", "misty s") har det som eget ord.
+    if (t.length > 3 && t.endsWith("s")) set.add(t.slice(0, -1));
+  }
   return words.every((w) => set.has(w));
+}
+
+/** "rayquaza-ex" ⇒ "rayquaza ex": säljare skriver "Rayquaza EX", katalogen "Rayquaza-EX". */
+function splitHyphens(s: string): string {
+  return s.replace(/-/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Kortnamnets ord att leta efter i en annons. Korta namn ("N", "Ho-Oh") har inga ord på
+ * ≥ 3 tecken — då används de korta orden, men `short` säger att de inte räcker som bevis
+ * ensamma (ett lösryckt "n" står i många titlar).
+ */
+function cardNameWords(name: string): { words: string[]; short: boolean } {
+  const normalized = splitHyphens(normalizeTitle(name));
+  const significant = significantTokens(normalized);
+  if (significant.length > 0) return { words: significant, short: false };
+  return { words: normalized.split(" ").filter(Boolean), short: true };
+}
+
+/** Kortnamnet saknar ord på ≥ 3 tecken ("N", "Ho-Oh") — namnet ensamt bevisar inget. */
+function cardNameTooShort(name: string): boolean {
+  return cardNameWords(name).short;
+}
+
+/**
+ * Ett kort i en annons utan "X/Y": kortnamnet MÅSTE stå där, och ett för kort namn
+ * ("N") räcker bara tillsammans med kortets nummer. Utan kravet avgjorde set-ordens
+ * likhet ensam vilket kort i setet en annons blev (2026-10-14: "N 101/None 30th
+ * Celebration: Classic Collection" på 22 kort).
+ */
+export function cardIdentityInListing(card: { name: string; number: string }, normalizedListing: string): boolean {
+  if (!cardNameInTitle(card.name, normalizedListing)) return false;
+  if (!cardNameTooShort(card.name)) return true;
+  return listingCarriesCardNumber(card.number, normalizedListing);
+}
+
+/** Står kortets nummer i annonsen — som "X/Y", som promokod ("SM57") eller som bart tal? */
+function listingCarriesCardNumber(cardNumber: string, normalizedListing: string): boolean {
+  const key = cardNumberKey(cardNumber);
+  if (!key) return false;
+  const printed = printedNumberKey(normalizedListing);
+  if (printed) return printed === key;
+  if (/[a-z]/.test(key) && normalizedListing.split(" ").some((t) => /^[a-z]{1,5}\d{1,4}[a-z]?$/.test(t) && cardNumberKey(t) === key)) {
+    return true;
+  }
+  const num = parseInt(key.replace(/[a-z]/g, ""), 10);
+  return Number.isFinite(num) && !/^[a-z]/.test(key) && bareCardNumbers(normalizedListing).includes(num);
+}
+
+/**
+ * Bevisar annonsen att den gäller ett ANNAT kort än `card`? Smalare än matchningen med
+ * flit — används för att städa redan skrivet data, och där ska bara det som bevisligen
+ * är fel bort (fel tryckt nummer, eller varken namn eller nummer som
+ * pekar på kortet). null = ingen motsägelse.
+ */
+export function singleListingContradiction(
+  listingTitle: string,
+  product: { normalizedTitle: string; card: { name: string; number: string } }
+): string | null {
+  const normalized = normalizeTitle(listingTitle);
+  const ourKey = cardNumberKey(product.card.number);
+  const printed = printedNumberKey(normalized);
+  if (printed && ourKey && printed !== ourKey) return `annonsen är nr ${printed}, kortet ${ourKey}`;
+  // ⛔ Ingen settotal-jämförelse: säljare skriver fel total ("Amarys 132/191") och
+  //    katalogens titlar bär ibland en annan total än den tryckta — mätt i torrkörningen.
+  if (printed) return null;
+  const ourNum = ourKey ? parseInt(ourKey.replace(/[a-z]/g, ""), 10) : NaN;
+  const bare = bareCardNumbers(normalized);
+  // Rätt nummer i titeln räddar ett felstavat namn ("Cornestone Mask Ogerpon ex 58").
+  if (listingCarriesCardNumber(product.card.number, normalized)) return null;
+  if (Number.isFinite(ourNum) && !/^[a-z]/.test(ourKey ?? "") && bare.length > 0 && !bare.includes(ourNum)) {
+    return `annonsen nämner ${bare.join("/")}`;
+  }
+  if (!cardIdentityInListing(product.card, normalized)) return "kortnamnet saknas";
+  return null;
+}
+
+/**
+ * Annonsens produktform SEDD FRÅN ETT KORT: kandidatens egna ord (setnamn + kortnamn)
+ * räknas bort först. Setet "30th Celebration: Classic Collection" bär formordet
+ * "collection" — utan bortdragningen läste varje singelannons ur setet som en sealed
+ * kollektion (2026-10-14). Lot-former ignoreras här: de har redan dömts på HELA titeln,
+ * och en bortdragning kan bara skapa skenbara sådana ("5 …" längst fram).
+ */
+export function formBeyondCandidate(normalizedListing: string, candidateNormalizedTitle: string): string | null {
+  const own = new Set(candidateNormalizedTitle.split(" "));
+  const rest = normalizedListing.split(" ").filter((w) => w && !own.has(w)).join(" ");
+  const form = classifyForm(rest);
+  return form === "multipack" ? null : form;
 }
 
 /** Tokenisering för databasfiltrering: betydelsebärande ord (längd >= 3). */
@@ -957,6 +1055,12 @@ export function setMarkerMismatch(a: string, b: string): boolean {
   const ta = new Set(normalizeTitle(a).split(" "));
   const tb = new Set(normalizeTitle(b).split(" "));
   for (const name of NUMERIC_SET_NAMES) if (ta.has(name) !== tb.has(name)) return true;
+  // "Celebrations" (2021, 25-årsjubileet) ≠ "30th Celebration" (2026) — båda har en
+  // "Classic Collection" och delar alltså nästan alla ord (2026-10-14: "M Gardevoir
+  // Classic collection 30th Celebration" satt även på Gardevoir ex δ ur 2021-setet).
+  const thirtyVsTwentyFive = (x: Set<string>, y: Set<string>) =>
+    x.has("30th") && !y.has("30th") && (y.has("celebrations") || y.has("25th"));
+  if (thirtyVsTwentyFive(ta, tb) || thirtyVsTwentyFive(tb, ta)) return true;
   return false;
 }
 
@@ -2011,15 +2115,18 @@ export async function matchProduct(
   // kollapsar annars varje "Charizard X" mot kortet vars enda särskiljande ord
   // är "charizard". Kräver SAMMA nummernyckel OCH att kortnamnet finns i titeln
   // → hög konfidens även utan setnamn (säljare utelämnar ofta setet i promos).
-  // Bara för singel-listningar (incomingForm === null); sealed har formord.
-  if (!incomingForm) {
+  // Bara för singel-listningar; sealed har formord. Formen dömer per kandidat
+  // (formBeyondCandidate) — ett formord i KORTETS EGET setnamn ("Classic Collection")
+  // gör inte annonsen till sealed.
+  {
     const listingKey = printedNumberKey(normalized);
     if (listingKey) {
       const hits = candidates.filter(
         (c) =>
           c.card &&
           cardNumberKey(c.card.number) === listingKey &&
-          cardNameInTitle(c.card.name, normalized)
+          cardNameInTitle(c.card.name, normalized) &&
+          formBeyondCandidate(normalized, c.normalizedTitle) == null
       );
       if (hits.length === 1) return { productId: hits[0].id, confidence: 0.9 };
       if (hits.length > 1) {
@@ -2041,15 +2148,22 @@ export async function matchProduct(
 
   // Bara tal (utan "X/Y") i en singel-annons: samma vakt som matchListingToProduct.
   // Utan den fastnar "Milotic ex 42 Surging Sparks" på specialarten 217.
-  const bareNums = !incomingForm ? bareCardNumbers(normalized) : [];
+  // Gäller bara kortkandidater, och de överlever bara när annonsen saknar egen form.
+  const bareNums = bareCardNumbers(normalized);
 
   for (const c of candidates) {
     let score = scoreSimilarity(normalized, c.normalizedTitle);
-    // Olika produktform (t.ex. booster pack vs booster box) → förkasta
+    // Olika produktform (t.ex. booster pack vs booster box) → förkasta. Ett KORT har
+    // ingen form — ordet i dess titel kommer ur setnamnet — så kortkandidater dömer
+    // på formBeyondCandidate nedan i stället.
     const candidateForm = classifyForm(c.normalizedTitle);
-    if (incomingForm && candidateForm && incomingForm !== candidateForm) {
+    if (!c.card && incomingForm && candidateForm && incomingForm !== candidateForm) {
       continue;
     }
+    // Kortnamnet krävs när annonsen SAKNAR ett "X/Y" — då finns inget annat bevis för
+    // vilket kort i setet den gäller. Med "X/Y" dömer nummervakten nedan (num + total
+    // måste stämma), och där tål vi svenska namn ("Skolpojke") och stavfel.
+    if (c.card && !incomingSetNum && !cardIdentityInListing(c.card, normalized)) continue;
     if (bareNums.length > 0 && c.card) {
       const key = cardNumberKey(c.card.number);
       const num = key ? parseInt(key.replace(/[a-z]/g, ""), 10) : NaN;
@@ -2119,7 +2233,7 @@ export async function matchProduct(
     if (!c.card && isSingleCardListing(raw)) {
       continue;
     }
-    if (c.card && incomingForm && incomingForm !== "single") {
+    if (c.card && formBeyondCandidate(normalized, c.normalizedTitle) != null) {
       continue; // annonsen har en sealed-form → kan inte vara ett enskilt kort
     }
     // Tillbehör (spelmatta, pärm utan booster, akrylskydd) ≠ sealed produkt.
@@ -2377,7 +2491,13 @@ export function matchListingToProduct(
   }
 
   const candidateForm = classifyForm(product.normalizedTitle);
-  if (incomingForm && candidateForm && incomingForm !== candidateForm) return null;
+  // ⛔ FORMVAKTEN GÄLLER INTE SINGELKORT (2026-10-14). Ett korts form kommer ur SETNAMNET
+  //    ("30th Celebration: Classic Collection" ⇒ "collection"), inte ur varan — och då
+  //    passerade varje annons som nämnde setet formfrågan PÅ LIKA FOT och hoppade samtidigt
+  //    över singel-identiteten nedan (den krävde `!incomingForm`). "N 101/None 30th
+  //    Celebration: Classic Collection" blev så skena-rad + offer på 22 kort i setet, alla
+  //    "60 kr". Ett kort identifieras av namn + nummer, ALLTID; formen dömer bara sealed.
+  if (!product.card && incomingForm && candidateForm && incomingForm !== candidateForm) return null;
 
   // TILLBEHÖR ≠ VARAN (2026-07-27). Butiksvägen (matchProduct) har ställt den här
   // frågan sedan länge; Tradera-vägen gjorde det aldrig. Följden: "Mega Darkrai ex
@@ -2388,7 +2508,7 @@ export function matchListingToProduct(
   if (isAccessoryListing(listingTitle) && !isAccessoryListing(product.normalizedTitle)) return null;
 
   // Singel-identitet: tryckt nummer + kortnamn (samma som matchProduct).
-  if (!incomingForm && product.card) {
+  if (product.card) {
     const ourKey = cardNumberKey(product.card.number);
     const listingKey = printedNumberKey(normalized);
     if (listingKey) {
@@ -2396,6 +2516,9 @@ export function matchListingToProduct(
       if (!cardNameInTitle(product.card.name, normalized)) return null;
       return 0.9;
     }
+    // Korta namn ("N", "Ho-Oh") har inga ord på ≥ 3 tecken — de räcker inte som bevis
+    // ensamma (ett lösryckt "n" står i många titlar). Kräv då även vårt nummer.
+    if (!cardIdentityInListing(product.card, normalized)) return null;
     // Inget tryckt nummer i annonsen → kräv ändå kortnamnet. Annars matchar vilket
     // kort som helst ur samma set på delade set-ord ("Forretress ex Paldean Fates"
     // fastnade på Xatu/Ralts/Flittle m.fl. via överlapp på just "paldean fates").

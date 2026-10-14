@@ -54,6 +54,28 @@ paths:
   kandidater, upp till `TRADERA_HOT_MAX_PAGES` (4) ur en delad extra-budget (`TRADERA_HOT_EXTRA_PAGES` 1500,
   håller Fas 0 under metodkvoten 10k/dygn). Första sidan MED kandidater räcker — sorteringen är PriceAscending,
   så billigare träffar finns inte längre fram.
+- ⛔ **ETT KORT HAR INGEN PRODUKTFORM — FORMORDET KOMMER UR SETNAMNET (2026-10-14)**: "30th Celebration: Classic
+  Collection" (och "Celebrations: Classic Collection", "Legendary Collection" …) bär "collection". `classifyForm` läste
+  därför varje singelannons ur setet som en sealed kollektion, och båda matchningsvägarna hoppade över
+  singel-identiteten (`!incomingForm`). Följd: "N 101/None 30th Celebration: Classic Collection" blev skena-rad +
+  offer ("60 kr", samma länk) på 22 kort i setet, och sålt-svepet KASTADE varje Classic Collection-affär.
+  Nu: `formBeyondCandidate` räknar bort kandidatens egna ord innan formen döms (kortkandidater), Fas 0 kräver alltid
+  namn + nummer för kort, och `matchProduct` kräver kortnamnet (`cardIdentityInListing`) när annonsen SAKNAR "X/Y" —
+  med "X/Y" dömer num + total som förut (svenska namn som "Skolpojke" och stavfel ska fortfarande gå igenom; mätt på
+  2 500 riktiga sålt-titlar). Korta namn ("N", "Ho-Oh") räcker aldrig ensamma — numret måste stå där. Genitiv tåls
+  åt båda håll ("Team Rockets" ↔ "team rocket s", "Iono's" ↔ "Ionos").
+  Städning: `scripts/revalidate-tradera-singles.ts` (torrkörning / `--apply` / `--sold`) tar BARA bort bevisat fel
+  (`singleListingContradiction`: fel tryckt nummer, eller varken namn eller nummer) — ⛔ ingen settotal-jämförelse,
+  säljare skriver fel total. Körd 10-14, se git-loggen för talen. Vaktat av `tradera-set-name-form.test.ts`.
+- **POOLEN MATCHAS I MINNET SEDAN 2026-10-14**: Fas 1/2-annonserna gick genom `matchProduct`s DB-väg (6–7 frågor/annons,
+  8 000 annonser = 30 min) och toppsäljarnas lager kapades därför vid 4 000 — samma natt kastades 21 304 hämtade
+  annonser. Nu `loadMatchIndex()` en gång + prisvakten en gång per PRODUKT; taken är 5 000/säljare och 25 000 totalt.
+  **Fas 0 har ett ANDRA KÖRFÄLT** på `PublicService.GetSearchResultAdvanced` (egen 10k-kvot, `TRADERA_SEARCH_BUDGET_PS`
+  4 500, `ItemType FixedPrice` — mätt identiskt med SearchAdvanced/BuyItNow; `All` tappar annonser, `BuyItNow`/`ShopItem`
+  är SOAP-fault där). Katalogen varvas då ~var tredje dag i stället för ~var sjätte.
+  ⚠️ **"Sålt" kan börja FÖRE "annons" i grafen och det är inget fel**: annonskurvan får en punkt bara den dag produkten
+  roteras in i Fas 0 eller råkar matcha poolen, medan sålt-svepet ser ALLA avslutade annonser varje natt och skriver
+  varje affär på sin EGEN sluttid. Glesheten i annonskurvan är rotationen, inte avsaknad av annonser.
 - **Tradera-annonsens kortnummer måste vara produktens** (`matching.ts`): `cardNumberKey` behåller bokstavsSUFFIX (`115a` ≠ `115` — league-promo vs uncommon) och `bareCardNumbers` fångar nummer utan "/total" ("Milotic ex 42" får inte hamna på specialarten 217). Konservativ: setnamnet 151, "annons 2", mängd/pris och årtal filtreras bort. 707 gamla felmatchningar städade 2026-07-25 — alla bevisade (numret fanns som eget kort i samma set)
 - ⛔ **`GetSellerItems` (PublicService) FILTRERAR INTE PÅ `categoryId` — ETT KATEGORI-ID GER TOMT SVAR** (mätt
   2026-09-03: en säljare vars annons bevisligen låg i 1001337 gav 0 rader för `categoryId=1001337`, men hela
