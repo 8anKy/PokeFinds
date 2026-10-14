@@ -47,12 +47,12 @@ describe("getScannerQuota", () => {
     expect(await getScannerQuota("u1", "FREE")).toEqual({ used: 3, limit: 30, remaining: 27 });
   });
 
-  it("PREMIUM = skäligt tak (1000) i stället för en produktgräns", async () => {
+  it("PREMIUM = skäligt tak (2000) i stället för en produktgräns", async () => {
     count.mockResolvedValueOnce(10).mockResolvedValueOnce(0);
     expect(await getScannerQuota("u1", "PREMIUM")).toEqual({
       used: 10,
-      limit: 1000,
-      remaining: 990,
+      limit: 2000,
+      remaining: 1990,
     });
   });
 
