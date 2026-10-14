@@ -22,6 +22,7 @@ import { prisma } from "../src/lib/db";
 import { exitJob } from "../src/lib/job-exit";
 import { runTraderaSweep } from "../src/jobs/tradera-sweep";
 import { verifyTraderaMatches } from "../src/jobs/verify-deals";
+import { verifyStaleTraderaOffers } from "../src/jobs/tradera-ended";
 
 runTraderaSweep({
   dryRun: process.env.DRY_RUN === "1",
@@ -36,6 +37,13 @@ runTraderaSweep({
   // LLM-dom per kandidat för en tabell (DealCheck) som ingen läste. Funktionen är
   // KVAR i src/jobs/verify-deals.ts — läs kommentaren där innan den kopplas in igen.
   .then(() => verifyTraderaMatches().catch((e) => console.error("[verify-matches] fel:", e)))
+  // Annonser rotationen inte hunnit se på ≥ 3 dygn frågas direkt (GetItem, äldst först) —
+  // en avslutad annons stod annars kvar som "I lager" i 1–2 veckor (tradera-ended.ts).
+  .then(() =>
+    verifyStaleTraderaOffers({ dryRun: process.env.DRY_RUN === "1" }).catch((e) =>
+      console.error("[tradera-stale] fel:", e)
+    )
+  )
   .catch((e) => {
     console.error("Misslyckades:", e);
     process.exit(1);

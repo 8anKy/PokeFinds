@@ -76,6 +76,16 @@ paths:
   ⚠️ **"Sålt" kan börja FÖRE "annons" i grafen och det är inget fel**: annonskurvan får en punkt bara den dag produkten
   roteras in i Fas 0 eller råkar matcha poolen, medan sålt-svepet ser ALLA avslutade annonser varje natt och skriver
   varje affär på sin EGEN sluttid. Glesheten i annonskurvan är rotationen, inte avsaknad av annonser.
+- ⛔ **AVSLUTAD ANNONS STOD KVAR SOM "I LAGER" I 1–2 VECKOR (2026-10-14)**: Fas 3 nollställer bara produkter som
+  namn-söktes samma natt, och rotationen varvar ~56 000 produkter (~11 dygn vid 5 000/natt). MÄTT: 10 272 av 25 490
+  Tradera-priser osedda 7–13 dygn. ⛔ **ÅLDER ÄR INGEN DOM**: GetItem-stickprov gav döda 0/50 (0–2 d), 5/50 (3–6 d),
+  10/50 (7–13 d) — butiksannonser lever länge, en åldersgallring hade dolt ~80 % levande priser. Två bevisvägar i
+  `src/jobs/tradera-ended.ts`: (1) sålt-svepet hämtar redan VARJE avslutad annons (~11 500/natt) ⇒
+  `retireEndedTraderaListings` pensionerar våra offers/skena-rader med de itemId:na; (2) `verifyStaleTraderaOffers`
+  (steg efter svepet, `TRADERA_VERIFY_STALE_MAX` 4 000 — sålt-svepet använder ~3 300 av GetItems 10 000/dygn) frågar
+  osedda ≥ 3 d äldst först; levande ⇒ `lastSeenAt` bumpas + Köp nu-priset skrivs, 429/5xx = "vet inte". Pensionering =
+  nästa skena-annons eller sök-URL utan pris; prisobservationerna står kvar (historik). Körd 10-14 på de 2 500 äldsta:
+  463 avslutade ⇒ 470 offers bort, 2 037 levande.
 - **Tradera-annonsens kortnummer måste vara produktens** (`matching.ts`): `cardNumberKey` behåller bokstavsSUFFIX (`115a` ≠ `115` — league-promo vs uncommon) och `bareCardNumbers` fångar nummer utan "/total" ("Milotic ex 42" får inte hamna på specialarten 217). Konservativ: setnamnet 151, "annons 2", mängd/pris och årtal filtreras bort. 707 gamla felmatchningar städade 2026-07-25 — alla bevisade (numret fanns som eget kort i samma set)
 - ⛔ **`GetSellerItems` (PublicService) FILTRERAR INTE PÅ `categoryId` — ETT KATEGORI-ID GER TOMT SVAR** (mätt
   2026-09-03: en säljare vars annons bevisligen låg i 1001337 gav 0 rader för `categoryId=1001337`, men hela

@@ -40,6 +40,7 @@
  * igen (lookback > körtakt). Utan dedup hade dagens median vägt in samma affär en
  * gång per körning. Dedup-fönstret (SOLD_WINDOW_DAYS) är ett TAK över lookbacken.
  */
+import { retireEndedTraderaListings } from "./tradera-ended";
 import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { normalizeTitle } from "../lib/utils";
@@ -384,6 +385,16 @@ export async function runTraderaSoldSweep(
     if (quotaHit) break;
   }
   log(`   ${apiCalls} sök-anrop → ${ended.size} avslutade annonser inom fönstret`);
+
+  // AVSLUTADE ANNONSER UT UR PRISTABELLEN (2026-10-14): vi har just hämtat varje avslutad
+  // annons — står någon av dem som vår offer/skena-rad är den död. Se tradera-ended.ts.
+  if (!dryRun) {
+    const retired = await retireEndedTraderaListings(ended.keys());
+    log(
+      `   🪦 Avslutade bland våra: ${retired.offersRetired} offers pensionerade ` +
+        `(${retired.replaced} ersatta av nästa annons), ${retired.railsDeleted} skena-rader bort`
+    );
+  }
 
   const sourceId = await traderaSoldSourceId();
 
