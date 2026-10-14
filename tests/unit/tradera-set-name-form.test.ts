@@ -79,3 +79,37 @@ describe("Celebrations (2021) ≠ 30th Celebration (2026)", () => {
     expect(matchListingToProduct("Gardevoir ex 93 Celebrations Classic Collection", old)).not.toBeNull();
   });
 });
+
+describe("skenans felklasser (mätta 2026-10-14)", () => {
+  const sealed = (t: string) => ({ normalizedTitle: normalizeTitle(t), card: null, language: "EN" as const, variantLabel: null });
+  it("⛔ generisk ETB-annons når inte Pokémon Center-boxen", () => {
+    expect(matchListingToProduct("Pitch black elite trainer box etb", sealed("Pitch Black Center Elite Trainer Box"))).toBeNull();
+    expect(matchListingToProduct("Pitch Black Pokemon Center Elite Trainer Box", sealed("Pitch Black Center Elite Trainer Box"))).not.toBeNull();
+  });
+  it("⛔ generisk mini tin når ingen karaktärs-tin", () => {
+    expect(matchListingToProduct("Pokémon 30th Celebration Mini Tin", sealed("30th Celebration: Espeon and Meowth Mini Tin"))).toBeNull();
+  });
+  it("⛔ rätt nummer men annat set (total + setnamn saknas)", () => {
+    const svi = { normalizedTitle: normalizeTitle("Toxtricity · Scarlet & Violet 72/198"), card: { name: "Toxtricity", number: "72" }, language: "EN" as const, variantLabel: null };
+    expect(matchListingToProduct("Toxtricity 72 Holo Pokémon OBF EN 072/197 Obsidian Flames Pokemon Kort", svi)).toBeNull();
+    const pre = { normalizedTitle: normalizeTitle("Amarys · Prismatic Evolutions 132/131"), card: { name: "Amarys", number: "132" }, language: "EN" as const, variantLabel: null };
+    expect(matchListingToProduct("Amarys 132/191 [S&V Prismatic Evolutions]", pre)).not.toBeNull();
+  });
+  it("⛔ en vanlig annons når inte 1st Edition-posten", () => {
+    const first = { normalizedTitle: normalizeTitle("Chikorita Neo Genesis 53/111 1st Edition"), card: { name: "Chikorita", number: "53" }, language: "EN" as const, variantLabel: null };
+    expect(matchListingToProduct("Chikorita 53/111 Neo Genesis Pokemonkort", first)).toBeNull();
+    expect(matchListingToProduct("Chikorita 53/111 Neo Genesis Pokemonkort 1st edition", first)).not.toBeNull();
+  });
+});
+
+describe("promokoder", () => {
+  const promo = (name: string, number: string) => ({ normalizedTitle: normalizeTitle(`${name} · Black Star Promos ${number}`), card: { name, number }, language: "EN" as const, variantLabel: null });
+  it("⛔ annan promokod = annat kort", () => {
+    expect(matchListingToProduct("Tapu Lele Black Star Promo SM45 Sun & Moon", promo("Tapu Lele", "SM152"))).toBeNull();
+    expect(matchListingToProduct("Arceus LV.X DP56 - DP Black Star Promos", promo("Arceus LV.X", "DP53"))).toBeNull();
+    expect(singleListingContradiction("Celebi SM224 - SM Black Star Promos", { normalizedTitle: normalizeTitle("Celebi XY Black Star Promos XY111"), card: { name: "Celebi", number: "XY111" } })).not.toBeNull();
+  });
+  it("rätt promokod går igenom", () => {
+    expect(matchListingToProduct("Tapu Lele SM152 Black Star Promo", promo("Tapu Lele", "SM152"))).not.toBeNull();
+  });
+});

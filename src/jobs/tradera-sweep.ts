@@ -29,6 +29,7 @@ import { gradingVerdictFor, isGradedListing } from "../lib/graded-listing";
 import {
   matchProduct,
   matchListingToProduct,
+  listingCarriesCardNumber,
   getListingPriceGuard,
   loadMatchIndex,
 } from "../scrapers/matching";
@@ -207,6 +208,12 @@ export function pickRailCandidates(
     // Tryckningen MÅSTE följa med hit — matchListingToProduct kan inte hålla isär
     // Unlimited/Shadowless/1st Edition utan den (se kommentaren där).
     variantLabel: string | null;
+    /**
+     * Setet har ett ANNAT kort med samma namn (vanlig + full art + SIR). Då räcker inte
+     * namnet: annonsen måste bära vårt nummer (2026-10-14 — "Raichu - Shiny Rare - Shiny
+     * Treasure ex - Japanese" låg på 237/190, men kunde lika gärna vara 56/190).
+     */
+    ambiguousName?: boolean;
   },
   rejected: ReadonlySet<string>
 ): TraderaItem[] {
@@ -220,6 +227,13 @@ export function pickRailCandidates(
     if (gradingBlocksListing(product.category, item)) continue;
     if (listingCardLanguage(item.title, item.url) !== product.language) continue;
     if (matchListingToProduct(item.title, product) == null) continue;
+    if (
+      product.ambiguousName &&
+      product.card &&
+      !listingCarriesCardNumber(product.card.number, normalizeTitle(item.title))
+    ) {
+      continue;
+    }
     kept.push(item);
   }
   return kept;
@@ -561,7 +575,7 @@ export async function runTraderaSweep(
       select: {
         id: true, title: true, normalizedTitle: true, category: true, language: true,
         variantLabel: true,
-        card: { select: { name: true, number: true, set: { select: { name: true } } } },
+        card: { select: { name: true, number: true, setId: true, set: { select: { name: true } } } },
       },
       orderBy: [
         { watchlistItems: { _count: "desc" } },
@@ -570,6 +584,14 @@ export async function runTraderaSweep(
       ],
       take: SEARCH_BUDGET + Math.max(0, SEARCH_BUDGET_PS),
     });
+    // Kort vars set har ett ANNAT nummer med samma namn — se `ambiguousName`. EN läsning.
+    const numbersByName = new Map<string, Set<string>>();
+    for (const c of await prisma.card.findMany({ select: { setId: true, name: true, number: true } })) {
+      const key = `${c.setId}|${normalizeTitle(c.name)}`;
+      (numbersByName.get(key) ?? numbersByName.set(key, new Set()).get(key)!).add(c.number);
+    }
+    const isAmbiguous = (card: { setId: string; name: string } | null) =>
+      card != null && (numbersByName.get(`${card.setId}|${normalizeTitle(card.name)}`)?.size ?? 0) > 1;
     // Första SEARCH_BUDGET på SearchAdvanced, resten på PublicService — kvoterna är per metod.
     const laneOf = new Map(hot.map((p, i) => [p.id, (i < SEARCH_BUDGET ? "SA" : "PS") as SearchLane]));
     const quotaHitByLane: Record<SearchLane, boolean> = { SA: false, PS: false };
@@ -623,7 +645,7 @@ export async function runTraderaSweep(
         // Alla annonser som genuint matchar JUST denna produkt — inte bara den
         // billigaste. Pris-vakten hämtar facit EN gång per produkt (samma DB-last
         // som gamla en-annons-kollen) och appliceras rent per annons.
-        candidates.push(...pickRailCandidates(result.items, p, rejected));
+        candidates.push(...pickRailCandidates(result.items, { ...p, ambiguousName: isAmbiguous(p.card) }, rejected));
         // Första sidan med kandidater räcker: sorteringen är PriceAscending, så
         // billigare träffar än de funna finns inte längre fram.
         if (candidates.length > 0) break;
@@ -733,7 +755,7 @@ export async function runTraderaSweep(
   // PRODUKT — samma natt kastades 21 304 redan hämtade annonser vid det gamla taket,
   // och det är exakt de som hade gett annonskurvan fler punkter.
   const SELLER_ITEM_CAP = parseInt(process.env.TRADERA_SELLER_ITEM_CAP ?? "5000", 10);
-  const SELLER_POOL_BUDGET = parseInt(process.env.TRADERA_SELLER_POOL_BUDGET ?? "25000", 10);
+  const SELLER_POOL_BUDGET = parseInt(process.env.TRADERA_SELLER_POOL_BUDGET ?? "20000", 10);
 
   const topSellers = [...sellerCounts.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -801,7 +823,13 @@ export async function runTraderaSweep(
     if (!g) guardByProduct.set(productId, (g = getListingPriceGuard(productId)));
     return g;
   };
+  // TIDSTAK: jobbet har 60 min och skrivfasen efter matchningen tar ~10. Hellre en
+  // ofullständig pool (loggas) än en timeout som tar med sig hela körningens skrivningar.
+  const MATCH_BUDGET_MS = parseInt(process.env.TRADERA_MATCH_BUDGET_MINUTES ?? "25", 10) * 60_000;
+  const matchStart = Date.now();
+  let skippedByTime = 0;
   await mapPool(itemsArr, DB_CONCURRENCY, async (item) => {
+    if (Date.now() - matchStart > MATCH_BUDGET_MS) { skippedByTime++; return; }
     if (++processed % 2000 === 0) log(`   [${processed}/${itemsArr.length}] matchade: ${matched}`);
 
     const normalized = normalizeTitle(item.title);
@@ -836,6 +864,10 @@ export async function runTraderaSweep(
 
   log(`   Matchade: ${matched} pool-annonser + ${directMatches.size} direkt (Fas 0) → ${bestByProduct.size} unika produkter`);
   log(`   Ej matchade: ${noMatch} | Kategorifel: ${categoryMismatch} | Orimligt pris: ${implausible} | Graderat kort: ${gradedBlocked}`);
+  log(`   Matchningstid: ${((Date.now() - matchStart) / 60_000).toFixed(1)} min`);
+  if (skippedByTime > 0) {
+    console.warn(`::warning::Tradera-poolen: ${skippedByTime} annonser hoppades över av tidstaket (TRADERA_MATCH_BUDGET_MINUTES) — sänk TRADERA_SELLER_POOL_BUDGET.`);
+  }
 
   let written = 0;
   let priceUpdated = 0;

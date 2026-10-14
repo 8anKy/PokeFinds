@@ -16,7 +16,8 @@
  *   … --sold   tar även med "Tradera sålt"-punkter (rapporteras alltid, raderas bara med flaggan)
  */
 import { PrismaClient, type CardLanguage } from "@prisma/client";
-import { singleListingContradiction } from "../src/scrapers/matching";
+import { singleListingContradiction, listingCarriesCardNumber } from "../src/scrapers/matching";
+import { normalizeTitle } from "../src/lib/utils";
 import { recomputeProductPriceCache, TRADERA_SOLD_SOURCE_NAME } from "../src/services/products";
 import { listingItemIdFromUrl, purgeMismatchedMarketplaceOffer } from "../src/services/marketplace-offers";
 
@@ -31,16 +32,22 @@ type Single = {
   normalizedTitle: string;
   language: CardLanguage;
   variantLabel: string | null;
-  card: { name: string; number: string } | null;
+  card: { name: string; number: string; setId: string } | null;
+  /** Setet har ett annat kort med samma namn ⇒ namnet ensamt pekar inte ut kortet. */
+  ambiguous?: boolean;
 };
 
 /**
- * BARA BEVISAT FEL tas bort: fel tryckt nummer, eller varken kortnamn eller
+ * BARA BEVISAT FEL ELLER OAVGJORT tas bort: fel tryckt nummer, varken kortnamn eller
+ * nummer, eller ett namn som finns på flera nummer i setet utan att annonsen säger vilket —
  * nummer i en annons utan "X/Y". Svepets fulla matchning är strängare (ordöverlapp,
  * tryckning, språk) — den hade också kastat korrekta rader som en äldre väg skrev.
  */
 function fits(title: string, _url: string | null, p: Single): boolean {
-  return p.card == null || singleListingContradiction(title, { normalizedTitle: p.normalizedTitle, card: p.card }) == null;
+  if (p.card == null) return true;
+  if (singleListingContradiction(title, { normalizedTitle: p.normalizedTitle, card: p.card }) != null) return false;
+  // Samma namn finns på ett annat nummer i setet och annonsen säger inte vilket.
+  return !(p.ambiguous && !listingCarriesCardNumber(p.card.number, normalizeTitle(title)));
 }
 
 function slugTitle(url: string): string {
@@ -52,8 +59,16 @@ async function main() {
   const singles = new Map<string, Single>();
   for (const p of await prisma.product.findMany({
     where: { category: "SINGLE_CARD", card: { isNot: null } },
-    select: { id: true, slug: true, normalizedTitle: true, language: true, variantLabel: true, card: { select: { name: true, number: true } } },
+    select: { id: true, slug: true, normalizedTitle: true, language: true, variantLabel: true, card: { select: { name: true, number: true, setId: true } } },
   })) singles.set(p.id, p);
+  const numbersByName = new Map<string, Set<string>>();
+  for (const c of await prisma.card.findMany({ select: { setId: true, name: true, number: true } })) {
+    const key = `${c.setId}|${normalizeTitle(c.name)}`;
+    (numbersByName.get(key) ?? numbersByName.set(key, new Set()).get(key)!).add(c.number);
+  }
+  for (const p of singles.values()) {
+    if (p.card) p.ambiguous = (numbersByName.get(`${p.card.setId}|${normalizeTitle(p.card.name)}`)?.size ?? 0) > 1;
+  }
   console.log(`singlar: ${singles.size}`);
 
   const sources = await prisma.scrapeSource.findMany({

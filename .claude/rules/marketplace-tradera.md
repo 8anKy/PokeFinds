@@ -66,10 +66,10 @@ paths:
   åt båda håll ("Team Rockets" ↔ "team rocket s", "Iono's" ↔ "Ionos").
   Städning: `scripts/revalidate-tradera-singles.ts` (torrkörning / `--apply` / `--sold`) tar BARA bort bevisat fel
   (`singleListingContradiction`: fel tryckt nummer, eller varken namn eller nummer) — ⛔ ingen settotal-jämförelse,
-  säljare skriver fel total. Körd 10-14, se git-loggen för talen. Vaktat av `tradera-set-name-form.test.ts`.
+  säljare skriver fel total. + promokoder (`promoCodeContradicts`: "Tapu Lele SM45" ≠ SM152) och NAMNSYSKON: finns namnet på flera nummer i setet måste annonsen bära vårt nummer (Fas 0 `ambiguousName`, poolen efter loopen). Mätt ovanpå: 2 500 sålt-titlar ⇒ ~40 nummerlösa annonser blir omatchade, nästan alla var fel ("Venusaur EX XY28" låg på Pokémon GO-Venusaur). Körd 10-14 i två varv: 7 273 + 8 202 grafpunkter, 49 + 1 158 skena-rader, 52 + 960 offers. Även: Center-ETB kräver "center", generisk tin ≠ karaktärs-tin, en vanlig annons ≠ en post med "1st Edition" i titeln (ensidigt — en 1st Ed-annons får nå ett odelat kort), rätt nummer men annan total + setnamnet saknas = annat set. Vaktat av `tradera-set-name-form.test.ts`.
 - **POOLEN MATCHAS I MINNET SEDAN 2026-10-14**: Fas 1/2-annonserna gick genom `matchProduct`s DB-väg (6–7 frågor/annons,
   8 000 annonser = 30 min) och toppsäljarnas lager kapades därför vid 4 000 — samma natt kastades 21 304 hämtade
-  annonser. Nu `loadMatchIndex()` en gång + prisvakten en gång per PRODUKT; taken är 5 000/säljare och 25 000 totalt.
+  annonser. Nu `loadMatchIndex()` en gång + prisvakten en gång per PRODUKT; taken är 5 000/säljare och 20 000 totalt, och matchningen har ett tidstak (`TRADERA_MATCH_BUDGET_MINUTES` 25) som varnar i stället för att låta jobbet nå sin timeout. Index + cachar (token-träffar, delsträngsprefix, bigram, normalisering) gav 75 → 30 ms/annons, bevisat identiska svar på 2 484 titlar.
   **Fas 0 har ett ANDRA KÖRFÄLT** på `PublicService.GetSearchResultAdvanced` (egen 10k-kvot, `TRADERA_SEARCH_BUDGET_PS`
   4 500, `ItemType FixedPrice` — mätt identiskt med SearchAdvanced/BuyItNow; `All` tappar annonser, `BuyItNow`/`ShopItem`
   är SOAP-fault där). Katalogen varvas då ~var tredje dag i stället för ~var sjätte.

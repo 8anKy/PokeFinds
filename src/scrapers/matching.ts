@@ -8,7 +8,7 @@ import { decodeTitle, normalizeTitle } from "../lib/utils";
 import { detectListingLanguage } from "../lib/listing-language";
 import type { CardLanguage } from "@prisma/client";
 import { MARKETPLACE_MIN_PRICE_RATIO } from "../lib/listing-plausibility";
-import { listingFitsVariant } from "../lib/print-variant";
+import { listingFitsVariant, isPrintVariantLabel, printLabelInTitle, PRINT_UNLIMITED } from "../lib/print-variant";
 import { MAX_NAME_WORDS, POKEMON_NAMES } from "./pokemon-names";
 
 /** Lägsta konfidens för att en matchning ska accepteras. */
@@ -90,7 +90,36 @@ export function bareCardNumbers(normalized: string): number[] {
   return [...out];
 }
 
+/**
+ * Bigrammen per sträng, memoiserade (2026-10-14): Tradera-poolen poängsätter tusentals
+ * kandidater per annons och katalogtitlarna återkommer i varje anrop — profilerat stod
+ * bigramberäkningen för 14 % av matchningstiden. Taket håller minnet begränsat.
+ */
+const BIGRAM_CACHE = new Map<string, Map<string, number>>();
+const BIGRAM_CACHE_MAX = 200_000;
 function bigrams(s: string): Map<string, number> {
+  const hit = BIGRAM_CACHE.get(s);
+  if (hit) return hit;
+  const grams = computeBigrams(s);
+  if (BIGRAM_CACHE.size >= BIGRAM_CACHE_MAX) BIGRAM_CACHE.clear();
+  BIGRAM_CACHE.set(s, grams);
+  return grams;
+}
+
+/** normalizeTitle är ren — memoiserad för de heta vägarna (katalogtitlar och kortnamn
+ *  normaliseras om i varje anrop; profilerat ~20 % av poolmatchningen). */
+const NORMALIZE_CACHE = new Map<string, string>();
+function normalizeTitleMemo(s: string): string {
+  let n = NORMALIZE_CACHE.get(s);
+  if (n === undefined) {
+    n = normalizeTitle(s);
+    if (NORMALIZE_CACHE.size >= BIGRAM_CACHE_MAX) NORMALIZE_CACHE.clear();
+    NORMALIZE_CACHE.set(s, n);
+  }
+  return n;
+}
+
+function computeBigrams(s: string): Map<string, number> {
   const grams = new Map<string, number>();
   const clean = s.replace(/\s+/g, " ");
   for (let i = 0; i < clean.length - 1; i++) {
@@ -105,8 +134,8 @@ function bigrams(s: string): Map<string, number> {
  * Exporteras för enhetstester.
  */
 export function scoreSimilarity(a: string, b: string): number {
-  const na = normalizeTitle(a);
-  const nb = normalizeTitle(b);
+  const na = normalizeTitleMemo(a);
+  const nb = normalizeTitleMemo(b);
   if (!na || !nb) return 0;
   if (na === nb) return 1;
   const ga = bigrams(na);
@@ -288,7 +317,7 @@ function splitHyphens(s: string): string {
  * ensamma (ett lösryckt "n" står i många titlar).
  */
 function cardNameWords(name: string): { words: string[]; short: boolean } {
-  const normalized = splitHyphens(normalizeTitle(name));
+  const normalized = splitHyphens(normalizeTitleMemo(name));
   const significant = significantTokens(normalized);
   if (significant.length > 0) return { words: significant, short: false };
   return { words: normalized.split(" ").filter(Boolean), short: true };
@@ -311,8 +340,24 @@ export function cardIdentityInListing(card: { name: string; number: string }, no
   return listingCarriesCardNumber(card.number, normalizedListing);
 }
 
+/**
+ * Kortet har en promokod ("SM152", "DP53", "TG21") och annonsen nämner en ANNAN kod —
+ * då är det ett annat kort (2026-10-14: "Tapu Lele SM45" låg på SM152, "Celebi SM224" på
+ * XY111, "Arceus LV.X DP56" på DP53). Bara när VÅR nyckel bär bokstäver: ett vanligt
+ * nummer bredvid en setkod ("sv10 201") säger inget om det här.
+ */
+export function promoCodeContradicts(cardNumber: string, normalizedListing: string): boolean {
+  const key = cardNumberKey(cardNumber);
+  if (!key || !/^[a-z]/.test(key)) return false;
+  const codes = normalizedListing
+    .split(/[\s/]+/)
+    .filter((t) => /^[a-z]{1,5}\d{1,4}[a-z]?$/.test(t))
+    .map((t) => cardNumberKey(t));
+  return codes.length > 0 && !codes.includes(key);
+}
+
 /** Står kortets nummer i annonsen — som "X/Y", som promokod ("SM57") eller som bart tal? */
-function listingCarriesCardNumber(cardNumber: string, normalizedListing: string): boolean {
+export function listingCarriesCardNumber(cardNumber: string, normalizedListing: string): boolean {
   const key = cardNumberKey(cardNumber);
   if (!key) return false;
   const printed = printedNumberKey(normalizedListing);
@@ -322,6 +367,40 @@ function listingCarriesCardNumber(cardNumber: string, normalizedListing: string)
   }
   const num = parseInt(key.replace(/[a-z]/g, ""), 10);
   return Number.isFinite(num) && !/^[a-z]/.test(key) && bareCardNumbers(normalizedListing).includes(num);
+}
+
+/**
+ * Produkten bär tryckningen (1st Edition / Shadowless) i TITELN men annonsen nämner den
+ * inte — då är annonsen den vanliga tryckningen. Gäller produkter UTAN tryckningsetikett
+ * (de med etikett dömer listingFitsVariant); katalogen har t.ex. "Chikorita Neo Genesis
+ * 53/111 1st Edition" med tryckningen bara i titeln.
+ * ⛔ ENSIDIG med flit: en "1st Edition"-annons får matcha ett odelat kort — de flesta
+ *    WOTC-set har bara EN katalogpost per kort (print-variant.test.ts).
+ */
+export function printMentionMismatch(listingTitle: string, productTitle: string, variantLabel: string | null | undefined): boolean {
+  if (isPrintVariantLabel(variantLabel)) return false;
+  const productPrint = printLabelInTitle(productTitle);
+  if (productPrint == null || productPrint === PRINT_UNLIMITED) return false;
+  return printLabelInTitle(listingTitle) !== productPrint;
+}
+
+/**
+ * Rätt kortnummer men en ANNAN settotal ("Toxtricity 72/197 Obsidian Flames" mot
+ * "Toxtricity · Scarlet & Violet 72/198") — samma nummer finns i många set. Säljare
+ * skriver ibland fel total ("Amarys 132/191"), så totalen fäller bara när annonsen
+ * INTE heller nämner produktens setnamn.
+ */
+function setTotalContradicts(normalizedListing: string, productTitle: string, cardName: string): boolean {
+  const theirs = extractSetNumber(normalizedListing);
+  const ours = extractSetNumber(productTitle);
+  if (!theirs || !ours || theirs.total === ours.total) return false;
+  const nameWords = new Set(cardNameWords(cardName).words);
+  const setWords = splitHyphens(productTitle)
+    .split(" ")
+    .filter((w) => w.length >= 3 && !/\d/.test(w) && !STOPWORDS.has(w) && !nameWords.has(w));
+  if (setWords.length === 0) return false;
+  const listing = new Set(splitHyphens(normalizedListing).split(" "));
+  return !setWords.every((w) => listing.has(w));
 }
 
 /**
@@ -341,6 +420,7 @@ export function singleListingContradiction(
   // ⛔ Ingen settotal-jämförelse: säljare skriver fel total ("Amarys 132/191") och
   //    katalogens titlar bär ibland en annan total än den tryckta — mätt i torrkörningen.
   if (printed) return null;
+  if (promoCodeContradicts(product.card.number, normalized)) return "annan promokod";
   const ourNum = ourKey ? parseInt(ourKey.replace(/[a-z]/g, ""), 10) : NaN;
   const bare = bareCardNumbers(normalized);
   // Rätt nummer i titeln räddar ett felstavat namn ("Cornestone Mask Ogerpon ex 58").
@@ -940,8 +1020,12 @@ export function characterNames(title: string): Set<string> {
  *    Pokémon som katalogen utelämnar (omslagskonst) — där vore vetot fel.
  */
 export function blisterCharacterMismatch(a: string, b: string): boolean {
-  if (classifyForm(normalizeTitle(a)) !== "blister") return false;
-  if (classifyForm(normalizeTitle(b)) !== "blister") return false;
+  const fa = classifyForm(normalizeTitle(a));
+  // TINS LIKASÅ (2026-10-14): "Pokémon 30th Celebration Mini Tin" (generisk) hamnade på
+  // varje karaktärs-tin i setet — Espeon & Meowth, Moltres & Articuno, "Pikachu Day" …
+  // En tin utan karaktär kan vara vilken som helst av dem; att välja en är ett myntkast.
+  if (fa !== "blister" && fa !== "tin") return false;
+  if (classifyForm(normalizeTitle(b)) !== fa) return false;
   const na = characterNames(a);
   const nb = characterNames(b);
   if (na.size === 0 && nb.size === 0) return false; // båda generiska → inget att jämföra
@@ -1072,7 +1156,10 @@ export function setMarkerMismatch(a: string, b: string): boolean {
  * och visade en falsk −47%-deal mot PC-boxens CM-pris. Hård vakt: nämner bara
  * ENA sidan "pokemon center" är det olika produkter.
  */
-const POKEMON_CENTER_RE = /\bpokemon center\b/;
+// "center" ensamt räcker (2026-10-14): katalogen skriver "Pitch Black Center Elite Trainer
+// Box" UTAN "pokemon", så vakten såg aldrig skillnaden och generiska ETB-annonser hamnade
+// på Pokémon Center-boxen i Tradera-skenan.
+const POKEMON_CENTER_RE = /\bcenter\b/;
 export function pokemonCenterMismatch(a: string, b: string): boolean {
   return POKEMON_CENTER_RE.test(normalizeTitle(a)) !== POKEMON_CENTER_RE.test(normalizeTitle(b));
 }
@@ -1933,6 +2020,55 @@ export type MatchCandidate = {
 export type MatchIndex = MatchCandidate[];
 
 /**
+ * Minnesvägens två helsvep över indexet, cachade per index (2026-10-14). Varje anrop
+ * gick igenom ALLA ~56k produkter en gång per token plus en gång för delsträngstestet
+ * — profilerat 32 % av tiden när Tradera-poolen (tiotusentals annonser) började matchas
+ * i minnet. Samma svar som förut, bara inte omräknat:
+ *  · token → träffar: `includes(t)` beror bara på (index, t), och token återkommer
+ *    ("holo", "pokemonkort", setnamnen) i nästan varje annons.
+ *  · delsträngstestet: en titel som är delsträng av annonsen börjar på NÅGON position i
+ *    den, så titlarna grupperas på sina tre första tecken och bara grupperna för
+ *    annonsens egna 3-teckensföljder prövas.
+ */
+const TOKEN_HITS = new WeakMap<MatchIndex, Map<string, MatchCandidate[]>>();
+function indexTokenHits(index: MatchIndex, token: string): MatchCandidate[] {
+  let byToken = TOKEN_HITS.get(index);
+  if (!byToken) TOKEN_HITS.set(index, (byToken = new Map()));
+  let hits = byToken.get(token);
+  if (!hits) {
+    hits = index.filter((r) => r.normalizedTitle.includes(token));
+    byToken.set(token, hits);
+  }
+  return hits;
+}
+
+const SUBSET_BY_PREFIX = new WeakMap<MatchIndex, Map<string, { p: MatchCandidate; pos: number }[]>>();
+function indexSubsetHits(index: MatchIndex, normalized: string): MatchCandidate[] {
+  let byPrefix = SUBSET_BY_PREFIX.get(index);
+  if (!byPrefix) {
+    byPrefix = new Map();
+    for (const [pos, p] of index.entries()) {
+      if (p.normalizedTitle.length < 8) continue;
+      const k = p.normalizedTitle.slice(0, 3);
+      const list = byPrefix.get(k);
+      if (list) list.push({ p, pos });
+      else byPrefix.set(k, [{ p, pos }]);
+    }
+    SUBSET_BY_PREFIX.set(index, byPrefix);
+  }
+  const out: { p: MatchCandidate; pos: number }[] = [];
+  const seenPrefix = new Set<string>();
+  for (let i = 0; i + 3 <= normalized.length; i++) {
+    const k = normalized.slice(i, i + 3);
+    if (seenPrefix.has(k)) continue;
+    seenPrefix.add(k);
+    for (const e of byPrefix.get(k) ?? []) if (normalized.includes(e.p.normalizedTitle)) out.push(e);
+  }
+  // Indexordning som förut — vid lika poäng vinner den kandidat som kom först.
+  return out.sort((a, b) => a.pos - b.pos).map((e) => e.p);
+}
+
+/**
  * Läser hela matchnings-indexet EN gång (~22k rader, några MB).
  *
  * Varför: matchProduct gjorde per ANNONS en `contains`-fråga PER TOKEN (5–6 st, var
@@ -2034,7 +2170,7 @@ export async function matchProduct(
       // matchningen returnerade null (verifierat mot prod: 200 riktiga butikstitlar,
       // där DB-vägen missade JP-produkter som minnesvägen träffar med konfidens 1.00).
       // I minnet är hela kandidatmängden gratis → bästa kandidaten kan alltid vinna.
-      for (const r of index) if (r.normalizedTitle.includes(t)) candidateMap.set(r.id, r);
+      for (const r of indexTokenHits(index, t)) candidateMap.set(r.id, r);
       continue;
     }
     const rows = await prisma.product.findMany({
@@ -2057,8 +2193,8 @@ export async function matchProduct(
   // finns som delsträng i den inkommande — exakt, billigt, få träffar.
   // normalizedTitle är alnum+mellanslag → inga LIKE-jokrar att escapa.
   if (index) {
-    for (const p of index) {
-      if (p.normalizedTitle.length >= 8 && normalized.includes(p.normalizedTitle)) candidateMap.set(p.id, p);
+    for (const p of indexSubsetHits(index, normalized)) {
+      candidateMap.set(p.id, p);
     }
   } else {
     const subsetIds: { id: string }[] = await prisma.$queryRaw`
@@ -2145,6 +2281,9 @@ export async function matchProduct(
   let runnerUp: { productId: string; confidence: number; normalizedTitle: string } | null = null;
   /** Kandidater som är identitetslika OCH konfliktfria — se blocket längst ned i loopen. */
   const identicalHits: { productId: string; confidence: number }[] = [];
+  /** Kortkandidater som klarat hela vaktkedjan — för syskonvakten efter loopen. */
+  const survivorCards = new Map<string, { name: string; number: string }>();
+  const cardById = new Map(candidates.filter((c) => c.card).map((c) => [c.id, c.card!]));
 
   // Bara tal (utan "X/Y") i en singel-annons: samma vakt som matchListingToProduct.
   // Utan den fastnar "Milotic ex 42 Surging Sparks" på specialarten 217.
@@ -2164,6 +2303,7 @@ export async function matchProduct(
     // vilket kort i setet den gäller. Med "X/Y" dömer nummervakten nedan (num + total
     // måste stämma), och där tål vi svenska namn ("Skolpojke") och stavfel.
     if (c.card && !incomingSetNum && !cardIdentityInListing(c.card, normalized)) continue;
+    if (c.card && !incomingSetNum && promoCodeContradicts(c.card.number, normalized)) continue;
     if (bareNums.length > 0 && c.card) {
       const key = cardNumberKey(c.card.number);
       const num = key ? parseInt(key.replace(/[a-z]/g, ""), 10) : NaN;
@@ -2263,6 +2403,7 @@ export async function matchProduct(
       continue;
     }
     // Blister: även EN ENSIDIG karaktär är en motsägelse — se funktionen.
+    if (printMentionMismatch(raw, c.normalizedTitle, c.variantLabel)) continue;
     if (blisterCharacterMismatch(raw, c.normalizedTitle)) {
       continue;
     }
@@ -2330,6 +2471,7 @@ export async function matchProduct(
     }
 
     trace?.survivors.push({ normalizedTitle: c.normalizedTitle, score });
+    if (c.card) survivorCards.set(c.id, c.card);
 
     if (!best || score > best.confidence) {
       runnerUp = best;
@@ -2341,6 +2483,23 @@ export async function matchProduct(
   if (trace) {
     trace.best = best ? { normalizedTitle: best.normalizedTitle, score: best.confidence } : null;
     trace.runnerUp = runnerUp ? { normalizedTitle: runnerUp.normalizedTitle, score: runnerUp.confidence } : null;
+  }
+
+  // ⛔ SAMMA KORTNAMN, INGET NUMMER (2026-10-14): "Raichu - Shiny Rare - Shiny Treasure ex
+  //    - Japanese" passar både 56/190 och 237/190 — poängen valde en av dem på ett hår.
+  //    Står vinnarens nummer inte i annonsen och en ANNAN överlevande kortkandidat bär
+  //    samma namn, vet vi inte vilket kort det är.
+  if (best) {
+    const bestCard = cardById.get(best.productId);
+    if (bestCard && !listingCarriesCardNumber(bestCard.number, normalized)) {
+      const name = splitHyphens(normalizeTitleMemo(bestCard.name));
+      for (const [id, card] of survivorCards) {
+        if (id !== best.productId && splitHyphens(normalizeTitleMemo(card.name)) === name) {
+          emit("ingen-kandidat");
+          return null;
+        }
+      }
+    }
   }
 
   // ⛔ BARA när den är ENTYDIG. Två identitetslika kandidater betyder att vi inte
@@ -2484,6 +2643,7 @@ export function matchListingToProduct(
   // den ordinarie. Utan den blev varje Base-annons en träff på ALLA TRE
   // produkterna (samma namn, samma nummer) och skena-raderna tredubblades.
   if (!listingFitsVariant(product.variantLabel, listingTitle, product.card?.name)) return null;
+  if (printMentionMismatch(listingTitle, product.normalizedTitle, product.variantLabel)) return null;
 
   const incomingForm = classifyForm(normalized);
   if (incomingForm === "multipack" || incomingForm === "case" || incomingForm === "combo" || incomingForm === "event") {
@@ -2514,8 +2674,10 @@ export function matchListingToProduct(
     if (listingKey) {
       if (ourKey !== listingKey) return null;
       if (!cardNameInTitle(product.card.name, normalized)) return null;
+      if (setTotalContradicts(normalized, product.normalizedTitle, product.card.name)) return null;
       return 0.9;
     }
+    if (promoCodeContradicts(product.card.number, normalized)) return null;
     // Korta namn ("N", "Ho-Oh") har inga ord på ≥ 3 tecken — de räcker inte som bevis
     // ensamma (ett lösryckt "n" står i många titlar). Kräv då även vårt nummer.
     if (!cardIdentityInListing(product.card, normalized)) return null;
@@ -2554,6 +2716,7 @@ export function matchListingToProduct(
   if (setCodeMismatch(listingTitle, product.normalizedTitle)) return null;
   if (cardSuffixMismatch(listingTitle, product.normalizedTitle)) return null;
   if (characterMismatch(listingTitle, product.normalizedTitle)) return null;
+  if (blisterCharacterMismatch(listingTitle, product.normalizedTitle)) return null;
 
   const overlap = distinctiveOverlap(normalized, product.normalizedTitle);
   if (overlap < MIN_DISTINCTIVE_OVERLAP) return null;
