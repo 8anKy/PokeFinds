@@ -986,6 +986,12 @@ model TraderaMatch {
   ok        Boolean // sameProduct && sealedComplete && !ended && remaining>0
   reason    String?
   checkedAt DateTime @default(now())
+  /// Regeldomen utan AI (lib/tradera-listing-verdict.ts) i SKUGGLÄGE bredvid LLM-domen (2026-10-14).
+  /// null = paret dömdes före skuggläget. Jämförs av scripts/tradera-rule-shadow-report.ts.
+  ruleOk       Boolean?
+  ruleReason   String?
+  /// Annonstiteln domarna såg — så skuggrapporten kan visas utan att hämta om annonsen.
+  listingTitle String?
 
   @@id([itemId, productId])
   @@index([productId])

@@ -50,6 +50,7 @@ import type {
   DealVerifyProduct,
 } from "@/services/deal-verify/contract";
 import { StockStatus } from "@prisma/client";
+import { traderaRuleVerdict } from "@/lib/tradera-listing-verdict";
 
 const PUBLIC_API = "https://api.tradera.com/v3/publicservice.asmx";
 
@@ -308,6 +309,8 @@ export interface VerifyMatchesResult {
   skipped: number;
   /** Annonser där LLM:en inte gav en tolkbar dom → INGEN TraderaMatch skrevs. */
   unverified: number;
+  /** Par där regeldomen (skuggläge, utan AI) och LLM-domen var oense. */
+  ruleDisagree: number;
 }
 
 /** Tradera-itemId för en offer: ur URL:en, annars ur senaste sweep-observationens rawData. */
@@ -338,7 +341,7 @@ export async function verifyTraderaMatches(
   log: (msg: string) => void = console.log
 ): Promise<VerifyMatchesResult> {
   const res: VerifyMatchesResult = {
-    offers: 0, checked: 0, ok: 0, wrong: 0, hidden: 0, restored: 0, skipped: 0, unverified: 0,
+    offers: 0, checked: 0, ok: 0, wrong: 0, hidden: 0, restored: 0, skipped: 0, unverified: 0, ruleDisagree: 0,
   };
   const appId = process.env.TRADERA_APP_ID;
   const appKey = process.env.TRADERA_APP_KEY;
@@ -364,11 +367,15 @@ export async function verifyTraderaMatches(
       url: true,
       price: true,
       product: {
-        select: { title: true, category: true, card: { select: { name: true, set: { select: { name: true } } } } },
+        select: { title: true, category: true, language: true, card: { select: { name: true, set: { select: { name: true } } } } },
       },
     },
   });
   res.offers = offers.length;
+  // Katalogens setnamn — regeldomens "annat set"-koll. EN läsning per körning.
+  const setNames = (await prisma.cardSet.findMany({ select: { name: true } }))
+    .map((s) => s.name.replace(/\s*\([^)]*\)\s*$/, "").trim())
+    .filter((n) => n.length >= 3);
   log(`[verify-matches] ${offers.length} sealed Tradera-offers.`);
 
   // Redan avgjorda (annons, produkt)-par prövas inte om — domen är stabil. Men de
@@ -433,10 +440,28 @@ export async function verifyTraderaMatches(
     }
     res.checked++;
 
+    // REGELDOMEN I SKUGGLÄGE (2026-10-14): samma annons, utan AI. Påverkar INGET — bokförs bredvid
+    // LLM-domen så de kan jämföras på nya annonser innan reglerna tar över (scripts/tradera-rule-shadow-report.ts).
+    const ruleReason = item.ended || item.remaining < 1
+      ? "Annonsen avslutad"
+      : traderaRuleVerdict(
+          {
+            catalogTitle: offer.product.title,
+            catalogCategory: offer.product.category,
+            catalogLanguage: offer.product.language,
+            listingTitle: item.title,
+            description: item.description,
+          },
+          setNames
+        );
+    const ruleOk = ruleReason === null;
+    if (ruleOk !== ok) res.ruleDisagree++;
+    const shadow = { ruleOk, ruleReason, listingTitle: item.title.slice(0, 300) };
+
     await prisma.traderaMatch.upsert({
       where: { itemId_productId: { itemId, productId: offer.productId } },
-      create: { itemId, productId: offer.productId, ok, reason },
-      update: { ok, reason, checkedAt: new Date() },
+      create: { itemId, productId: offer.productId, ok, reason, ...shadow },
+      update: { ok, reason, checkedAt: new Date(), ...shadow },
     });
 
     if (!ok) {
@@ -463,6 +488,7 @@ export async function verifyTraderaMatches(
   });
 
   log(`[verify-matches] kollade ${res.checked} (ok ${res.ok}, fel ${res.wrong} → dolda ${res.hidden}, återställda ${res.restored}), hoppade ${res.skipped}.`);
+  log(`[verify-matches] regeldom (skuggläge, utan AI): oense med LLM:en i ${res.ruleDisagree} av ${res.checked}.`);
   if (res.unverified > 0) {
     log(`[verify-matches] ⚠️  ${res.unverified} annonser fick INGEN dom (LLM-fel/otolkbart svar) — inget skrivet.`);
   }
