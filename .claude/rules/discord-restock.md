@@ -161,6 +161,12 @@ allt annat butikerna säljer var osynligt, och bortfallet gick inte att skilja f
   riktiga varor — en ordlista täcker aldrig butikernas formuleringar.
   ⛔ **TVÅ UNDANTAG SOM ALDRIG ÖVERTRUMFAS**, för de är POLICY och inte gissningar: `language`
   (kanalerna är EN + JP, ägarkrav) och `denylist` (ägarens "Ta bort" måste gälla i kanalerna också).
+  + `oversized-card` sedan 2026-10-14 (`ROUTE_CANNOT_RESCUE`): "First Partner … Oversized Card Promo Pack" är en
+  riktig SKU som ägaren GÖMT, men rutten räddade den och den postades som "Nytt lägre pris" — i kanalen ser den ut som
+  ett löskort. Bara "oversized" UTAN booster ("Jumbo Card Collection - Mew" har boosters och är kvar). Samma dag:
+  Polaroid (kamerapaket med ETB) i `NON_TCG_BRAND` och "Phoenix Shield … Box Protection" i `PROTECTOR_SIGNS` — båda
+  postades från Speltrollet utan rutt. MÄTT 10 dygn (257 postade URL:er): noll katalogsinglar; ruttabellens 4 495 URL:er
+  har ingen singel. ⚠️ Gömda produkter postar fortfarande i kanalerna (ägarbeslut 08-15) — "Ta bort" (denylist) tystar dem.
   `stats.rescuedByRoute` loggas — **ett stigande tal betyder att en vakt är för bred för butikernas
   formuleringar**, och är signalen att mäta om den innan den ändras.
 - ⛔ **`isUnspecifiedCharacterListing` står MED FLIT INTE i kedjan.** Den finns bara för att hindra

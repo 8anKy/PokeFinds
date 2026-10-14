@@ -285,6 +285,12 @@ export interface SelloutEntry {
 /** Hur länge en slutförsäljning är värd att nämna. Äldre än så säger inget om nästa våg. */
 export const SELLOUT_MEMORY_DAYS = 30;
 
+/**
+ * Domar en känd rutt ALDRIG övertrumfar — de är POLICY, inte gissningar: språket (kanalerna
+ * är EN + JP), ägarens denylist och överdimensionerade kort (ägarbeslut 2026-10-14).
+ */
+const ROUTE_CANNOT_RESCUE = new Set<string>(["language", "denylist", "oversized-card"]);
+
 export function emptyState(): DiscordRestockState {
   return { stock: {}, history: {}, posted: {}, absent: {}, price: {}, pricePosted: {}, confirm: {}, sellout: {} };
 }
@@ -789,7 +795,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       //      kinesisk annons ska tiga även om någon rutt pekar på den.
       //    · `denylist` — ägarens "Ta bort" måste gälla i kanalerna också, annars är
       //      raderingen bara halv.
-      const rescued = route && verdict.reason !== "language" && verdict.reason !== "denylist";
+      const rescued = route && !ROUTE_CANNOT_RESCUE.has(verdict.reason ?? "");
       if (!rescued) {
         stats.skippedFiltered++;
         const r = verdict.reason ?? ("unknown-form" as DiscordRejectReason);
@@ -1214,7 +1220,7 @@ function collectPriceDrops(args: {
         filter
       );
       if (!verdict.ok) {
-        const rescued = route && verdict.reason !== "language" && verdict.reason !== "denylist";
+        const rescued = route && !ROUTE_CANNOT_RESCUE.has(verdict.reason ?? "");
         if (!rescued) {
           note("filtered");
           continue;

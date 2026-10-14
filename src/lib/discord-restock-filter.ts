@@ -65,6 +65,7 @@ export type DiscordRejectReason =
   | "event"
   | "merch"
   | "single"
+  | "oversized-card"
   | "other-franchise"
   | "store-bundle"
   | "unknown-form"
@@ -158,6 +159,12 @@ export function classifyDiscordListing(
   //    dyka upp i en publik kanal heller — annars är raderingen bara halv.
   if (isDeniedListingUrl(item.url)) return no("denylist");
 
+  // 2b. ÖVERDIMENSIONERAT KORT UTAN BOOSTERS (ägarbeslut 2026-10-14). "First Partner 25th
+  //     Anniversary Oversized Card Promo Pack" är en riktig SKU men i kanalen ett KORT —
+  //     ägaren hade gömt den, och rutten räddade den ändå (Alphaspel, "Nytt lägre pris").
+  //     ⛔ Inte "jumbo": "Jumbo Card Collection - Mew" är en kollektion MED boosters.
+  if (isOversizedCardOnly(rawTitle)) return no("oversized-card");
+
   // 3. TILLBEHÖR. Uttrycklig ägarregel för kanalerna ("no accessories"), och samma
   //    vakt som håller dem ute ur katalogen. `classifyForm` fångar dessutom svenska
   //    former ordlistan inte har ("Greninja samlarpärm") och eventbiljetter.
@@ -194,6 +201,11 @@ export function classifyDiscordListing(
   }
 
   return { ok: true, ...base };
+}
+
+/** Ett överdimensionerat kort som säljs UTAN boosters — ett kort, inte en sealed-vara. */
+export function isOversizedCardOnly(title: string): boolean {
+  return /\boversized\b/i.test(title) && !/\bboosters?\b|\bbooster\s*pack/i.test(title);
 }
 
 /**

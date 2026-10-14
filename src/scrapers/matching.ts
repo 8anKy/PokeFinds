@@ -1610,8 +1610,9 @@ const ACCESSORY_BRANDS =
 //    `productsConflict` där en falsk träff blockerar en korrekt butikslänk tyst.
 //    Substantivet gör tecknet entydigt. Delta mätt: 0 katalogträffar, 0 bundna
 //    huvudboksrader, 6 träffar — alla Hobbykorts skyddsplast.
+// + "Phoenix Shield … Box Protection" (akrylskydd, postades i Discord 2026-10-14).
 const PROTECTOR_SIGNS =
-  /\b(one[- ]?touch|magnetic holder|protectors?|skyddsplast|display[- ]?skydd)\b|\bprotective\s+(case|cases|sleeve|sleeves|box|boxes|cover|covers|holder|film|fodral|hylsa)\b/i;
+  /\b(one[- ]?touch|magnetic holder|protectors?|skyddsplast|display[- ]?skydd|phoenix\s+shield|box\s+protection)\b|\bprotective\s+(case|cases|sleeve|sleeves|box|boxes|cover|covers|holder|film|fodral|hylsa)\b/i;
 
 // ── OMSLAGSKONST ÄR INTE EN EGEN PRODUKT (2026-07-14) ────────────────────────
 // Samlarhobby säljer vintage-boosters på PACKETS BILD:
@@ -1859,7 +1860,9 @@ const SEALED_FORM_WORD =
  * ingen vakt: vidgas kategorierna igen kommer brädspelen in med dem.
  * MÄTT över 16 355 levande annonser: enda träffarna är Ravensburgers tre Labyrinth-spel.
  */
-const NON_TCG_BRAND = /\bre[-\s]?ment\b|\bravensburger\b/i;
+// Polaroid (2026-10-14): kameror. "Pokemon × Polaroid Go … + 30th Celebration Elite Trainer
+// Box" postades i Discord — kamerapaket, inte en TCG-vara (ägarbeslut: Polaroid fälls alltid).
+const NON_TCG_BRAND = /\bre[-\s]?ment\b|\bravensburger\b|\bpolaroid\b/i;
 
 /** Merch (gosedjur, figurer, kläder, affischer) — aldrig en TCG-katalogprodukt. */
 export function isMerchandiseListing(title: string): boolean {
