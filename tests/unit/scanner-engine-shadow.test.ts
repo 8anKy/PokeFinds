@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { engineModeFor, engineShadowEnabled, shadowRecord } from "@/lib/scanner-engine-shadow";
+import { engineModeFor, engineShadowEnabled, pickByLocalNumber, shadowRecord } from "@/lib/scanner-engine-shadow";
 
 describe("skannermotorns skuggläge", () => {
   afterEach(() => {
@@ -54,6 +54,41 @@ describe("skannermotorns skuggläge", () => {
     const plain = shadowRecord({ best: "a", candidates: [{ cardId: "a", inliers: 40 }], ms: 1 });
     expect("emb" in plain).toBe(false);
     expect("embDecided" in plain).toBe(false);
+  });
+
+  describe("telefonens nummer avgör mellan namnsyskon", () => {
+    const cards = new Map([
+      ["jp", { name: "Tauros (JP)", number: "078" }],
+      ["en", { name: "Tauros", number: "106" }],
+      ["other", { name: "Pikachu", number: "106" }],
+      ["tg", { name: "Tauros", number: "TG07" }],
+    ]);
+    const res = { best: "jp", candidates: [{ cardId: "jp", inliers: 80 }, { cardId: "other", inliers: 50 }, { cardId: "en", inliers: 40 }], ms: 1 };
+
+    it("byter till det engelska trycket när numret är dess, inlier-talen står kvar", () => {
+      const r = pickByLocalNumber(res, 106, cards);
+      expect(r.best).toBe("en");
+      expect(r.candidates).toEqual([{ cardId: "en", inliers: 80 }, { cardId: "other", inliers: 50 }, { cardId: "jp", inliers: 40 }]);
+      expect(r.numberSwapFrom).toBe("jp");
+      expect(shadowRecord(r).numSwap).toBe("jp");
+    });
+
+    it("rör inget när numret redan är ettans, saknas, eller bara finns på ett annat namn", () => {
+      expect(pickByLocalNumber(res, 78, cards)).toBe(res);
+      expect(pickByLocalNumber(res, null, cards)).toBe(res);
+      const noTwin = { best: "jp", candidates: [{ cardId: "jp", inliers: 80 }, { cardId: "other", inliers: 50 }] };
+      expect(pickByLocalNumber(noTwin, 106, cards)).toBe(noTwin);
+    });
+
+    it("bokstavsnummer jämförs på sina siffror (TG07 = 7)", () => {
+      const r = pickByLocalNumber({ best: "en", candidates: [{ cardId: "en", inliers: 60 }, { cardId: "tg", inliers: 30 }] }, 7, cards);
+      expect(r.best).toBe("tg");
+    });
+
+    it("tittar bara i topp-5", () => {
+      const far = { best: "jp", candidates: ["jp", "a", "b", "c", "d", "en"].map((cardId) => ({ cardId, inliers: 10 })) };
+      expect(pickByLocalNumber(far, 106, cards)).toBe(far);
+    });
   });
 
   it("ett fel blir en rad med err, aldrig ett påhittat kort", () => {

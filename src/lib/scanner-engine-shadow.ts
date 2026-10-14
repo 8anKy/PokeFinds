@@ -27,6 +27,8 @@ export interface EngineResponse {
   embTop?: string[];
   /** Geometrin räckte inte (< EMB_FALLBACK_INLIERS) och bildvektorns etta blev svaret. */
   embDecided?: boolean;
+  /** Satt av `pickByLocalNumber` (vår sida, inte motorn): ettan före telefonens nummer bytte den. */
+  numberSwapFrom?: string;
   ms?: number;
   msA?: number;
   error?: string;
@@ -47,6 +49,69 @@ export interface ShadowRecord {
   err?: string;
   /** Motorns svar VAR det som visades (motorläge) — inte bara en skugga. */
   primary?: true;
+  /** Telefonens lästa nummer bytte ettan mot ett namnsyskon i topp-5 — kortet motorn först valde. */
+  numSwap?: string;
+}
+
+/**
+ * TELEFONENS NUMMER AVGÖR MELLAN NAMNSYSKON (2026-10-14). Motorn matchar på konsten, och samma konst
+ * finns ofta på flera kort med samma namn — engelska och japanska trycket, omtryck. Läste appen ett
+ * samlarnummer (`localNumber.num`, on-device) som INTE är ettans men är ett namnsyskons i topp-5, blir
+ * syskonet ettan.
+ *
+ * MÄTT på 14 dygns skuggsvar mot användarnas val (n=2 100): 49 rättade, 4 förstörda, 82,8 → 85,0 %.
+ * ⛔ Bara SAMMA NAMN (" (JP)" bortskalat): numret ensamt över hela topp-5 gav 55/6, och dagens skanners
+ * "lokala numret väljer bland bildens topp-15" gav 1 rättad mot 4 förstörda (rules/scanner.md).
+ * ⛔ Sessionens språkhint mättes samtidigt och är INTE med: 45 rättade mot 54 förstörda.
+ *
+ * Byter bara kort-id mellan platserna — inlier-talen står kvar på sina platser, för konsten (det
+ * inliers mäter) är densamma och motorlägets säkerhetsgrind ska inte falla av ett språkbyte.
+ */
+export function pickByLocalNumber(
+  res: EngineResponse,
+  localNum: number | null | undefined,
+  cards: Map<string, { name: string; number: string }>
+): EngineResponse {
+  const list = res.candidates ?? [];
+  if (localNum == null || !list.length) return res;
+  const bestId = res.best ?? list[0].cardId;
+  const best = cards.get(bestId);
+  if (!best || numberInt(best.number) === localNum) return res;
+  const i = list.slice(0, 5).findIndex((c) => {
+    const card = cards.get(c.cardId);
+    return c.cardId !== bestId && !!card && baseName(card.name) === baseName(best.name) && numberInt(card.number) === localNum;
+  });
+  if (i < 0) return res;
+  const winner = list[i].cardId;
+  const bi = list.findIndex((c) => c.cardId === bestId);
+  const swapped = list.map((c, k) =>
+    k === i ? { ...c, cardId: bi >= 0 ? bestId : c.cardId } : k === bi ? { ...c, cardId: winner } : c
+  );
+  return { ...res, best: winner, candidates: swapped, numberSwapFrom: bestId };
+}
+
+function baseName(name: string): string {
+  return name.replace(/\s*\(JP\)\s*$/i, "").trim().toLowerCase();
+}
+
+/** Första sifferföljden i kortets nummer ("TG07" → 7, "SWSH034" → 34) — samma form som appens `num`. */
+function numberInt(n: string): number | null {
+  const m = n.match(/\d+/);
+  return m ? parseInt(m[0], 10) : null;
+}
+
+/** `pickByLocalNumber` med topp-5:s namn/nummer ur katalogen (≤ 5 rader på primärnyckel). */
+export async function applyLocalNumber(res: EngineResponse, localNum: number | null | undefined): Promise<EngineResponse> {
+  if (localNum == null || res.error || !res.candidates?.length) return res;
+  const ids = res.candidates.slice(0, 5).map((c) => c.cardId);
+  if (res.best && !ids.includes(res.best)) ids.push(res.best);
+  try {
+    const rows = await prisma.card.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, number: true } });
+    return pickByLocalNumber(res, localNum, new Map(rows.map((r) => [r.id, r])));
+  } catch (e) {
+    console.warn("[engine] nummerkontrollen hoppades över:", (e as Error).message);
+    return res;
+  }
 }
 
 export function engineShadowEnabled(): boolean {
@@ -76,6 +141,7 @@ export function shadowRecord(res: EngineResponse | null, err?: string): ShadowRe
     ...(res.regionSwapFrom ? { swap: res.regionSwapFrom } : {}),
     ...(res.embTop?.length ? { emb: res.embTop.slice(0, 5) } : {}),
     ...(res.embDecided ? { embDecided: true as const } : {}),
+    ...(res.numberSwapFrom ? { numSwap: res.numberSwapFrom } : {}),
     ...(res.reason ? { err: res.reason } : {}),
   };
 }
@@ -135,10 +201,10 @@ export async function recordShadow(jobId: string, record: ShadowRecord): Promise
 }
 
 /** Skicka fångsten till motorn och bokför svaret på jobbet. Returnerar direkt. */
-export function runEngineShadow(jobId: string, imageDataUrl: string): void {
+export function runEngineShadow(jobId: string, imageDataUrl: string, localNum?: number | null): void {
   if (!engineShadowEnabled()) return;
   void (async () => {
-    const res = await callEngine(imageDataUrl);
+    const res = await applyLocalNumber(await callEngine(imageDataUrl), localNum);
     await recordShadow(jobId, res.error ? shadowRecord(null, res.error) : shadowRecord(res));
   })();
 }

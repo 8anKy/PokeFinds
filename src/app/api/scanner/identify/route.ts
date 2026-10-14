@@ -17,7 +17,14 @@ import { buildFoilDiagnostics } from "@/services/scanner/foil";
 import { buildScanPhotoKey, putImage, sniffImageType, storageEnabled } from "@/lib/object-storage";
 import { scanPhotoConsent } from "@/lib/scan-photo-consent";
 import { prisma } from "@/lib/db";
-import { callEngine, engineModeFor, recordShadow, runEngineShadow, shadowRecord } from "@/lib/scanner-engine-shadow";
+import {
+  applyLocalNumber,
+  callEngine,
+  engineModeFor,
+  recordShadow,
+  runEngineShadow,
+  shadowRecord,
+} from "@/lib/scanner-engine-shadow";
 
 export const dynamic = "force-dynamic";
 
@@ -83,8 +90,9 @@ const schema = z.object({
   sharp: z.number().min(0).max(1000).optional(),
   // LOKAL NUMMERLÄSNING, SKUGGLÄGE (2026-09-01): appen läser samlarnumret
   // on-device (ML Kit) ur SAMMA remsa som `detail` och skickar tolkningen
-  // (src/lib/on-device-number.ts). ⛔ Påverkar INGET i svaret — bokförs bara
-  // (result.local) bredvid Geminis läsning så båda kan dömas mot facit.
+  // (src/lib/on-device-number.ts). Bokförs (result.local) bredvid Geminis läsning
+  // så båda kan dömas mot facit. ⛔ Rör INTE dagens skanners svar; sedan 2026-10-14
+  // avgör numret bara mellan namnsyskon i SKANNERMOTORNS topp-5 (applyLocalNumber).
   // Webben skickar aldrig fältet. Taken avvisar det absurda, klampar inget.
   localNumber: z
     .object({
@@ -166,7 +174,8 @@ export async function POST(req: Request) {
     // MOTORLÄGE (2026-09-30, bara admin tills skuggrapporten avgjort): skannermotorn utan AI
     // svarar och Gemini anropas aldrig. Faller motorn bort används dagens väg som reserv.
     const engineMode = engineModeFor(user?.role);
-    const engine = engineMode ? await callEngine(image) : undefined;
+    // Telefonens lästa nummer avgör mellan namnsyskon i motorns topp-5 (applyLocalNumber).
+    const engine = engineMode ? await applyLocalNumber(await callEngine(image), localNumber?.num) : undefined;
     if (engine?.error) console.warn("[engine] motorläge föll tillbaka:", engine.error);
     const result = await identifyCard(image, {
       engine,
@@ -368,7 +377,7 @@ export async function POST(req: Request) {
     // som result.shadow. Påverkar inget i svaret; no-op tills SCANNER_ENGINE_URL är satt.
     if (jobId) {
       if (engine && !engine.error) void recordShadow(jobId, { ...shadowRecord(engine), primary: true });
-      else runEngineShadow(jobId, image);
+      else runEngineShadow(jobId, image, localNumber?.num);
     }
 
     // ⛔ `artCandidateIds` och `artMargin` är MÄTDATA och går inte ut på tråden:

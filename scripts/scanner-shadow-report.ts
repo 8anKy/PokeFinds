@@ -13,7 +13,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 const DAYS = Number(process.env.DAGAR ?? "7");
 
-interface Shadow { best: string | null; top: string[]; ms: number | null; err?: string; emb?: string[]; embDecided?: true }
+interface Shadow { best: string | null; top: string[]; ms: number | null; err?: string; emb?: string[]; embDecided?: true; numSwap?: string }
 interface Chosen { cardId?: string | null; kind?: string; via?: string }
 
 async function main() {
@@ -60,6 +60,13 @@ async function main() {
       const decToday = dec.filter((r) => r.recall?.shown?.[0] === truth(r)).length;
       const p = (k: number, n: number) => (n ? `${((100 * k) / n).toFixed(1)} %` : "–");
       console.log(`   bildvektorn (n=${withEmb.length}): ensam etta ${p(e1, withEmb.length)} · avgjorde ${dec.length} st, rätt ${p(decOk, dec.length)} (dagens skanner ${p(decToday, dec.length)} på samma)`);
+    }
+    // TELEFONENS NUMMER (2026-10-14, applyLocalNumber): bytet rättade (nya ettan rätt) eller förstörde (gamla var rätt).
+    const ns = sub.filter((r) => r.shadow!.numSwap);
+    if (ns.length) {
+      const fixed = ns.filter((r) => r.shadow!.best === truth(r)).length;
+      const broke = ns.filter((r) => r.shadow!.numSwap === truth(r)).length;
+      console.log(`   telefonens nummer bytte ${ns.length} st: rättade ${fixed}, förstörde ${broke}`);
     }
   }
 }
