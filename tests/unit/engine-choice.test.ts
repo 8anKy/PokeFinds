@@ -5,6 +5,8 @@ describe("motorläget: inget kort i bilden", () => {
   it("noll geometri + svagt avtryck = inget kort (handen)", () => {
     expect(engineNoCard(0, 0.42)).toBe(true);
     expect(engineNoCard(0, null)).toBe(true);
+    // ägarens bord 2026-10-14: släpptes igenom av den första tröskeln (0,55)
+    expect(engineNoCard(0, 0.569)).toBe(true);
   });
   it("minsta geometri, eller ett avtryck som liknar ett kort, ger fortfarande en lista", () => {
     expect(engineNoCard(1, 0.3)).toBe(false);

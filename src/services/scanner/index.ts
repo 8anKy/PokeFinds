@@ -2407,7 +2407,18 @@ async function identifyFromEngine(engine: EngineResponse, fingerprintMatches: Ar
     engineDecided: true,
   } as const;
   if (engineNoCard(bestInliers, fpTop)) {
-    return { ...base, noCard: true, confidence: 0, candidates: [], ambiguous: false, tied: false, artTopLabel: null, artCandidateIds: [] };
+    // artCandidateIds = avtryckets lista (bildsökningen KÖRDES) ⇒ recall skrivs och `nc` bokförs —
+    // med en tom lista hoppar recordScanUsage över hela recall och domen går inte att mäta.
+    return {
+      ...base,
+      noCard: true,
+      confidence: 0,
+      candidates: [],
+      ambiguous: false,
+      tied: false,
+      artTopLabel: null,
+      artCandidateIds: fingerprintMatches.map((m) => m.cardId),
+    };
   }
   const confident = bestInliers >= ENGINE_CONFIDENT_INLIERS ? (engine.best ?? ranked[0].cardId) : null;
   // Poäng ur PLATSEN, inte ur inlier-talet: matchCards ska återge motorns ordning, och inliers

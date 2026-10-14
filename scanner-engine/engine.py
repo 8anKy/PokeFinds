@@ -393,7 +393,8 @@ class Engine:
         if des is None or len(kq) < 8:
             if emb_top:  # ingen geometri alls — bildvektorn är det enda som finns
                 return {"best": emb_top[0][0], "candidates": [{"cardId": c, "inliers": 0} for c, _ in emb_top],
-                        "embTop": [c for c, _ in emb_top], "embDecided": True, "ms": int((time.time() - t0) * 1000)}
+                        "embTop": [c for c, _ in emb_top], "embScore": round(emb_top[0][1], 4), "embDecided": True,
+                        "ms": int((time.time() - t0) * 1000)}
             return {"candidates": [], "ms": int((time.time() - t0) * 1000), "reason": "no-features"}
         dq = _root_sift(des)
         stage_a = self._candidates(dq)
@@ -445,6 +446,8 @@ class Engine:
             "best": best,
             "candidates": [{"cardId": c, "inliers": scores.get(c, 0)} for c in order[:TOP_K]],
             "embTop": [c for c, _ in emb_top[:5]],
+            # Bildvektorns likhet (cos) med sin etta (2026-10-14) — andra signalen för "inget kort i bilden".
+            "embScore": round(emb_top[0][1], 4) if emb_top else None,
             "embDecided": emb_decided,
             "regionSwapFrom": swapped or lang_swap,
             "msA": int((t_a - t0) * 1000),

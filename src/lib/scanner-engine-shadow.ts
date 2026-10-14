@@ -27,6 +27,8 @@ export interface EngineResponse {
   embTop?: string[];
   /** Geometrin räckte inte (< EMB_FALLBACK_INLIERS) och bildvektorns etta blev svaret. */
   embDecided?: boolean;
+  /** Bildvektorns likhet (cos) med sin etta — bokförs för att kalibrera "inget kort i bilden". */
+  embScore?: number | null;
   /** Satt av `pickByLocalNumber` (vår sida, inte motorn): ettan före telefonens nummer bytte den. */
   numberSwapFrom?: string;
   ms?: number;
@@ -46,6 +48,7 @@ export interface ShadowRecord {
   emb?: string[];
   /** `best` kom från bildvektorn (för lite geometri), inte från motorns verifiering. */
   embDecided?: true;
+  embScore?: number;
   err?: string;
   /** Motorns svar VAR det som visades (motorläge) — inte bara en skugga. */
   primary?: true;
@@ -141,6 +144,7 @@ export function shadowRecord(res: EngineResponse | null, err?: string): ShadowRe
     ...(res.regionSwapFrom ? { swap: res.regionSwapFrom } : {}),
     ...(res.embTop?.length ? { emb: res.embTop.slice(0, 5) } : {}),
     ...(res.embDecided ? { embDecided: true as const } : {}),
+    ...(typeof res.embScore === "number" ? { embScore: res.embScore } : {}),
     ...(res.numberSwapFrom ? { numSwap: res.numberSwapFrom } : {}),
     ...(res.reason ? { err: res.reason } : {}),
   };

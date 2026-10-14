@@ -4,11 +4,13 @@
  */
 
 /**
- * Konstavtryckets etta under detta + noll geometri = inget kort. Den gamla vägens NO_CARD_ART_MAX (0,62)
- * fångade fler riktiga kort här, där motorn redan sållat: mätt 30 d (0 inliers) 0,55 ⇒ 9 riktiga kort
- * (motorn hade 1 rätt) mot 21 raderade skanningar; 0,62 ⇒ 26 riktiga (8 rätt) mot 28.
+ * Konstavtryckets etta under detta + noll geometri = inget kort. SAMMA tal som den gamla vägens
+ * NO_CARD_ART_MAX (0,62: alla 31 uppmätta skanningar utan kort låg 0,41–0,60). Mätt 30 d (0 inliers):
+ * 0,62 ⇒ 26 riktiga kort (motorn hade 8 rätt) mot 28 raderade skanningar.
+ * ⛔ 0,55 provades först (10-14) och släppte igenom ägarens bord på 0,569 — gå inte ner igen utan en
+ * andra signal (`embScore`, bokförs sedan 10-14 i result.shadow).
  */
-export const ENGINE_NO_CARD_FP_MAX = 0.55;
+export const ENGINE_NO_CARD_FP_MAX = 0.62;
 
 /** Inget kort i bilden: motorn hittade INGEN geometri och konstavtrycket liknar inget kort. */
 export function engineNoCard(bestInliers: number, fingerprintTop: number | null): boolean {
