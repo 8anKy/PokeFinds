@@ -155,6 +155,7 @@ export default async function AdminOverviewPage() {
     payingUsers,
     formerSubscribers,
     planMix,
+    platformMix,
     eventMix,
   } = overview;
   const redisOk = isRedisAvailable();
@@ -233,6 +234,19 @@ export default async function AdminOverviewPage() {
     label: p.label,
     value: p.value,
     color: PLAN_COLORS[p.key] ?? "#6b7280",
+  }));
+
+  const PLATFORM_COLORS: Record<string, string> = {
+    ios: CATEGORICAL[0],
+    android: CATEGORICAL[1],
+    web: CATEGORICAL[2],
+    unknown: "#6b7280",
+  };
+  const platformSlices: DonutSlice[] = platformMix.map((p) => ({
+    key: p.key,
+    label: p.label,
+    value: p.value,
+    color: PLATFORM_COLORS[p.key] ?? "#6b7280",
   }));
 
   const eventSlices: DonutSlice[] = eventMix.map((e) => ({
@@ -396,6 +410,22 @@ export default async function AdminOverviewPage() {
           <CardContent>
             <DonutChart
               slices={planSlices}
+              centerLabel="konton"
+              centerValue={nf(users.total)}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Var kontona skapades</CardTitle>
+            <p className="text-sm text-ink-muted">
+              iOS-appen, Android-appen eller webben. Äldre konton är kända bara om de skannat i appen.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <DonutChart
+              slices={platformSlices}
               centerLabel="konton"
               centerValue={nf(users.total)}
             />

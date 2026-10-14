@@ -142,6 +142,10 @@ model User {
   // i lib/auth.ts nekar då lösenordsinloggning explicit — bcrypt.compare mot null
   // kastar annars. "Glömt lösenord" fungerar ändå och SÄTTER ett (reset-routen).
   passwordHash         String?
+  // Var kontot skapades: "ios" | "android" | "web" (lib/signup-platform.ts, 2026-10-14). NULL = före
+  // 2026-10-14 utan känd appenhet. Äldre konton backfylldes ur sin första GuestDevice (appen används,
+  // inte nödvändigtvis registreringen) — se migrationen 20261014120000_signup_platform.
+  signupPlatform       String?
   // Google-/Apple-inloggning: leverantörens stabila `sub` ur id_token. Unika så
   // ett Google-konto aldrig kan öppna två Foilio-konton. Samma mönster som
   // discordUserId nedan — ingen Account-/Session-tabell, ingen token lagras.

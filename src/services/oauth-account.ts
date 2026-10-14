@@ -1,4 +1,6 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { readDeviceId } from "@/lib/guest-device";
+import { signupPlatformFrom } from "@/lib/signup-platform";
 import { prisma } from "@/lib/db";
 import { sendMail } from "@/lib/mailer";
 import { welcomeEmail } from "@/emails/templates";
@@ -109,6 +111,15 @@ export async function findOrCreateOAuthUser(input: OAuthIdentityInput): Promise<
   } catch {
     creatorCodeId = null;
   }
+  // Var kontot skapades (lib/signup-platform.ts). Samma förbehåll som cookien ovan: utanför en
+  // request (skript, test) finns inga headers ⇒ null, aldrig en gissning.
+  let signupPlatform: string | null = null;
+  try {
+    const h = await headers();
+    signupPlatform = signupPlatformFrom(h.get("user-agent"), readDeviceId(h));
+  } catch {
+    signupPlatform = null;
+  }
   const now = new Date();
   const bonusUntil = signupBonusUntil(signupCampaignFromEnv(), now);
 
@@ -122,6 +133,7 @@ export async function findOrCreateOAuthUser(input: OAuthIdentityInput): Promise<
       creatorCodeId,
       attributedAt: creatorCodeId ? now : null,
       bonusProUntil: bonusUntil,
+      signupPlatform,
     },
     select: USER_SELECT,
   });

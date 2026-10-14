@@ -15,6 +15,8 @@ import { authError, type AuthErrorCode } from "@/lib/auth-errors";
 import { CREATOR_REF_COOKIE } from "@/lib/creator-ref";
 import { resolveCreatorCode } from "@/services/creator-codes";
 import { signupBonusUntil, signupCampaignFromEnv } from "@/lib/signup-campaign";
+import { readDeviceId } from "@/lib/guest-device";
+import { signupPlatformFrom } from "@/lib/signup-platform";
 
 export const dynamic = "force-dynamic";
 
@@ -119,6 +121,7 @@ export async function POST(req: NextRequest) {
         creatorCodeId: creatorCode?.id ?? null,
         attributedAt: creatorCode ? new Date() : null,
         bonusProUntil: bonusUntil,
+        signupPlatform: signupPlatformFrom(req.headers.get("user-agent"), readDeviceId(req.headers)),
       },
       select: { id: true, name: true, email: true },
     });

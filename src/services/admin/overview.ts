@@ -190,7 +190,7 @@ export async function getAdminOverview() {
 
   // Tidsserier, 90 dygn. Sajten är yngre än så, och en obegränsad serie hade
   // vuxit utan tak rakt in i klientens bundle.
-  const [signupSeries, eventSeries, scanSeries] = await Promise.all([
+  const [signupSeries, eventSeries, scanSeries, platformRows] = await Promise.all([
     prisma.$queryRawUnsafe<DailyPoint[]>(`
       select to_char(date_trunc('day', "createdAt" at time zone 'UTC'), 'YYYY-MM-DD') as date,
              count(*)::int as value
@@ -212,6 +212,7 @@ export async function getAdminOverview() {
       where "createdAt" >= now() - interval '90 days'
       group by 1 order by 1
     `),
+    prisma.user.groupBy({ by: ["signupPlatform"], _count: true }),
   ]);
 
   // Hur många konton fanns FÖRE fönstret? Utan det startar den kumulativa kurvan
@@ -359,6 +360,18 @@ export async function getAdminOverview() {
     },
   ];
 
+  /**
+   * VAR KONTONA SKAPADES (2026-10-14) — partition av alla konton. "Okänt" = före 2026-10-14 utan
+   * kopplad appenhet (webb eller app utan skanning; går inte att skilja i efterhand).
+   */
+  const platformCount = (k: string | null) => platformRows.find((r) => r.signupPlatform === k)?._count ?? 0;
+  const platformMix = [
+    { key: "ios", label: "iOS-appen", value: platformCount("ios") },
+    { key: "android", label: "Android-appen", value: platformCount("android") },
+    { key: "web", label: "Webben", value: platformCount("web") },
+    { key: "unknown", label: "Okänt (äldre konton)", value: platformCount(null) },
+  ];
+
   /** Händelsemix senaste 30 dygnen — varje händelse har exakt EN typ. */
   const eventCutoff = d30.toISOString().slice(0, 10);
   const eventMix = new Map<string, number>();
@@ -369,6 +382,7 @@ export async function getAdminOverview() {
 
   return {
     planMix,
+    platformMix,
     eventMix: [...eventMix.entries()]
       .map(([key, value]) => ({ key, value }))
       .sort((a, b) => b.value - a.value),
