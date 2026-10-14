@@ -7,12 +7,18 @@
  * produkt?" för stubbens topp-kandidater; bekräftad dubblett merge:as in i den
  * etablerade produkten (offers flyttas, stubben raderas).
  *
- * Körs VECKOVIS (store-health.yml) över stubbar ≤ STUB_WINDOW_DAYS gamla.
- * Kräver ANTHROPIC_API_KEY (annars no-op). Kandidater filtreras hårt innan LLM:
+ * ⛔ INGEN AI SEDAN 2026-10-14 (ägarbeslut, samma linje som skannern): en merge krävde redan
+ * ALLTID `mergeEquivalent` (identisk ordmängd) — LLM-domen var bara ett extra villkor ovanpå.
+ * MÄTT över alla 2 520 sparade domar: LLM:en vetade ALDRIG ett par regeln godkände (0 st), och
+ * dess enda bidrag var 117 "samma"-förslag som regeln stoppade — bland dem uppenbart fel par
+ * ("Pitch Black Sleeved Booster" = "Pitch Black Booster", "Umbreon V Tin (US Version)",
+ * "General Mills 2019" = "…25th Anniversary"). Mergarna blir alltså desamma utan den.
+ *
+ * Körs VECKOVIS (store-health.yml) över stubbar ≤ STUB_WINDOW_DAYS gamla. Kandidater filtreras hårt innan LLM:
  * samma/kompatibel kategori, likhet ≥ MIN_SIM och matcherns hårda vakter
  * (serie-/sifferset-/språk-mismatch = aldrig samma produkt).
  *
- * VERDICT-CACHE (DedupeVerdict): här stod tidigare "ingen verdict-cache behövs när
+ * (HISTORIK, före 2026-10-14) VERDICT-CACHE (DedupeVerdict): här stod tidigare "ingen verdict-cache behövs när
  * fönstret är kort och anropen är öre" — det stämde inte. En stub som döms "INTE
  * dubblett" ligger kvar i 14-dagarsfönstret och döms om NÄSTA måndag, och nästa:
  * samma två titlar, samma svar, ny nota. Mätt mot prod: 178 stubbar → ~505 anrop,
@@ -21,7 +27,6 @@
  */
 import { prisma } from "@/lib/db";
 import { isStoreRetailer } from "@/lib/offer-source";
-import { judgeSameProduct } from "@/lib/same-product";
 import { replaceHealthSection, type HealthFindingInput } from "@/lib/store-health-findings";
 import { gtinConflict, isPokemonManufacturerGtin } from "@/lib/gtin";
 import {
@@ -43,11 +48,6 @@ const STUB_WINDOW_DAYS = Number(process.env.DEDUPE_WINDOW_DAYS ?? "14");
 const DRY_RUN = process.env.DEDUPE_DRY === "1";
 const MIN_SIM = 0.4;
 const MAX_CANDIDATES = 3;
-
-/** Cache-nyckel: paret SORTERAT, så (A,B) och (B,A) är samma rad. */
-function pairKey(a: string, b: string): [string, string] {
-  return a < b ? [a, b] : [b, a];
-}
 
 // Kategorier som ofta förväxlas av butiksfeeds (checklane = pack/blister).
 const COMPATIBLE = new Set(["BOOSTER_PACK|BLISTER", "BLISTER|BOOSTER_PACK"]);
@@ -161,13 +161,6 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
   const res: DedupeResult = { stubs: 0, llmCalls: 0, merged: 0, gtinMerges: 0, proposals: 0 };
   // Förslag för mänsklig granskning — speglas till /admin/halsokoll (bara STORE_HEALTH_DB=1).
   const proposalRows: HealthFindingInput[] = [];
-  // GTIN-mergarna kräver ingen LLM — men resten av jobbet gör det, så utan nyckel
-  // hoppar vi fortfarande över hela körningen (som förr). Vill vi köra ENBART
-  // streckkods-mergen görs det via scripts/gtin-report.ts (B) som är helt LLM-fri.
-  if (!process.env.ANTHROPIC_API_KEY) {
-    log("[dedupe-stubs] ANTHROPIC_API_KEY saknas — hoppar över.");
-    return res;
-  }
   const windowStart = new Date(Date.now() - STUB_WINDOW_DAYS * 24 * 3600 * 1000);
 
   const stubs = await prisma.product.findMany({
@@ -190,17 +183,7 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
   });
   log(`[dedupe-stubs] ${stubs.length} stubbar (≤${STUB_WINDOW_DAYS} dgr), ${catalog.length} sealed-produkter i katalogen.`);
 
-  // Alla tidigare domar som rör dessa stubbar — EN läsning, sedan i minnet.
-  const stubIds = stubs.map((s) => s.id);
-  const cachedRows = await prisma.dedupeVerdict.findMany({
-    where: { OR: [{ productAId: { in: stubIds } }, { productBId: { in: stubIds } }] },
-  });
-  const cache = new Map<string, (typeof cachedRows)[number]>();
-  for (const v of cachedRows) cache.set(`${v.productAId}|${v.productBId}`, v);
-  log(`[dedupe-stubs] ${cache.size} tidigare domar i cachen.`);
-
   const mergedIds = new Set<string>();
-  let cacheHits = 0;
   for (const stub of stubs) {
     if (mergedIds.has(stub.id)) continue;
     const stubTitle = cleanListingTitle(stub.title);
@@ -280,71 +263,20 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
       .slice(0, MAX_CANDIDATES);
 
     for (const { c } of candidates) {
-      const [aId, bId] = pairKey(stub.id, c.id);
-      const [aTitle, bTitle] = aId === stub.id ? [stubTitle, c.title] : [c.title, stubTitle];
-
-      // Cachad dom gäller BARA om båda titlarna är exakt de som dömdes. Ändrad titel
-      // (eller ändrad cleanListingTitle) → texten LLM:en såg finns inte längre → döm om.
-      const hit = cache.get(`${aId}|${bId}`);
-      const fresh = hit && hit.titleA === aTitle && hit.titleB === bTitle;
-
-      let same: boolean;
-      if (fresh) {
-        cacheHits++;
-        same = hit.same;
-      } else {
-        res.llmCalls++;
-        const v = await judgeSameProduct(stubTitle, c.title);
-        if (!v) continue; // LLM-fel (t.ex. slut på krediter) → dra ingen slutsats, cacha inget
-        same = v.same;
-        // Spara domen — det är NEGATIVA domar som annars betalas om varje vecka.
-        await prisma.dedupeVerdict.upsert({
-          where: { productAId_productBId: { productAId: aId, productBId: bId } },
-          update: { titleA: aTitle, titleB: bTitle, same, reason: v.reason, checkedAt: new Date() },
-          create: { productAId: aId, productBId: bId, titleA: aTitle, titleB: bTitle, same, reason: v.reason },
-        });
+      // Identisk ordmängd (era-namn, set-koder och fyllnadsord borträknade) ⇒ samma SKU. Inget annat
+      // mergar: det var redan kravet när en LLM-dom låg ovanpå, och den tillförde inget (se filhuvudet).
+      if (!mergeEquivalent(stubTitle, c.title)) continue;
+      // Meritlistan vinner: pekar mergen åt fel håll (stubben har Cardmarket-länken/prishistoriken)
+      // hade den raderat en graf som bara byggs framåt.
+      if (await mergeWouldLoseTrackRecord(stub.id, c.id)) {
+        log(`[dedupe-stubs] HOPPAR ÖVER "${stubTitle}" → "${c.title}": stubben har mer meritlista (CM/prishistorik) än målet.`);
+        continue;
       }
-
-      if (same) {
-        // ── LLM:EN FÅR FÖRESLÅ. DEN FÅR INTE RADERA. ─────────────────────────────────
-        // Torrkörningen 2026-07-14 lät Haiku döma hela backloggen (475 stubbar). Den sa
-        // "samma SKU" om bl.a.:
-        //   "Umbreon V Tin (US VERSION)"      vs "Umbreon V Tin"        (egna CM-SKU:er!)
-        //   "General Mills 2019 Booster"      vs "…25TH ANNIVERSARY…"   (olika utgåvor)
-        //   "ACRYLIC Booster Box Display"     vs "Booster Box + Acrylic case" (tillbehör!)
-        //   "Pitch Black Booster"             vs "Pitch Black SLEEVED Booster"
-        // Systemprompten FÖRBJUDER uttryckligen flera av dem. Modellen är utmärkt på att
-        // hitta KANDIDATER och usel som sista instans — precis som minnesanteckningen från
-        // 07-07 redan sagt ("LLM verify blessed the errors"). Vi lärde oss det igen.
-        //
-        // Därför: en merge kräver ALLTID mergeEquivalent (identisk ordmängd efter att era-
-        // namn, set-koder och fyllnadsord rensats). LLM-domen är ett EXTRA villkor ovanpå
-        // den, aldrig ett substitut. Allt annat rapporteras för mänsklig granskning.
-        if (!mergeEquivalent(stubTitle, c.title)) {
-          log(`[dedupe-stubs] FÖRSLAG (ej mergad — kräver granskning): "${stubTitle}" → "${c.title}"`);
-          res.proposals++;
-          proposalRows.push({
-            severity: "REVIEW",
-            title: `"${stubTitle}" → "${c.title}"`,
-            detail: "LLM sa samma SKU men ordmängdsvakten protesterade — merga bara manuellt",
-            // Titeln länkar STUBBEN; url länkar den föreslagna MÅLPRODUKTEN (intern länk).
-            productSlug: stub.slug,
-            url: `/produkter/${c.slug}`,
-          });
-          break;
-        }
-        // Meritlistan vinner även över en godkänd merge: pekar den åt fel håll (stubben har
-        // Cardmarket-länken/prishistoriken) hade den raderat en graf som bara byggs framåt.
-        if (await mergeWouldLoseTrackRecord(stub.id, c.id)) {
-          log(`[dedupe-stubs] HOPPAR ÖVER "${stubTitle}" → "${c.title}": stubben har mer meritlista (CM/prishistorik) än målet.`);
-          continue;
-        }
-        log(`${DRY_RUN ? "[DRY] " : ""}[dedupe-stubs] mergar "${stubTitle}" → "${c.title}" (${fresh ? "cachad dom" : "LLM"} + identisk ordmängd)`);
-        if (!DRY_RUN) await mergeStubInto(stub.id, c.id, log);
-        mergedIds.add(stub.id);
-        res.merged++;
-        break;
-      }
+      log(`${DRY_RUN ? "[DRY] " : ""}[dedupe-stubs] mergar "${stubTitle}" → "${c.title}" (identisk ordmängd)`);
+      if (!DRY_RUN) await mergeStubInto(stub.id, c.id, log);
+      mergedIds.add(stub.id);
+      res.merged++;
+      break;
     }
   }
 
@@ -352,7 +284,7 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
 
   log(
     `[dedupe-stubs] klart: ${res.merged} mergade av ${res.stubs} stubbar ` +
-      `(${res.gtinMerges} via streckkod, ${res.proposals} FÖRSLAG för granskning, ${res.llmCalls} LLM-anrop, ${cacheHits} ur cachen).`
+      `(${res.gtinMerges} via streckkod).`
   );
   return res;
 }

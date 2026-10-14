@@ -22,14 +22,13 @@ import {
   withNearMint,
   type FirstEdFilter,
 } from "../lib/marketplace-urls";
-import { judgeSameProduct } from "../lib/same-product";
 import { expansionSetJoin } from "../lib/cm-expansion-join";
 import { backfillCardmarketIds, buildCmIdByName, cmCatalogNameKey } from "../lib/cm-catalog-names";
 import { adoptCmName } from "./adopt-cm-name";
 import { createSetLabeler } from "./sealed-set-label";
 import { runJapaneseSetLabels } from "./jp-set-label";
 import { utcToday } from "../lib/utils";
-import { classifyForm, scoreSimilarity } from "../scrapers/matching";
+import { cardCountMismatch, classifyForm, packVsBoxMismatch, scoreSimilarity, unitCountMismatch } from "../scrapers/matching";
 import { recomputeProductPriceCache, snapshotStorePricedProducts } from "../services/products";
 import { rearmPriceAlerts } from "../services/alerts";
 import { dispatchPendingAlerts } from "../services/notifications";
@@ -1372,6 +1371,8 @@ export function isCmChineseName(name: string): boolean {
  * (rätt fel-kandidat borta) + domarens CASE-regel på kvarvarande "Booster Box Case".
  */
 const JP_TWIN_MARGIN = 0.1;
+/** JP → CM utan AI: kräv nära-exakt namn (samma tröskel som gällde utan domare före 2026-10-14). */
+const JP_MAP_MIN_SIM = 0.9;
 
 /** CM-katalogkategorier som får matchas per vår produktkategori (JP-mappning). */
 const JP_CM_CATEGORIES: Record<string, string[]> = {
@@ -1462,9 +1463,11 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
     const idm = cmOffer?.url?.match(/idProduct=(\d+)/);
     if (idm) idProduct = parseInt(idm[1], 10);
 
-    // Auto-mappning för JP-produkter utan CM-offer: namn-match mot CM-katalogen
-    // (rätt CM-kategori, oägt idProduct) + LLM-dom som SISTA vakt. Utan
-    // ANTHROPIC_API_KEY krävs nära-exakt namn (≥0.9) för att mappa.
+    // Auto-mappning för JP-produkter utan CM-offer: namn-match mot CM-katalogen (rätt CM-kategori,
+    // oägt idProduct). ⛔ INGEN AI SEDAN 2026-10-14 (ägarbeslut): nära-exakt namn (≥ JP_MAP_MIN_SIM,
+    // samma regel som gällde när domaren var otillgänglig) + form-/antalsvakterna. Vägen är nästan
+    // vilande — nya japanska SKU:er föds med exakt idProduct (cm-jp-sealed-import) och butiker skapar
+    // inga produkter sedan 2026-09-30 — så den städar bara gamla butiksskapade JP-produkter.
     if (idProduct == null) {
       const ourClean = jpComparableTitle(p.title);
       const allowedCats = JP_CM_CATEGORIES[p.category] ?? null;
@@ -1495,38 +1498,14 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
         continue;
       }
       for (const { c, sim } of cands) {
-        // ⛔ LEDTRÅDEN MÅSTE SÄGA ATT B ALDRIG BÄR SPRÅKMARKÖR (mätt 2026-08-07).
-        // Systemprompten i same-product.ts säger — helt riktigt i allmänhet — att
-        // "japansk ≠ engelsk utgåva är ALLTID olika produkter". Men Cardmarket
-        // skriver ALDRIG ut språket i namnet på en japansk expansion, medan VÅRA
-        // butikstitlar alltid gör det ("(Japansk)"). Domaren läste därför den
-        // saknade markören i B som en konkret motsägelse och svarade same=false på
-        // VARJE korrekt par: "Storm Emeralda Booster Box" (sim 0.91),
-        // "VMAX Climax Booster" (sim 1.00) och "Jet Black Spirit Booster Box" —
-        // alla avvisade. Följden var att INGEN ny japansk SKU någonsin kunde
-        // auto-mappas: fyra produkter satt utan pris och utan set, och Storm
-        // Emeralda-setet fanns därför inte alls i katalogen.
-        const verdict = await judgeSameProduct(
-          p.title,
-          c.name,
-          [
-            "B är Cardmarkets produktnamn för en JAPANSK expansion.",
-            "⚠️ Cardmarket skriver ALDRIG ut språket i namnet på japanska set. Att B saknar 'Japanese'/'Japansk'",
-            "är därför INGEN motsägelse och får ALDRIG ensamt ge same=false — A:s '(Japansk)' är butikens egen märkning.",
-            "Identiteten ligger i SETNAMNET och produkttypen: setten det gäller (VMAX Climax, Storm Emeralda,",
-            "Jet Black Spirit, Mega Brave …) gavs bara ut på japanska.",
-            "⚠️ MEN en konkret motsägelse väger ALLTID tyngre än den här ledtråden. Svara same=false när",
-            "produkttypen skiljer (pack ≠ box ≠ case ≠ collection box) ELLER när B är det INTERNATIONELLA",
-            "setet med samma namn: '151' ensamt är den internationella utgåvan medan 'Pokémon Card 151' är den",
-            "japanska, och heter B bara '151' ska svaret vara same=false även om A är japansk.",
-            // ⚠️ Just 151-fallet klarar domaren INTE pålitligt (mätt: 8 av 9 kontrollfall rätt, det här
-            // var missen). Skyddet i drift är strukturellt och sitter ovanför: `ownedBy` filtrerar bort
-            // varje idProduct som redan ägs av en produkt, och vår engelska katalog är komplett — CM:s
-            // internationella "151 Booster"/"151 Elite Trainer Box" ÄR alltså redan ägda av EN-produkter
-            // och når aldrig fram som kandidater. Domaren är andra linjen, inte första.
-          ].join(" ")
-        );
-        const accept = verdict ? verdict.same : sim >= 0.9;
+        // Tidigare frågades en LLM här; den avvisade först VARJE korrekt par (läste CM:s saknade
+        // språkmarkör som en motsägelse, 2026-08-07) och klarade inte 151-fällan. Skyddet mot fel
+        // tvilling är strukturellt och sitter ovanför: `ownedBy` + JP_TWIN_MARGIN.
+        const accept =
+          sim >= JP_MAP_MIN_SIM &&
+          !packVsBoxMismatch(p.title, c.name) &&
+          !unitCountMismatch(p.title, c.name) &&
+          !cardCountMismatch(p.title, c.name);
         if (accept) {
           idProduct = c.idProduct;
           ownedBy.set(c.idProduct, p.id);
