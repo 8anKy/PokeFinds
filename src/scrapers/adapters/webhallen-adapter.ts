@@ -364,7 +364,20 @@ export class WebhallenAdapter implements SourceAdapter {
         // Sista sidan upprepar ofta tidigare produkter — stoppa när inget nytt kommer
         if (newOnPage === 0) break;
       }
+    } catch (err) {
+      errors.push(
+        `Webhallen: ${err instanceof Error ? err.message : err}`
+      );
+    }
 
+    // ⛔ LIVE-FASEN OCH OBEKRÄFTAD-MÄRKNINGEN KÖRS ÄVEN NÄR SIDHÄMTNINGEN KASTAT (2026-10-14).
+    //    Webhallen svarade 503/504 i natt; sida 6 KASTADE efter politeFetch-omförsöken och
+    //    hela live-fasen låg i samma try ⇒ de 51 annonser som hann komma med fick sökindexets
+    //    PREORDER (indexet saknar nivålåset 26) och Discord postade "går nu att förhandsboka"
+    //    för sex Delta Reign-varor som ingen kan boka. En förhandsbokning härifrån räknas nu
+    //    bara när ett live-svar (färskt eller ur cachen) bekräftat den i DENNA hämtning.
+    const liveConfirmed = new Set<number>();
+    try {
       // LIVE-KOLL AV RESTOCK-KANDIDATER (2026-08-10): sök-API:ts lagerfält SLÄPAR —
       // uppmätt: Pitch Black ETB blev köpbar ~11:48 UTC men sök-feeden visade flippen
       // först 12:38, så fem gröna 10-minuterskörningar missade den och larmet kom
@@ -389,6 +402,7 @@ export class WebhallenAdapter implements SourceAdapter {
         if (cached && now - cached.at < LIVE_CACHE_TTL_MS) {
           const indexStatus = p.stockStatus;
           applyLiveDetail(p, cached.product, storeNames);
+          liveConfirmed.add((p.raw as WebhallenRaw).id);
           if (indexSaysCandidate || p.stockStatus !== indexStatus || p.storeOnly === true) {
             candidateSet.add(p);
           }
@@ -442,6 +456,7 @@ export class WebhallenAdapter implements SourceAdapter {
           //    hann ikapp var statusen redan IN — ingen flipp, inget andra inlägg.
           liveCache.set(raw.id, { product: detail.product, at: Date.now() });
           applyLiveDetail(p, detail.product, storeNames);
+          liveConfirmed.add(raw.id);
         } catch {
           /* best effort — sök-feedens status står kvar, precis som före live-kollen */
         }
@@ -451,11 +466,6 @@ export class WebhallenAdapter implements SourceAdapter {
       //    inte produkt-API:t för en sådan rad märks den obekräftad, och Discord-lanen
       //    behandlar den som frånvarande ett varv — en äkta förhandsbokning postas när
       //    live-svaret kommer (frånvarominnet minns "slut" ⇒ den blir en nyhet då).
-      for (const p of products) {
-        if (p.stockStatus === StockStatus.PREORDER && !liveCache.has((p.raw as WebhallenRaw).id)) {
-          p.stockUnconfirmed = true;
-        }
-      }
       // Tysta tak är roten till täckningshål — samma regel som Shopifys kollektionstak.
       // console.warn och INTE `errors`: ett täckningshål är inget adapterfel och ska
       // inte dra igång butikshälso-larmen via errorCount i runScrapeJob.
@@ -471,6 +481,11 @@ export class WebhallenAdapter implements SourceAdapter {
       errors.push(
         `Webhallen: ${err instanceof Error ? err.message : err}`
       );
+    }
+    for (const p of products) {
+      if (p.stockStatus === StockStatus.PREORDER && !liveConfirmed.has((p.raw as WebhallenRaw).id)) {
+        p.stockUnconfirmed = true;
+      }
     }
 
     return { products, errors };
