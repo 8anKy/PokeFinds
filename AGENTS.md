@@ -227,7 +227,7 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   av värdet) + största lyft (≥ 20 kr, ≥ 5 %). Spak `notificationSettings.portfolioPush` (saknad = på), `push` är
   master. iOS-only (APNs). Torrkörning: `scripts/portfolio-push-run.ts --dry-run --force` (70 mottagare 10-13).
 - **GIVEAWAY MED LOTTER (2026-10-13, ägarbeslut)**: `/giveaway` (routegrupp `(mer)`, gäster ser pris + krav), pris
-  30th Celebration ETB — ENDA vinsten (ägarbeslut 2026-10-13, inga Pro-pris). Start 2026-10-15 00:00 (DOLD före: 404 + ingen Mer-rad, admin ser den; flytta med `GIVEAWAY_STARTS_AT`), slut 2026-11-15 23:59 svensk tid
+  30th Celebration ETB — ENDA vinsten (ägarbeslut 2026-10-13, inga Pro-pris). Start 2026-10-17 00:00 (flyttad från 10-15, ägarbeslut; DOLD före: 404 + ingen Mer-rad, admin ser den; flytta med `GIVEAWAY_STARTS_AT`), slut 2026-11-15 23:59 svensk tid
   ELLER i förtid vid 1 000 TikTok-följare: sätt `GIVEAWAY_CLOSES_AT` (ISO) i Railway ~24 h framåt och meddela det.
   Lotter (`lib/giveaway.ts`, ren + testad): anmäld 5 · skannat UNIKT kort i samlingen 1 st (max 100) · inbjuden vän
   som verifierat OCH återbesökt 10 st (max 10) · restock-larm 5 · Discord kopplat via "Koppla Discord" (lägger in
