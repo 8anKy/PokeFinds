@@ -328,12 +328,15 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   ur RapidAPI-kvoten, rotation `Product.ebaySoldCheckedAt`) ⇒ `GradedSale` med `source: "ebay"`, eBay UK i GBP;
   leverantörens matchning är LÖS ⇒ samma bevisvakter som ask-svepet; datat släpar ~2 mån. PriceCharting
   behövs inte längre — memory `graded-price-sources`.
-- **SKANNERMOTOR UTAN AI I SKUGGLÄGE SEDAN 2026-09-30** (`scanner-engine/`, egen Railway-tjänst som SOVER mellan
-  passen): SIFT + faiss + RANSAC, ingen modell. Varje inloggad skanning skickas även dit och svaret bokförs som
-  `ScannerJob.result.shadow` — påverkar INGET i svaret. Offline: ägarens app-foton 99/99 (dagens skanner 92/99),
-  Tradera-säljarfoton ~91,5 %, ~0,35 s. Data i bucketen `scanner-engine/<DATA_VERSION>/`. Mät med
-  `scripts/scanner-shadow-report.ts`; Gemini stängs av först när skuggan vinner i fält. Drift/kostnad:
-  `scanner-engine/README.md`. ⛔ Allt som läggs till i Railway-dashboarden MÅSTE in i `.railway/railway.ts` — filen
+- **SKANNERMOTORN UTAN AI ÄR SKANNERN FÖR ALLA, GEMINI AV (ägarbeslut 2026-10-14)** (`scanner-engine/`, egen
+  Railway-tjänst som SOVER mellan passen): SIFT + faiss + RANSAC + inlärd bildvektor. `SCANNER_ENGINE_PRIMARY=all`
+  (railway.ts). Skuggrapporten före bytet (7 d, 1 304 domar): motorn 85,8 % mot Gemini-skannerns 83,6 %; svaga
+  punkten = EN ↔ JP-tryck (rätt kort oftast #2). ⛔ INGEN vision som reserv: svarar motorn inte avgör konstavtrycket
+  ensamt (`identifyCard({ noVision })`), osäkert ⇒ valsteget. Telefonens on-device-nummer väljer mellan NAMNSYSKON i
+  motorns topp-5 (`pickByLocalNumber`, replay 49 rättade / 4 förstörda); sessionens språkhint på motorn mättes NETTO
+  NEGATIV — använd den inte. Graderingen (`GRADING_PROVIDER`) går fortfarande på Gemini. Skuggrapporten jämför inte
+  längre två skannrar (motorlägesrader räknas bort) — följ rättelsefrekvensen i stället. Data i bucketen
+  `scanner-engine/<DATA_VERSION>/`. Drift/kostnad: `scanner-engine/README.md`. ⛔ Allt som läggs till i Railway-dashboarden MÅSTE in i `.railway/railway.ts` — filen
   från 09-02 hade annars raderat bucketen + 14 variabler vid nästa apply; läs ALLTID "to destroy" i plan.
   **+ INLÄRD BILDVEKTOR SEDAN 2026-10-08 (ägarbeslut: "train the system if needed" + "skannern ska bli bättre
   för varje gång")**: finjusterad SigLIP2-base (tränad lokalt ENBART på katalogbilder med syntetiska
