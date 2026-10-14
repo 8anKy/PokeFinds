@@ -21,7 +21,8 @@ import { PrismaClient } from "@prisma/client";
 import { getObjectBytes, listKeys, storageEnabled } from "../src/lib/object-storage";
 
 const prisma = new PrismaClient();
-const OUT = path.join(process.cwd(), ".spike", "facit");
+// OUT=.spike/field-facit för benchmarken (scanner-engine/benchmark.py) — skriv inte över .spike/facit.
+const OUT = path.join(process.cwd(), ".spike", process.env.OUT ?? "facit");
 const SINCE = process.env.SINCE ? new Date(process.env.SINCE) : new Date("2026-09-29");
 
 interface UserChosen {

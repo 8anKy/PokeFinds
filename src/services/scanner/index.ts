@@ -11,6 +11,7 @@ import type { EngineResponse } from "@/lib/scanner-engine-shadow";
 import { ServiceError } from "@/lib/errors";
 import { FINGERPRINT_BYTES, STRUCT_BYTES } from "@/lib/art-fingerprint";
 import { subsetAliasExternalIds } from "@/lib/subset-number-alias";
+import { engineChoiceOrder, engineNoCard } from "@/lib/engine-choice";
 import { cardNumberSortKey } from "@/lib/card-number-order";
 import { parseScanSearch } from "@/lib/scan-search-query";
 // ⛔ Delad med graderingen OCH adminens kostnadsvy — kvotfönstret måste vara
@@ -2382,13 +2383,41 @@ const ENGINE_CONFIDENT_INLIERS = 25;
  * Sessionens språkhint skickas INTE vidare: motorn avgör språket på textytan, och hinten fällde
  * dagens skanner på de engelska korten i ägarens blandade hög (2026-09-30).
  */
-async function identifyFromEngine(engine: EngineResponse): Promise<IdentifyResult> {
+async function identifyFromEngine(engine: EngineResponse, fingerprintMatches: ArtMatch[] = []): Promise<IdentifyResult> {
   const ranked = (engine.candidates ?? []).filter((c) => c.cardId);
+  const bestInliers = ranked[0]?.inliers ?? 0;
+  const fpTop = fingerprintMatches[0]?.score ?? null;
+  // INGET KORT I BILDEN (2026-10-14, ägaren: "en bild på min hand gav ett kort att välja"). Motorn
+  // svarar alltid med sina närmaste kort; ingen geometri ALLS + svagt konstavtryck = ingen lista.
+  // Mätt 30 d: 21 av 174 raderade skanningar fångas, mot 9 riktiga kort (motorn hade 1 rätt).
+  const base = {
+    provider: "motor",
+    model: null,
+    guessedName: null,
+    guessedNumber: null,
+    guessedEra: null,
+    guessedHp: null,
+    usage: null,
+    // Konstavtryckets etta bokförs (recall.top) — signalen bakom "inget kort"-regeln ska gå att mäta om.
+    artTop: fpTop,
+    artMargin: null,
+    artGateMargin: null,
+    artAgree: false,
+    artDecided: true,
+    engineDecided: true,
+  } as const;
+  if (engineNoCard(bestInliers, fpTop)) {
+    return { ...base, noCard: true, confidence: 0, candidates: [], ambiguous: false, tied: false, artTopLabel: null, artCandidateIds: [] };
+  }
+  const confident = bestInliers >= ENGINE_CONFIDENT_INLIERS ? (engine.best ?? ranked[0].cardId) : null;
   // Poäng ur PLATSEN, inte ur inlier-talet: matchCards ska återge motorns ordning, och inliers
   // är inte en likhet 0..1 (ett annat kort kan ha fler råa punkter och ändå vara fel).
-  const artScores = new Map(ranked.map((c, i) => [c.cardId, Math.max(0.3, 0.95 - i * 0.02)]));
-  const bestInliers = ranked[0]?.inliers ?? 0;
-  const confident = bestInliers >= ENGINE_CONFIDENT_INLIERS ? (engine.best ?? ranked[0].cardId) : null;
+  // Osäker motor ⇒ valsteget, och då blandas konstavtryckets etta–trea in efter motorns tre bästa
+  // (engineChoiceOrder) — mätt 30 d på < 25 inliers: rätt kort i sexlistan 220 mot 189 av 321.
+  const order = confident
+    ? ranked.map((c) => c.cardId)
+    : engineChoiceOrder(ranked.map((c) => c.cardId), fingerprintMatches.map((m) => m.cardId));
+  const artScores = new Map(order.map((id, i) => [id, Math.max(0.3, 0.95 - i * 0.02)]));
   const ocr: OcrResult = { rawText: "", confidence: confident ? 0.95 : 0.4 };
   const artMatches: ArtMatch[] = ranked.map((c) => ({ cardId: c.cardId, score: artScores.get(c.cardId)! }));
   const [candidates, artTopLabel] = await Promise.all([
@@ -2397,24 +2426,12 @@ async function identifyFromEngine(engine: EngineResponse): Promise<IdentifyResul
   ]);
   const distinctCards = new Set(candidates.map((c) => c.cardId)).size;
   return {
-    provider: "motor",
-    model: null,
-    guessedName: null,
-    guessedNumber: null,
-    guessedEra: null,
-    guessedHp: null,
+    ...base,
     confidence: ocr.confidence,
-    usage: null,
     candidates,
     ambiguous: !confident,
     // Osäker motor ⇒ valsteget (samma villkor som klienten redan läser: tied + ≥ 2 olika kort).
     tied: !confident && distinctCards >= 2,
-    artTop: null,
-    artMargin: null,
-    artGateMargin: null,
-    artAgree: false,
-    artDecided: true,
-    engineDecided: true,
     artTopLabel,
     artCandidateIds: ranked.map((c) => c.cardId),
   };
@@ -2450,9 +2467,7 @@ export async function identifyCard(
     noVision?: boolean;
   } = {}
 ): Promise<IdentifyResult> {
-  if (opts.engine && !opts.engine.error && (opts.engine.candidates?.length ?? 0) > 0) {
-    return identifyFromEngine(opts.engine);
-  }
+  const engineAnswered = !!opts.engine && !opts.engine.error && (opts.engine.candidates?.length ?? 0) > 0;
   const adapter = getOcrAdapter(opts.precise);
   // BILDEN FÖRST, MODELLEN VID BEHOV (2026-07-31): sökningen är ~40 ms CPU mot
   // ett index i minnet; vision-anropet är 1–2 s och kostar per anrop. Är
@@ -2472,6 +2487,9 @@ export async function identifyCard(
       ? { best: await searchByFingerprints(single, ART_CANDIDATES), frameTops: [] }
       : { best: [], frameTops: [] };
   const artMatches = detailed.best;
+  // MOTORLÄGE: avtrycket (~40 ms, index i minnet) behövs ändå — "inget kort"-domen och valstegets
+  // reserver (engine-choice.ts). Motorns ordning är fortfarande domen.
+  if (engineAnswered) return identifyFromEngine(opts.engine!, artMatches);
 
   const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
   // MARGINALEN till tvåan är det som avgör om bildträffen går att lita på —
