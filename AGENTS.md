@@ -226,6 +226,10 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   (riktiga NM-engelska annonser; CM har bara ett allspråks-trendtal där). (2) Utropsvakten 4x behålls (EN med
   språkbekräftelse, JP utan). (3) Graderade rutor utan affärer visar begärt märkt "Till salu", aldrig omärkt.
   (4) Rubriken: en Tradera-annons slår ALDRIG ett CM-pris (`headlineCandidates`, ersätter 09-22-regeln för rubriken).
+  **CM-only-korten**: pris = prisguidens `low` (= CM:s From; enspråksutgåvor ⇒ inget språkfel), levande; vakt från 2 €
+  (`cmOnlyGuidePrice`). Bild = CardTraders blueprintbild via `/api/ct-image` (CM:s singelbilder kräver expansionskod
+  vi saknar), reserv = originalkortets bild. **Setbrickor**: set utan (eller med död) logotyp får en ritad bricka av
+  tre kort (`scripts/generate-set-tiles.ts`, `public/set-logos/generated/`, 184 set 2026-10-15).
 - **FOILIO HETER SCOUTR SEDAN 2026-10-12 (ägarbeslut, EUIPO-anspråket på FOILIO)**: all synlig text, mejl, logga
   (`public/brand/scoutr-*`, källfiler + generatorer i `work/scoutr-logo/`, original-6 sparad som alt) och domänen
   **scoutr.se** (Cloudflare-zon, Railway-domän, Resend verifierad; Brevo används INTE längre — bulk går via Resend).
