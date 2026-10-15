@@ -357,13 +357,15 @@ async function importMissing(apply: boolean) {
       if (!apply) continue;
 
       if (!setId) {
-        const dates = [...(bp.card_market_ids ?? [])].map((id) => cmById.get(id)?.dateAdded).filter((d) => d && !d.startsWith("0000"));
         const created = await prisma.cardSet.create({
           data: {
             name: exp.name,
             series: "Other",
             language: lang,
-            releaseDate: dates[0] ? new Date(dates[0]!.replace(" ", "T") + "Z") : null,
+            // ⛔ INTE Cardmarkets dateAdded — det är när CM lade in produkten (WCD 2010 fick
+            // "släppt 27 jan 2026"). Okänt datum = null ("–"); scripts/fix-cm-only-set-dates.ts
+            // fyller i TCGdex riktiga datum där de finns.
+            releaseDate: null,
             totalCards: 0,
             totalCardsFull: 0,
             externalId: `ct:${exp.id}`,
