@@ -100,3 +100,34 @@ export function winningSet(votes: Map<string, number> | undefined): string | nul
   }
   return best && bestN >= 3 && bestN / total >= 0.8 ? best : null;
 }
+
+/**
+ * PRIS FÖR KORT SOM BARA FINNS PÅ CARDMARKET (ägaren 2026-10-15: "de har ett Near Mint
+ * From-pris men visas som uppskattat"). Prisleverantören har inte de här produkterna, så
+ * den enda CM-källan är prisguiden. Dess `low` = Cardmarkets lägsta annons för PRODUKTEN —
+ * det "From" CM:s produktsida visar (Marnie's Morpeko svOM 020: low 13,38 € = sidans From).
+ * Regeln "aldrig guidens low" gäller vanliga kort, där produkten bär annonser på ALLA språk
+ * (en tysk/japansk kopia blir golvet). De här produkterna är var och en EN språkutgåva (JP-
+ * startdäck, engelska stämplar, bollmönster), så språkfelet finns inte; kvar är skicket.
+ * Därför en rimlighetsvakt, men BARA för kort värda något: under `CM_ONLY_GUARD_FROM_EUR` (2 €)
+ * är low verklighetens From (0,02 € för en common), och mätt 2026-10-15 gick 81 % av de
+ * fällda till just sådana kort. Från 2 € måste low vara minst `CM_ONLY_LOW_MIN_SHARE` (25 %)
+ * av det LÄGSTA av försäljningssnitten (trend/avg30/avg7) — ett ensamt brusigt snitt i en
+ * tunn marknad får inte fälla den. Fälld ⇒ uppskattning (median av trend/avg/avg30).
+ */
+export const CM_ONLY_LOW_MIN_SHARE = 0.25;
+export const CM_ONLY_GUARD_FROM_EUR = 2;
+export function cmOnlyGuidePrice(g: {
+  low?: number | null; trend?: number | null; avg?: number | null; avg30?: number | null; avg7?: number | null;
+} | null | undefined): { eur: number; live: boolean } | null {
+  if (!g) return null;
+  const pos = (v: number | null | undefined) => (typeof v === "number" && v > 0 ? v : null);
+  const refs = [pos(g.trend), pos(g.avg), pos(g.avg30)].filter((v): v is number => v != null).sort((a, b) => a - b);
+  const mid = refs.length ? (refs.length % 2 ? refs[refs.length >> 1] : (refs[refs.length / 2 - 1] + refs[refs.length / 2]) / 2) : null;
+  const low = pos(g.low);
+  const sales = [pos(g.trend), pos(g.avg30), pos(g.avg7)].filter((v): v is number => v != null);
+  const floor = sales.length ? Math.min(...sales) : null;
+  if (low != null && (floor == null || (pos(g.trend) ?? 0) < CM_ONLY_GUARD_FROM_EUR || low >= CM_ONLY_LOW_MIN_SHARE * floor))
+    return { eur: low, live: true };
+  return mid != null ? { eur: mid, live: false } : null;
+}

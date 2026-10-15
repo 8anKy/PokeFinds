@@ -56,6 +56,7 @@ import { exitJob } from "@/lib/job-exit";
 import {
   NON_EN_JP_EXPANSION,
   ballExpansion,
+  cmOnlyGuidePrice,
   blueprintLanguage,
   numberKey,
   setNameContained,
@@ -105,9 +106,11 @@ async function guideMap(): Promise<Map<number, CmGuideFields>> {
   return new Map(g.priceGuides.map((x) => [x.idProduct, x]));
 }
 
-function estimateOre(g: CmGuideFields | undefined, rates: Awaited<ReturnType<typeof getRatesOre>>): number | null {
-  const priced = g ? singlesHeadlineEur({}, g) : null;
-  return priced ? priceOreFromEur(priced.eur, rates) : null;
+/** Pris + lagerstatus ur prisguiden — se `cmOnlyGuidePrice` (low = CM:s From, annars uppskattning). */
+function guideOffer(g: CmGuideFields | undefined, rates: Awaited<ReturnType<typeof getRatesOre>>): { priceOre: number; stock: "IN_STOCK" | "OUT_OF_STOCK" } | null {
+  const priced = cmOnlyGuidePrice(g);
+  const priceOre = priced ? priceOreFromEur(priced.eur, rates) : null;
+  return priceOre == null ? null : { priceOre, stock: priced!.live ? "IN_STOCK" : "OUT_OF_STOCK" };
 }
 
 const offerUrl = (lang: Lang, id: number) =>
@@ -177,6 +180,31 @@ async function importMissing(apply: boolean) {
       await prisma.product.updateMany({ where: { cardId: c.id }, data: { imageUrl: img } });
     });
     console.log(`Bilder: ${fixed} av ${broken.length} bildlösa Cardmarket-only-kort får CardTraders bild.`);
+    // RESERV: omtrycket utan egen bild får ORIGINALETS bild (samma konst) — samma språk,
+    // samma namn, samma siffror i numret. WCD 2023 + JP-startdäcken saknar bild både hos
+    // CardTrader och Cardmarket (159 kort 2026-10-15). Bättre originalets konst än en tom ruta.
+    const still = await prisma.card.findMany({
+      where: { tcgExternalId: { startsWith: CM_ONLY_PREFIX }, OR: [{ imageUrl: null }, { imageUrl: { startsWith: "/api/cm-image/" } }] },
+      select: { id: true, name: true, number: true, language: true, cardmarketId: true },
+    });
+    let borrowed = 0;
+    for (const c of still) {
+      if (c.cardmarketId != null && imageByCm.has(c.cardmarketId)) continue;
+      const base = c.name.replace(/ \(JP\)$/, "");
+      const twins = await prisma.card.findMany({
+        where: { language: c.language, name: { startsWith: base.split(" ")[0] }, imageUrl: { not: null }, NOT: [{ imageUrl: { startsWith: "/api/cm-image/" } }, { id: c.id }] },
+        select: { name: true, number: true, imageUrl: true },
+        take: 200,
+      });
+      const twin = twins.find((t) => digitsKey(t.number) === digitsKey(c.number) && cmCardNameAgrees(t.name.replace(/ \(JP\)$/, ""), base))
+        ?? twins.find((t) => cmCardNameAgrees(t.name.replace(/ \(JP\)$/, ""), base) && cmCardNameAgrees(base, t.name.replace(/ \(JP\)$/, "")));
+      if (!twin?.imageUrl) continue;
+      borrowed++;
+      if (!apply) continue;
+      await prisma.card.update({ where: { id: c.id }, data: { imageUrl: twin.imageUrl } });
+      await prisma.product.updateMany({ where: { cardId: c.id }, data: { imageUrl: twin.imageUrl } });
+    }
+    console.log(`Bilder: ${borrowed} omtryck utan egen bild fick originalets bild.`);
   }
 
   imageByCmGlobal = imageByCm;
@@ -247,8 +275,9 @@ async function importMissing(apply: boolean) {
       if (!cmCardNameAgrees(bp.name, cm.name)) { stats.nameMismatch++; continue; }
       const number = String(bp.fixed_properties?.collector_number ?? "").trim();
       if (!number) { stats.noNumber++; continue; }
-      const priceOre = estimateOre(guide.get(idProduct), rates);
-      if (priceOre == null) { stats.unpriced++; continue; }
+      const priced = guideOffer(guide.get(idProduct), rates);
+      if (priced == null) { stats.unpriced++; continue; }
+      const { priceOre, stock } = priced;
       const label = versionLabel(bp.version);
 
       // BOLLMÖNSTER → vår befintliga variantprodukt får Cardmarket-priset.
@@ -263,8 +292,8 @@ async function importMissing(apply: boolean) {
         const key = { productId, retailerId: cmRetailer, condition: "NEAR_MINT" as const, language: lang };
         await prisma.offer.upsert({
           where: { productId_retailerId_condition_language: key },
-          update: { price: priceOre, stockStatus: "OUT_OF_STOCK", url: offerUrl(lang, idProduct), lastSeenAt: new Date() },
-          create: { ...key, price: priceOre, currency: "SEK", stockStatus: "OUT_OF_STOCK", url: offerUrl(lang, idProduct) },
+          update: { price: priceOre, stockStatus: stock, url: offerUrl(lang, idProduct), lastSeenAt: new Date() },
+          create: { ...key, price: priceOre, currency: "SEK", stockStatus: stock, url: offerUrl(lang, idProduct) },
         });
         if (ctRetailer) await prisma.offer.deleteMany({ where: { productId, retailerId: ctRetailer.id } });
         continue;
@@ -308,7 +337,7 @@ async function importMissing(apply: boolean) {
         ) {
           stats.createdInExistingSet++;
           byExp.set(`${lang} · ${sets.find((s) => s.id === existingSet)?.name} (befintligt set)`, (byExp.get(`${lang} · ${sets.find((s) => s.id === existingSet)?.name} (befintligt set)`) ?? 0) + 1);
-          if (apply && (await createCard({ bp, exp, lang, idProduct, number, label, priceOre, setId: existingSet, setName: sets.find((s) => s.id === existingSet)?.name ?? exp.name }))) usedCmIds.add(idProduct);
+          if (apply && (await createCard({ bp, exp, lang, idProduct, number, label, priceOre, stock, setId: existingSet, setName: sets.find((s) => s.id === existingSet)?.name ?? exp.name }))) usedCmIds.add(idProduct);
         } else {
           stats.existingSetSkipped++;
           // Varför? 0 kort med nummer + namn = kortet SAKNAS i vårt set (ofta en stämplad/
@@ -347,7 +376,7 @@ async function importMissing(apply: boolean) {
         stats.setsCreated++;
       }
 
-      if (await createCard({ bp, exp, lang, idProduct, number, label, priceOre, setId, setName })) usedCmIds.add(idProduct);
+      if (await createCard({ bp, exp, lang, idProduct, number, label, priceOre, stock, setId, setName })) usedCmIds.add(idProduct);
     }
   }
 
@@ -366,8 +395,8 @@ async function importMissing(apply: boolean) {
 
 
 /** Skapar kort + produkt + Cardmarket-offer (uppskattning ur prisguiden). */
-async function createCard(a: { bp: RawBlueprint; exp: CtExpansion; lang: Lang; idProduct: number; number: string; label: string; priceOre: number; setId: string; setName: string }): Promise<boolean> {
-  const { bp, exp, lang, idProduct, number, label, priceOre, setId, setName } = a;
+async function createCard(a: { bp: RawBlueprint; exp: CtExpansion; lang: Lang; idProduct: number; number: string; label: string; priceOre: number; stock: "IN_STOCK" | "OUT_OF_STOCK"; setId: string; setName: string }): Promise<boolean> {
+  const { bp, exp, lang, idProduct, number, label, priceOre, stock, setId, setName } = a;
   const display = lang === "JP" ? `${bp.name} (JP)` : bp.name;
   const title = `${display} · ${setName} ${number}${label ? ` · ${label}` : ""}`;
   const imageUrl = imageByCmGlobal.get(idProduct) ?? null;
@@ -394,7 +423,7 @@ async function createCard(a: { bp: RawBlueprint; exp: CtExpansion; lang: Lang; i
   await prisma.offer.create({
     data: {
       productId: product.id, retailerId: cmRetailer, condition: "NEAR_MINT", language: lang,
-      price: priceOre, currency: "SEK", stockStatus: "OUT_OF_STOCK", url: offerUrl(lang, idProduct),
+      price: priceOre, currency: "SEK", stockStatus: stock, url: offerUrl(lang, idProduct),
     },
   });
   return true;
@@ -422,7 +451,7 @@ async function refreshPrices() {
   const offers = await prisma.offer.findMany({
     where: {
       retailerId: cmRetailer,
-      lastSeenAt: { lt: today },
+      ...(process.argv.includes("--all") ? {} : { lastSeenAt: { lt: today } }),
       OR: [
         { product: { card: { tcgExternalId: { startsWith: CM_ONLY_PREFIX } } } },
         { product: { variantLabel: { in: ["Poké Ball Reverse Holo", "Master Ball Reverse Holo"] } } },
@@ -430,22 +459,22 @@ async function refreshPrices() {
     },
     select: { id: true, productId: true, url: true },
   });
-  const priced: { productId: string; priceOre: number }[] = [];
+  const points: { productId: string; priceOre: number }[] = [];
   await mapPool(offers, 8, async (o) => {
     // Länken bär produktens idProduct — för bollvarianterna är kortets cardmarketId det VANLIGA kortets.
     const id = Number(/idProduct=(\d+)/.exec(o.url)?.[1] ?? NaN);
-    const priceOre = Number.isFinite(id) ? estimateOre(guide.get(id), rates) : null;
-    if (priceOre == null) return;
-    await prisma.offer.update({ where: { id: o.id }, data: { price: priceOre, stockStatus: "OUT_OF_STOCK", lastSeenAt: new Date() } });
-    priced.push({ productId: o.productId, priceOre });
+    const priced = Number.isFinite(id) ? guideOffer(guide.get(id), rates) : null;
+    if (priced == null) return;
+    await prisma.offer.update({ where: { id: o.id }, data: { price: priced.priceOre, stockStatus: priced.stock, lastSeenAt: new Date() } });
+    points.push({ productId: o.productId, priceOre: priced.priceOre });
   });
-  if (cmSource && priced.length) {
-    await prisma.priceObservation.createMany({ data: priced.map((p) => ({ productId: p.productId, sourceId: cmSource.id, price: p.priceOre, currency: "SEK" })) });
-    await upsertTodaySnapshots(priced, today);
+  if (cmSource && points.length) {
+    await prisma.priceObservation.createMany({ data: points.map((p) => ({ productId: p.productId, sourceId: cmSource.id, price: p.priceOre, currency: "SEK" })) });
+    await upsertTodaySnapshots(points, today);
   }
   const { recomputeProductPriceCache } = await import("@/services/products");
   await recomputeProductPriceCache();
-  console.log(`[cm-only] ${priced.length} av ${offers.length} Cardmarket-only-kort/bollvarianter prissatta ur prisguiden.`);
+  console.log(`[cm-only] ${points.length} av ${offers.length} Cardmarket-only-kort/bollvarianter prissatta ur prisguiden.`);
 }
 
 const args = process.argv.slice(2);

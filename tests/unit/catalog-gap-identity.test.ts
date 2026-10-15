@@ -9,6 +9,7 @@ import {
   setNameContained,
   versionLabel,
   winningSet,
+  cmOnlyGuidePrice,
 } from "@/lib/catalog-gap-identity";
 import { episodeSetFromVotes } from "@/jobs/cardmarket-refresh";
 import { SCANNER_INCLUDED_CARD } from "@/lib/scanner-exclusion";
@@ -90,5 +91,24 @@ describe("skannerns index", () => {
     const and = (SCANNER_INCLUDED_CARD as { AND: unknown[] }).AND;
     expect(and[0]).toEqual({ OR: [{ tcgExternalId: null }, { NOT: { tcgExternalId: { startsWith: "cm:" } } }] });
     expect(and[1]).toEqual({ NOT: { set: { name: { startsWith: "Play! Pokémon Prize Pack" } } } });
+  });
+});
+
+describe("pris för kort som bara finns på Cardmarket", () => {
+  it("prisguidens low = Cardmarkets From (Marnie's Morpeko svOM 020: 13,38 €) — en levande annons", () => {
+    expect(cmOnlyGuidePrice({ low: 13.38, trend: 15.86, avg: 20.93, avg30: 21.8 })).toEqual({ eur: 13.38, live: true });
+  });
+  it("billiga kort: low ÄR From (0,03 € för en common) — ingen vakt under 2 €", () => {
+    expect(cmOnlyGuidePrice({ low: 0.03, trend: 0.42, avg: 0.34, avg30: 0.33 })).toEqual({ eur: 0.03, live: true });
+  });
+  it("värdefulla kort: ett exemplar under 25 % av lägsta snittet är skadat ⇒ uppskattning", () => {
+    expect(cmOnlyGuidePrice({ low: 3, trend: 43.5, avg: 50, avg30: 15.5, avg7: 15.5 })).toEqual({ eur: 43.5, live: false });
+    // men ett brusigt högt trendtal fäller inte en rimlig From (Charizard ex JP: 4,95 mot avg30 15,02)
+    expect(cmOnlyGuidePrice({ low: 4.95, trend: 32.72, avg: 68, avg30: 15.02, avg7: 23.08 })).toEqual({ eur: 4.95, live: true });
+  });
+  it("utan low ⇒ uppskattning, utan något ⇒ null", () => {
+    expect(cmOnlyGuidePrice({ trend: 96.98, avg: 106.98, avg30: 99.69 })).toEqual({ eur: 99.69, live: false });
+    expect(cmOnlyGuidePrice({})).toBeNull();
+    expect(cmOnlyGuidePrice(null)).toBeNull();
   });
 });
