@@ -152,3 +152,12 @@ identiska ut i en kortlista. Formeln vore mest fel exakt där användarna bryr s
 Vi visar i stället `SetComposition` — setets faktiska sammansättning — med en SYNLIG rad som säger varför
 inga dragodds visas. `tests/unit/set-composition.test.ts` har en regressionsspärr mot att någon lägger
 tillbaka en oddsberäkning.
+
+# Graderade poster: slab + värde på SÅLT (2026-10-15, Pro)
+
+- ⛔ **VÄRDET ÄR SÅLT, ALDRIG BEGÄRT** (`gradedSoldValue`): median av de senaste ≤ 5 affärerna inom 365 d för SAMMA
+  (produkt, bolag, betyg), eBay först, Tradera som reserv — en källa åt gången. Inga affärer ⇒ postens OGRADERADE värde
+  och UI:t säger det. `OTHER` ("Övriga") får aldrig ett graderat värde. Kortpost utan produkt: tryckningen med flest affärer.
+- ⛔ **Slabben följer inte råkortets CM-trend**: platt i värdegrafen, utesluten ur movers (`gradedValued`).
+- Pro-grinden sitter i VÄRDERINGEN (`valueCollectionItemsDetailed({ graded })`) och i rutnätet (`isPro`), inte i
+  skrivningen: gratis får spara gradering (säljarket/Tradera behöver den) och ser ett låst chip ⇒ förhandsvisande paywall.

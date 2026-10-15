@@ -32,6 +32,21 @@ export interface PaywallOpenOptions {
    * något meningsfullt först — hen ska be om ett konto, inte om ett kort.
    */
   mode?: "pro" | "signup";
+  /**
+   * FÖRHANDSVISNING i arket (2026-10-15): i stället för Pro-kortet ritas det som
+   * prompten handlar om — användarens EGET kort i sin slab. Arket är fortfarande
+   * samma ark (samma rader, samma köpknapp); bara bilden högst upp byts.
+   */
+  preview?: PaywallSlabPreview;
+}
+
+export interface PaywallSlabPreview {
+  kind: "slab";
+  imageUrl: string | null;
+  /** Normaliserat bolag (`GradingIssuer`). */
+  issuer: string;
+  gradeTenths: number;
+  name: string;
 }
 
 import { track } from "@/lib/track";

@@ -8,7 +8,10 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { ProHoloCard } from "@/components/features/pro-holo-card";
 import { ProSpecTable } from "@/components/features/pro-spec-table";
 import { UpgradeButton } from "@/components/features/upgrade-button";
-import { registerPaywallOpen } from "@/lib/paywall";
+import { registerPaywallOpen, type PaywallSlabPreview } from "@/lib/paywall";
+import { GradedSlab } from "@/components/features/graded-slab";
+import { ISSUER_LABELS, type GradingIssuer } from "@/lib/graded-listing";
+import { gradeNumber } from "@/lib/graded-slab";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { getSharedSession } from "@/lib/client-session";
 import { onOverlayElevationChange, overlayIsElevated } from "@/lib/product-overlay-open";
@@ -51,6 +54,7 @@ export function PaywallSheetHost({ webCheckout }: { webCheckout: boolean }) {
    * DB-fria hämtning och är oftast redan besvarad.
    */
   const [variant, setVariant] = useState<"pro" | "signup">("pro");
+  const [preview, setPreview] = useState<PaywallSlabPreview | null>(null);
   // Skannern är fixed z-[60] över hela appen; öppnas arket därifrån måste det
   // lyftas över den — samma mekanism som produkt-overlayn (registerFullscreenHost).
   const [elevated, setElevated] = useState(false);
@@ -65,6 +69,7 @@ export function PaywallSheetHost({ webCheckout }: { webCheckout: boolean }) {
     registerPaywallOpen((opts) => {
       const forced = opts?.mode;
       setVariant(forced ?? (hasAuthHint() ? "pro" : "signup"));
+      setPreview(opts?.preview ?? null);
       setOpen(true);
       if (forced) return;
       void getSharedSession().then((session) => {
@@ -79,7 +84,9 @@ export function PaywallSheetHost({ webCheckout }: { webCheckout: boolean }) {
 
   if (!open) return null;
   if (variant === "signup") return <SignupSheet onClose={() => setOpen(false)} elevated={elevated} />;
-  return <PaywallSheet onClose={() => setOpen(false)} webCheckout={webCheckout} elevated={elevated} />;
+  return (
+    <PaywallSheet onClose={() => setOpen(false)} webCheckout={webCheckout} elevated={elevated} preview={preview} />
+  );
 }
 
 /**
@@ -146,10 +153,12 @@ function PaywallSheet({
   onClose,
   webCheckout,
   elevated,
+  preview,
 }: {
   onClose: () => void;
   webCheckout: boolean;
   elevated: boolean;
+  preview: PaywallSlabPreview | null;
 }) {
   const t = useTranslations("Paywall");
   const tp = useTranslations("Pricing");
@@ -197,11 +206,15 @@ function PaywallSheet({
       }
     >
       <div className="flex flex-col items-center pb-2 pt-1">
-        <ProHoloCard size="compact" showHint={false} />
+        {preview?.kind === "slab" ? (
+          <SlabPreview preview={preview} />
+        ) : (
+          <ProHoloCard size="compact" showHint={false} />
+        )}
         <p className="mt-5 text-center font-display text-[26px] font-bold leading-none tracking-tight text-ink">
           {tp("heroPrice")}
         </p>
-        <p className="mt-2 text-center text-sm text-ink-muted">{t("lead")}</p>
+        <p className="mt-2 text-center text-sm text-ink-muted">{preview ? t("slabLead") : t("lead")}</p>
         <ProSpecTable
           rows={rows}
           freeLabel={tp("specFree")}
@@ -218,5 +231,25 @@ function PaywallSheet({
         </Link>
       </div>
     </BottomSheet>
+  );
+}
+
+/**
+ * FÖRHANDSVISNINGEN (ägarbeslut 2026-10-15): gratiskontot som graderar ett kort ser
+ * sitt EGET kort i sin slab — det är precis det Pro ger dem. Värdet står LÅST: vi
+ * visar inte ett tal vi bara ger Pro, och vi hittar inte på ett.
+ */
+function SlabPreview({ preview }: { preview: PaywallSlabPreview }) {
+  const t = useTranslations("Paywall");
+  const issuer = preview.issuer as GradingIssuer;
+  const grading = `${ISSUER_LABELS[issuer] ?? preview.issuer} ${gradeNumber(preview.gradeTenths)}`;
+  return (
+    <div className="flex flex-col items-center">
+      <div className="h-[230px]">
+        <GradedSlab imageUrl={preview.imageUrl} issuer={issuer} gradeTenths={preview.gradeTenths} alt={preview.name} />
+      </div>
+      <p className="mt-4 max-w-[18rem] truncate text-center text-sm font-semibold text-ink">{preview.name}</p>
+      <p className="mt-1 text-center text-xs text-ink-muted">{t("slabValueLocked", { grading })}</p>
+    </div>
   );
 }

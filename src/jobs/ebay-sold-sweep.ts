@@ -22,6 +22,7 @@
  *    Charmander 168 fick japanska "sv2a 151"-affärer). Varje rad måste därför
  *    BEVISA sig som i ask-svepet: språk, nummer, set och tryckning ur TITELN.
  */
+import { OWNED_GRADED_PRODUCT_WHERE } from "../lib/graded-value";
 import { prisma } from "../lib/db";
 import type { Prisma } from "@prisma/client";
 import { mapPool } from "../lib/concurrency";
@@ -88,7 +89,8 @@ async function selectProducts(budget: number): Promise<ProductRow[]> {
     language: { in: ["EN", "JP"] },
   };
   const watched = await prisma.product.findMany({
-    where: { ...baseWhere, watchlistItems: { some: {} } },
+    // Bevakade kort + kort någon äger GRADERADE (samlingens slabbar värderas på affärerna).
+    where: { ...baseWhere, OR: [{ watchlistItems: { some: {} } }, ...OWNED_GRADED_PRODUCT_WHERE] },
     select,
     orderBy: [{ watchlistItems: { _count: "desc" } }, { viewCount: "desc" }],
     take: budget,

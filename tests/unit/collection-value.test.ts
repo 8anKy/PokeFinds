@@ -11,6 +11,8 @@ vi.mock("@/lib/db", () => ({
     collectionItem: { findMany: (...args: unknown[]) => findMany(...args) },
     // Ingen frysmarkör ⇒ grafen beter sig som före 2026-10-12 (slutar idag).
     jobMarker: { findUnique: async () => null },
+    // Planuppslaget (graderade poster värderas på affärer bara för Pro): gratiskonto.
+    user: { findUnique: async () => ({ planTier: "FREE", role: "USER", bonusProUntil: null, stripeProUntil: null }) },
   },
 }));
 

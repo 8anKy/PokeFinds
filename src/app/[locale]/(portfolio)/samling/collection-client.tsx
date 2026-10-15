@@ -42,6 +42,7 @@ import {
 } from "./collection-filter";
 import { CollectionToolbar } from "./collection-toolbar";
 import { CONDITION_LABELS, LANGUAGE_LABELS } from "@/lib/collection-labels";
+import type { ItemGradedValue } from "@/lib/graded-value";
 
 // Etiketterna bor i lib/collection-labels.ts sedan 2026-09-07 — skannerns
 // säljark behöver dem också, och att importera dem HÄRIFRÅN hade dragit in hela
@@ -71,6 +72,12 @@ export interface CollectionRow {
   estimatedValue: number | null; // öre
   gradingCompany: string | null;
   grade: string | null;
+  /**
+   * GRADERAD post hos Pro: vad `estimatedValue` bygger på — sålda affärer
+   * (`{source, count}`) eller `null` = inga affärer ännu (ograderat värde).
+   * undefined = ograderad post, eller gratiskonto (värdet är då alltid ograderat).
+   */
+  gradedValue?: ItemGradedValue;
   notes: string | null;
   /** Pärm; null = standardpärmen. */
   portfolioId: string | null;

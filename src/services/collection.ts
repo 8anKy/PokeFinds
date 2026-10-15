@@ -9,6 +9,16 @@ import { normalizePrinting, parseImportNumber } from "@/lib/import-normalize";
 import type { ImportDraftRow } from "@/lib/import-rows";
 import { resolveImportRows } from "@/services/collection-import";
 import { resolvePortfolioIdForWrite } from "@/services/portfolios";
+import { collectionGrading } from "@/lib/graded-slab";
+import {
+  GRADED_VALUE_WINDOW_DAYS,
+  gradedSoldValue,
+  gradedValueKey,
+  type GradedSalePoint,
+  type GradedValue,
+  type ItemGradedValue,
+} from "@/lib/graded-value";
+import { PRO_USER_SELECT, isPro } from "@/lib/plan";
 import type { CardCondition, CardLanguage } from "@prisma/client";
 
 /**
@@ -235,13 +245,106 @@ export async function removeCollectionItem(userId: string, itemId: string) {
  * värde per styck (objekt utan känt värde utelämnas).
  */
 export async function valueCollectionItems(
-  items: {
-    id: string;
-    cardId: string | null;
-    productId: string | null;
-    estimatedValue: number | null;
-  }[]
+  items: ValuableItem[],
+  opts?: { graded?: boolean }
 ): Promise<Map<string, number>> {
+  return (await valueCollectionItemsDetailed(items, opts)).values;
+}
+
+type ValuableItem = {
+  id: string;
+  cardId: string | null;
+  productId: string | null;
+  estimatedValue: number | null;
+  gradingCompany?: string | null;
+  grade?: string | null;
+};
+
+
+/**
+ * GRADERADE POSTER (Pro, ägarbeslut 2026-10-15): en slab värderas på SÅLDA affärer för
+ * samma (kort, bolag, betyg) — `gradedSoldValue`, aldrig begärt. Saknas affärer behåller
+ * posten sitt ograderade värde och `graded` säger det (null), så UI:t kan säga det rakt ut.
+ *
+ * KOSTNAD: en fråga mot GradedSale (+ en mot Product för poster som bara bär `cardId`),
+ * BARA när någon post är graderad och anroparen är Pro — i en väg som redan läser DB.
+ * GradedSale skrivs bara av nattens svep, så värdet rör sig en gång per natt som resten.
+ */
+export async function valueCollectionItemsDetailed(
+  items: ValuableItem[],
+  opts?: { graded?: boolean }
+): Promise<{ values: Map<string, number>; graded: Map<string, ItemGradedValue> }> {
+  const values = await valueRawCollectionItems(items);
+  const graded = new Map<string, ItemGradedValue>();
+  if (!opts?.graded) return { values, graded };
+
+  const gradedItems = items.flatMap((i) => {
+    const g = collectionGrading(i.gradingCompany, i.grade);
+    return g ? [{ item: i, ...g }] : [];
+  });
+  if (gradedItems.length === 0) return { values, graded };
+
+  // Kortposter utan produkt: kortets alla tryckningar är kandidater.
+  const cardOnly = [...new Set(gradedItems.filter((g) => !g.item.productId && g.item.cardId).map((g) => g.item.cardId!))];
+  const cardProducts = cardOnly.length
+    ? await prisma.product.findMany({ where: { cardId: { in: cardOnly } }, select: { id: true, cardId: true } })
+    : [];
+  const productsByCard = new Map<string, string[]>();
+  for (const p of cardProducts) {
+    if (!p.cardId) continue;
+    const arr = productsByCard.get(p.cardId);
+    if (arr) arr.push(p.id);
+    else productsByCard.set(p.cardId, [p.id]);
+  }
+  const candidatesFor = (i: ValuableItem): string[] =>
+    i.productId ? [i.productId] : i.cardId ? (productsByCard.get(i.cardId) ?? []) : [];
+
+  const productIds = [...new Set(gradedItems.flatMap((g) => candidatesFor(g.item)))];
+  // ⛔ OTHER har inget graderat värde (ett okänt bolags 10 är inte jämförbart) —
+  // frågan hoppar över det helt, och posten får `graded: null` nedan.
+  const issuers = [...new Set(gradedItems.map((g) => g.issuer).filter((i) => i !== "OTHER"))];
+  const sales =
+    productIds.length && issuers.length
+      ? await prisma.gradedSale.findMany({
+          where: {
+            productId: { in: productIds },
+            issuer: { in: issuers },
+            gradeTenths: { in: [...new Set(gradedItems.map((g) => g.gradeTenths))] },
+            soldAt: { gte: new Date(Date.now() - GRADED_VALUE_WINDOW_DAYS * 86_400_000) },
+          },
+          select: { productId: true, issuer: true, gradeTenths: true, source: true, price: true, soldAt: true },
+        })
+      : [];
+  const salesByKey = new Map<string, GradedSalePoint[]>();
+  for (const s of sales) {
+    if (s.gradeTenths == null) continue;
+    const k = gradedValueKey(s.productId, s.issuer, s.gradeTenths);
+    const arr = salesByKey.get(k);
+    if (arr) arr.push(s);
+    else salesByKey.set(k, [s]);
+  }
+
+  const now = new Date();
+  for (const g of gradedItems) {
+    // Flera tryckningar (kortpost utan produkt): den med flest affärer bär värdet.
+    let best: GradedValue | null = null;
+    if (g.issuer !== "OTHER") {
+      for (const pid of candidatesFor(g.item)) {
+        const v = gradedSoldValue(salesByKey.get(gradedValueKey(pid, g.issuer, g.gradeTenths)) ?? [], now);
+        if (v && (!best || v.count > best.count)) best = v;
+      }
+    }
+    if (best) {
+      values.set(g.item.id, best.valueOre);
+      graded.set(g.item.id, { source: best.source, count: best.count });
+    } else {
+      graded.set(g.item.id, null);
+    }
+  }
+  return { values, graded };
+}
+
+async function valueRawCollectionItems(items: ValuableItem[]): Promise<Map<string, number>> {
   const cardIds = items.map((i) => i.cardId).filter((v): v is string => v != null);
   const productIds = items
     .map((i) => i.productId)
@@ -337,6 +440,12 @@ export async function computeCollectionValue(
      * MARKNADENS rörelse på det man hade — annars hade nyskannade kort lästs som "vinst".
      */
     ownedOnOrBefore?: Date;
+    /**
+     * Värdera graderade poster på sålda affärer (Pro). Utelämnad ⇒ ägarens plan slås
+     * upp (ett PK-uppslag i en väg som ändå läser DB), så att dashboard, API,
+     * veckopush och samlingssidan säger samma tal.
+     */
+    graded?: boolean;
   }
 ) {
   const owned = opts?.ownedOnOrBefore;
@@ -351,8 +460,18 @@ export async function computeCollectionValue(
     include: COLLECTION_INCLUDE,
   });
 
+  const gradedOn =
+    opts?.graded ??
+    (await prisma.user
+      .findUnique({ where: { id: userId }, select: PRO_USER_SELECT })
+      .then((u) => (u ? isPro(u) : false)));
   // Live-värde per objekt (per styck), Cardmarket-trend med snapshot-fallback.
-  const itemValues = await valueCollectionItems(items);
+  // Graderade poster (Pro) på sålda affärer — se valueCollectionItemsDetailed.
+  const { values: itemValues, graded: itemGraded } = await valueCollectionItemsDetailed(items, {
+    graded: gradedOn,
+  });
+  /** Värderad på graderade affärer — ingen CM-trend beskriver den, kurvan är platt. */
+  const gradedValued = (id: string) => itemGraded.get(id) != null;
   const valueOf = (id: string): number | null => itemValues.get(id) ?? null;
 
   // Vinst/förlust räknas BARA på objekt som har BÅDE ett köppris och ett känt värde.
@@ -485,7 +604,8 @@ export async function computeCollectionValue(
         quantity: i.quantity,
         current: valueOf(i.id) ?? 0,
         from: ownedFrom(i).getTime(),
-        snaps: snaps && snaps.length && trendNow && trendNow > 0 ? snaps : null,
+        // ⛔ En slab rör sig inte med det OGRADERADE kortets CM-trend — platt på sitt värde.
+        snaps: !gradedValued(i.id) && snaps && snaps.length && trendNow && trendNow > 0 ? snaps : null,
         trendNow: trendNow ?? 0,
       };
     });
@@ -528,6 +648,7 @@ export async function computeCollectionValue(
       const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       const list: CollectionMover[] = [];
       for (const i of valued) {
+        if (gradedValued(i.id)) continue; // ingen trendserie för en slab (se ovan)
         const snaps = snapsForItem(i);
         if (!snaps || snaps.length < 2) continue;
         const latest = snaps[snaps.length - 1].avgPrice;
@@ -569,6 +690,11 @@ export async function computeCollectionValue(
     valueOverTime,
     /** itemId → aktuellt värde per styck (öre). För live-priser i tabellen. */
     itemValues: Object.fromEntries(itemValues),
+    /**
+     * itemId → vad en GRADERAD post värderades på (bara Pro): `{source, count}` = sålda
+     * affärer, `null` = inga affärer ännu ⇒ ograderat värde. Ograderade poster saknas.
+     */
+    itemGraded: Object.fromEntries(itemGraded) as Record<string, ItemGradedValue>,
   };
 }
 

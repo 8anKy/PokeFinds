@@ -226,6 +226,16 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   (testad): värde + MARKNADENS rörelse på poster ägda ≥ 8 d (nyskannat är ingen vinst; procent bara när de är ≥ 90 %
   av värdet) + största lyft (≥ 20 kr, ≥ 5 %). Spak `notificationSettings.portfolioPush` (saknad = på), `push` är
   master. iOS-only (APNs). Torrkörning: `scripts/portfolio-push-run.ts --dry-run --force` (70 mottagare 10-13).
+- **GRADERADE KORT I SLAB I SAMLINGEN (ägarbeslut 2026-10-15, Pro)**: en post med bolag + betyg ritas i sin slab med
+  bolagets etikett-REPLIKA (`components/features/graded-slab.tsx`; PSA/CGC/BGS/SGC/TAG egna, övriga generisk — ägaren valde
+  repliker medvetet; ber ett bolag oss ta bort sin ⇒ generisk samma dag) och värderas på SÅLDA affärer (`lib/graded-value.ts`:
+  median av de 5 senaste inom 365 d, eBay först, Tradera som reserv, aldrig blandat, ALDRIG begärt). Inga affärer ⇒ ograderat
+  värde + raden "Inget graderat pris ännu". Läses vid request ur `GradedSale` (skrivs bara av nattsvepen ⇒ ingen ny tabell);
+  slabbar är platta i värdegrafen och utanför movers. Gratiskontot: kortet som vanligt + låst betygschip ⇒ paywall-arket med
+  SITT kort i slabben (`preview` i `openPaywallOrNavigate`, samma ark/rader/knapp). Graderingen SPARAS även för gratis.
+  `computeCollectionValue` slår upp planen själv (eller `graded:`). Ägda slabbars produkter tas varje natt i eBay-sålt/
+  ask-svepen (`OWNED_GRADED_PRODUCT_WHERE`). Bolag/betyg: `lib/graded-slab.ts` (PSA har inget 9.5; SGC/TAG valbara).
+  Profilsidan visar fortfarande ograderat (v1). Memory: `project_graded_slabs_portfolio_2026_10_15`.
 - **GIVEAWAY MED LOTTER (2026-10-13, ägarbeslut)**: `/giveaway` (routegrupp `(mer)`, gäster ser pris + krav), pris
   30th Celebration ETB — ENDA vinsten (ägarbeslut 2026-10-13, inga Pro-pris). Start 2026-10-17 00:00 (flyttad från 10-15, ägarbeslut; DOLD före: 404 + ingen Mer-rad, admin ser den; flytta med `GIVEAWAY_STARTS_AT`), slut 2026-11-15 23:59 svensk tid
   ELLER i förtid vid 1 000 TikTok-följare: sätt `GIVEAWAY_CLOSES_AT` (ISO) i Railway ~24 h framåt och meddela det.

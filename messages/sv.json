@@ -704,6 +704,9 @@
     "gridSectionGrading": "Gradering",
     "gridGradingNone": "Ograderat",
     "gridGradeLabel": "Betyg",
+    "gridGradedNoSales": "Inget graderat pris ännu · ograderat värde",
+    "gridGradedSold": "Sålt {source} · {count, plural, one {# affär} other {# affärer}}",
+    "gridGradedLocked": "{grading} · se slabben och värdet med Pro",
     "gridCopiesHintRemove": "Tryck för att markera fler, tryck igen för att ångra."
   },
   "Legal": {
@@ -2655,6 +2658,11 @@
         "pro": "✓"
       },
       {
+        "label": "Graderade kort i samlingen · slab + värde per betyg",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
         "label": "Prishistorik i grafen",
         "free": "1 år",
         "pro": "Allt"
@@ -2746,6 +2754,8 @@
     "notNow": "Inte nu",
     "close": "Stäng",
     "seeAll": "Jämför Free och Pro i detalj",
+    "slabLead": "Med Pro ligger kortet i sin slab, värderat på vad samma betyg faktiskt sålts för.",
+    "slabValueLocked": "Värde som {grading} · låst",
     "signupTitle": "Skapa konto",
     "signupLead": "Scoutr är gratis att börja med. Med ett konto bevakar du priser, värderar din samling och skannar kort.",
     "signupProNote": "Tradera-kurvan och hela prishistoriken ingår i Pro, som du kan lägga till när du vill.",

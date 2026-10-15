@@ -26,6 +26,7 @@ import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import {
   IconEdit,
+  IconLock,
   IconPackage,
   IconTrash,
   IconX,
@@ -35,10 +36,18 @@ import { planCopyEdits } from "@/lib/collection-lots";
 import type { CollectionRow } from "./collection-client";
 import { hapticTick } from "@/lib/haptics";
 import { parseKronorToOre } from "@/lib/purchase-price";
-// Traderas EGEN vokabulär för gradering (attribut 125/126, hämtad ur deras
-// referensdata). Samlingen använder samma ord så att en senare annons kan bära
-// värdet rakt av — utan översättning och utan att bli "Övriga" i onödan.
-import { GRADES, GRADING_ISSUERS } from "@/lib/tradera-listing-options";
+// Bolag + betyg i Traderas vokabulär (plus SGC/TAG, som en annons skickar som
+// "Övriga") så att en senare annons kan bära värdet rakt av. Betygen per bolag:
+// PSA har inget 9.5 (se lib/graded-slab.ts).
+import {
+  COLLECTION_GRADING_ISSUERS,
+  collectionGrading,
+  gradeNumber,
+  gradesForCollectionIssuer,
+} from "@/lib/graded-slab";
+import { ISSUER_LABELS } from "@/lib/graded-listing";
+import { GradedSlab } from "@/components/features/graded-slab";
+import { openPaywallOrNavigate } from "@/lib/paywall";
 import {
   groupCollectionLots,
   groupProfit,
@@ -176,10 +185,17 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export function MobileCollectionGrid({
   rows,
   portfolios,
+  isPro = false,
 }: {
   rows: CollectionRow[];
   /** Pärmarna — "Flytta" i väljläget visas bara när det finns fler än en. */
   portfolios: PortfolioSummary[];
+  /**
+   * GRADERADE KORT I SLAB ÄR PRO (ägarbeslut 2026-10-15): Pro ser slabben och
+   * värdet per betyg; gratiskontot ser kortet som vanligt + ett låst betygschip
+   * som öppnar paywall-arket med SITT kort i slabben som förhandsvisning.
+   */
+  isPro?: boolean;
 }) {
   const t = useTranslations("Collection");
   const tp = useTranslations("Portfolios");
@@ -239,6 +255,37 @@ export function MobileCollectionGrid({
   }, [rows, allGroups, query, sort]);
 
   const filterActive = query.trim().length > 0;
+
+  /** Postens slab, eller null (ograderad, ofullständig gradering eller förseglad). */
+  const slabOf = (row: CollectionRow) =>
+    row.sealed ? null : collectionGrading(row.gradingCompany, row.grade);
+  /**
+   * EN SLAB ÄR HÖGRE ÄN ETT KORT: med minst en slab i rutnätet växer bildbrunnen i
+   * HELA rutnätet (raderna ska ligga i linje), annars är den exakt som förut.
+   */
+  const hasSlabs = isPro && rows.some((r) => slabOf(r) != null);
+
+  /** Gratiskontot: arket med SITT kort i slabben (samma ark, samma köpknapp). */
+  const previewSlab = useCallback(
+    (row: Pick<CollectionRow, "name" | "imageUrl" | "gradingCompany" | "grade" | "sealed">) => {
+      const g = row.sealed ? null : collectionGrading(row.gradingCompany, row.grade);
+      openPaywallOrNavigate(router, {
+        source: "collection-slab",
+        ...(g
+          ? {
+              preview: {
+                kind: "slab" as const,
+                imageUrl: row.imageUrl,
+                issuer: g.issuer,
+                gradeTenths: g.gradeTenths,
+                name: row.name,
+              },
+            }
+          : {}),
+      });
+    },
+    [router]
+  );
 
   /** De markerade köpen, i rutnätets ordning. */
   const selectedLots = useMemo(
@@ -546,6 +593,22 @@ export function MobileCollectionGrid({
           failed += 1;
         }
       }
+      // Gratiskontot graderade ett kort ⇒ visa vad Pro gör av det (ägarbeslut 2026-10-15).
+      if (!isPro && failed === 0) {
+        const graded = copies.find((c) => {
+          if (c.remove || !c.gradingCompany || !c.grade) return false;
+          const lot = lots.find((l) => l.id === c.lotId);
+          return lot != null && !lot.sealed && (lot.gradingCompany !== c.gradingCompany || lot.grade !== c.grade);
+        });
+        const lot = graded ? lots.find((l) => l.id === graded.lotId) : undefined;
+        if (graded && lot) {
+          // Efter att exemplararket glidit ned — två ark ovanpå varandra läser som ett fel.
+          window.setTimeout(
+            () => previewSlab({ ...lot, gradingCompany: graded.gradingCompany, grade: graded.grade }),
+            350
+          );
+        }
+      }
       toast({
         title: failed > 0 ? t("gridPartialTitle") : t("gridDeletedTitle"),
         description:
@@ -733,6 +796,7 @@ export function MobileCollectionGrid({
           // Snittet får ALDRIG läsas som att det gäller alla exemplar. Täcker det bara
           // en del av dem säger etiketten det rakt ut ("snitt 400 kr · 1 av 4"), och
           // saknas pris helt står det att priset saknas — aldrig "0 kr".
+          const slab = slabOf(r);
           const avgLabel = !stacked
             ? null
             : g.averagePaid == null
@@ -777,8 +841,17 @@ export function MobileCollectionGrid({
                   fyllning (hover, flikar, skeletons), inte en bakgrund: som brunn lyste
                   den som en grå ruta bakom varje bild och fick hela portföljen att läsa
                   som en annan yta än katalogen. Saknad bild → ikonen bär platshållaren. */}
-              <div className="h-28 w-full overflow-hidden rounded-lg bg-surface lg:h-48">
-                {r.imageUrl ? (
+              <div
+                className={cn(
+                  "relative w-full overflow-hidden rounded-lg bg-surface",
+                  hasSlabs ? "h-44 lg:h-60" : "h-28 lg:h-48"
+                )}
+              >
+                {slab && isPro ? (
+                  <div className="flex h-full items-center justify-center py-1.5">
+                    <GradedSlab imageUrl={r.imageUrl} issuer={slab.issuer} gradeTenths={slab.gradeTenths} alt={r.name} />
+                  </div>
+                ) : r.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={r.imageUrl}
@@ -793,6 +866,24 @@ export function MobileCollectionGrid({
                     <IconPackage size={26} />
                   </span>
                 )}
+                {/* Gratiskontot: betyget syns, slabben och värdet är Pro. Chippet säljer. */}
+                {slab && !isPro && !selectMode && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      previewSlab(r);
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    aria-label={t("gridGradedLocked", {
+                      grading: `${ISSUER_LABELS[slab.issuer]} ${gradeNumber(slab.gradeTenths)}`,
+                    })}
+                    className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-surface-overlay/90 px-2 py-0.5 text-[11px] font-semibold text-ink backdrop-blur"
+                  >
+                    {ISSUER_LABELS[slab.issuer]} {gradeNumber(slab.gradeTenths)}
+                    <IconLock size={11} className="text-ink-muted" />
+                  </button>
+                )}
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-ink">{r.name}</p>
@@ -804,6 +895,17 @@ export function MobileCollectionGrid({
                 </span>
                 {quantity > 1 && <span className="text-xs text-ink-muted">{t("pieces", { count: quantity })}</span>}
               </div>
+              {/* Vad slabbens värde bygger på — sålda affärer, eller ärligt: inga ännu. */}
+              {slab && isPro && r.gradedValue !== undefined && (
+                <p className="-mt-1 truncate text-[11px] text-ink-faint">
+                  {r.gradedValue
+                    ? t("gridGradedSold", {
+                        source: r.gradedValue.source === "ebay" ? "eBay" : "Tradera",
+                        count: r.gradedValue.count,
+                      })
+                    : t("gridGradedNoSales")}
+                </p>
+              )}
               {/* Snittraden finns BARA när varan köpts flera gånger — en ensam post har
                   inget snitt att tala om, och kortet ska då se ut precis som förut. */}
               {stacked && !selectMode && (
@@ -1042,11 +1144,17 @@ export function MobileCollectionGrid({
                 >
                   {t("gridGradingNone")}
                 </Chip>
-                {GRADING_ISSUERS.map((issuer) => (
+                {COLLECTION_GRADING_ISSUERS.map((issuer) => (
                   <Chip
                     key={issuer}
                     active={activeCopy.gradingCompany === issuer}
-                    onClick={() => patchCopy({ gradingCompany: issuer })}
+                    onClick={() =>
+                      // Ett betyg bolaget inte sätter (PSA 9.5) nollas vid bytet.
+                      patchCopy({
+                        gradingCompany: issuer,
+                        grade: gradesForCollectionIssuer(issuer).includes(activeCopy.grade) ? activeCopy.grade : "",
+                      })
+                    }
                   >
                     {issuer}
                   </Chip>
@@ -1056,7 +1164,7 @@ export function MobileCollectionGrid({
                 <>
                   <p className="mb-2 mt-3 text-xs text-ink-muted">{t("gridGradeLabel")}</p>
                   <div className="flex flex-wrap gap-2">
-                    {GRADES.map((g) => (
+                    {gradesForCollectionIssuer(activeCopy.gradingCompany).map((g) => (
                       <Chip
                         key={g}
                         active={activeCopy.grade === g}

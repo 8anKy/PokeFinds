@@ -704,6 +704,9 @@
     "gridSectionGrading": "Grading",
     "gridGradingNone": "Ungraded",
     "gridGradeLabel": "Grade",
+    "gridGradedNoSales": "No graded price yet · ungraded value",
+    "gridGradedSold": "Sold {source} · {count, plural, one {# sale} other {# sales}}",
+    "gridGradedLocked": "{grading} · see the slab and its value with Pro",
     "gridCopiesHintRemove": "Tap to mark more, tap again to undo."
   },
   "Legal": {
@@ -2655,6 +2658,11 @@
         "pro": "✓"
       },
       {
+        "label": "Graded cards in your collection · slab + value per grade",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
         "label": "Price history in the chart",
         "free": "1 year",
         "pro": "All"
@@ -2746,6 +2754,8 @@
     "notNow": "Not now",
     "close": "Close",
     "seeAll": "Compare Free and Pro in detail",
+    "slabLead": "With Pro your card sits in its slab, valued on what the same grade actually sold for.",
+    "slabValueLocked": "Value as {grading} · locked",
     "signupTitle": "Create an account",
     "signupLead": "Scoutr is free to start. With an account you can watch prices, value your collection and scan cards.",
     "signupProNote": "The Tradera curve and the full price history are part of Pro, which you can add whenever you like.",

@@ -76,7 +76,12 @@ export default async function CollectionPage({
   const [allItems, value, sales, setDenominators] = await Promise.all([
     listCollection(userId),
     // Gratis: max 6 mån historik. Premium: full (range-väljaren styr visningen).
-    computeCollectionValue(userId, { maxDays: isPremium ? null : 183, portfolio: portfolioFilter }),
+    // Graderade poster värderas på sålda affärer — Pro (ägarbeslut 2026-10-15).
+    computeCollectionValue(userId, {
+      maxDays: isPremium ? null : 183,
+      portfolio: portfolioFilter,
+      graded: isPremium,
+    }),
     listSales(userId),
     // Nämnarna per set är IDENTISKA för alla användare och cachas globalt 24 h
     // — en cache-träff kostar noll Neon-rundturer, och en miss är EN sats som
@@ -129,6 +134,8 @@ export default async function CollectionPage({
     estimatedValue: value.itemValues[item.id] ?? item.estimatedValue,
     gradingCompany: item.gradingCompany,
     grade: item.grade,
+    // Graderad post (Pro): vad värdet bygger på. undefined = ograderad eller gratiskonto.
+    gradedValue: value.itemGraded[item.id],
     notes: item.notes,
     portfolioId: item.portfolioId,
     sealed: isSealedCollectionItem(item),
@@ -142,7 +149,7 @@ export default async function CollectionPage({
   // pärmens värden, så resten värderas i en egen pass (en fråga till, på en
   // databas som redan är vaken av sidan).
   const setValues = portfolioFilter
-    ? Object.fromEntries(await valueCollectionItems(allItems))
+    ? Object.fromEntries(await valueCollectionItems(allItems, { graded: isPremium }))
     : value.itemValues;
   const setRows = buildSetPortfolio(allItems, setValues, setDenominators);
 
@@ -402,7 +409,7 @@ export default async function CollectionPage({
 
       {/* Samlingen som rutnät — mobil OCH desktop. Tryck = öppna produkten,
           håll inne (touch) / "Välj" = väljläge. */}
-      {rows.length > 0 && <MobileCollectionGrid rows={rows} portfolios={portfolios} />}
+      {rows.length > 0 && <MobileCollectionGrid rows={rows} portfolios={portfolios} isPro={isPremium} />}
           </div>
         }
       />
