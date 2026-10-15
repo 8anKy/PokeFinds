@@ -151,7 +151,8 @@ export async function runHotCardRefresh(
     // Bara engelska: JP-singlar har "tcggo-jp:…" som externt id och prissätts av
     // jp-singles-refresh — /pokemon/cards?tcgid= känner inte till dem.
     language: "EN" as const,
-    card: { tcgExternalId: { not: null } },
+    // "cm:"-korten finns inte hos leverantören — se cardmarket-refresh.ts.
+    card: { tcgExternalId: { not: null }, NOT: { tcgExternalId: { startsWith: "cm:" } } },
     offers: { some: { retailerId: cm.id } },
     // Tryckningar ÄR med: pickRowForProduct väljer raden för precis produktens
     // tryckning, precis som dagliga körningen. (De var undantagna en kort stund

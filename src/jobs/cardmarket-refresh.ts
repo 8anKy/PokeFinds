@@ -1706,7 +1706,11 @@ export async function runCardmarketRefresh(
         // /pokemon-jp. Utan grinden hade de fått en EN-offer med fel pris.
         language: "EN",
         OR: [{ variantLabel: null }, { variantLabel: { in: [...PRINT_VARIANT_LABELS] } }],
-        card: { tcgExternalId: { not: null } },
+        // ⛔ "cm:"-korten (bara på Cardmarket, scripts/import-cm-only-singles.ts) finns per
+        // definition inte i feeden — med här räknades ~2 900 av dem som "tappade" och
+        // guide-reservens tak (500) stängde reserven för HELA katalogen (2026-10-15).
+        // De prissätts av import-cm-only-singles.ts --refresh i samma workflow.
+        card: { tcgExternalId: { not: null }, NOT: { tcgExternalId: { startsWith: "cm:" } } },
       },
       select: {
         id: true,
