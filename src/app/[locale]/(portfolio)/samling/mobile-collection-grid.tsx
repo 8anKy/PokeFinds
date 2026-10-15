@@ -39,12 +39,9 @@ import { parseKronorToOre } from "@/lib/purchase-price";
 // Bolag + betyg i Traderas vokabulär (plus SGC/TAG, som en annons skickar som
 // "Övriga") så att en senare annons kan bära värdet rakt av. Betygen per bolag:
 // PSA har inget 9.5 (se lib/graded-slab.ts).
-import {
-  COLLECTION_GRADING_ISSUERS,
-  collectionGrading,
-  gradeNumber,
-  gradesForCollectionIssuer,
-} from "@/lib/graded-slab";
+import { collectionGrading, gradeNumber } from "@/lib/graded-slab";
+import { GradingPicker } from "@/components/features/grading-picker";
+import { slabPaywallOptions } from "@/lib/slab-preview";
 import { ISSUER_LABELS } from "@/lib/graded-listing";
 import { GradedSlab } from "@/components/features/graded-slab";
 import { openPaywallOrNavigate } from "@/lib/paywall";
@@ -267,23 +264,8 @@ export function MobileCollectionGrid({
 
   /** Gratiskontot: arket med SITT kort i slabben (samma ark, samma köpknapp). */
   const previewSlab = useCallback(
-    (row: Pick<CollectionRow, "name" | "imageUrl" | "gradingCompany" | "grade" | "sealed">) => {
-      const g = row.sealed ? null : collectionGrading(row.gradingCompany, row.grade);
-      openPaywallOrNavigate(router, {
-        source: "collection-slab",
-        ...(g
-          ? {
-              preview: {
-                kind: "slab" as const,
-                imageUrl: row.imageUrl,
-                issuer: g.issuer,
-                gradeTenths: g.gradeTenths,
-                name: row.name,
-              },
-            }
-          : {}),
-      });
-    },
+    (row: Pick<CollectionRow, "name" | "imageUrl" | "gradingCompany" | "grade">) =>
+      openPaywallOrNavigate(router, slabPaywallOptions(row)),
     [router]
   );
 
@@ -1137,45 +1119,10 @@ export function MobileCollectionGrid({
             {!activeLot?.sealed && (
             <div>
               <SectionLabel>{t("gridSectionGrading")}</SectionLabel>
-              <div className="flex flex-wrap gap-2">
-                <Chip
-                  active={!activeCopy.gradingCompany}
-                  onClick={() => patchCopy({ gradingCompany: "", grade: "" })}
-                >
-                  {t("gridGradingNone")}
-                </Chip>
-                {COLLECTION_GRADING_ISSUERS.map((issuer) => (
-                  <Chip
-                    key={issuer}
-                    active={activeCopy.gradingCompany === issuer}
-                    onClick={() =>
-                      // Ett betyg bolaget inte sätter (PSA 9.5) nollas vid bytet.
-                      patchCopy({
-                        gradingCompany: issuer,
-                        grade: gradesForCollectionIssuer(issuer).includes(activeCopy.grade) ? activeCopy.grade : "",
-                      })
-                    }
-                  >
-                    {issuer}
-                  </Chip>
-                ))}
-              </div>
-              {activeCopy.gradingCompany && (
-                <>
-                  <p className="mb-2 mt-3 text-xs text-ink-muted">{t("gridGradeLabel")}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {gradesForCollectionIssuer(activeCopy.gradingCompany).map((g) => (
-                      <Chip
-                        key={g}
-                        active={activeCopy.grade === g}
-                        onClick={() => patchCopy({ grade: g })}
-                      >
-                        {g}
-                      </Chip>
-                    ))}
-                  </div>
-                </>
-              )}
+              <GradingPicker
+                value={{ gradingCompany: activeCopy.gradingCompany, grade: activeCopy.grade }}
+                onChange={(next) => patchCopy(next)}
+              />
             </div>
             )}
           </div>

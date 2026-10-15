@@ -41,7 +41,10 @@ jobs:
     # Rymmer synken, sålt-svepet OCH eBay-svepet (graderade begärda priser).
     # Sålt-svepet matchar ~10k avslutade annonser/dygn och kan ta uppåt en timme;
     # eBay-svepet gör ≤ 4 000 anrop à ~0,3 s med 2 i taget ≈ 10–12 min.
-    timeout-minutes: 110
+    # ⛔ 110 räckte inte: 10-07 och 10-09 dog i taket (111 min, "cancelled") och tog
+    # eBay-svepen med sig. Sedan 2026-10-15 tar svepen heta/dyra kort först, och de bär
+    # fler sidor affärer ⇒ eBay-sålt kan ta upp till stegets eget tak (45 min).
+    timeout-minutes: 150
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10"
@@ -129,7 +132,7 @@ jobs:
       # tidstak skyddar resten av jobbet (allt som hann skrivas ligger kvar — idempotent).
       - name: Graderade sålda på eBay (leverantören → GradedSale)
         if: steps.guard.outputs.ready == 'true' && !cancelled()
-        timeout-minutes: 40
+        timeout-minutes: 45
         env:
           CARDMARKET_RAPIDAPI_HOST: ${{ secrets.CARDMARKET_RAPIDAPI_HOST }}
           CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}

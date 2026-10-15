@@ -54,6 +54,8 @@ import { hapticImpact } from "@/lib/haptics";
 import { pickAlternatives, pickSameArtRail } from "@/lib/scan-alternatives";
 import { useCameraControls } from "@/hooks/use-camera-controls";
 import { openPaywallOrNavigate } from "@/lib/paywall";
+import { COLLECTION_GRADING_ISSUERS, gradesForCollectionIssuer, gradingPayload } from "@/lib/graded-slab";
+import { previewSlabIfFree } from "@/lib/slab-preview";
 import { PortfolioChips } from "@/components/features/portfolio-chips";
 import { PortfolioCreateSheet } from "@/components/features/portfolio-sheets";
 import {
@@ -221,6 +223,12 @@ interface ScanItem {
    */
   condition: string;
   language: string;
+  /**
+   * Gradering (2026-10-15): en slab kan skannas och läggas in SOM slab direkt.
+   * "" / utelämnat = ograderat; bara båda tillsammans skickas (`gradingPayload`).
+   */
+  gradingCompany?: string;
+  grade?: string;
   errorMessage?: string;
   /** Servern hittade inget kort i bilden — raden säger det i stället för "ingen träff". */
   noCard?: boolean;
@@ -2408,6 +2416,7 @@ function Scanner() {
               ? { estimatedValue: s.match!.estimatedValue }
               : {}),
             ...(portfolioIdRef.current ? { portfolioId: portfolioIdRef.current } : {}),
+            ...gradingPayload(s.gradingCompany, s.grade),
             // Giveawayns lott: kortet kom ur en skanning (ett jobb = ett kort).
             ...(s.jobId ? { scanJobId: s.jobId } : {}),
           }),
@@ -2455,6 +2464,16 @@ function Scanner() {
     if (ok > 0) rememberLangHint(matched[matched.length - 1]?.match?.language);
     setAddingAll(false);
     setAddedCount(ok);
+    // Gratiskontot som lade in en slab: visa vad Pro gör av den (ägarbeslut 2026-10-15).
+    const slab = created.find(({ scan }) => scan.gradingCompany && scan.grade)?.scan;
+    if (slab?.match) {
+      void previewSlabIfFree(router, {
+        name: slab.match.name,
+        imageUrl: slab.match.imageUrl ?? null,
+        gradingCompany: slab.gradingCompany,
+        grade: slab.grade,
+      });
+    }
     // Lyckat tillägg bekräftas av granskningsvyns egen fot ("N kort tillagda") —
     // en toast ovanpå sa samma sak två gånger (ägaren 2026-09-06). Bara det
     // DELVISA utfallet får en toast: det är ett fel foten inte kan uttrycka.
@@ -2494,6 +2513,7 @@ function Scanner() {
           ? { estimatedValue: scan.match!.estimatedValue }
           : {}),
         ...(portfolioIdRef.current ? { portfolioId: portfolioIdRef.current } : {}),
+        ...gradingPayload(scan.gradingCompany, scan.grade),
         ...(scan.jobId ? { scanJobId: scan.jobId } : {}),
       }),
     });
@@ -3615,6 +3635,7 @@ function ReviewView(props: {
 }) {
   const t = useTranslations("Scanner");
   const tCond = useTranslations("Condition");
+  const tg = useTranslations("Grading");
   const {
     scans,
     matchedCount,
@@ -3708,6 +3729,42 @@ function ReviewView(props: {
                           ))}
                         </Select>
                       </label>
+                      {/* GRADERING (2026-10-15): skannar man en slab ska den in SOM slab —
+                          inte rå och graderas i efterhand i samlingen. */}
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] text-ink-faint">{tg("company")}</span>
+                        <Select
+                          value={s.gradingCompany ?? ""}
+                          onChange={(e) => {
+                            const company = e.target.value;
+                            onPatch(s.id, {
+                              gradingCompany: company,
+                              grade: company && gradesForCollectionIssuer(company).includes(s.grade ?? "") ? s.grade : "",
+                            });
+                          }}
+                          className="h-9 text-sm"
+                        >
+                          <option value="">{tg("none")}</option>
+                          {COLLECTION_GRADING_ISSUERS.map((issuer) => (
+                            <option key={issuer} value={issuer}>{issuer}</option>
+                          ))}
+                        </Select>
+                      </label>
+                      {s.gradingCompany && (
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[11px] text-ink-faint">{tg("grade")}</span>
+                          <Select
+                            value={s.grade ?? ""}
+                            onChange={(e) => onPatch(s.id, { grade: e.target.value })}
+                            className="h-9 text-sm"
+                          >
+                            <option value="" disabled>{tg("pickGrade")}</option>
+                            {gradesForCollectionIssuer(s.gradingCompany).map((g) => (
+                              <option key={g} value={g}>{g}</option>
+                            ))}
+                          </Select>
+                        </label>
+                      )}
                       {/* VERSIONEN ÄR ETT VAL, INTE EN GISSNING: en reverse holo har
                           samma konst och samma nummer som det ordinarie kortet, och
                           foliemönstret finns varken i konstavtrycket eller i modellens

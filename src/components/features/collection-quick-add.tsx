@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { hapticTick } from "@/lib/haptics";
 import { clearSetCompletionCache } from "@/lib/set-completion";
+import { previewSlabIfFree } from "@/lib/slab-preview";
 import { IconCheck, IconPlus } from "@/components/ui/icons";
 import {
   CollectionQuickAddPopover,
@@ -16,6 +17,10 @@ import {
 
 interface CollectionQuickAddProps {
   productId: string;
+  /** Kort (inte förseglat) ⇒ arket erbjuder gradering. Namn + bild för slab-förhandsvisningen. */
+  gradeable?: boolean;
+  title?: string;
+  imageUrl?: string | null;
   /** Produktens lägsta pris i öre — sparas som ögonblicksbild vid tillägg. */
   estimatedValue?: number | null;
 }
@@ -45,7 +50,13 @@ const MOVE_TOLERANCE = 10;
  * sidor och ett sessionsanrop per kortrad var precis det som brände Active CPU.
  * Hinten kan vara inaktuell — servern avgör ändå, och ett 401 skickar till login.
  */
-export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuickAddProps) {
+export function CollectionQuickAdd({
+  productId,
+  estimatedValue,
+  gradeable = false,
+  title,
+  imageUrl,
+}: CollectionQuickAddProps) {
   const t = useTranslations("Product");
   const tc = useTranslations("Common");
   const loggedIn = useAuthHint();
@@ -90,7 +101,7 @@ export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuic
     setOpen(true);
   }, [requireLogin, state]);
 
-  async function addToCollection(body: { quantity: number; purchasePrice?: number }) {
+  async function addToCollection(body: { quantity: number; purchasePrice?: number; gradingCompany?: string; grade?: string }) {
     setState("saving");
     try {
       const res = await fetch("/api/collection", {
@@ -118,6 +129,12 @@ export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuic
       // minut efter att man just lagt till kortet — på exakt den sida där man
       // tänkte se dem ändras. (Funktionen hade noll anropare innan.)
       clearSetCompletionCache();
+      void previewSlabIfFree(router, {
+        name: title ?? "",
+        imageUrl: imageUrl ?? null,
+        gradingCompany: body.gradingCompany,
+        grade: body.grade,
+      });
       toast({
         title:
           body.quantity > 1
@@ -277,6 +294,7 @@ export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuic
       <CollectionQuickAddPopover
         open={open}
         onClose={() => setOpen(false)}
+        gradeable={gradeable}
         onConfirm={(draft: QuickAddDraft) => {
           setOpen(false);
           void addToCollection(draft);

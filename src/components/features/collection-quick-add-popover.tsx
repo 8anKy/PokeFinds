@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { parseKronorToOre } from "@/lib/purchase-price";
 import { PortfolioChips } from "@/components/features/portfolio-chips";
 import { PortfolioCreateSheet } from "@/components/features/portfolio-sheets";
+import { GradingPicker, gradingPayload, type GradingValue } from "@/components/features/grading-picker";
 import {
   loadPortfolios,
   preferredPortfolioId,
@@ -21,6 +22,9 @@ export interface QuickAddDraft {
   purchasePrice?: number;
   /** Pärm att spara i. Utelämnad = standardpärmen. */
   portfolioId?: string;
+  /** Gradering — bara när BÅDE bolag och betyg valts (2026-10-15). */
+  gradingCompany?: string;
+  grade?: string;
 }
 
 interface CollectionQuickAddSheetProps {
@@ -33,6 +37,11 @@ interface CollectionQuickAddSheetProps {
   saving?: boolean;
   /** Skickas vidare till arket (t.ex. `sm:mx-auto sm:max-w-md` på produktsidan). */
   panelClassName?: string;
+  /**
+   * Kort (inte förseglat): visa graderingen — så att en slab kan läggas in direkt
+   * i stället för att läggas till rå och graderas i efterhand (ägaren 2026-10-15).
+   */
+  gradeable?: boolean;
 }
 
 /** API:t (`/api/collection`) tar quantity 1..10000 — samma tak här, annars 400. */
@@ -59,6 +68,7 @@ export function CollectionQuickAddPopover({
   productTitle,
   saving = false,
   panelClassName,
+  gradeable = false,
 }: CollectionQuickAddSheetProps) {
   const t = useTranslations("Product");
   const [quantity, setQuantity] = useState(1);
@@ -69,6 +79,7 @@ export function CollectionQuickAddPopover({
   const [portfolios, setPortfolios] = useState<PortfolioSummary[]>([]);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [grading, setGrading] = useState<GradingValue>({ gradingCompany: "", grade: "" });
 
   // Utgångsläget varje gång arket öppnas: 1 ex, inget pris. Ett tidigare tillägg
   // ska inte ligga kvar som förifyllt värde nästa gång. Pärmen däremot MINNS —
@@ -78,6 +89,7 @@ export function CollectionQuickAddPopover({
     setQuantity(1);
     setPriceText("");
     setShowError(false);
+    setGrading({ gradingCompany: "", grade: "" });
     let active = true;
     loadPortfolios()
       .then((p) => {
@@ -110,6 +122,7 @@ export function CollectionQuickAddPopover({
       ...(parsed.kind === "ok" ? { purchasePrice: parsed.ore } : {}),
       // Skickas bara när det finns något att välja mellan — annars standardpärmen.
       ...(portfolios.length > 1 && portfolioId ? { portfolioId } : {}),
+      ...(gradeable ? gradingPayload(grading) : {}),
     });
   }
 
@@ -194,6 +207,13 @@ export function CollectionQuickAddPopover({
         <p id="quick-add-price-error" role="alert" className="mt-1.5 text-xs text-fall">
           {t("purchasePriceInvalid")}
         </p>
+      )}
+
+      {gradeable && (
+        <div className="mt-4">
+          <p className="mb-1.5 text-sm text-ink">{t("quickAddGrading")}</p>
+          <GradingPicker value={grading} onChange={setGrading} size="sm" />
+        </div>
       )}
 
       {portfolios.length > 1 && (

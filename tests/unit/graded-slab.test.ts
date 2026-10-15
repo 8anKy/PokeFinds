@@ -5,6 +5,7 @@ import {
   gradeNumber,
   gradeWord,
   gradesForCollectionIssuer,
+  gradingPayload,
   normalizeCollectionIssuer,
   parseCollectionGrade,
 } from "@/lib/graded-slab";
@@ -72,5 +73,14 @@ describe("label text", () => {
     expect(gradeNumber(100)).toBe("10");
     expect(gradeNumber(95)).toBe("9.5");
     expect(gradeNumber(80)).toBe("8");
+  });
+});
+
+describe("gradingPayload", () => {
+  it("sends both fields or nothing", () => {
+    expect(gradingPayload("PSA", "10")).toEqual({ gradingCompany: "PSA", grade: "10" });
+    expect(gradingPayload("PSA", "")).toEqual({});
+    expect(gradingPayload("", "10")).toEqual({});
+    expect(gradingPayload(undefined, undefined)).toEqual({});
   });
 });

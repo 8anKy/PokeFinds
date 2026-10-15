@@ -21,7 +21,7 @@
  *
  * ⛔ 429 ⇒ SKRIV DET SOM HANN OCH SLUTA. Kvoten återställs vid midnatt Pacific.
  */
-import { OWNED_GRADED_PRODUCT_WHERE } from "../lib/graded-value";
+import { inIdOrder, selectGradedSweepIds } from "./graded-sweep-select";
 import { prisma } from "../lib/db";
 import type { Prisma } from "@prisma/client";
 import { mapPool } from "../lib/concurrency";
@@ -89,27 +89,10 @@ async function selectProducts(budget: number): Promise<ProductRow[]> {
     cardId: { not: null },
     language: { in: ["EN", "JP"] },
   };
-  const watched = await prisma.product.findMany({
-    // Bevakade kort + kort någon äger GRADERADE (samlingens slabbar värderas på affärerna).
-    where: { ...baseWhere, OR: [{ watchlistItems: { some: {} } }, ...OWNED_GRADED_PRODUCT_WHERE] },
-    select,
-    orderBy: [{ watchlistItems: { _count: "desc" } }, { viewCount: "desc" }],
-    take: budget,
-  });
-  const seen = new Set(watched.map((p) => p.id));
-  const need = budget - watched.length;
-  const rotation = need > 0
-    ? await prisma.product.findMany({
-        where: { ...baseWhere, id: { notIn: [...seen] } },
-        select,
-        orderBy: [{ gradedAskCheckedAt: { sort: "asc", nulls: "first" } }, { viewCount: "desc" }],
-        take: need,
-      })
-    : [];
-  console.log(
-    `[graded-ask] ${watched.length + rotation.length} kort (${watched.length} bevakade + ${rotation.length} rotation), budget ${budget}.`
-  );
-  return [...watched, ...rotation]
+  // Nivåindelat urval (bevakade/ägda → heta → värdefulla → svans), se graded-sweep-select.ts.
+  const ids = await selectGradedSweepIds({ baseWhere, field: "gradedAskCheckedAt", budget, tag: "graded-ask" });
+  const picked = inIdOrder(ids, await prisma.product.findMany({ where: { id: { in: ids } }, select }));
+  return picked
     .filter((p): p is typeof p & { card: NonNullable<typeof p.card> } => p.card != null)
     .map((p) => ({
       id: p.id,

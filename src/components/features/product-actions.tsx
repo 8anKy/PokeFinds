@@ -7,6 +7,7 @@ import { useRouter } from "@/i18n/navigation";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { setProductWatched } from "@/lib/watched-products";
 import { openPaywallOrNavigate } from "@/lib/paywall";
+import { previewSlabIfFree } from "@/lib/slab-preview";
 import { FREE_RESTOCK_ALERT_LIMIT_CODE, promptChannelsAfterWatch } from "@/lib/watch-alert-followup";
 import {
   FreeWatchIntroSheet,
@@ -31,6 +32,9 @@ import {
 export interface ProductActionsProps {
   productId: string;
   title: string;
+  /** Kort (inte förseglat) ⇒ tilläggsarket erbjuder gradering. */
+  gradeable?: boolean;
+  imageUrl?: string | null;
 }
 
 type ActionKey = "watch" | "collection";
@@ -62,7 +66,7 @@ function toState(row: WatchlistRow): ProductWatchState {
  * väljs ihop och kan ändras/tas bort senare från samma knapp ("Bevakas").
  * Varför ett ark och inte två knappar: se product-watch-sheet.tsx.
  */
-export function ProductActions({ productId, title }: ProductActionsProps) {
+export function ProductActions({ productId, title, gradeable = false, imageUrl }: ProductActionsProps) {
   const t = useTranslations("Detail");
   const tw = useTranslations("Watch");
   const [loading, setLoading] = useState<ActionKey | null>(null);
@@ -263,6 +267,12 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
         return;
       }
       toast({ title: t("addedToCollection"), variant: "success" });
+      void previewSlabIfFree(router, {
+        name: title,
+        imageUrl: imageUrl ?? null,
+        gradingCompany: draft.gradingCompany,
+        grade: draft.grade,
+      });
     } catch {
       toast({ title: t("tryAgain"), variant: "error" });
     } finally {
@@ -334,6 +344,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
         onClose={() => setCollectionOpen(false)}
         onConfirm={(draft) => void saveCollection(draft)}
         productTitle={title}
+        gradeable={gradeable}
         saving={loading === "collection"}
         panelClassName="sm:mx-auto sm:max-w-md"
       />

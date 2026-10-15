@@ -22,7 +22,7 @@
  *    Charmander 168 fick japanska "sv2a 151"-affärer). Varje rad måste därför
  *    BEVISA sig som i ask-svepet: språk, nummer, set och tryckning ur TITELN.
  */
-import { OWNED_GRADED_PRODUCT_WHERE } from "../lib/graded-value";
+import { inIdOrder, selectGradedSweepIds } from "./graded-sweep-select";
 import { prisma } from "../lib/db";
 import type { Prisma } from "@prisma/client";
 import { mapPool } from "../lib/concurrency";
@@ -88,27 +88,10 @@ async function selectProducts(budget: number): Promise<ProductRow[]> {
     card: { tcgExternalId: { not: null } },
     language: { in: ["EN", "JP"] },
   };
-  const watched = await prisma.product.findMany({
-    // Bevakade kort + kort någon äger GRADERADE (samlingens slabbar värderas på affärerna).
-    where: { ...baseWhere, OR: [{ watchlistItems: { some: {} } }, ...OWNED_GRADED_PRODUCT_WHERE] },
-    select,
-    orderBy: [{ watchlistItems: { _count: "desc" } }, { viewCount: "desc" }],
-    take: budget,
-  });
-  const seen = new Set(watched.map((p) => p.id));
-  const need = budget - watched.length;
-  const rotation = need > 0
-    ? await prisma.product.findMany({
-        where: { ...baseWhere, id: { notIn: [...seen] } },
-        select,
-        orderBy: [{ ebaySoldCheckedAt: { sort: "asc", nulls: "first" } }, { viewCount: "desc" }],
-        take: need,
-      })
-    : [];
-  console.log(
-    `[ebay-sold] ${watched.length + rotation.length} kort (${watched.length} bevakade + ${rotation.length} rotation), budget ${budget}.`
-  );
-  return [...watched, ...rotation]
+  // Nivåindelat urval (bevakade/ägda → heta → värdefulla → svans), se graded-sweep-select.ts.
+  const ids = await selectGradedSweepIds({ baseWhere, field: "ebaySoldCheckedAt", budget, tag: "ebay-sold" });
+  const picked = inIdOrder(ids, await prisma.product.findMany({ where: { id: { in: ids } }, select }));
+  return picked
     .filter((p) => p.card?.tcgExternalId)
     .map((p) => ({
       id: p.id,

@@ -413,7 +413,7 @@ export function ProductDetailView({
             {/* Bevakarantalet ("4 samlare bevakar") är BORTTAGET ur arket (2026-09-05):
                 en rad till mellan pris och knappar, och fyra är inget socialt bevis. */}
             <div className="mt-5">
-              <ProductActions productId={data.id} title={data.title} />
+              <ProductActions productId={data.id} title={data.title} gradeable={isSingle} imageUrl={data.imageUrl} />
             </div>
 
             {/* Prishistorik — utan kortram och utan rubrik inne i arket (kurvan

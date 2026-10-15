@@ -38,8 +38,13 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   värde + raden "Inget graderat pris ännu". Läses vid request ur `GradedSale` (skrivs bara av nattsvepen ⇒ ingen ny tabell);
   slabbar är platta i värdegrafen och utanför movers. Gratiskontot: kortet som vanligt + låst betygschip ⇒ paywall-arket med
   SITT kort i slabben (`preview` i `openPaywallOrNavigate`, samma ark/rader/knapp). Graderingen SPARAS även för gratis.
-  `computeCollectionValue` slår upp planen själv (eller `graded:`). Ägda slabbars produkter tas varje natt i eBay-sålt/
-  ask-svepen (`OWNED_GRADED_PRODUCT_WHERE`). Bolag/betyg: `lib/graded-slab.ts` (PSA har inget 9.5; SGC/TAG valbara).
+  `computeCollectionValue` slår upp planen själv (eller `graded:`). Bolag/betyg: `lib/graded-slab.ts` (PSA har inget
+  9.5; SGC/TAG valbara). Graderingen väljs även VID TILLÄGG (2026-10-15): "+"-arket, produktsidan (`GradingPicker`,
+  bara kort) och skannerns granskningsrad (två väljare) — gratis ⇒ förhandsvisande paywall efter sparat (`lib/slab-preview.ts`).
+  ⛔ **eBay-SVEPEN VÄLJER I NIVÅER sedan 2026-10-15** (`jobs/graded-sweep-select.ts`): bevakade + ägda graderade varje
+  natt → heta (visade 30 d, ej kollade på 3 d) → värdefulla (≥ 50 kr, äldst först) → svans (15 % reserverad). MÄTT: kort
+  < 20 kr gav eBay-affärer på 0,8 %, ≥ 200 kr på 42 %, och rotationen över hela katalogen lät Mega Darkrai ex 116 stå
+  okollad 30 d (begärt döljs efter 14). Jobbtaket i `tradera-sold-sync.yml` 110 → 150 min (10-07/10-09 dog i taket).
   Profilsidan visar fortfarande ograderat (v1). Memory: `project_graded_slabs_portfolio_2026_10_15`.
 - **GIVEAWAY MED LOTTER (2026-10-13, ägarbeslut)**: `/giveaway` (routegrupp `(mer)`, gäster ser pris + krav), pris
   30th Celebration ETB — ENDA vinsten (ägarbeslut 2026-10-13, inga Pro-pris). Start 2026-10-17 00:00 (flyttad från 10-15, ägarbeslut; DOLD före: 404 + ingen Mer-rad, admin ser den; flytta med `GIVEAWAY_STARTS_AT`), slut 2026-11-15 23:59 svensk tid

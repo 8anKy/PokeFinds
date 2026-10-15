@@ -2089,6 +2089,7 @@
     "quickAddCancel": "Avbryt",
     "quickAddConfirm": "Lägg till",
     "quickAddPortfolio": "Pärm",
+    "quickAddGrading": "Gradering (valfritt)",
     "holdForOptions": "Håll in för antal och inköpspris (Skift+Enter)",
     "addedToCollectionN": "{count, plural, =1 {Tillagd i samlingen} other {# ex tillagda i samlingen}}",
     "addUndone": "Ångrat",
@@ -3299,5 +3300,11 @@
     "rowGrading": "AI-gradering",
     "rowGradingHint": "3 lotter per kort du AI-graderar, max 3",
     "ctaGrade": "Gradera"
+  },
+  "Grading": {
+    "none": "Ograderat",
+    "company": "Gradering",
+    "grade": "Betyg",
+    "pickGrade": "Välj betyg"
   }
 }

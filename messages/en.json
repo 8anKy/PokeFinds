@@ -2089,6 +2089,7 @@
     "quickAddCancel": "Cancel",
     "quickAddConfirm": "Add",
     "quickAddPortfolio": "Binder",
+    "quickAddGrading": "Grading (optional)",
     "holdForOptions": "Hold for quantity and purchase price (Shift+Enter)",
     "addedToCollectionN": "{count, plural, =1 {Added to your collection} other {# added to your collection}}",
     "addUndone": "Undone",
@@ -3299,5 +3300,11 @@
     "rowGrading": "AI grading",
     "rowGradingHint": "3 tickets per card you AI-grade, max 3",
     "ctaGrade": "Grade"
+  },
+  "Grading": {
+    "none": "Ungraded",
+    "company": "Grading",
+    "grade": "Grade",
+    "pickGrade": "Pick a grade"
   }
 }

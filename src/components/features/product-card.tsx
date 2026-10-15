@@ -252,7 +252,13 @@ export function ProductCard({ product, className, priority = false }: ProductCar
               <span />
             )}
             {product.id && (
-              <CollectionQuickAdd productId={product.id} estimatedValue={product.lowestPrice} />
+              <CollectionQuickAdd
+                productId={product.id}
+                estimatedValue={product.lowestPrice}
+                gradeable={product.category === "SINGLE_CARD"}
+                title={product.title}
+                imageUrl={product.imageUrl}
+              />
             )}
           </div>
           {product.dealListingTitle && (

@@ -79,6 +79,17 @@ export function parseCollectionGrade(grade: string | null | undefined): number |
   return tenths;
 }
 
+/**
+ * API-fälten för en gradering — bara när BÅDE bolag och betyg finns, annars inga
+ * fält alls (ett bolag utan betyg är ingen gradering). Delad av alla tilläggsvägar.
+ */
+export function gradingPayload(
+  company: string | null | undefined,
+  grade: string | null | undefined
+): { gradingCompany?: string; grade?: string } {
+  return company && grade ? { gradingCompany: company, grade } : {};
+}
+
 export interface CollectionGrading {
   issuer: GradingIssuer;
   gradeTenths: number;
