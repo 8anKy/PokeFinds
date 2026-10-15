@@ -222,6 +222,10 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   `tcgExternalId "cm:<idProduct>"`. ⛔ Nya kort föds bara i HELT nya set; i set vi har länkas bara (underset
   med annat nummerformat gav annars dubbletter). ⛔ Skannern indexerar inte omtrycken (`lib/scanner-exclusion.ts`
   — samma konst + nummer som originalet hade stulit träffar). Kinesiska/koreanska CM-set ingår aldrig.
+  **Ägarbeslut samma kväll (frågat, besvarat)**: (1) CardTrader BEHÅLLS på Reverse Holo + 1st Edition utanför Base
+  (riktiga NM-engelska annonser; CM har bara ett allspråks-trendtal där). (2) Utropsvakten 4x behålls (EN med
+  språkbekräftelse, JP utan). (3) Graderade rutor utan affärer visar begärt märkt "Till salu", aldrig omärkt.
+  (4) Rubriken: en Tradera-annons slår ALDRIG ett CM-pris (`headlineCandidates`, ersätter 09-22-regeln för rubriken).
 - **FOILIO HETER SCOUTR SEDAN 2026-10-12 (ägarbeslut, EUIPO-anspråket på FOILIO)**: all synlig text, mejl, logga
   (`public/brand/scoutr-*`, källfiler + generatorer i `work/scoutr-logo/`, original-6 sparad som alt) och domänen
   **scoutr.se** (Cloudflare-zon, Railway-domän, Resend verifierad; Brevo används INTE längre — bulk går via Resend).
