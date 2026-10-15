@@ -49,7 +49,7 @@ import {
 } from "@/jobs/cardmarket-refresh";
 import { getRatesOre, priceOreFromEur } from "@/lib/exchange-rate";
 import { cardmarketJapaneseSingleUrl, cardmarketProductUrl } from "@/lib/marketplace-urls";
-import { cmImageProxyUrl } from "@/lib/cm-image";
+import { ctImageProxyUrl } from "@/lib/ct-image";
 import { normalizeTitle, slugify, utcToday } from "@/lib/utils";
 import { mapPool } from "@/lib/concurrency";
 import { exitJob } from "@/lib/job-exit";
@@ -90,6 +90,7 @@ interface RawBlueprint {
   fixed_properties?: { collector_number?: string | null } | null;
   editable_properties?: { name: string; default_value?: string | null }[] | null;
   card_market_ids: number[] | null;
+  image?: { url?: string | null } | null;
 }
 type Lang = GapLanguage;
 
@@ -138,6 +139,9 @@ async function importMissing(apply: boolean) {
   // CardTraders blueprints, en expansion i taget (gratis API, ~860 anrop).
   const blueprints: { bp: RawBlueprint; exp: CtExpansion; lang: Lang }[] = [];
   const claims = new Map<number, number>();
+  // Kortbilden: CardTraders blueprintbild via /api/ct-image (CM:s singelbilder går inte att
+  // nå utan expansionskod — /api/cm-image gav 404 på alla 6 716 kort, 2026-10-15).
+  const imageByCm = new Map<number, string>();
   let done = 0;
   for (const exp of expansions) {
     // CardTraders standardspråk är "en" även för McDonald's 2018 FRENCH — namnet avgör där.
@@ -145,7 +149,11 @@ async function importMissing(apply: boolean) {
     const bps = await ctGet<RawBlueprint[]>(`/blueprints/export?expansion_id=${exp.id}`).catch(() => [] as RawBlueprint[]);
     for (const bp of bps) {
       if (bp.category_id !== CT_SINGLE_CATEGORY) continue;
-      for (const id of bp.card_market_ids ?? []) claims.set(id, (claims.get(id) ?? 0) + 1);
+      for (const id of bp.card_market_ids ?? []) {
+        claims.set(id, (claims.get(id) ?? 0) + 1);
+        const img = ctImageProxyUrl(bp.id, bp.image?.url);
+        if (img && !imageByCm.has(id)) imageByCm.set(id, img);
+      }
       const lang = blueprintLanguage(bp);
       if (lang) blueprints.push({ bp, exp, lang });
     }
@@ -153,6 +161,25 @@ async function importMissing(apply: boolean) {
     await new Promise((r) => setTimeout(r, 120));
   }
 
+  // BILDLAGNING för redan skapade kort: allt som fortfarande pekar på /api/cm-image.
+  {
+    const broken = await prisma.card.findMany({
+      where: { tcgExternalId: { startsWith: CM_ONLY_PREFIX }, OR: [{ imageUrl: null }, { imageUrl: { startsWith: "/api/cm-image/" } }] },
+      select: { id: true, cardmarketId: true },
+    });
+    let fixed = 0;
+    await mapPool(broken, 8, async (c) => {
+      const img = c.cardmarketId != null ? imageByCm.get(c.cardmarketId) : undefined;
+      if (!img) return;
+      fixed++;
+      if (!apply) return;
+      await prisma.card.update({ where: { id: c.id }, data: { imageUrl: img } });
+      await prisma.product.updateMany({ where: { cardId: c.id }, data: { imageUrl: img } });
+    });
+    console.log(`Bilder: ${fixed} av ${broken.length} bildlösa Cardmarket-only-kort får CardTraders bild.`);
+  }
+
+  imageByCmGlobal = imageByCm;
   const sets = await prisma.cardSet.findMany({ select: { id: true, name: true, language: true } });
   const setsByKey = new Map<string, string | null>();
   for (const s of await prisma.cardSet.findMany({ select: { id: true, name: true, language: true, series: true } })) {
@@ -343,7 +370,7 @@ async function createCard(a: { bp: RawBlueprint; exp: CtExpansion; lang: Lang; i
   const { bp, exp, lang, idProduct, number, label, priceOre, setId, setName } = a;
   const display = lang === "JP" ? `${bp.name} (JP)` : bp.name;
   const title = `${display} · ${setName} ${number}${label ? ` · ${label}` : ""}`;
-  const imageUrl = cmImageProxyUrl(idProduct);
+  const imageUrl = imageByCmGlobal.get(idProduct) ?? null;
   const card = await prisma.card
     .create({
       data: {
@@ -372,6 +399,9 @@ async function createCard(a: { bp: RawBlueprint; exp: CtExpansion; lang: Lang; i
   });
   return true;
 }
+
+/** Satt av importMissing (bilderna hämtas med blueprintsen) — läses av createCard. */
+let imageByCmGlobal = new Map<number, string>();
 
 let cmRetailerIdPromise: Promise<string> | null = null;
 function cardmarketRetailerId(): Promise<string> {
