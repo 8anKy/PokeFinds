@@ -194,6 +194,22 @@ export async function runCardTraderBallImport(opts: {
       else if (!baseByCard.has(p.cardId)) baseByCard.set(p.cardId, p);
     }
 
+    // ⛔ CARDMARKET ÄGER BOLLVARIANTEN NÄR DEN HAR ETT CM-PRIS (ägarbeslut 2026-10-15:
+    // "bara Cardmarket"). Cardmarket listar bollmönstren som egna produkter, och
+    // scripts/import-cm-only-singles.ts länkar dem — då skrivs ingen CardTrader-offer.
+    const cmOwned = new Set(
+      (
+        await prisma.offer.findMany({
+          where: {
+            productId: { in: [...ballByCard.values()].map((p) => p.id) },
+            retailer: { name: "Cardmarket" },
+            price: { gt: 0 },
+          },
+          select: { productId: true },
+        })
+      ).map((o) => o.productId)
+    );
+
     // ---- PASS A: golv per kort (ingen nättrafik, inga skrivningar) ----
     interface Candidate {
       cardId: string;
@@ -287,6 +303,7 @@ export async function runCardTraderBallImport(opts: {
         ballByCard.set(c.cardId, product);
       }
 
+      if (cmOwned.has(product.id)) continue;
       res.offersUpserted++;
       if (!apply || !retailer) continue;
       await prisma.offer.upsert({

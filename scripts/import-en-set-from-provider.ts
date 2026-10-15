@@ -26,6 +26,7 @@ import { prisma } from "@/lib/db";
 import { normalizeTitle, slugify } from "@/lib/utils";
 import { normalizeJpRarity } from "@/jobs/jp-singles-refresh";
 import { exitJob } from "@/lib/job-exit";
+import { enProductTitle, numbersCarryOwnTotal } from "@/lib/catalog-gap-identity";
 
 const HOST = process.env.CARDMARKET_RAPIDAPI_HOST ?? "cardmarket-api-tcg.p.rapidapi.com";
 const KEY = process.env.CARDMARKET_RAPIDAPI_KEY ?? "";
@@ -51,6 +52,8 @@ interface ProviderCard {
   image?: string | null;
   cardmarket_id: number | null;
   tcgid: string | null;
+  /** "Holo Version" m.fl. — en EGEN CM-produkt med samma namn + nummer (Prize Pack-seten). */
+  version?: string | null;
   lang?: string | null;
   artist?: { name?: string | null } | null;
 }
@@ -61,18 +64,73 @@ async function api<T>(url: string): Promise<T> {
   return (await r.json()) as T;
 }
 
-/** Titel som import-tcg-data: "Namn · Set N/Total", utan "/Total" när nämnaren är okänd. */
-export function enProductTitle(name: string, setName: string, number: string, printedTotal: number | null): string {
-  const denom = printedTotal && printedTotal > 0 ? `/${printedTotal}` : "";
-  return `${name} · ${setName} ${number}${denom}`;
+async function allEpisodes(): Promise<Episode[]> {
+  const out: Episode[] = [];
+  for (let page = 1; page <= 40; page++) {
+    const d = await api<{ data: Episode[]; paging?: { total?: number } }>(`https://${HOST}/pokemon/episodes?page=${page}`);
+    out.push(...d.data);
+    if (d.data.length === 0 || (d.paging?.total != null && page >= d.paging.total)) break;
+    await new Promise((r) => setTimeout(r, 220));
+  }
+  return out;
+}
+
+async function episodeCards(epId: number): Promise<ProviderCard[]> {
+  const cards: ProviderCard[] = [];
+  for (let page = 1; page <= 60; page++) {
+    const d = await api<{ data: ProviderCard[]; paging?: { total?: number } }>(`https://${HOST}/pokemon/episodes/${epId}/cards?page=${page}`);
+    cards.push(...d.data);
+    if (d.data.length === 0 || (d.paging?.total != null && page >= d.paging.total)) break;
+    await new Promise((r) => setTimeout(r, 220));
+  }
+  return cards;
+}
+
+/**
+ * HELT NYA EPISODER (2026-10-15): episoder där INGET kort matchar något vi har —
+ * varken på `cardmarket_id` (Card.cardmarketId), pokemontcg.io-id (tcgid) eller
+ * leverantörs-id ("tcggo:<id>") — och inget EN-set heter likadant. Mätt 2026-10-15:
+ * Play! Pokémon Prize Pack Series 1–9 (1 019 kort med CM-pris) fanns hos leverantören
+ * men inte hos oss. ⛔ En episod där NÅGOT kort redan matchar är vår, även om namnet
+ * skiljer ("SV Black Star Promos" = vårt "Scarlet & Violet Black Star Promos") — där
+ * skapas aldrig ett nytt set; enstaka saknade kort tas av prisjobbets reserver.
+ */
+async function newEpisodes(): Promise<{ ep: Episode; cards: ProviderCard[] }[]> {
+  const [cards, sets] = await Promise.all([
+    prisma.card.findMany({ where: { language: "EN" }, select: { cardmarketId: true, tcgExternalId: true } }),
+    prisma.cardSet.findMany({ where: { language: "EN" }, select: { name: true } }),
+  ]);
+  const cmIds = new Set(cards.flatMap((c) => (c.cardmarketId != null ? [c.cardmarketId] : [])));
+  const extIds = new Set(cards.flatMap((c) => (c.tcgExternalId ? [c.tcgExternalId] : [])));
+  const setNames = new Set(sets.map((s) => s.name.toLowerCase()));
+  const out: { ep: Episode; cards: ProviderCard[] }[] = [];
+  for (const ep of await allEpisodes()) {
+    if ((ep.lang ?? "en") !== "en" || setNames.has(ep.name.toLowerCase())) continue;
+    const epCards = await episodeCards(ep.id);
+    if (epCards.length === 0) continue;
+    const known = epCards.some(
+      (c) =>
+        (c.cardmarket_id != null && cmIds.has(c.cardmarket_id)) ||
+        (c.tcgid != null && extIds.has(c.tcgid)) ||
+        extIds.has(`${EN_PROVIDER_PREFIX}${c.id}`)
+    );
+    if (!known) out.push({ ep, cards: epCards });
+  }
+  return out;
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const dry = args.includes("--dry");
-  const epArg = args[args.indexOf("--episode") + 1];
   if (!KEY) throw new Error("CARDMARKET_RAPIDAPI_KEY saknas");
-  if (!epArg) throw new Error("--episode <id> krävs");
+  if (args.includes("--new-episodes")) {
+    const found = await newEpisodes();
+    console.log(`${found.length} helt nya episoder hos leverantören: ${found.map((f) => `${f.ep.id} "${f.ep.name}" (${f.cards.length})`).join(", ") || "inga"}`);
+    for (const f of found) await importEpisode(f.ep, f.cards, dry);
+    return;
+  }
+  const epArg = args[args.indexOf("--episode") + 1];
+  if (!args.includes("--episode") || !epArg) throw new Error("--episode <id> eller --new-episodes krävs");
 
   const ep = await api<{ data: Episode }>(`https://${HOST}/pokemon/episodes/${epArg}`).then((d) => d.data).catch(async () => {
     // Vissa versioner av API:t saknar detalj-endpointen — hitta episoden i listan.
@@ -85,6 +143,10 @@ async function main() {
     throw new Error(`Episod ${epArg} hittades inte`);
   });
   if ((ep.lang ?? "en") !== "en") throw new Error(`Episoden är ${ep.lang}, inte en — JP går via jp-singles-refresh`);
+  await importEpisode(ep, await episodeCards(ep.id), dry);
+}
+
+async function importEpisode(ep: Episode, cards: ProviderCard[], dry: boolean) {
   console.log(`Episod ${ep.id} "${ep.name}" (${ep.code ?? "?"}), släpp ${ep.released_at ?? "?"}, serie ${ep.series?.name ?? "?"}`);
 
   // Vårt set: befintligt EN-set på exakt namn (stubben skapas av CM-katalogen i förväg),
@@ -93,6 +155,7 @@ async function main() {
     where: { language: "EN", name: { equals: ep.name, mode: "insensitive" } },
     select: { id: true, name: true, logoUrl: true, releaseDate: true, totalCards: true },
   });
+  const ownTotals = numbersCarryOwnTotal(cards.map((c) => c.card_number));
   if (!set) {
     if (dry) {
       console.log(`[dry] Hade skapat set "${ep.name}"`);
@@ -105,7 +168,7 @@ async function main() {
           language: "EN",
           releaseDate: ep.released_at ? new Date(ep.released_at) : new Date(),
           logoUrl: ep.logo ?? null,
-          totalCards: ep.cards_printed_total ?? 0,
+          totalCards: ownTotals ? 0 : ep.cards_printed_total ?? 0,
           totalCardsFull: ep.cards_total ?? 0,
         },
         select: { id: true, name: true, logoUrl: true, releaseDate: true, totalCards: true },
@@ -118,16 +181,8 @@ async function main() {
       await prisma.cardSet.update({ where: { id: set.id }, data: { logoUrl: ep.logo } });
     }
   }
-  const printedTotal = set.totalCards > 0 ? set.totalCards : (ep.cards_printed_total ?? 0) > 0 ? ep.cards_printed_total! : null;
+  const printedTotal = ownTotals ? null : set.totalCards > 0 ? set.totalCards : (ep.cards_printed_total ?? 0) > 0 ? ep.cards_printed_total! : null;
 
-  // Alla kort i episoden.
-  const cards: ProviderCard[] = [];
-  for (let page = 1; page <= 60; page++) {
-    const d = await api<{ data: ProviderCard[]; paging?: { total?: number } }>(`https://${HOST}/pokemon/episodes/${ep.id}/cards?page=${page}`);
-    cards.push(...d.data);
-    if (d.data.length === 0 || (d.paging?.total != null && page >= d.paging.total)) break;
-    await new Promise((r) => setTimeout(r, 220));
-  }
   console.log(`${cards.length} kort hos leverantören (cardmarket_id på ${cards.filter((c) => c.cardmarket_id).length}, tcgid på ${cards.filter((c) => c.tcgid).length})`);
 
   // Redan importerade via pokemontcg.io? Då är vi klara — det här är bara för gapet.
@@ -151,7 +206,10 @@ async function main() {
     const ext = `${EN_PROVIDER_PREFIX}${c.id}`;
     const rarity = normalizeJpRarity(c.rarity);
     const imageUrl = c.image ?? null;
-    const hit = byExt.get(ext) ?? byKey.get(`${number}\t${name.toLowerCase()}`);
+    // En versionsrad ("Holo Version") är ett ANNAT kort än den vanliga med samma namn +
+    // nummer — den får aldrig slå ihop sig med den på nyckeln, bara på sitt eget id.
+    const holo = /holo/i.test(c.version ?? "");
+    const hit = byExt.get(ext) ?? (c.version ? undefined : byKey.get(`${number}\t${name.toLowerCase()}`));
 
     let cardId: string;
     if (hit) {
@@ -192,12 +250,12 @@ async function main() {
     }
 
     // Singelprodukten (samma form som import-tcg-data).
-    const title = enProductTitle(name, set.name, number, printedTotal);
+    const title = enProductTitle(name, set.name, number, printedTotal) + (holo ? " · Holo" : "");
     const existingProduct = hit?.products[0]?.id ?? (await prisma.product.findFirst({ where: { cardId, category: "SINGLE_CARD" }, select: { id: true } }))?.id;
     if (existingProduct) {
       await prisma.product.update({ where: { id: existingProduct }, data: { title, normalizedTitle: normalizeTitle(title), imageUrl: imageUrl ?? undefined, setId: set.id } });
     } else {
-      const baseSlug = slugify(`${name}-${(ep.code ?? ep.name).toLowerCase()}-${number}`);
+      const baseSlug = slugify(`${name}-${(ep.code ?? ep.name).toLowerCase()}-${number}${holo ? "-holo" : ""}`);
       let slug = baseSlug;
       if (await prisma.product.findUnique({ where: { slug }, select: { id: true } })) slug = `${baseSlug}-${c.id}`;
       await prisma.product.create({

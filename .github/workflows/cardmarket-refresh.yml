@@ -126,6 +126,15 @@ jobs:
         name: Priser + historik (RapidAPI)
         run: npx tsx scripts/cardmarket-refresh-run.ts
 
+      # KORT SOM BARA FINNS PÅ CARDMARKET (2026-10-15): stämplade tryckningar, startdäck,
+      # World Championship Decks och bollmönstren saknas hos prisleverantören. Deras pris är
+      # Cardmarkets prisguide (uppskattning). De engelska tar refresh-steget ovan via guide-
+      # reserven; det här steget tar resten (japanska + bollvarianterna). Ingen RapidAPI-kvot.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Cardmarket-only-kort ur prisguiden
+        continue-on-error: true
+        run: npx tsx scripts/import-cm-only-singles.ts --refresh
+
       # ── NYA ENGELSKA SEALED UR CARDMARKET, VARJE NATT (2026-09-30) ──────────────
       # Var ett eget söndagsjobb. Butikerna skapar inga produkter längre (runner.ts,
       # STORE_IMPORT_CREATES), så en ny CM-produkt ska finnas samma natt — annars står

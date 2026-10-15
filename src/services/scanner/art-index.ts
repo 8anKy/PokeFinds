@@ -22,7 +22,9 @@
  *    `ART_INDEX_TTL_MS` sätter ett tak så en långlivad process ändå hämtar nya
  *    kort inom ett dygn.
  */
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { SCANNER_INCLUDED_CARD } from "@/lib/scanner-exclusion";
 import {
   BLEND_COLOR,
   BLEND_DCT,
@@ -73,7 +75,8 @@ let loading: Promise<ArtIndex | null> | null = null;
 const LOAD_PAGE = 1000;
 
 async function load(): Promise<ArtIndex | null> {
-  const where = { artFingerprint: { not: null } } as const;
+  // Omtryck med samma konst + nummer som originalet hålls utanför — se lib/scanner-exclusion.ts.
+  const where: Prisma.CardWhereInput = { AND: [{ artFingerprint: { not: null } }, SCANNER_INCLUDED_CARD] };
   const total = await prisma.card.count({ where });
   if (total === 0) return null;
 

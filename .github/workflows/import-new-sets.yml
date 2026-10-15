@@ -80,6 +80,22 @@ jobs:
         name: Fyll på promo- och energiset (add-only, no-op om inget saknas)
         run: npx tsx scripts/import-missing-cards-tcgdex.ts --apply
 
+      # HELT NYA EPISODER HOS PRISLEVERANTÖREN (2026-10-15): set som varken
+      # pokemontcg.io eller TCGdex har men leverantören prissätter. Mätt 2026-10-15:
+      # Play! Pokémon Prize Pack Series 1–9 (1 271 kort, nästan alla med CM-pris)
+      # saknades helt. Bara episoder där INGET kort matchar något vi har — en episod
+      # vi redan har under annat namn får aldrig ett andra set. ~190 anrop/vecka.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Helt nya set ur prisleverantören (no-op om inget nytt)
+        run: npx tsx scripts/import-en-set-from-provider.ts --new-episodes
+
+      # KORT SOM BARA FINNS PÅ CARDMARKET (2026-10-15): identitet ur CardTraders katalog
+      # (namn, nummer, tryckning, språk), id + pris + bild ur Cardmarket. Nya kort föds bara i
+      # helt nya set; i set vi har länkas bara. Gratis (CardTrader + CM:s filer), ~860 anrop.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Kort som bara finns på Cardmarket (no-op om inget nytt)
+        run: npx tsx scripts/import-cm-only-singles.ts --apply
+
       # NÄMNARNA för set-komplettering: `totalCardsFull` (pokemontcg.io `total`,
       # hela setet inkl. secret rares) och `printingsTotal` (TCGdex, master
       # set-nämnaren). Måste ligga som ett EGET steg, inte bara i upserten ovan:

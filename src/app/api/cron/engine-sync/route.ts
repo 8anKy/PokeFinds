@@ -14,6 +14,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { apiError, jsonOk } from "@/lib/api";
 import { ensureDbAwake, prisma } from "@/lib/db";
+import { SCANNER_INCLUDED_CARD } from "@/lib/scanner-exclusion";
 import { engineShadowEnabled } from "@/lib/scanner-engine-shadow";
 
 export const dynamic = "force-dynamic";
@@ -64,7 +65,8 @@ export async function POST(req: NextRequest) {
 
     await ensureDbAwake();
     const catalog = await prisma.card.findMany({
-      where: { NOT: { imageUrl: null } },
+      // Omtryck med samma konst + nummer som originalet hålls utanför — se lib/scanner-exclusion.ts.
+      where: { AND: [{ NOT: { imageUrl: null } }, SCANNER_INCLUDED_CARD] },
       select: { id: true, imageUrl: true, language: true },
     });
     const missing = catalog.filter((c) => !have.has(c.id)).slice(0, MAX_PER_RUN);
