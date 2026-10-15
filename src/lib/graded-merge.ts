@@ -62,7 +62,20 @@ export function buildGradedCards(
     }));
 }
 
-/** Kortets förvalda betyg: högsta med ett aktuellt begärt pris, annars högsta alls. */
+/**
+ * Cellens SÅLDA pris — det badgen visar (ägarbeslut 2026-10-15: "sålt i bolagets ruta,
+ * inte begärt"). eBay först, Tradera som reserv, aldrig blandat — samma ordning som
+ * samlingens slabvärde (`lib/graded-value.ts`). null = inga affärer för betyget.
+ */
+export function cellSold(cell: GradedGradeCell): GradedSaleRow | null {
+  return cell.saleEbay ?? cell.sale;
+}
+
+/**
+ * Kortets förvalda betyg: högsta med SÅLDA affärer, annars högsta med ett begärt
+ * pris, annars högsta alls. (Före 2026-10-15: begärt först — en ensam eBay-annons à
+ * 729 857 kr för PSA 9 blev bolagets rubriktal på Gardevoir LV.X.)
+ */
 export function defaultGrade(card: GradedIssuerCard): number {
-  return (card.grades.find((g) => g.ask) ?? card.grades[0]).gradeTenths;
+  return (card.grades.find((g) => cellSold(g)) ?? card.grades.find((g) => g.ask) ?? card.grades[0]).gradeTenths;
 }

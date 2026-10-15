@@ -1557,7 +1557,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
 
   const listingCutoff = new Date();
   listingCutoff.setDate(listingCutoff.getDate() - TRADERA_LISTING_MAX_AGE_DAYS);
-  const [historyBySource, similar, railRows, rejectedItems, affiliateRetailers, sponsoredRetailers, variantSiblings, gradedSales] = await Promise.all([
+  const [historyBySourceRaw, similar, railRows, rejectedItems, affiliateRetailers, sponsoredRetailers, variantSiblings, gradedSales] = await Promise.all([
     getPriceHistoryBySource(product.id, DETAIL_MAX_DAYS),
     getSimilarProducts(product.id, 4),
     prisma.traderaListing.findMany({
@@ -1640,6 +1640,15 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     railRows.filter((r) => !rejectedItemIds.has(r.itemId)),
     cmReferenceOre
   );
+
+  // ⛔ CARDTRADER BARA DÄR CARDMARKET SAKNAR PRIS (ägarbeslut 2026-10-15): på ett kort
+  // med ett CM-pris är CardTrader inte längre en källa — inga nya punkter skrivs, och de
+  // gamla ritas inte. Varianterna (reverse holo, bollmönster, 1st Edition) har ingen
+  // CM-produkt och behåller sin CardTrader-linje.
+  const hasCmPrice = product.offers.some(
+    (o) => o.retailer?.name === "Cardmarket" && o.price != null && o.price > 0
+  );
+  const historyBySource = hasCmPrice ? { ...historyBySourceRaw, cardtrader: [] } : historyBySourceRaw;
 
   // Prishistorik: Cardmarket-trend i första hand — MEN bara så länge den fortfarande
   // uppdateras. En produkt som tappat sin CM-länk (t.ex. generisk butiks-stub utan

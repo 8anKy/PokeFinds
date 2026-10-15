@@ -67,7 +67,22 @@ interface CmCard {
   // SET+NUMMER-RESERVEN nedan). `card_number` är ibland Int, ibland sträng.
   card_number?: string | number | null;
   episode?: { id?: number | null; name?: string | null } | null;
-  prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null; "7d_average"?: number | null } | null } | null;
+  prices?: {
+    cardmarket?: {
+      lowest_near_mint?: number | null;
+      "30d_average"?: number | null;
+      "7d_average"?: number | null;
+      // Samma NM-golv per språk — bekräftar en engelsk From mot utropsvakten.
+      lowest_near_mint_DE?: number | null;
+      lowest_near_mint_FR?: number | null;
+      lowest_near_mint_ES?: number | null;
+      lowest_near_mint_IT?: number | null;
+    } | null;
+  } | null;
+}
+/** Andra språks NM-From ur feed-raden (utropsvaktens bekräftelse). */
+export function cmLangFroms(cmp: NonNullable<NonNullable<CmCard["prices"]>["cardmarket"]>): (number | null | undefined)[] {
+  return [cmp.lowest_near_mint_DE, cmp.lowest_near_mint_FR, cmp.lowest_near_mint_ES, cmp.lowest_near_mint_IT];
 }
 interface ApiProduct {
   name: string;
@@ -234,6 +249,16 @@ export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
 // uppskattning som när From saknas (median, OUT_OF_STOCK ⇒ "Uppskattat värde").
 // ⛔ Tryckningar (1st Edition/Shadowless) dömas INTE: guide-raden delas med Unlimited,
 //    så ett 1st Edition-pris ligger med rätta långt över produktens snitt.
+// ── MOTSÄGELSE KRÄVS ÄVEN FRÅN DE ANDRA SPRÅKEN (2026-10-15, ägaren: "priserna skiljer
+// sig från vårt API") ─────────────────────────────────────────────────────────
+// Försäljningssnitten är ALLA SPRÅK och ALLA SKICK, så på vintage där engelska NM bär
+// en stor premie fällde vakten äkta engelska priser: Gardevoir LV.X · Secret Wonders
+// From 480 € mot snitt ≤ 98 € ⇒ "uppskattat" 865 kr, och CardTraders 5 519 kr tog
+// rubriken. Men feeden har SAMMA From per språk, och italienska NM stod i 389,90 €.
+// En From som ett annat språks EGET NM-golv bekräftar (≤ FROM_LANG_CORROBORATE ×) är
+// marknadsnivån, inte ett utrop. Utropen (9 001 € på en Mewtwo, 9 999 € på en Shaymin)
+// saknar sådan bekräftelse och fälls som förut. Mätt 2026-10-15: 140 EN-singlar fälldes.
+export const FROM_LANG_CORROBORATE = 1.5;
 export const FROM_ASK_MULT = Number(process.env.CM_FROM_ASK_MULT) || 4;
 const pos = (v: number | null | undefined): number | null =>
   typeof v === "number" && v > 0 ? v : null;
@@ -246,12 +271,16 @@ export function fromIsOutlierAsk(
   from: number | null | undefined,
   saleRefs: (number | null | undefined)[],
   mult: number = FROM_ASK_MULT,
+  /** Andra språks NM-From för SAMMA produkt — bekräftar nivån (se FROM_LANG_CORROBORATE). */
+  langFroms: (number | null | undefined)[] = [],
 ): boolean {
   const f = pos(from);
   if (f == null) return false;
   const refs = saleRefs.map(pos).filter((v): v is number => v != null);
   if (refs.length < 2) return false;
-  return f > mult * Math.max(...refs);
+  if (f <= mult * Math.max(...refs)) return false;
+  const langs = langFroms.map(pos).filter((v): v is number => v != null);
+  return !(langs.length > 0 && f <= FROM_LANG_CORROBORATE * Math.max(...langs));
 }
 
 /**
@@ -383,6 +412,20 @@ export function cmNumberKeyNoSetCode(v: string | number | null | undefined): str
   const s = String(v ?? "").trim();
   const m = /^[A-Za-z]{1,5}[\s._-]+(\d+[A-Za-z]?)$/.exec(s);
   return cmNumberKey(m ? m[1] : s);
+}
+
+/**
+ * Vilket av våra set är episoden, enligt raderna som matchat på annat sätt?
+ * Kräver minst 3 röster och att vinnaren har ≥ 80 % — annars null (avstå).
+ */
+export function episodeSetFromVotes(votes: Map<string, number> | undefined): string | null {
+  if (!votes || votes.size === 0) return null;
+  let best: string | null = null, bestN = 0, total = 0;
+  for (const [id, n] of votes) {
+    total += n;
+    if (n > bestN) { best = id; bestN = n; }
+  }
+  return bestN >= 3 && bestN / total >= 0.8 ? best : null;
 }
 
 /** Energityperna, som CM skriver som symbol i klammer och kortet stavar ut. */
@@ -688,7 +731,7 @@ export interface CmGuideFields {
  * märks OUT_OF_STOCK, samma semantik som sealed/JP.
  */
 export function singlesHeadlineEur(
-  cm: { from?: number | null; avg30?: number | null; avg7?: number | null },
+  cm: { from?: number | null; avg30?: number | null; avg7?: number | null; langFroms?: (number | null | undefined)[] },
   guide?: CmGuideFields | null,
   opts: { askGuard?: boolean } = {},
 ): { eur: number; from: boolean; via?: "from" | "estimate"; askRejected?: boolean } | null {
@@ -701,7 +744,7 @@ export function singlesHeadlineEur(
   const askRejected =
     from != null &&
     opts.askGuard !== false &&
-    fromIsOutlierAsk(from, [cm.avg30, cm.avg7, g?.trend, g?.avg, g?.avg1, g?.avg7, g?.avg30]);
+    fromIsOutlierAsk(from, [cm.avg30, cm.avg7, g?.trend, g?.avg, g?.avg1, g?.avg7, g?.avg30], FROM_ASK_MULT, cm.langFroms ?? []);
   if (from != null && !askRejected) return { eur: from, from: true, via: "from" };
 
   // From SAKNAS helt → uppskattning (ingen känd köpbar NM-engelsk annons) →
@@ -1920,6 +1963,20 @@ export async function runCardmarketRefresh(
     // för att en tyst uppgång ska synas: växer talet har leverantören tappat fler
     // id:n, och då är det nummerreserven som bär korten.
     let cmidNameRejects = 0;
+    // ── EPISODENS SET UR RÖSTER (2026-10-15) ──────────────────────────────────
+    // Namnuppslaget (`setsByName`) kräver att episoden heter som vårt set. Det gör
+    // den inte alltid: leverantörens "SV Black Star Promos" är vårt "Scarlet & Violet
+    // Black Star Promos", och raderna bär varken tcgid eller vårt nummerformat
+    // ("SVP 173" mot "173"). MÄTT 2026-10-15: SVP 166–195 (34 kort) hade STÅTT STILLA
+    // sedan 2026-06-13 — Eevee SVP 173 visade 1 709 kr mot feedens 9,59 € (107 kr).
+    // Rader som matchar på annat sätt RÖSTAR på vilket av våra set episoden är; de
+    // omatchade får sedan en andra chans på setkods-tolerant nummer + namn i det
+    // setet. Samma namnvakt som alla andra reserver, och en tvetydig nyckel avstår.
+    const productSetId = new Map(products.map((p) => [p.id, p.setId]));
+    const episodeVotes = new Map<number, Map<string, number>>();
+    const deferredRows: CmCard[] = [];
+    const lateEntries = new Map<CmCard, { productId: string; offerId?: string; url?: string }>();
+    let episodeVoteHits = 0;
     const processCards = (cards: CmCard[]) => {
       for (const card of cards) {
         // TRYCKNINGEN FÖRST: säger raden vilken tryckning den gäller, och har vi
@@ -2042,7 +2099,23 @@ export async function runCardmarketRefresh(
             cmidLastResortHits++;
           }
         }
-        if (!entry) continue;
+        if (!entry) {
+          const late = lateEntries.get(card);
+          if (late) {
+            entry = late;
+            rank = MATCH_RANK.number;
+          } else {
+            if (!printLabel) deferredRows.push(card);
+            continue;
+          }
+        } else if (!printEntry && card.episode?.id != null) {
+          const sid = productSetId.get(entry.productId);
+          if (sid) {
+            const votes = episodeVotes.get(card.episode.id) ?? new Map<string, number>();
+            votes.set(sid, (votes.get(sid) ?? 0) + 1);
+            episodeVotes.set(card.episode.id, votes);
+          }
+        }
         const cmp = card.prices?.cardmarket ?? {};
         // Identitetsvakt, TVÅ frågor: är raden ens en singel (guideRowIsSingle — ett
         // cardmarket_id som pekar på en SEALED-produkt smög förbi namnvakten och
@@ -2097,7 +2170,7 @@ export async function runCardmarketRefresh(
           misIdentified++;
         }
         const priced = singlesHeadlineEur(
-          { from: cmp.lowest_near_mint, avg30: cmp["30d_average"], avg7: cmp["7d_average"] },
+          { from: cmp.lowest_near_mint, avg30: cmp["30d_average"], avg7: cmp["7d_average"], langFroms: cmLangFroms(cmp) },
           g,
           // Tryckningar dömas inte: guide-raden delas med Unlimited (se FROM_ASK_MULT).
           { askGuard: !(printEntry && printLabel !== PRINT_UNLIMITED) },
@@ -2220,6 +2293,27 @@ export async function runCardmarketRefresh(
     });
     if (metaMismatch)
       console.log(`[cm-refresh] ${metaMismatch} episoder där cards_total inte stämde med paging.total.`);
+
+    // Andra chansen för omatchade rader — se EPISODENS SET UR RÖSTER ovan.
+    {
+      const byNumberAnySet = new Map<string, { entry: { productId: string; offerId?: string; url?: string }; cardName: string } | null>();
+      for (const p of products) {
+        if (isPrintVariantLabel(p.variantLabel) || !p.setId || !p.card?.name) continue;
+        const k = `${p.setId}|${cmNumberKeyNoSetCode(p.card.number)}`;
+        byNumberAnySet.set(k, byNumberAnySet.has(k) ? null : { entry: { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url }, cardName: p.card.name });
+      }
+      for (const card of deferredRows) {
+        const setId = card.episode?.id != null ? episodeSetFromVotes(episodeVotes.get(card.episode.id)) : null;
+        const numKey = cmNumberKeyNoSetCode(card.card_number);
+        const cand = setId && numKey ? byNumberAnySet.get(`${setId}|${numKey}`) : undefined;
+        if (cand && cmCardNameAgrees(cand.cardName, card.name)) lateEntries.set(card, cand.entry);
+      }
+      if (lateEntries.size) {
+        processCards([...lateEntries.keys()]);
+        episodeVoteHits = lateEntries.size;
+      }
+      console.log(`[cm-refresh] Episodens set ur röster: ${episodeVoteHits} av ${deferredRows.length} omatchade rader fick en produkt.`);
+    }
 
     // ── LEVERANTÖRENS KORT-ID → Card.tcggoId (2026-10-15) ─────────────────────
     // eBay-sålt-svepet frågade `tcgid=<vårt pokemontcg.io-id>`, men leverantören

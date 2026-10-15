@@ -165,6 +165,17 @@ describe("fromIsOutlierAsk / jpFromEur", () => {
     expect(fromIsOutlierAsk(1000000, [33.04, 39.71])).toBe(true);
     expect(jpFromEur({ lowest_near_mint_JP: 1000000, "30d_average": 33.04, "7d_average": 39.71 })).toBeNull();
   });
+  it("Gardevoir LV.X · Secret Wonders: 480 € över 4x snitten men bekräftat av italienska NM 389,90 € ⇒ står kvar", () => {
+    const feed = { from: 480, avg30: 74.03, avg7: 97.72, langFroms: [87.5, null, null, 389.9] };
+    const guide = { avg: 87.41, low: 10, trend: 80.9, avg1: 20, avg7: 97.72, avg30: 74.03 };
+    expect(singlesHeadlineEur(feed, guide)).toEqual({ eur: 480, from: true, via: "from" });
+  });
+  it("utrop utan bekräftelse fälls fortfarande (Mewtwo · Stormfront 9 001 € mot DE 44,90 €)", () => {
+    expect(fromIsOutlierAsk(9001, [26.79, 20], 4, [44.9, null])).toBe(true);
+    expect(fromIsOutlierAsk(9001, [26.79, 20], 4, [])).toBe(true);
+    const r = singlesHeadlineEur({ from: 9001, avg30: 26.79, avg7: 20, langFroms: [44.9] }, { trend: 25, avg: 24, avg30: 26 });
+    expect(r).toMatchObject({ from: false, via: "estimate", askRejected: true });
+  });
   it("normal JP-From står kvar", () => {
     expect(jpFromEur({ lowest_near_mint_JP: 4, "30d_average": 4.66, "7d_average": 4.34 })).toBe(4);
   });

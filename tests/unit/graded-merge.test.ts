@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGradedCards, defaultGrade } from "@/lib/graded-merge";
+import { buildGradedCards, cellSold, defaultGrade } from "@/lib/graded-merge";
 import type { GradedAskRow, GradedHistory, GradedSaleRow } from "@/services/graded";
 
 /**
@@ -36,14 +36,27 @@ describe("buildGradedCards", () => {
     expect(cards[3].grades[0]).toMatchObject({ gradeTenths: 100, ask: null, sale: null });
   });
 
-  it("förvalt betyg = högsta med begärt pris, annars högsta alls", () => {
-    const [psa, tag] = buildGradedCards(
-      [ask("PSA", 90, 1), ask("PSA", 80, 1)],
-      [sale("PSA", 100, 1)],
+  it("förvalt betyg = högsta med SÅLT, annars högsta med begärt, annars högsta alls", () => {
+    const [psa, cgc, tag] = buildGradedCards(
+      [ask("PSA", 100, 1), ask("PSA", 90, 1), ask("CGC", 95, 1), ask("CGC", 90, 1)],
+      [sale("PSA", 80, 1), sale("PSA", 70, 1, "ebay")],
       [hist("TAG", 95), hist("TAG", 100)]
     );
-    expect(defaultGrade(psa)).toBe(90); // PSA 10 har bara sålt, 9 har begärt
+    expect(defaultGrade(psa)).toBe(80); // 10 och 9 har bara begärt — sålt vinner
+    expect(defaultGrade(cgc)).toBe(95); // inget sålt ⇒ högsta begärda
     expect(defaultGrade(tag)).toBe(100);
+  });
+
+  it("cellSold: eBay först, Tradera som reserv, aldrig begärt", () => {
+    const [psa] = buildGradedCards(
+      [ask("PSA", 100, 9_999_999), ask("PSA", 90, 9_999_999)],
+      [sale("PSA", 100, 400_000, "tradera"), sale("PSA", 100, 500_000, "ebay"), sale("PSA", 90, 300_000, "tradera")],
+      []
+    );
+    expect(cellSold(psa.grades[0])?.medianOre).toBe(500_000);
+    expect(cellSold(psa.grades[1])?.medianOre).toBe(300_000);
+    const [cgc] = buildGradedCards([ask("CGC", 100, 1)], [], []);
+    expect(cellSold(cgc.grades[0])).toBeNull();
   });
 });
 

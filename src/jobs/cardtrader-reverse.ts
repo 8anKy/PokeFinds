@@ -443,49 +443,14 @@ export async function runCardTraderReverseImport(opts: {
       // Vakten jämför mot vårt PUBLICERADE pris: CardTrader är den dyrare
       // marknadsplatsen (median 3,67× över), så ett golv långt UNDER är en
       // felmatchning, inte ett fynd. Se `isPlausibleBaseFloor`.
-      const ordinary = cheapestNonReverseNmEn(market[String(bp.id)]);
-      if (ordinary != null) {
-        if (isPlausibleBaseFloor(ordinary, base.lowestPriceOre ? oreToEurCents(base.lowestPriceOre) : null)) {
-          const basePriceOre = Math.round((ordinary / 100) * eurToOre);
-          await obs.record(base.id, basePriceOre);
-          res.baseObservations++;
-          // EGEN offer med EGEN länk, precis som Tradera och butikerna — det är
-          // den som ger raden i pristabellen och knappen till CardTrader.
-          if (apply && retailer) {
-            await prisma.offer.upsert({
-              where: {
-                productId_retailerId_condition_language: {
-                  productId: base.id,
-                  retailerId: retailer.id,
-                  condition: "NEAR_MINT",
-                  language: "EN",
-                },
-              },
-              update: {
-                price: basePriceOre,
-                currency: "SEK",
-                stockStatus: "IN_STOCK",
-                url: ctBlueprintUrl(bp.id),
-                lastSeenAt: new Date(),
-              },
-              create: {
-                productId: base.id,
-                retailerId: retailer.id,
-                condition: "NEAR_MINT",
-                language: "EN",
-                price: basePriceOre,
-                currency: "SEK",
-                stockStatus: "IN_STOCK",
-                url: ctBlueprintUrl(bp.id),
-              },
-            });
-            res.baseOffers++;
-          }
-        } else {
-          res.baseImplausible++;
-        }
-      }
-
+      // ⛔ INGET CARDTRADER-PRIS PÅ DET ORDINARIE KORTET SEDAN 2026-10-15 (ägarbeslut:
+      // "bara Cardmarket"). Golvet skrevs förut som en egen offer + grafpunkt — och
+      // eftersom det är en annan marknadsplats tog det rubriken på 1 002 kort där det
+      // låg under CM:s From, och på Gardevoir LV.X · Secret Wonders (5 519 kr) när
+      // CM-priset var en uppskattning. Det ordinarie kortet ägs av Cardmarket; här
+      // räknas golvet bara som REFERENS för reverse-domen nedan. `isPlausibleBaseFloor`,
+      // `obs` och `res.baseObservations`/`baseOffers` står kvar för varianterna.
+      void cheapestNonReverseNmEn;
       const verdict = judgeReversePrice(market[String(bp.id)], {
         fallbackReferenceCents: base.lowestPriceOre ? oreToEurCents(base.lowestPriceOre) : null,
       });

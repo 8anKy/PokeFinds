@@ -31,7 +31,7 @@ import { rearmPriceAlerts } from "../services/alerts";
 import { dispatchPendingAlerts } from "../services/notifications";
 import { formatSweep, snapshotWatchedPrices, sweepWatchedPriceAlerts } from "../services/price-alert-sweep";
 import { runJapaneseSinglesGapFill } from "./jp-singles-refresh";
-import { fetchCmGuide, fetchCmSingleNames, guideNameMatches, guideRowIsSingle, singlesHeadlineEur } from "./cardmarket-refresh";
+import { cmLangFroms, fetchCmGuide, fetchCmSingleNames, guideNameMatches, guideRowIsSingle, singlesHeadlineEur } from "./cardmarket-refresh";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const API_CONCURRENCY = 4;
@@ -220,7 +220,7 @@ export async function runHotCardRefresh(
         ? guide.get(guideId)
         : undefined;
     const priced = singlesHeadlineEur(
-      { from: cmp.lowest_near_mint, avg30: cmp["30d_average"], avg7: cmp["7d_average"] },
+      { from: cmp.lowest_near_mint, avg30: cmp["30d_average"], avg7: cmp["7d_average"], langFroms: cmLangFroms(cmp) },
       g,
       // Tryckningar dömas inte av utropsvakten — samma regel som dagliga körningen.
       { askGuard: !(isPrintVariantLabel(p.variantLabel) && p.variantLabel !== PRINT_UNLIMITED) },

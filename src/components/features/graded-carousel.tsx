@@ -6,7 +6,7 @@ import { useRouter } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
 import { openPaywallOrNavigate } from "@/lib/paywall";
 import { ISSUER_LABELS, formatGrade, type GradingIssuer } from "@/lib/graded-listing";
-import { buildGradedCards, defaultGrade, type GradedGradeCell, type GradedIssuerCard } from "@/lib/graded-merge";
+import { buildGradedCards, cellSold, defaultGrade, type GradedGradeCell, type GradedIssuerCard } from "@/lib/graded-merge";
 import type { GradedSummary } from "@/services/graded";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { SafeImage } from "@/components/ui/safe-image";
@@ -25,9 +25,11 @@ export interface GradedSelection {
  * byter till det betyget; tryck på betyget ⇒ ett ark glider upp med bolagets
  * alla betyg och priser att välja ur.
  *
- * ⛔ PRISET I BADGEN ÄR LÄGSTA BEGÄRDA (eBay) för betyget — saknas det visas
- *    Tradera-medianen med etiketten "sålt", aldrig ett omärkt tal. Arket visar
- *    båda källorna per betyg, sida vid sida.
+ * ⛔ PRISET I BADGEN ÄR SÅLT (ägarbeslut 2026-10-15): medianen av SÅLDA affärer för
+ *    betyget, eBay först, Tradera som reserv (`cellSold`). Finns inga affärer visas
+ *    lägsta begärda MÄRKT "Till salu" — aldrig ett omärkt tal. Förut stod begärt
+ *    först, och en ensam eBay-annons à 729 857 kr blev PSA 9-rutan på Gardevoir LV.X.
+ *    Arket visar båda källorna per betyg, sålt först.
  * ⛔ MÄRKENA ÄR IDENTIFIERARE vid bolagets EGNA priser (referensbruk, samma regel
  *    som butiksloggorna). Filen `public/grading-logos/<issuer>.svg` ritas om den
  *    finns, annars ett ordmärke i text — ingen logotyp hittas på.
@@ -184,18 +186,6 @@ export function GradedCarousel({
                   )}
                 >
                   <span className="font-display text-lg font-semibold text-ink">{formatGrade(g.gradeTenths)}</span>
-                  <span className="min-w-0">
-                    {g.ask ? (
-                      <>
-                        <span className="block text-sm font-semibold text-holo-cyan">{formatPrice(g.ask.priceOre)}</span>
-                        <span className="block text-[11px] text-ink-muted">
-                          {t("gradedAskListingCount", { count: g.ask.listingCount })}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-sm text-ink-faint">–</span>
-                    )}
-                  </span>
                   {/* SÅLT: eBay UK och Tradera som två rader. Källan skrivs ut BARA
                       när båda finns — annars går raderna inte att skilja; med en
                       ensam källa räcker antalet (ägaren 2026-09-16), källan står i
@@ -204,7 +194,7 @@ export function GradedCarousel({
                     {!g.saleEbay && !g.sale && <span className="text-sm text-ink-faint">–</span>}
                     {g.saleEbay && (
                       <span className="block">
-                        <span className="text-sm font-semibold text-ink">{formatPrice(g.saleEbay.medianOre)}</span>
+                        <span className="text-sm font-semibold text-holo-cyan">{formatPrice(g.saleEbay.medianOre)}</span>
                         <span className="ml-1 text-[10px] text-ink-muted">
                           {g.sale ? "eBay · " : ""}
                           {t("gradedSampleCount", { count: g.saleEbay.count })}
@@ -213,12 +203,24 @@ export function GradedCarousel({
                     )}
                     {g.sale && (
                       <span className="block">
-                        <span className="text-sm font-semibold text-ink">{formatPrice(g.sale.medianOre)}</span>
+                        <span className="text-sm font-semibold text-holo-cyan">{formatPrice(g.sale.medianOre)}</span>
                         <span className="ml-1 text-[10px] text-ink-muted">
                           {g.saleEbay ? "Tradera · " : ""}
                           {t("gradedSampleCount", { count: g.sale.count })}
                         </span>
                       </span>
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    {g.ask ? (
+                      <>
+                        <span className="block text-sm font-semibold text-ink-muted">{formatPrice(g.ask.priceOre)}</span>
+                        <span className="block text-[11px] text-ink-muted">
+                          {t("gradedAskListingCount", { count: g.ask.listingCount })}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-sm text-ink-faint">–</span>
                     )}
                   </span>
                 </button>
@@ -265,18 +267,23 @@ function Badge({
   );
 }
 
-/** Badgens pris: begärt (eBay) i första hand, annars sålt-medianen MÄRKT. */
+/** Badgens pris: SÅLT-medianen (eBay, annars Tradera), annars begärt MÄRKT "Till salu". */
 function CellPrice({ cell }: { cell: GradedGradeCell }) {
   const t = useTranslations("Detail");
-  if (cell.ask) {
-    return <span className="text-sm font-semibold tabular-nums text-ink">{formatPrice(cell.ask.priceOre)}</span>;
-  }
-  const sold = cell.saleEbay ?? cell.sale;
+  const sold = cellSold(cell);
   if (sold) {
     return (
       <span className="text-sm font-semibold tabular-nums text-ink">
         {formatPrice(sold.medianOre)}
         <span className="ml-1 text-[10px] font-normal uppercase text-ink-muted">{t("gradedSoldLabel")}</span>
+      </span>
+    );
+  }
+  if (cell.ask) {
+    return (
+      <span className="text-sm font-semibold tabular-nums text-ink-muted">
+        {formatPrice(cell.ask.priceOre)}
+        <span className="ml-1 text-[10px] font-normal uppercase text-ink-faint">{t("gradedAskLabel")}</span>
       </span>
     );
   }
