@@ -501,6 +501,13 @@ model Card {
   // Cardmarket idProduct — identitet för promo-/specialset utan pokemontcg.io-tcgid
   // (t.ex. MEP Black Star Promos). Möjliggör idempotent import + daglig pris-refresh.
   cardmarketId      Int?         @unique
+  // PRISLEVERANTÖRENS EGET kort-id (RapidAPI/TCGGO `id`), skrivet av cardmarket-refresh
+  // när feed-raden matchats till kortets ordinarie produkt (2026-10-15). eBay-sålt-svepet
+  // frågar `id=` med det: leverantörens `tcgid` är INTE vårt för de nyaste seten
+  // (Pitch Black "PBL-116" mot vårt "me5-116") ⇒ `tcgid=me5-116` gav 0 affärer för
+  // HELA seten. Null = inte matchat än ⇒ svepet faller tillbaka på tcgid. Ingen @unique:
+  // leverantören är källan, och en krock där ska inte kunna stoppa prisjobbet.
+  tcggoId           Int?
   supertype         String?
   subtype           String?
   artist            String?

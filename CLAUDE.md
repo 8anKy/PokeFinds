@@ -45,6 +45,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   natt → heta (visade 30 d, ej kollade på 3 d) → värdefulla (≥ 50 kr, äldst först) → svans (15 % reserverad). MÄTT: kort
   < 20 kr gav eBay-affärer på 0,8 %, ≥ 200 kr på 42 %, och rotationen över hela katalogen lät Mega Darkrai ex 116 stå
   okollad 30 d (begärt döljs efter 14). Jobbtaket i `tradera-sold-sync.yml` 110 → 150 min (10-07/10-09 dog i taket).
+  ⛔ **eBay-SÅLT FRÅGAR LEVERANTÖRENS EGET ID (`Card.tcggoId`, skrivs av cardmarket-refresh)** — deras `tcgid` är inte
+  vårt för de nyaste seten ("PBL-116" mot "me5-116") och gav 0 affärer för hela seten (Darkrai 116: ~150 hos dem).
   Profilsidan visar fortfarande ograderat (v1). Memory: `project_graded_slabs_portfolio_2026_10_15`.
 - **GIVEAWAY MED LOTTER (2026-10-13, ägarbeslut)**: `/giveaway` (routegrupp `(mer)`, gäster ser pris + krav), pris
   30th Celebration ETB — ENDA vinsten (ägarbeslut 2026-10-13, inga Pro-pris). Start 2026-10-17 00:00 (flyttad från 10-15, ägarbeslut; DOLD före: 404 + ingen Mer-rad, admin ser den; flytta med `GIVEAWAY_STARTS_AT`), slut 2026-11-15 23:59 svensk tid

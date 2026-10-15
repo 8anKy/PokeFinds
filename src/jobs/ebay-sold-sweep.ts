@@ -71,6 +71,8 @@ function sleep(ms: number): Promise<void> {
 
 interface ProductRow extends GradedAskProduct {
   externalId: string;
+  /** Leverantörens eget kort-id (Card.tcggoId) — frågas FÖRE tcgid, se nedan. */
+  providerId: number | null;
   cmRefOre: number | null;
 }
 
@@ -79,7 +81,7 @@ async function selectProducts(budget: number): Promise<ProductRow[]> {
     id: true,
     language: true,
     variantLabel: true,
-    card: { select: { tcgExternalId: true, name: true, number: true, set: { select: { name: true, totalCards: true, releaseDate: true } } } },
+    card: { select: { tcgExternalId: true, tcggoId: true, name: true, number: true, set: { select: { name: true, totalCards: true, releaseDate: true } } } },
     offers: { where: { retailer: { name: "Cardmarket" }, price: { not: null } }, select: { price: true }, take: 1 },
   } satisfies Prisma.ProductSelect;
   const baseWhere: Prisma.ProductWhereInput = {
@@ -99,6 +101,7 @@ async function selectProducts(budget: number): Promise<ProductRow[]> {
       variantLabel: p.variantLabel,
       card: { name: p.card!.name, number: p.card!.number, set: p.card!.set },
       externalId: p.card!.tcgExternalId!,
+      providerId: p.card!.tcggoId ?? null,
       cmRefOre: p.offers[0]?.price ?? null,
     }));
 }
@@ -131,9 +134,14 @@ export async function runEbaySoldSweep(opts: EbaySoldSweepOptions = {}): Promise
 
   await mapPool(products, 2, async (p) => {
     if (stop) return;
+    // ⛔ LEVERANTÖRENS ID FÖRE VÅRT tcgid (2026-10-15): deras `tcgid` är inte vårt för
+    // de nyaste seten ("PBL-116" mot "me5-116") och frågan gav då 0 affärer för hela
+    // seten. `Card.tcggoId` skrivs av cardmarket-refresh; saknas det ⇒ tcgid som förut.
     const query = p.externalId.startsWith(JP_EXTERNAL_PREFIX)
       ? `id=${encodeURIComponent(p.externalId.slice(JP_EXTERNAL_PREFIX.length))}`
-      : `tcgid=${encodeURIComponent(p.externalId)}`;
+      : p.providerId != null
+        ? `id=${p.providerId}`
+        : `tcgid=${encodeURIComponent(p.externalId)}`;
     const game = p.language === "JP" ? "pokemon-jp" : "pokemon";
     // Vad vi redan har: id:n (sluta när en sida inte ger något nytt) och hur långt
     // bakåt historiken når (har bakåtbläddrandet en gång gått hela vägen?).

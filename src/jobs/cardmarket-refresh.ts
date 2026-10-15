@@ -10,6 +10,7 @@
  * Delas av jobb-schemaläggaren (worker.ts/instrumentation) och CLI-wrappers.
  * Prishistoriken/grafen (CM trend) rörs INTE — bara Offer.price.
  */
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { getRatesOre, priceOreFromEur } from "../lib/exchange-rate";
@@ -53,6 +54,8 @@ const DB_CONCURRENCY = 8;
 const API_CONCURRENCY = 4;
 
 interface CmCard {
+  /** Leverantörens eget kort-id — eBay-sålt-svepet frågar på det (Card.tcggoId). */
+  id?: number | null;
   tcgid: string | null;
   cardmarket_id: number | null;
   name?: string | null; // identitetsvakten: jämförs mot CM:s officiella katalognamn
@@ -1666,10 +1669,15 @@ export async function runCardmarketRefresh(
         id: true,
         setId: true,
         variantLabel: true,
-        card: { select: { tcgExternalId: true, number: true, name: true, cardmarketId: true } },
+        card: { select: { id: true, tcgExternalId: true, number: true, name: true, cardmarketId: true, tcggoId: true } },
         offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 },
       },
     });
+    /** Ordinarie produkt → kortet (för Card.tcggoId, se nedan). Tryckningsprodukter saknas med flit. */
+    const ordinaryCard = new Map<string, { cardId: string; tcggoId: number | null }>();
+    for (const p of products) {
+      if (p.variantLabel == null && p.card) ordinaryCard.set(p.id, { cardId: p.card.id, tcggoId: p.card.tcggoId });
+    }
     const map = new Map<string, { productId: string; offerId?: string; url?: string }>();
     // TRYCKNINGSKARTA: `tcgid|etikett` → produkten för PRECIS den tryckningen.
     // För uppdelade kort (Base) finns ingen omärkt basprodukt kvar, så `map` och
@@ -1898,6 +1906,8 @@ export async function runCardmarketRefresh(
       from: boolean;
       op: { productId: string; offerId?: string; priceOre: number; from: boolean; url: string };
       via?: string;
+      /** Den vinnande feed-radens leverantörs-id (Card.tcggoId). */
+      providerId?: number | null;
     };
     const claimed = new Map<string, SingleCandidate>();
     let rowsRejectedAsDuplicate = 0, printVariantSwaps = 0, printVariantRouted = 0;
@@ -2164,6 +2174,7 @@ export async function runCardmarketRefresh(
           from: priced.from,
           via: priced.via,
           op: { productId: entry.productId, offerId: entry.offerId, priceOre, from: priced.from, url },
+          providerId: card.id ?? null,
         });
       }
     };
@@ -2209,6 +2220,34 @@ export async function runCardmarketRefresh(
     });
     if (metaMismatch)
       console.log(`[cm-refresh] ${metaMismatch} episoder där cards_total inte stämde med paging.total.`);
+
+    // ── LEVERANTÖRENS KORT-ID → Card.tcggoId (2026-10-15) ─────────────────────
+    // eBay-sålt-svepet frågade `tcgid=<vårt pokemontcg.io-id>`, men leverantören
+    // skriver sin egen setkod för de nyaste seten ("PBL-116", "POR-1", "CRI-1") ⇒
+    // 0 affärer för HELA seten (Mega Darkrai ex 116 har ~150 eBay-affärer hos dem).
+    // Den vinnande raden för kortets ORDINARIE produkt har redan klarat identitets-
+    // vakterna ovan (tcgid / set+nummer + namn), så dess id är kortets id hos dem.
+    // Bara ändrade rader skrivs; en skrivning som fallerar får aldrig fälla prisjobbet.
+    {
+      const changed: { cardId: string; providerId: number }[] = [];
+      for (const [productId, c] of claimed) {
+        const meta = ordinaryCard.get(productId);
+        if (!meta || c.providerId == null || c.providerId === meta.tcggoId) continue;
+        changed.push({ cardId: meta.cardId, providerId: c.providerId });
+      }
+      try {
+        for (let i = 0; i < changed.length; i += 500) {
+          const chunk = changed.slice(i, i + 500);
+          await prisma.$executeRaw`
+            UPDATE "Card" AS c SET "tcggoId" = v.pid
+            FROM (VALUES ${Prisma.join(chunk.map((x) => Prisma.sql`(${x.cardId}, ${x.providerId}::int)`))}) AS v(id, pid)
+            WHERE c.id = v.id`;
+        }
+        if (changed.length) console.log(`[cm-refresh] Leverantörs-id: ${changed.length} kort fick/bytte Card.tcggoId.`);
+      } catch (e) {
+        console.warn(`[cm-refresh] Card.tcggoId kunde inte skrivas (prisjobbet fortsätter): ${e instanceof Error ? e.message : e}`);
+      }
+    }
 
     // Kandidaterna är valda — nu först finns listan över vad som ska skrivas. En
     // produkt förekommer exakt en gång (se `claimed`), så haveribrytaren mäter
