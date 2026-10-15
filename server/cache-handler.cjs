@@ -79,7 +79,7 @@ const crypto = require("node:crypto");
 // "17" (2026-09-22): faktapanelen mäter sin nivå (data-fit) — gamla skal bär container-frågorna som kapade I lådan.
 // "18" (2026-10-05): Cardmarket-uppskattningar visar brickan "Uppskattat" i stället för "Slut".
 // "19" (2026-10-07): priser ur katalogsnapshoten i HTML:en + Product-nod + svensk kanonisk på /en/.
-const PAGE_EPOCH = "20"; // 20 = Foilio → Scoutr (2026-10): gammal HTML bär Foilio-namnet och foilio.se-canonicals
+const PAGE_EPOCH = "21"; // 21 = graderingsrutan visar SÅLT + rubriken följer Cardmarket (2026-10-15); 20 = Foilio → Scoutr
 const STORE_VERSION = "v1";
 /** Sidor äldre än så rensas oavsett TTL (ISR-TTL:en för produktsidor är 30 d). */
 const PAGE_MAX_AGE_MS = 35 * 24 * 3600 * 1000;
