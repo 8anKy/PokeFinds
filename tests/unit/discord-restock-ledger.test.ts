@@ -136,7 +136,8 @@ describe("publicRestockChannelIds", () => {
 
 describe("workflowet bär överlämningen", () => {
   const root = resolve(__dirname, "../..");
-  const workflow = readFileSync(resolve(root, ".github/workflows/discord-restock.yml"), "utf8");
+  // CRLF bort: en Windows-utcheckning (core.autocrlf) gav annars "state-\r\n" och testet föll lokalt.
+  const workflow = readFileSync(resolve(root, ".github/workflows/discord-restock.yml"), "utf8").replace(/\r\n/g, "\n");
   const script = readFileSync(resolve(root, "scripts/discord-restock-run.ts"), "utf8");
 
   it("överlämningar får en egen concurrency-grupp — annars väntar nästa jobb ut det gamla", () => {

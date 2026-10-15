@@ -68,6 +68,9 @@ import {
 const UNMODELLED_VARIANT_EXPANSION = /Reverse Holo$/i;
 
 /** Setnamnets nyckel utan koden i parentes: "Pokémon Card 151 (SV2a)" → "pokemoncard151". */
+/** Bara siffrorna i ett samlarnummer: "SWSH053" → "53", "053" → "53". */
+const digitsKey = (n: string | null | undefined) => String(n ?? "").replace(/\/.*$/, "").replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+
 const setKeyNoCode = (name: string) => cmSetNameKey(name.replace(/\s*\([^)]*\)\s*$/, ""));
 
 
@@ -190,7 +193,7 @@ async function importMissing(apply: boolean) {
 
   const stats = {
     candidates: 0, ambiguous: 0, nameMismatch: 0, noNumber: 0, unpriced: 0, linkedExisting: 0,
-    existingSetSkipped: 0, sameCardElsewhere: 0, ballLinked: 0, ballUnmatched: 0, unmodelledVariant: 0, created: 0, setsCreated: 0,
+    existingSetSkipped: 0, createdInExistingSet: 0, sameCardElsewhere: 0, ballLinked: 0, ballUnmatched: 0, unmodelledVariant: 0, created: 0, setsCreated: 0,
   };
   // Bollvarianterna vi redan har: (språk|set utan kod|etikett|nummer) → produkt.
   const ballProducts = new Map<string, string | null>();
@@ -204,6 +207,7 @@ async function importMissing(apply: boolean) {
   }
   const ctRetailer = await prisma.retailer.findFirst({ where: { name: "CardTrader" }, select: { id: true } });
   const byExp = new Map<string, number>();
+  const skipped: Record<string, unknown>[] = [];
   const newSetFor = new Map<number, string>();
   const usedCmIds = new Set(linked.keys());
 
@@ -238,7 +242,11 @@ async function importMissing(apply: boolean) {
         if (ctRetailer) await prisma.offer.deleteMany({ where: { productId, retailerId: ctRetailer.id } });
         continue;
       }
-      if (UNMODELLED_VARIANT_EXPANSION.test(exp.name)) { stats.unmodelledVariant++; continue; }
+      if (UNMODELLED_VARIANT_EXPANSION.test(exp.name)) {
+        stats.unmodelledVariant++;
+        skipped.push({ exp: exp.name, name: bp.name, number, label, idProduct, why: "unmodelled-variant" });
+        continue;
+      }
 
       // Setet: röster → exakt namn i samma språk → nytt.
       const existingSet = winningSet(votes.get(exp.id)) ?? setsByKey.get(`${lang}|${cmSetNameKey(exp.name)}`) ?? null;
@@ -257,7 +265,29 @@ async function importMissing(apply: boolean) {
           c.cardmarketId = idProduct;
           usedCmIds.add(idProduct);
           stats.linkedExisting++;
-        } else stats.existingSetSkipped++;
+        } else if (
+          // SAKNAS I ETT SET VI HAR (2026-10-15): inget kort i setet delar ens SIFFRORNA i
+          // numret med samma namn ("053" mot vårt "SWSH053" är samma kort), och samma kort
+          // finns inte i ett set med inneslutet namn. Då är det ett äkta hål (VSTAR Universe
+          // JP saknade 114 kort, Mega Series Promos 36) och kortet föds i VÅRT set.
+          // ⛔ BARA JAPANSKA: de engelska "hålen" var alla samma kort under annan stavning
+          //    ("Golem E4" mot "Golem [4] Lv.52", "Coating Metal Energy" mot "Coating M Energy",
+          //    Celebrations-korten i Classic Collection) — mätt 2026-10-15, 0 av 47 äkta.
+          lang === "JP" &&
+          !label &&
+          existing.length === 0 &&
+          !(await cardsOf(existingSet)).some((c) => digitsKey(c.number) === digitsKey(number) && cmCardNameAgrees(c.name.replace(/ \(JP\)$/, "").replace(/^Basic /i, ""), bp.name.replace(/^Basic /i, ""))) &&
+          !(cardIndex.get(`${lang}|${numberKey(number)}`) ?? []).some((t) => cmCardNameAgrees(t.name, bp.name) && setNameContained(t.set, exp.name))
+        ) {
+          stats.createdInExistingSet++;
+          byExp.set(`${lang} · ${sets.find((s) => s.id === existingSet)?.name} (befintligt set)`, (byExp.get(`${lang} · ${sets.find((s) => s.id === existingSet)?.name} (befintligt set)`) ?? 0) + 1);
+          if (apply && (await createCard({ bp, exp, lang, idProduct, number, label, priceOre, setId: existingSet, setName: sets.find((s) => s.id === existingSet)?.name ?? exp.name }))) usedCmIds.add(idProduct);
+        } else {
+          stats.existingSetSkipped++;
+          // Varför? 0 kort med nummer + namn = kortet SAKNAS i vårt set (ofta en stämplad/
+          // alternativ tryckning); 1 = vi har det redan med ett annat CM-id; >1 = tvetydigt.
+          skipped.push({ exp: exp.name, set: sets.find((s) => s.id === existingSet)?.name, name: bp.name, number, label, idProduct, ours: existing.length, why: label ? "label" : existing.length === 0 ? "absent" : existing.length === 1 ? "has-other-id" : "ambiguous" });
+        }
         continue;
       }
 
@@ -290,45 +320,57 @@ async function importMissing(apply: boolean) {
         stats.setsCreated++;
       }
 
-      const display = lang === "JP" ? `${bp.name} (JP)` : bp.name;
-      const title = `${display} · ${setName} ${number}${label ? ` · ${label}` : ""}`;
-      const imageUrl = cmImageProxyUrl(idProduct);
-      const card = await prisma.card
-        .create({
-          data: {
-            setId, number, name: display, rarity: "Unknown", imageUrl, language: lang,
-            tcgExternalId: `${CM_ONLY_PREFIX}${idProduct}`, cardmarketId: idProduct,
-          },
-          select: { id: true },
-        })
-        .catch((e) => {
-          console.warn(`  ⚠️ ${title}: ${e instanceof Error ? e.message.split("\n")[0] : e}`);
-          return null;
-        });
-      if (!card) continue;
-      usedCmIds.add(idProduct);
-      const baseSlug = slugify(`${bp.name}-${lang === "JP" ? "jp-" : ""}${exp.code ?? exp.name}-${number}${label ? `-${label}` : ""}`);
-      const slug = (await prisma.product.findUnique({ where: { slug: baseSlug }, select: { id: true } })) ? `${baseSlug}-${idProduct}` : baseSlug;
-      const product = await prisma.product.create({
-        data: { title, normalizedTitle: normalizeTitle(title), slug, category: "SINGLE_CARD", cardId: card.id, setId, imageUrl, language: lang },
-        select: { id: true },
-      });
-      const cmRetailer = await cardmarketRetailerId();
-      await prisma.offer.create({
-        data: {
-          productId: product.id, retailerId: cmRetailer, condition: "NEAR_MINT", language: lang,
-          price: priceOre, currency: "SEK", stockStatus: "OUT_OF_STOCK", url: offerUrl(lang, idProduct),
-        },
-      });
+      if (await createCard({ bp, exp, lang, idProduct, number, label, priceOre, setId, setName })) usedCmIds.add(idProduct);
     }
   }
 
   console.log(stats);
+  if (process.env.CM_ONLY_REPORT) {
+    const fs = await import("fs");
+    fs.writeFileSync(process.env.CM_ONLY_REPORT, JSON.stringify(skipped, null, 1));
+    console.log(`Rapport över överhoppade: ${process.env.CM_ONLY_REPORT}`);
+  }
   console.log([...byExp].sort((a, b) => b[1] - a[1]).slice(0, 80).map(([k, n]) => `  ${String(n).padStart(5)}  ${k}`).join("\n"));
   if (apply) {
     const { recomputeProductPriceCache } = await import("@/services/products");
     await recomputeProductPriceCache();
   } else console.log("Torrkörning — kör med --apply för att skriva.");
+}
+
+
+/** Skapar kort + produkt + Cardmarket-offer (uppskattning ur prisguiden). */
+async function createCard(a: { bp: RawBlueprint; exp: CtExpansion; lang: Lang; idProduct: number; number: string; label: string; priceOre: number; setId: string; setName: string }): Promise<boolean> {
+  const { bp, exp, lang, idProduct, number, label, priceOre, setId, setName } = a;
+  const display = lang === "JP" ? `${bp.name} (JP)` : bp.name;
+  const title = `${display} · ${setName} ${number}${label ? ` · ${label}` : ""}`;
+  const imageUrl = cmImageProxyUrl(idProduct);
+  const card = await prisma.card
+    .create({
+      data: {
+        setId, number, name: display, rarity: "Unknown", imageUrl, language: lang,
+        tcgExternalId: `${CM_ONLY_PREFIX}${idProduct}`, cardmarketId: idProduct,
+      },
+      select: { id: true },
+    })
+    .catch((e) => {
+      console.warn(`  ⚠️ ${title}: ${e instanceof Error ? e.message.split("\n")[0] : e}`);
+      return null;
+    });
+  if (!card) return false;
+  const baseSlug = slugify(`${bp.name}-${lang === "JP" ? "jp-" : ""}${exp.code ?? exp.name}-${number}${label ? `-${label}` : ""}`);
+  const slug = (await prisma.product.findUnique({ where: { slug: baseSlug }, select: { id: true } })) ? `${baseSlug}-${idProduct}` : baseSlug;
+  const product = await prisma.product.create({
+    data: { title, normalizedTitle: normalizeTitle(title), slug, category: "SINGLE_CARD", cardId: card.id, setId, imageUrl, language: lang },
+    select: { id: true },
+  });
+  const cmRetailer = await cardmarketRetailerId();
+  await prisma.offer.create({
+    data: {
+      productId: product.id, retailerId: cmRetailer, condition: "NEAR_MINT", language: lang,
+      price: priceOre, currency: "SEK", stockStatus: "OUT_OF_STOCK", url: offerUrl(lang, idProduct),
+    },
+  });
+  return true;
 }
 
 let cmRetailerIdPromise: Promise<string> | null = null;
