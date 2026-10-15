@@ -68,6 +68,9 @@ const SET_STOPWORDS = new Set(["pokemon", "tcg", "the", "and", "ex", "set", "col
 export function setTokens(name: string): Set<string> {
   return new Set(
     name
+      // Koden i parentes ("DP Promos (DP-P)") är inget innehållsord — utan det missade
+      // vakten 2026-10-15 fem japanska set vi redan hade (23 dubbletter, städade).
+      .replace(/\([^)]*\)/g, " ")
       .toLowerCase()
       .normalize("NFD")
       .replace(/[^a-z0-9 ]/g, " ")

@@ -67,6 +67,8 @@ describe("samma utgåva under annat namn skapas aldrig igen", () => {
     expect(setNameContained("Generations", "Radiant Collection Generation")).toBe(true);
     expect(setNameContained("Pokémon GO", "Pokémon TCG: Pokémon GO")).toBe(true);
     expect(setNameContained("Unseen Forces", "Unown sub-set Unseen Forces")).toBe(true);
+    expect(setNameContained("DP Promos (DP-P)", "DP Promos")).toBe(true);
+    expect(setNameContained("Mewtwo vs Genesect Deck Kit (Mewtwo) (MGm)", "Mewtwo vs Genesect Deck Kit")).toBe(true);
   });
   it("men ett temadäck är inte originalsetet", () => {
     expect(setNameContained("Destined Rivals", "Theme Deck & Blisters Exclusives")).toBe(false);

@@ -211,7 +211,8 @@ async function importMissing(apply: boolean) {
   const sets = await prisma.cardSet.findMany({ select: { id: true, name: true, language: true } });
   const setsByKey = new Map<string, string | null>();
   for (const s of await prisma.cardSet.findMany({ select: { id: true, name: true, language: true, series: true } })) {
-    for (const key of cmSetNameKeys(s)) {
+    // Även utan setkoden i parentes: CT säger "DP Promos", vi "DP Promos (DP-P)".
+    for (const key of new Set([...cmSetNameKeys(s), setKeyNoCode(s.name)])) {
       const k = `${s.language}|${key}`;
       setsByKey.set(k, setsByKey.has(k) ? null : s.id);
     }
