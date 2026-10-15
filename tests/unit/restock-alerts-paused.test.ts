@@ -31,7 +31,7 @@ vi.mock("@/lib/db", () => ({
     // Prislarmets köpbara offer (i lager + direktlänk + > 0 kr).
     offer: {
       findMany: vi.fn().mockResolvedValue([
-        { id: "o1", productId: "p1", price: 89000, url: "https://butik.se/products/pitch-black-etb", retailerId: "r1", retailer: { name: "Butiken" } },
+        { id: "o1", productId: "p1", price: 89000, url: "https://butik.se/products/pitch-black-etb", stockStatus: "IN_STOCK", retailerId: "r1", retailer: { name: "Butiken" } },
       ]),
     },
     $transaction: (...a: unknown[]) => transaction(...a),

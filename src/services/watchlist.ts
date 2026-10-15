@@ -4,6 +4,7 @@ import {
   FREE_RESTOCK_ALERT_LIMIT_CODE,
 } from "@/lib/free-restock-alert";
 import { prisma } from "@/lib/db";
+import { headlineCandidates } from "@/lib/offer-source";
 import { ServiceError } from "@/lib/errors";
 import type { PlanTier } from "@prisma/client";
 
@@ -44,15 +45,15 @@ const WATCHLIST_INCLUDE = {
       imageUrl: true,
       category: true,
       set: { select: { id: true, name: true } },
-      offers: { select: { price: true, stockStatus: true } },
+      offers: { select: { price: true, stockStatus: true, url: true } },
     },
   },
 } as const;
 
 function withLowestPrice<
-  T extends { product: { offers: { price: number | null; stockStatus: string }[] } }
+  T extends { product: { offers: { price: number | null; stockStatus: string; url?: string | null }[] } }
 >(item: T) {
-  const offers = item.product.offers.filter(
+  const offers = headlineCandidates(item.product.offers).filter(
     (o): o is { price: number; stockStatus: string } => o.price !== null
   );
   const inStock = offers.filter((o) => o.stockStatus === "IN_STOCK");

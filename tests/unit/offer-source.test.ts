@@ -21,9 +21,10 @@ describe("lowestOfferSource", () => {
     expect(lowestOfferSource(offers, 29000)).toEqual({ name: "Cardmarket", live: true });
   });
 
-  it("namnger Tradera när Tradera är billigast", () => {
+  it("Tradera tar aldrig rubriken från ett Cardmarket-pris (ägarbeslut 2026-10-15)", () => {
     const offers = [offer("Cardmarket", 29000), offer("Tradera", 17900, "IN_STOCK", TRADERA)];
-    expect(lowestOfferSource(offers, 17900)).toEqual({ name: "Tradera", live: true });
+    expect(lowestOfferSource(offers, 29000)).toEqual({ name: "Cardmarket", live: true });
+    expect(lowestOfferSource(offers, 17900)).toBeNull();
   });
 
   it("Tradera-only (nytt set utan CM-data) → Tradera, aldrig Cardmarket", () => {
@@ -32,10 +33,18 @@ describe("lowestOfferSource", () => {
 
   it("i lager slår slutsålt även när slutsålt är billigare", () => {
     const offers = [
-      offer("Cardmarket", 5000, "OUT_OF_STOCK"),
+      offer("Butik", 5000, "OUT_OF_STOCK", "https://butik.se/p/x"),
       offer("Tradera", 9000, "IN_STOCK", TRADERA),
     ];
     expect(lowestOfferSource(offers, 9000)).toEqual({ name: "Tradera", live: true });
+  });
+
+  it("en Cardmarket-uppskattning leder framför en Tradera-annons (2026-10-15)", () => {
+    const offers = [
+      offer("Cardmarket", 5000, "OUT_OF_STOCK"),
+      offer("Tradera", 9000, "IN_STOCK", TRADERA),
+    ];
+    expect(lowestOfferSource(offers, 5000)).toEqual({ name: "Cardmarket", live: false });
   });
 
   it("allt slutsålt → lägsta slutsålda", () => {

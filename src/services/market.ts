@@ -1,5 +1,6 @@
 /** Marknadstjänster: trender, prisras, mest bevakade, restocks, set-index, statistik. */
 import { prisma } from "@/lib/db";
+import { headlineCandidates } from "@/lib/offer-source";
 import { cachedRead } from "@/lib/cache";
 import { utcDaysAgo } from "@/lib/utils";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
@@ -103,7 +104,7 @@ async function getMostWatchedRaw(limit = 10) {
       slug: true,
       imageUrl: true,
       category: true,
-      offers: { select: { price: true, stockStatus: true } },
+      offers: { select: { price: true, stockStatus: true, url: true } },
     },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
@@ -111,7 +112,7 @@ async function getMostWatchedRaw(limit = 10) {
     .filter((g) => byId.has(g.productId))
     .map((g) => {
       const p = byId.get(g.productId)!;
-      const priced = p.offers.filter((o) => o.price !== null) as {
+      const priced = headlineCandidates(p.offers).filter((o) => o.price !== null) as {
         price: number;
         stockStatus: string;
       }[];

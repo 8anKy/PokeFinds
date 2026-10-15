@@ -5,6 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { notFound, permanentRedirect } from "next/navigation";
 import { setPath } from "@/lib/set-slug";
 import { prisma } from "@/lib/db";
+import { headlineCandidates } from "@/lib/offer-source";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -105,7 +106,7 @@ export default async function SetPage({ params }: PageProps) {
   const guide = guideForSet(set.id);
 
   const products = set.products.map((p) => {
-    const priced = p.offers.filter(
+    const priced = headlineCandidates(p.offers).filter(
       (o): o is (typeof p.offers)[number] & { price: number } => o.price !== null
     );
     const inStock = priced.filter((o) => o.stockStatus === "IN_STOCK");

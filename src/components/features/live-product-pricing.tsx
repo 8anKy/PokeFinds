@@ -24,7 +24,7 @@ import { RetailerLogo } from "@/components/features/retailer-logo";
 import { IconStore, IconChevronDown } from "@/components/ui/icons";
 import { hapticTick } from "@/lib/haptics";
 import { isCardmarketJpSearchUrl, isDirectOfferUrl } from "@/lib/marketplace-urls";
-import { lowestOfferSource, shownStockStatus } from "@/lib/offer-source";
+import { headlineCandidates, lowestOfferSource, shownStockStatus } from "@/lib/offer-source";
 import { pickSponsoredOffer } from "@/lib/sponsored-offer";
 
 const CARD_SHOP_SWEDEN = "Cardshop Sweden";
@@ -175,7 +175,7 @@ export function LivePricingProvider({
   const removeOffer = useCallback((offerId: string) => {
     setOffers((prev) => {
       const next = prev.filter((o) => o.id !== offerId);
-      const priced = next.filter((o) => o.price !== null && o.price > 0);
+      const priced = headlineCandidates(next).filter((o) => o.price !== null && o.price > 0);
       const inStock = priced.filter((o) => o.stockStatus === "IN_STOCK");
       const pool = inStock.length > 0 ? inStock : priced;
       const best = pool.length > 0 ? pool.reduce((a, b) => (b.price! < a.price! ? b : a)) : null;

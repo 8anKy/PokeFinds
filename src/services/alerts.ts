@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { isBlockedListingLanguage } from "@/lib/listing-language";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { headlineCandidates } from "@/lib/offer-source";
 import { PRO_USER_SELECT, isPro, proUserWhere, type ProUserShape } from "@/lib/plan";
 import { freeRestockAlertNotBefore, pickFreeRestockAlertItems } from "@/lib/free-restock-alert";
 import { judgePriceAlert, priceAlertPolicy, type PriceAlertVerdict } from "@/lib/price-alert-rule";
@@ -121,21 +122,34 @@ export interface BuyableOffer {
 export async function lowestBuyableByProduct(productIds: string[]): Promise<Map<string, BuyableOffer>> {
   const map = new Map<string, BuyableOffer>();
   if (productIds.length === 0) return map;
+  // ALLA prissatta offers (inte bara i lager): rubrikregeln behöver veta om ett
+  // Cardmarket-pris finns, och då ställer Tradera inte upp (`headlineCandidates`).
   const offers = await prisma.offer.findMany({
-    where: { productId: { in: productIds }, stockStatus: "IN_STOCK", price: { gt: 0 } },
+    where: { productId: { in: productIds }, price: { gt: 0 } },
     select: {
       id: true,
       productId: true,
       price: true,
       url: true,
+      stockStatus: true,
       retailerId: true,
       retailer: { select: { name: true } },
     },
     orderBy: { price: "asc" },
   });
+  const byProduct = new Map<string, typeof offers>();
   for (const o of offers) {
-    if (map.has(o.productId) || o.price == null || !isDirectOfferUrl(o.url)) continue;
-    map.set(o.productId, { ...o, price: o.price });
+    if (!isDirectOfferUrl(o.url)) continue;
+    const l = byProduct.get(o.productId) ?? [];
+    l.push(o);
+    byProduct.set(o.productId, l);
+  }
+  for (const [productId, list] of byProduct) {
+    const best = headlineCandidates(list).find((o) => o.stockStatus === "IN_STOCK" && o.price != null);
+    if (best) {
+      const { stockStatus: _s, ...rest } = best;
+      map.set(productId, { ...rest, price: best.price! });
+    }
   }
   return map;
 }

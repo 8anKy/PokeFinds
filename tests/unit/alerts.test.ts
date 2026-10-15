@@ -76,6 +76,9 @@ const buyable = (over: Partial<{ id: string; price: number; url: string; retaile
   url: over.url ?? "https://butik.se/products/surging-sparks-booster-box",
   retailerId: over.retailerId ?? "ret-1",
   retailer: { name: over.name ?? "Butiken" },
+  // Frågan hämtar alla prissatta offers sedan 2026-10-15 (rubrikregeln behöver veta om
+  // ett Cardmarket-pris finns) och väljer i-lager i koden.
+  stockStatus: "IN_STOCK",
 });
 
 /** Bevakarens plan följer med relationen `user` sedan gratiskontots ena larm (free-restock-alert.ts). */
@@ -147,7 +150,7 @@ describe("checkPriceAlerts", () => {
 
     expect(offerFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ productId: { in: ["prod-1"] }, stockStatus: "IN_STOCK", price: { gt: 0 } }),
+        where: expect.objectContaining({ productId: { in: ["prod-1"] }, price: { gt: 0 } }),
         orderBy: { price: "asc" },
       })
     );

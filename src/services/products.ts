@@ -7,7 +7,7 @@ import { cachedRead, cachedReadTagged, productCacheTag, singleFlight, STATIC_CAC
 import { normalizeTitle, utcDaysAgo, utcToday } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
-import { shownStockStatus, type ShownStockStatus } from "@/lib/offer-source";
+import { headlineCandidates, shownStockStatus, type ShownStockStatus } from "@/lib/offer-source";
 import { visibleListings } from "@/lib/listing-plausibility";
 import { pickCardValue, settledMarketValue, type MarketValue } from "@/lib/market-value";
 import { compareCardNumbers } from "@/lib/card-number-order";
@@ -211,7 +211,7 @@ export function computeLowestPrice(
 ): { price: number | null; stockStatus: ShownStockStatus | null } {
   // Länk-offers utan pris (null) eller 0 öre (€0,00 = inget riktigt pris) räknas
   // inte in i lägsta pris.
-  const priced = offers.filter(
+  const priced = headlineCandidates(offers).filter(
     (o): o is { price: number; stockStatus: StockStatus } => o.price !== null && o.price > 0
   );
   if (priced.length === 0) return { price: null, stockStatus: null };
@@ -299,7 +299,12 @@ export async function recomputeProductPriceCache(): Promise<void> {
     FROM (
       SELECT "productId",
         COALESCE(MIN(price) FILTER (WHERE "stockStatus" = 'IN_STOCK'), MIN(price)) AS lowest
-      FROM "Offer" WHERE ${DIRECT_PRICED} GROUP BY "productId"
+      FROM "Offer" o WHERE ${DIRECT_PRICED}
+        -- headlineCandidates: Tradera ställer inte upp när ett Cardmarket-pris finns.
+        AND NOT (url ILIKE '%tradera.com%' AND EXISTS (
+          SELECT 1 FROM "Offer" c WHERE c."productId" = o."productId"
+            AND c.price > 0 AND c.url ILIKE '%cardmarket.com%'))
+      GROUP BY "productId"
     ) sub
     WHERE p.id = sub."productId" AND p."lowestPriceOre" IS DISTINCT FROM sub.lowest
   `);
@@ -1487,7 +1492,8 @@ export function summarizeDirectOffers<T extends OfferRow>(offers: T[]): { direct
   const prices = directOffers.map((o) => o.price).filter((p): p is number => p !== null);
   const highestNow = prices.length > 0 ? Math.max(...prices) : null;
   const avgNow = prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null;
-  const directPriced = directOffers.filter((o): o is T & { price: number } => o.price !== null);
+  // Rubriken: en Tradera-annons slår aldrig ett Cardmarket-pris (`headlineCandidates`).
+  const directPriced = headlineCandidates(directOffers).filter((o): o is T & { price: number } => o.price !== null);
   const directInStock = directPriced.filter((o) => o.stockStatus === "IN_STOCK");
   const lowestPool = directInStock.length > 0 ? directInStock : directPriced;
   const directLowest = lowestPool.length > 0 ? lowestPool.reduce((a, b) => (b.price < a.price ? b : a)) : null;

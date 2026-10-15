@@ -1,5 +1,6 @@
 import { apiError, jsonCached } from "@/lib/api";
 import { prisma } from "@/lib/db";
+import { headlineCandidates } from "@/lib/offer-source";
 import { ServiceError } from "@/lib/errors";
 
 export async function GET(
@@ -25,7 +26,7 @@ export async function GET(
             variantLabel: true,
             setId: true,
             cardId: true,
-            offers: { select: { price: true, stockStatus: true } },
+            offers: { select: { price: true, stockStatus: true, url: true } },
           },
           orderBy: { viewCount: "desc" },
         },
@@ -35,7 +36,7 @@ export async function GET(
     if (!set) throw new ServiceError(404, "Setet hittades inte.");
 
     const products = set.products.map((p) => {
-      const priced = p.offers.filter((o) => o.price !== null);
+      const priced = headlineCandidates(p.offers).filter((o) => o.price !== null);
       const inStock = priced.filter((o) => o.stockStatus === "IN_STOCK");
       const pool = inStock.length > 0 ? inStock : priced;
       const { offers: _offers, ...rest } = p;

@@ -71,7 +71,7 @@ export function lowestOfferSource(
   shownLowestOre: number | null
 ): { name: string; live: boolean } | null {
   if (shownLowestOre == null) return null;
-  const priced = offers.filter(
+  const priced = headlineCandidates(offers).filter(
     (o): o is OfferSourceLike & { price: number } =>
       o.price != null && o.price > 0 && isDirectOfferUrl(o.url)
   );
@@ -108,4 +108,22 @@ export function shownStockStatus<S extends string>(
 
 function isCardmarketOfferUrl(url: string | null | undefined): boolean {
   return !!url && url.toLowerCase().includes("cardmarket.com");
+}
+
+function isTraderaOfferUrl(url: string | null | undefined): boolean {
+  return !!url && url.toLowerCase().includes("tradera.com");
+}
+
+/**
+ * RUBRIKPRISETS KANDIDATER (ägarbeslut 2026-10-15: "visa korrekt pris, samma som vårt API").
+ * En Tradera-annons slår aldrig ett Cardmarket-pris: har produkten en prissatt CM-offer
+ * ställer Tradera inte upp om rubriken. 2 300 singlar visade förut en Tradera-annons
+ * (median 56 % av CM:s From, okänt skick/språk) som "Lägsta pris". Tradera ligger kvar i
+ * butikslistan, i Tradera-skenan och som linje i grafen — bara RUBRIKEN följer CM.
+ * Saknas CM-pris gäller allt som förut. ⛔ EN regel, använd överallt där rubriken väljs
+ * (katalogcachens SQL har samma villkor i `recomputeProductPriceCache`).
+ */
+export function headlineCandidates<T extends { price: number | null; url?: string | null }>(offers: T[]): T[] {
+  const hasCm = offers.some((o) => o.price != null && o.price > 0 && isCardmarketOfferUrl(o.url));
+  return hasCm ? offers.filter((o) => !isTraderaOfferUrl(o.url)) : offers;
 }
