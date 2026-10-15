@@ -785,8 +785,9 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   i filen — öppna aldrig frågan igen), PokéBooster/CS Megastore/EvoKort är bot-vägg, Cloudflare resp. ett
   JS-skal utan data. **Väntar på ÄGARBESLUT**: cgpremium (riktigt JSON-API men `stock` är en förvrängd
   sträng ⇒ lagerstatus alltid UNKNOWN), Cees Cards/Poromagia (EUR), Kelz0r (DKK) — pipelinen antar SEK.
-  Kvar som ren byggnation: samlargrottan (Wix), gimmick, spelochsant (robots.txt 404:ar numera = tillåtet
-  enligt RFC 9309, men startsidan renderar inga priser — probea om före bygge).
+  Kvar som ren byggnation: samlargrottan (Wix), gimmick. ✅ **Spel & Sånt BYGGD 2026-10-15 (wave 10,
+  ägarbeslut)**: `POST /products/json` kategori 192, knappen dömer, `Accept-Language: sv-SE` (annars
+  felöversatta namn); 41 offers på befintliga produkter, **43 bevakade**. Detaljer i `spelochsant-adapter.ts`.
   Detaljer per butik: `.claude/rules/scraping-restock.md`.
 - **Stripe (webbens Pro)**: kod klar och testad. Kvar = provköp end-to-end + rotera APNs-nyckeln.
 - **Mobilapp via Capacitor** (`android/` finns): iOS-bygge kräver Mac/cloud-build (ägaren på Windows).

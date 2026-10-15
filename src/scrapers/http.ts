@@ -132,6 +132,10 @@ export interface PoliteFetchOptions {
   /** Antal omförsök vid fel. Standard 3 (backoff 1s/2s/4s). */
   retries?: number;
   headers?: Record<string, string>;
+  /** Standard GET. POST för butiker vars listning bara svarar på ett formulär (Spel & Sånt). */
+  method?: "GET" | "POST";
+  /** Kropp till POST (t.ex. url-kodat formulär — sätt content-type i `headers`). */
+  body?: string;
 }
 
 /** Fler hopp än så är en loop, inte en flytt. */
@@ -170,7 +174,7 @@ export async function politeFetch(
   url: string,
   options: PoliteFetchOptions = {}
 ): Promise<Response> {
-  const { delayMs = DEFAULT_DELAY_MS, retries = 3, headers = {} } = options;
+  const { delayMs = DEFAULT_DELAY_MS, retries = 3, headers = {}, method = "GET", body } = options;
   const parsed = new URL(url);
 
   const allowed = await checkRobotsTxt(parsed.origin, parsed.pathname);
@@ -196,6 +200,8 @@ export async function politeFetch(
     try {
       const res = await fetch(target.toString(), {
         headers: { "user-agent": BOT_USER_AGENT, ...headers },
+        method,
+        body: method === "POST" ? body : undefined,
         redirect: "manual",
         signal: AbortSignal.timeout(60_000),
       });

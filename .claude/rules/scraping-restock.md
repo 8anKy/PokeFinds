@@ -188,6 +188,16 @@ paths:
   (sleeves/pärmar/tärningar) — splittas de blir varje FÄRG en annons med huvudboksrad och ett "ny produkt"-larm.
   Kräv därför att VARJE variant nämner en Pokémon + tillbehörsvakten. Migrering av gammal data:
   `scripts/split-shopify-variants.ts` (torrkörning default).
+- **BUTIKS-WAVE 10 = SPEL & SÅNT (ägarbeslut 2026-10-15)**: `spelochsant-adapter.ts`, registrering
+  `scripts/setup-wave10-sources.ts --apply --restock`, import `run-wave7-import.ts "Spel & Sånt"`. Egen PHP-butik;
+  kategorisidan renderar INGA produkter — Vue-listningen hämtar `POST /products/json` (form: `category=192`,
+  `product_limit` kapas vid 50, `limit_offset`) ⇒ `num_products` styr sidorna, en fallen sida = hela hämtningen ett
+  fel. ⛔ Sajtens sök kapar vid 150 och blandar merch — används inte. ⛔ Utan `Accept-Language: sv-SE` översätts
+  `name` FEL ("30th Anniversary" för butikens "30th Celebration"). Knappen dömer: `button buy` ⇒ IN, `booking` ⇒
+  PREORDER, `subscribe` ⇒ OUT; saldot (kan vara -1) är bara diagnostik. Köpgränsen "(MAX 6 Boosters Per Hushåll)"
+  strippas i adaptern (delade skräplistan klarar inte ord före "per"). Produktsidan bär JSON-LD ⇒ `json-ld` i
+  stock-verify. Mätt vid importen: 64 annonser (41 sealed) → 41 offers på BEFINTLIGA produkter, 0 nya, 0 larm.
+  **Bevakade 42 → 43.** Vaktat av `tests/unit/wave10-adapters.test.ts`.
 - **BUTIKS-WAVE 9 = SF-BOK + WORLD OF BOARD GAMES (ägarbeslut 2026-09-17: "jag vill ha restock på deras drops")**:
   `sfbok-adapter.ts` + `worldofboardgames-adapter.ts`, registrering `scripts/setup-wave9-sources.ts --apply --restock`.
   **SF-Bok** (Next.js + Norce): ⛔ **SEDAN 2026-10-02 TVÅ LISTNINGAR, UNIONEN PÅ `identifier`, ALLA SIDOR**:
@@ -415,7 +425,7 @@ paths:
   tiominuterstakten, höjningen är headroom (workflowet har `cancel-in-progress: false`, så en överdragen körning
   KÖAR i stället för att ersättas).
   ⛔ **KVAR (10 butiker, en egen plattform var)**: playoteket (PrestaShop), coolcard (Starweb), samlargrottan (Wix),
-  cardhaven + gimmick + toyspace + spelochsant (custom SPA), evokort (One.com), **cgpremium** (har ett riktigt
+  cardhaven + gimmick + toyspace + spelochsant (custom SPA — spelochsant BYGGD 2026-10-15, wave 10), evokort (One.com), **cgpremium** (har ett riktigt
   JSON-API, `/api/v1/products`, 57 Pokémon-varor MED tillverkar-EAN — men `stock` är en förvrängd sträng, så
   lagerstatus blir UNKNOWN; kräver ägarbeslut om vi vill visa pris utan lager) och **arcadedreams, som vi INTE FÅR
   hämta**: deras robots.txt listar tillåtna bottar och avslutar med `User-agent: * / Disallow: /`. Vår egen

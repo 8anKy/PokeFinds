@@ -61,6 +61,8 @@ export const STORE_STOCK_STRATEGY: Record<string, StockStrategy> = {
   // (domen tas i adaptern på webDisplay, sidan säger bara "Ej i lager online") ⇒ ingen
   // produktsideverifiering. World of Board Games: JSON-LD availability finns på sidan.
   "SF-Bok": "none",
+  // Wave 10 (2026-10-15): produktsidan bär JSON-LD med availability (InStock bekräftat).
+  "Spel & Sånt": "json-ld",
   // Se modulens huvudkommentar: Swepokes produktsida är klient-renderad.
   Swepoke: "none",
   // Marknadsplatser: annonser tar slut, de "restockar" inte. Tradera-svepet nollar

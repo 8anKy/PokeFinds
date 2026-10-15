@@ -28,6 +28,7 @@ function setupScriptBlocks(): string[] {
     ["scripts/setup-wave7-sources.ts", /const WAVE7[\s\S]*?\n\];/],
     ["scripts/setup-wave8-sources.ts", /const WAVE8[\s\S]*?\n\];/],
     ["scripts/setup-wave9-sources.ts", /const WAVE9[\s\S]*?\n\];/],
+    ["scripts/setup-wave10-sources.ts", /const WAVE10[\s\S]*?\n\];/],
   ];
   return files.map(([f, re]) => {
     const src = readFileSync(resolve(process.cwd(), f), "utf8");

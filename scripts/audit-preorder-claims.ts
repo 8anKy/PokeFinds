@@ -15,6 +15,7 @@ import { SfBokAdapter } from "../src/scrapers/adapters/sfbok-adapter";
 import { SweetNerdsAdapter } from "../src/scrapers/adapters/nyehandel-adapter";
 import { MaxGamingAdapter } from "../src/scrapers/adapters/maxgaming-adapter";
 import { WorldOfBoardGamesAdapter } from "../src/scrapers/adapters/worldofboardgames-adapter";
+import { SpelOchSantAdapter } from "../src/scrapers/adapters/spelochsant-adapter";
 import { AlphaspelAdapter } from "../src/scrapers/adapters/alphaspel-adapter";
 import { WebhallenAdapter } from "../src/scrapers/adapters/webhallen-adapter";
 
@@ -26,6 +27,7 @@ const adapters: SourceAdapter[] = [
   new SweetNerdsAdapter(),
   new MaxGamingAdapter(),
   new WorldOfBoardGamesAdapter(),
+  new SpelOchSantAdapter(),
   new AlphaspelAdapter(),
   new WebhallenAdapter(),
 ];
