@@ -209,6 +209,19 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 > hand nedanför sin markör.
 
 ## Nuläge
+- **PRISER = CARDMARKET + KATALOGLUCKOR STÄNGDA (ägaren 2026-10-15: "fel priser, kort saknas, ta bort
+  CardTrader, visa sålt")**. Revision mot leverantörens hela feed (EN 23 426 + JP 21 651 rader): JP komplett,
+  EN-felen hade tre orsaker — utropsvakten fällde äkta engelska premier, CardTrader tog rubriken (1 251 kort),
+  SVP-promos frusna sedan juni. Regler: `cm-pricing.md` punkt 3–5 överst. ⛔ **CardTrader prissätter bara
+  där CM saknar NM-pris** (Reverse Holo, 1st Edition utanför Base) — aldrig ett kort med CM-pris. Graderade
+  rutan visar SÅLT (eBay, annars Tradera; `cellSold`), begärt bara märkt "Till salu". **Katalogluckor**:
+  Prize Pack 1–9 (1 271 kort) via `import-en-set-from-provider.ts --new-episodes` (veckosteg); kort som
+  BARA finns på Cardmarket (temadäckens stämplade tryckningar som Moltres xDRI 229, JP-startdäck, WCD,
+  Battle Academy, tränarkit) via `scripts/import-cm-only-singles.ts` — identitet ur CardTraders katalog
+  (namn/nummer/tryckning/`pokemon_language`, bara EN+JP), id + pris (prisguidens UPPSKATTNING) + bild ur CM,
+  `tcgExternalId "cm:<idProduct>"`. ⛔ Nya kort föds bara i HELT nya set; i set vi har länkas bara (underset
+  med annat nummerformat gav annars dubbletter). ⛔ Skannern indexerar inte omtrycken (`lib/scanner-exclusion.ts`
+  — samma konst + nummer som originalet hade stulit träffar). Kinesiska/koreanska CM-set ingår aldrig.
 - **FOILIO HETER SCOUTR SEDAN 2026-10-12 (ägarbeslut, EUIPO-anspråket på FOILIO)**: all synlig text, mejl, logga
   (`public/brand/scoutr-*`, källfiler + generatorer i `work/scoutr-logo/`, original-6 sparad som alt) och domänen
   **scoutr.se** (Cloudflare-zon, Railway-domän, Resend verifierad; Brevo används INTE längre — bulk går via Resend).

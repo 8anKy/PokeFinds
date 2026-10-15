@@ -31,6 +31,23 @@ paths:
 >    och RapidAPI-rader utan `lowest` ger en UPPSKATTNING på trenden; guidens golv är bara en signal till
 >    tunndata-vakten.
 
+> ⛔ **ÄNDRAT 2026-10-15 (ägaren: "priserna skiljer sig från vårt API", "bara Cardmarket")**:
+> 3. **UTROPSVAKTEN KRÄVER ATT ÄVEN DE ANDRA SPRÅKEN MOTSÄGER FROM**: snitten är alla språk/skick,
+>    så vakten fällde äkta engelska premier (Gardevoir LV.X SW: From 480 € mot snitt ≤ 98 € ⇒
+>    "uppskattat" 865 kr). En From som ett annat språks EGET NM-golv i feeden
+>    (`lowest_near_mint_DE/FR/ES/IT`, `cmLangFroms`) bekräftar inom `FROM_LANG_CORROBORATE` (1,5x)
+>    står kvar; utrop utan bekräftelse (9 001 € Mewtwo) fälls som förut. JP har inga andra språk ⇒
+>    oförändrad (363 JP-uppskattningar 10-15 är tunna vintagemarknader, ägarens 10-12-regel).
+> 4. **CARDTRADER PRISSÄTTER INTE KORT SOM HAR ETT CM-PRIS**: `cardtrader-reverse` skriver ingen
+>    offer/grafpunkt på det ordinarie kortet, produktsidan ritar inte CT-linjen där CM har pris,
+>    18 421 offers raderade (`scripts/remove-cardtrader-base-offers.ts`). Bollvarianterna prissätts
+>    ur CM:s egna bollprodukter (`import-cm-only-singles.ts`, ball-reverse hoppar över dem).
+>    CT kvar BARA där CM saknar NM-pris: Reverse Holo (CM har ingen egen produkt, guidens `-holo`
+>    är alla språk/skick) och 1st Edition utanför Base.
+> 5. **EPISODENS SET UR RÖSTER**: en omatchad feed-rad får en andra chans på setkods-tolerant nummer +
+>    namn i det set episodens matchade rader pekar på (`episodeSetFromVotes`, ≥ 3 röster, ≥ 80 %).
+>    SVP 166–195 hade stått stilla sedan 2026-06-13 ("SV Black Star Promos" ≠ vårt setnamn, "SVP 173" ≠ "173").
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **Singelpris**: `Offer.price` på singlar = Cardmarkets engelska **NM-lägsta ("From")** × live-kurs, hämtat från **CardMarket API TCG (RapidAPI Pro)** — `CARDMARKET_RAPIDAPI_*` i .env, fältet `prices.cardmarket.lowest_near_mint` (DECIMAL EUR; bas-fältet är engelska, `_DE`/`_FR`/`_ES`/`_IT` = språk-överstyrningar). Detta ÄR det engelska From-pris som löste det gamla lowPrice-problemet (pokemontcg.io `lowPrice` = all-språk/all-skick-golv som grovt underskattade — använd ALDRIG). Fyll via `scripts/rapidapi-fill-singles.ts` (set-paginering `/pokemon/episodes/{id}/cards`, matcha på `tcgid`=`tcgExternalId`, ~1000 anrop för hela katalogen). Exakt uppslag = `?tcgid={id}` (1 träff). **GOLVET RAKT AV — HELA REGELN (ägarbeslut 2026-07-24, OMBEKRÄFTAT 2026-07-27)**:
