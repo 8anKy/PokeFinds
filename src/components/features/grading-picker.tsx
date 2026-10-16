@@ -26,7 +26,7 @@ export function GradingPicker({
   onChange: (next: GradingValue) => void;
   size?: "sm" | "md";
 }) {
-  const t = useTranslations("Grading");
+  const t = useTranslations("GradingPicker");
   return (
     <div>
       <div className="flex flex-wrap gap-2">

@@ -3301,7 +3301,7 @@
     "rowGradingHint": "3 lotter per kort du AI-graderar, max 3",
     "ctaGrade": "Gradera"
   },
-  "Grading": {
+  "GradingPicker": {
     "none": "Ograderat",
     "company": "Gradering",
     "grade": "Betyg",

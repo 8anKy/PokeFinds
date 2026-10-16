@@ -3301,7 +3301,7 @@
     "rowGradingHint": "3 tickets per card you AI-grade, max 3",
     "ctaGrade": "Grade"
   },
-  "Grading": {
+  "GradingPicker": {
     "none": "Ungraded",
     "company": "Grading",
     "grade": "Grade",

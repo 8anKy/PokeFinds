@@ -3635,7 +3635,7 @@ function ReviewView(props: {
 }) {
   const t = useTranslations("Scanner");
   const tCond = useTranslations("Condition");
-  const tg = useTranslations("Grading");
+  const tg = useTranslations("GradingPicker");
   const {
     scans,
     matchedCount,

@@ -78,4 +78,47 @@ describe("i18n-paritet", () => {
     }
     expect(mismatched).toEqual([]);
   });
+
+  it("ingen nyckel finns två gånger i samma objekt", () => {
+    // JSON.parse låter den SISTA vinna, tyst. Ett andra "Grading"-block med fyra
+    // nycklar (graderingsväljaren, 2026-10-15) ersatte hela namnrymden och /gradera
+    // visade "Grading.h1" överallt — paritetstesten ovan såg inget, för båda
+    // filerna hade samma fel.
+    const duplicates = (src: string): string[] => {
+      const found: string[] = [];
+      const stack: { keys: Set<string>; path: string }[] = [];
+      let lastString: string | null = null;
+      let pendingKey: string | null = null;
+      const re = /"((?:[^"\\]|\\.)*)"|[{}[\]:,]/g;
+      for (const m of src.matchAll(re)) {
+        const tok = m[0];
+        if (m[1] !== undefined) { lastString = m[1]; continue; }
+        if (tok === ":") {
+          const top = stack[stack.length - 1];
+          if (top && lastString != null) {
+            if (top.keys.has(lastString)) found.push(`${top.path}${lastString}`);
+            top.keys.add(lastString);
+            pendingKey = lastString;
+          }
+        } else if (tok === "{") {
+          stack.push({ keys: new Set(), path: pendingKey == null ? "" : `${stack[stack.length - 1]?.path ?? ""}${pendingKey}.` });
+        } else if (tok === "}") {
+          stack.pop();
+        } else if (tok === "[") {
+          stack.push({ keys: new Set(), path: "" });
+        } else if (tok === "]") {
+          stack.pop();
+        }
+        if (tok !== ":") pendingKey = tok === "{" ? pendingKey : null;
+        lastString = null;
+      }
+      return found;
+    };
+    const fs = require("node:fs") as typeof import("node:fs");
+    const path = require("node:path") as typeof import("node:path");
+    for (const f of ["sv", "en"]) {
+      const src = fs.readFileSync(path.join(__dirname, `../../messages/${f}.json`), "utf8");
+      expect(duplicates(src), f).toEqual([]);
+    }
+  });
 });
