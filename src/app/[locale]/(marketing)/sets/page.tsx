@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
 import { alternatesFor } from "@/lib/canonical";
 import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
-import { Link } from "@/i18n/navigation";
-import { setPath } from "@/lib/set-slug";
-import { prisma } from "@/lib/db";
-import { NOT_HIDDEN } from "@/lib/product-visibility";
-import { formatDate } from "@/lib/format";
+import { loadSetsGallery } from "@/services/sets-gallery";
+import { SetsGallery } from "@/components/features/sets-gallery";
 import { EmptyState } from "@/components/ui/empty-state";
-import { IconCards, IconChevronRight } from "@/components/ui/icons";
+import { IconCards } from "@/components/ui/icons";
 
 // Katalogdata ändras ~en gång/dygn → cacha (ISR). Sparar Vercel CPU + Neon-läsningar.
 export const revalidate = 3600;
@@ -33,35 +30,10 @@ export default async function SetsPage({
   setRequestLocale(params.locale);
   const t = await getTranslations("Sets");
   const locale = await getLocale();
-  const sets = await prisma.cardSet.findMany({
-    // Engelska set + de japanska set som faktiskt HAR kortrader (JP-singlar sedan
-    // 2026-08-29). Rena sealed-set på JP hade ritats som tomma brickor med
-    // "0 kort" — de finns fortfarande i katalogfiltret (flik "Japanska").
-    // + minst en SYNLIG produkt (2026-10-05): ett set vars produkter alla är dolda
-    // (Mega Evolution Energy, ägarbeslut) ritades annars som en tom bricka.
-    where: {
-      OR: [{ language: "EN" }, { language: "JP", cards: { some: {} } }],
-      products: { some: NOT_HIDDEN },
-    },
-    include: { _count: { select: { cards: true, products: true } } },
-    // nulls: "last" — annars lägger Postgres datumlösa set FÖRST vid DESC, alltså
-    // som om de vore nyast (samma regel som filtrets set-lista).
-    orderBy: { releaseDate: { sort: "desc", nulls: "last" } },
-  });
-
-  // Gruppera per serie för en tydligare överblick än ett platt kort-grid
-  const seriesOrder: string[] = [];
-  const bySeries = new Map<string, typeof sets>();
-  for (const set of sets) {
-    if (!bySeries.has(set.series)) {
-      bySeries.set(set.series, []);
-      seriesOrder.push(set.series);
-    }
-    bySeries.get(set.series)!.push(set);
-  }
+  const sets = await loadSetsGallery();
 
   return (
-    <div className="mx-auto max-w-5xl px-2.5 py-10 sm:px-6">
+    <div className="mx-auto max-w-6xl px-2.5 py-10 sm:px-6">
       <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
       <p className="mt-2 text-ink-muted">
         {t("intro")}
@@ -90,43 +62,7 @@ export default async function SetsPage({
           description={t("emptyDesc")}
         />
       ) : (
-        <div className="mt-8 space-y-10">
-          {seriesOrder.map((series) => (
-            <section key={series}>
-              <h2 className="font-display text-lg font-semibold text-ink">{series}</h2>
-              <ul className="card-surface mt-3 divide-y divide-surface-border">
-                {bySeries.get(series)!.map((set) => (
-                  <li key={set.id}>
-                    <Link
-                      href={setPath(set)}
-                      className="group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-overlay/60 active:bg-surface-overlay sm:px-5"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-ink group-hover:text-holo-cyan">
-                          {set.name}
-                        </p>
-                        <p className="mt-0.5 text-xs text-ink-faint">
-                          {t("release", { date: formatDate(set.releaseDate, locale) })}
-                        </p>
-                      </div>
-                      <p className="hidden shrink-0 text-sm tabular-nums text-ink-muted sm:block">
-                        {/* Vår egen lista, inte printedTotal — se kommentaren på setsidan. */}
-                        {t("cards", { count: set._count.cards })}
-                      </p>
-                      <p className="shrink-0 text-sm tabular-nums text-ink-muted">
-                        {t("products", { count: set._count.products })}
-                      </p>
-                      <IconChevronRight
-                        size={18}
-                        className="shrink-0 text-ink-faint transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-holo-cyan"
-                      />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
+        <SetsGallery sets={sets} />
       )}
     </div>
   );

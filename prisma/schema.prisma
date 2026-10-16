@@ -125,6 +125,16 @@ enum OfferReportReason {
   OUT_OF_STOCK // vi visar "i lager" men butiken är slutsåld
 }
 
+// "Något fel?" på produktsidan (ägarbeslut 2026-10-16) — det som INTE hör till en
+// enskild butiksrad. Butiksraderna anmäls som OfferReport (samma knapp, samma ark).
+enum ProductReportKind {
+  WRONG_PRICE // rubrikpriset/värdet stämmer inte
+  WRONG_IMAGE // fel bild
+  WRONG_INFO // namn, nummer, set eller språk är fel
+  DUPLICATE // samma vara finns två gånger
+  OTHER
+}
+
 enum PlanTier {
   FREE
   PREMIUM
@@ -267,6 +277,7 @@ model User {
   notifications     Notification[]
   reports           Report[]
   offerReports      OfferReport[]
+  productReports    ProductReport[]
   savedPosts        SavedPost[]
   pushTokens        PushToken[]
   invitesSent       Invite[]                  @relation("InviteInviter")
@@ -678,6 +689,7 @@ model Product {
   gradedSales        GradedSale[]
   gradedAsks         GradedAsk[]
   gradedAskSnapshots GradedAskSnapshot[]
+  reports            ProductReport[]
 
   @@index([normalizedTitle])
   @@index([category])
@@ -1656,6 +1668,26 @@ model OfferReport {
 
   @@index([status])
   @@index([offerId])
+}
+
+// Användaranmälan av fel på en PRODUKT (pris, bild, kortinfo, dubblett). Samma regler som
+// OfferReport: öppen för utloggade, rättas mot rådata i admin, aldrig genom att lappa
+// det visade talet. `note` nollas vid kontoradering (users/me DELETE).
+model ProductReport {
+  id         String            @id @default(cuid())
+  productId  String
+  reporterId String?
+  kind       ProductReportKind
+  note       String?
+  status     ReportStatus      @default(OPEN)
+  createdAt  DateTime          @default(now())
+  resolvedAt DateTime?
+
+  product  Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  reporter User?   @relation(fields: [reporterId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([productId])
 }
 
 /// Inbjudningar (#10): 3 verifierade vänner → 1 månad Pro till inviter.

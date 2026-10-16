@@ -7,12 +7,14 @@ import { cn } from "@/lib/utils";
 import { useCommunityV2 } from "@/lib/use-community-v2";
 import { UnseenDot } from "@/components/ui/unseen-dot";
 
-// Fyra huvudflikar på desktop (ägarbeslut 2026-08-11), samma Portfölj-mål som
+// Huvudflikar på desktop (ägarbeslut 2026-08-11), samma Portfölj-mål som
 // mobilens tabb = /samling. ⛔ Marknad är BORTTAGEN (ägarbeslut 2026-09-07): fliken
 // var admin-only sedan 2026-07-21 och sidan tillförde inget vi inte visar bättre på
 // /produkter — hela rutten är raderad, inte bara länken.
+// Set (ägarbeslut 2026-10-16): /sets med framsteg och värde per set.
 const NAV_LINKS = [
   { href: "/produkter", key: "explore" },
+  { href: "/sets", key: "sets" },
   { href: "/samling", key: "portfolio" },
   { href: "/community", key: "community" },
   { href: "/priser", key: "pricing" },

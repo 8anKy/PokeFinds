@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { formatGtin } from "@/lib/gtin";
 import { getGtinConflicts } from "@/services/gtin-conflicts";
-import { LinkReportsClient, type OfferReportRow } from "./link-reports-client";
+import { LinkReportsClient, type OfferReportRow, type ProductReportRow } from "./link-reports-client";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * Rättningen görs mot RÅDATA: radera offern via ID (aldrig lappa det visade priset).
  */
 export default async function AdminLinkReportsPage() {
-  const [reports, conflictRows] = await Promise.all([
+  const [reports, conflictRows, productReports] = await Promise.all([
     prisma.offerReport.findMany({
       where: { status: "OPEN" },
       orderBy: { createdAt: "desc" },
@@ -37,6 +37,17 @@ export default async function AdminLinkReportsPage() {
     // Maskinellt hittade felaktiga länkar — med smarta filter (distributör-EAN + delade
     // sortimentskoder räknas inte) och admin-kvittering. Se src/services/gtin-conflicts.ts.
     getGtinConflicts(),
+    // "Något fel?" om själva produkten (pris, bild, kortinfo, dubblett) — 2026-10-16.
+    prisma.productReport.findMany({
+      where: { status: "OPEN" },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: {
+        id: true, kind: true, note: true, createdAt: true,
+        reporter: { select: { name: true } },
+        product: { select: { title: true, slug: true, lowestPriceOre: true } },
+      },
+    }),
   ]);
 
   const rows: OfferReportRow[] = reports.map((r) => ({
@@ -57,5 +68,16 @@ export default async function AdminLinkReportsPage() {
     gtinMismatch: !!r.offer.gtin && !!r.offer.product.gtin && r.offer.gtin !== r.offer.product.gtin,
   }));
 
-  return <LinkReportsClient reports={rows} conflicts={conflictRows} />;
+  const productRows: ProductReportRow[] = productReports.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    note: r.note,
+    createdAt: r.createdAt.toISOString(),
+    reporterName: r.reporter?.name ?? null,
+    productTitle: r.product.title,
+    productSlug: r.product.slug,
+    productPrice: r.product.lowestPriceOre,
+  }));
+
+  return <LinkReportsClient reports={rows} conflicts={conflictRows} productReports={productRows} />;
 }

@@ -238,6 +238,10 @@ export async function DELETE() {
       where: { reporterId: sessionUser.id },
       data: { note: null },
     });
+    await prisma.productReport.updateMany({
+      where: { reporterId: sessionUser.id },
+      data: { note: null },
+    });
 
     // Forumbilder ligger i objektlagringen, utanför databasen — Cascade når dem
     // inte. Prefixet `forum/<userId>/` gör städningen till ett list+delete-anrop

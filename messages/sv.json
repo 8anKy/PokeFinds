@@ -206,7 +206,8 @@
     "scan": "Skanna",
     "more": "Mer",
     "forum": "Community",
-    "messages": "Meddelanden"
+    "messages": "Meddelanden",
+    "sets": "Set"
   },
   "Footer": {
     "tagline": "Din kontrollpanel för Pokémon TCG-marknaden. Bevaka priser, lagerstatus och värdet på din samling.",
@@ -2203,7 +2204,7 @@
     "metaDescription": "Bläddra bland alla Pokémon TCG-set: serier, releasedatum och produkter med aktuella priser.",
     "detailTitle": "{name} — priser och kort",
     "h1": "Set",
-    "intro": "Alla set vi följer, med produkter, priser och prisindex.",
+    "intro": "Alla set vi följer. Se hur långt du kommit i varje set och vad det är värt.",
     "upcomingGuide": "Se kommande Pokémon-set",
     "buyingGuide": "Jämför priser och butiker",
     "emptyTitle": "Inga set ännu",
@@ -2216,7 +2217,14 @@
     "notFound": "Setet hittades inte",
     "detailDescription": "Produkter och priser för {name} ({series}). Jämför svenska butiker på Scoutr.",
     "emptyProductsTitle": "Inga produkter i setet ännu",
-    "emptyProductsDesc": "Vi har inte hittat några produkter från det här setet hos bevakade butiker."
+    "emptyProductsDesc": "Vi har inte hittat några produkter från det här setet hos bevakade butiker.",
+    "tabEn": "Engelska",
+    "tabJp": "Japanska",
+    "progress": "{owned} / {total}",
+    "setValue": "Setvärde",
+    "yourValue": "Ditt värde",
+    "releasesOn": "Släpps {date}",
+    "noCardsYet": "Korten kommer snart"
   },
   "SetCompletion": {
     "title": "Din samling",
@@ -3306,5 +3314,42 @@
     "company": "Gradering",
     "grade": "Betyg",
     "pickGrade": "Välj betyg"
+  },
+  "Report": {
+    "button": "Något fel? Rapportera",
+    "title": "Vad är fel?",
+    "doneTitle": "Tack!",
+    "doneBody": "Vi tittar på det och rättar så snart vi kan.",
+    "close": "Stäng",
+    "send": "Skicka",
+    "sending": "Skickar…",
+    "whatQuestion": "Välj det som stämmer",
+    "whichStore": "Vilken butik?",
+    "storeQuestion": "Vad är fel med annonsen?",
+    "noteLabel": "Berätta mer (valfritt)",
+    "notePlaceholder": "T.ex. rätt pris, rätt namn eller en länk",
+    "error": "Det gick inte att skicka. Försök igen.",
+    "kind": {
+      "WRONG_PRICE": "Priset",
+      "STORE": "En butiks annons",
+      "WRONG_IMAGE": "Bilden",
+      "WRONG_INFO": "Kortinfo",
+      "DUPLICATE": "Dubblett",
+      "OTHER": "Något annat"
+    },
+    "kindHint": {
+      "WRONG_PRICE": "Priset eller värdet stämmer inte",
+      "STORE": "Fel vara, fel pris, död länk eller lagerstatus",
+      "WRONG_IMAGE": "Bilden visar fel vara",
+      "WRONG_INFO": "Namn, nummer, set eller språk är fel",
+      "DUPLICATE": "Samma vara finns flera gånger",
+      "OTHER": "Något vi inte listat"
+    },
+    "storeReason": {
+      "WRONG_PRODUCT": "Fel vara",
+      "WRONG_PRICE": "Fel pris",
+      "DEAD_LINK": "Länken fungerar inte",
+      "OUT_OF_STOCK": "Slut i lager"
+    }
   }
 }

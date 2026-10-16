@@ -29,6 +29,17 @@ export interface ConflictRow {
   offers: { id: string; url: string; gtin: string | null; price: number | null; retailer: string; counts: boolean }[];
 }
 
+export interface ProductReportRow {
+  id: string;
+  kind: string;
+  note: string | null;
+  createdAt: string;
+  reporterName: string | null;
+  productTitle: string;
+  productSlug: string;
+  productPrice: number | null;
+}
+
 const REASON_LABEL: Record<string, string> = {
   WRONG_PRODUCT: "Fel produkt",
   WRONG_PRICE: "Fel pris",
@@ -36,13 +47,41 @@ const REASON_LABEL: Record<string, string> = {
   OUT_OF_STOCK: "Slutsåld",
 };
 
+const KIND_LABEL: Record<string, string> = {
+  WRONG_PRICE: "Fel pris",
+  WRONG_IMAGE: "Fel bild",
+  WRONG_INFO: "Fel kortinfo",
+  DUPLICATE: "Dubblett",
+  OTHER: "Annat",
+};
+
 export function LinkReportsClient({
   reports,
   conflicts,
+  productReports = [],
 }: {
   reports: OfferReportRow[];
   conflicts: ConflictRow[];
+  productReports?: ProductReportRow[];
 }) {
+  const [closed, setClosed] = useState<Map<string, string>>(new Map());
+
+  async function closeReport(id: string, status: "ACTIONED" | "DISMISSED") {
+    setBusy(id);
+    try {
+      const res = await fetch(`/api/admin/product-reports/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setClosed((m) => new Map(m).set(id, status));
+    } catch {
+      alert("Kunde inte uppdatera anmälan.");
+    } finally {
+      setBusy(null);
+    }
+  }
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [ackedProducts, setAckedProducts] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
@@ -88,6 +127,55 @@ export function LinkReportsClient({
           bedömning. Rättas genom att radera offern (rådata), aldrig genom att lappa priset.
         </p>
       </header>
+
+      {/* ---- "Något fel?" om själva produkten ---- */}
+      <section>
+        <h2 className="mb-3 text-lg font-medium">
+          Fel på produkten <span className="text-ink-muted">({productReports.length})</span>
+        </h2>
+        {productReports.length === 0 ? (
+          <p className="rounded-lg border border-surface-border p-4 text-sm text-ink-muted">Inga öppna anmälningar.</p>
+        ) : (
+          <ul className="space-y-3">
+            {productReports.map((r) => (
+              <li
+                key={r.id}
+                className={`rounded-xl border border-surface-border p-4 ${closed.has(r.id) ? "opacity-40" : ""}`}
+              >
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="rounded-md bg-surface-overlay px-2 py-0.5 font-medium">{KIND_LABEL[r.kind] ?? r.kind}</span>
+                  <Link href={`/produkter/${r.productSlug}`} className="hover:text-holo-cyan">
+                    {r.productTitle}
+                  </Link>
+                  <span className="tabular-nums text-ink-muted">{formatPrice(r.productPrice)}</span>
+                  <span className="ml-auto text-xs text-ink-muted">
+                    {r.reporterName ?? "anonym"} · {new Date(r.createdAt).toLocaleDateString("sv-SE")}
+                  </span>
+                </div>
+                {r.note && <p className="mt-2 text-sm text-ink-muted">”{r.note}”</p>}
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy === r.id || closed.has(r.id)}
+                    onClick={() => closeReport(r.id, "ACTIONED")}
+                    className="rounded-md border border-holo-cyan/40 px-3 py-1 text-xs font-medium text-holo-cyan hover:bg-holo-cyan/10 disabled:opacity-50"
+                  >
+                    {closed.get(r.id) === "ACTIONED" ? "Åtgärdad ✓" : "Åtgärdad"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy === r.id || closed.has(r.id)}
+                    onClick={() => closeReport(r.id, "DISMISSED")}
+                    className="rounded-md border border-surface-border px-3 py-1 text-xs font-medium text-ink-muted hover:text-ink disabled:opacity-50"
+                  >
+                    {closed.get(r.id) === "DISMISSED" ? "Avfärdad" : "Avfärda"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* ---- Anmält av användare ---- */}
       <section>

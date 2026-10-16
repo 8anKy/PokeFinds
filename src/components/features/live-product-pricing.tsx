@@ -91,6 +91,11 @@ function useLivePricing() {
   return ctx;
 }
 
+/** Butiksraderna som visas — "Något fel?"-arket låter användaren peka ut en av dem. */
+export function useLiveOffers(): LiveOffer[] {
+  return useLivePricing().offers;
+}
+
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export interface LivePricingProviderProps {

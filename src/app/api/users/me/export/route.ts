@@ -109,6 +109,7 @@ export async function GET() {
         offerReports: {
           select: { offerId: true, reason: true, note: true, status: true, createdAt: true },
         },
+        productReports: { select: { productId: true, kind: true, note: true, status: true, createdAt: true } },
         invitesSent: {
           select: { id: true, createdAt: true, usedAt: true, verifiedAt: true, rewardedAt: true },
         },
@@ -208,6 +209,7 @@ export async function GET() {
       alerts: user.alerts,
       communityReports: user.reports,
       offerReports: user.offerReports,
+      productReports: user.productReports,
       scanHistory: user.scannerJobs,
       gradingHistory: user.gradingJobs,
       pushDevices: user.pushTokens,

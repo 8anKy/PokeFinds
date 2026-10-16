@@ -206,7 +206,8 @@
     "scan": "Scan",
     "more": "More",
     "forum": "Community",
-    "messages": "Messages"
+    "messages": "Messages",
+    "sets": "Sets"
   },
   "Footer": {
     "tagline": "Your control panel for the Pokémon TCG market. Track prices, stock status and the value of your collection.",
@@ -2203,7 +2204,7 @@
     "metaDescription": "Browse all Pokémon TCG sets: series, release dates and products with current prices.",
     "detailTitle": "{name} — prices and cards",
     "h1": "Sets",
-    "intro": "Every set we track, with products, prices and a price index.",
+    "intro": "Every set we track. See how far you have come in each set and what it is worth.",
     "upcomingGuide": "See upcoming Pokémon sets",
     "buyingGuide": "Compare prices and stores",
     "emptyTitle": "No sets yet",
@@ -2216,7 +2217,14 @@
     "notFound": "Set not found",
     "detailDescription": "Products and prices for {name} ({series}). Compare Swedish stores on Scoutr.",
     "emptyProductsTitle": "No products in this set yet",
-    "emptyProductsDesc": "We haven't found any products from this set at tracked stores."
+    "emptyProductsDesc": "We haven't found any products from this set at tracked stores.",
+    "tabEn": "English",
+    "tabJp": "Japanese",
+    "progress": "{owned} / {total}",
+    "setValue": "Set value",
+    "yourValue": "Your value",
+    "releasesOn": "Releases {date}",
+    "noCardsYet": "Cards coming soon"
   },
   "SetCompletion": {
     "title": "Your collection",
@@ -3306,5 +3314,42 @@
     "company": "Grading",
     "grade": "Grade",
     "pickGrade": "Pick a grade"
+  },
+  "Report": {
+    "button": "Something wrong? Report it",
+    "title": "What is wrong?",
+    "doneTitle": "Thanks!",
+    "doneBody": "We will look into it and fix it as soon as we can.",
+    "close": "Close",
+    "send": "Send",
+    "sending": "Sending…",
+    "whatQuestion": "Pick what fits",
+    "whichStore": "Which store?",
+    "storeQuestion": "What is wrong with the listing?",
+    "noteLabel": "Tell us more (optional)",
+    "notePlaceholder": "E.g. the right price, the right name or a link",
+    "error": "Could not send. Try again.",
+    "kind": {
+      "WRONG_PRICE": "The price",
+      "STORE": "A store listing",
+      "WRONG_IMAGE": "The image",
+      "WRONG_INFO": "Card info",
+      "DUPLICATE": "Duplicate",
+      "OTHER": "Something else"
+    },
+    "kindHint": {
+      "WRONG_PRICE": "The price or value is wrong",
+      "STORE": "Wrong item, wrong price, dead link or stock status",
+      "WRONG_IMAGE": "The image shows the wrong item",
+      "WRONG_INFO": "Name, number, set or language is wrong",
+      "DUPLICATE": "The same item is listed more than once",
+      "OTHER": "Something we have not listed"
+    },
+    "storeReason": {
+      "WRONG_PRODUCT": "Wrong item",
+      "WRONG_PRICE": "Wrong price",
+      "DEAD_LINK": "Link is broken",
+      "OUT_OF_STOCK": "Out of stock"
+    }
   }
 }
