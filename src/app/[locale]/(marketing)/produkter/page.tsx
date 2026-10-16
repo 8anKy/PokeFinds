@@ -30,7 +30,6 @@ import { SiteSchema } from "@/components/seo/site-schema";
 import { SetHero } from "@/components/features/set-hero";
 import { getSetSummary } from "@/services/sets-gallery";
 import { Link } from "@/i18n/navigation";
-import { setPath } from "@/lib/set-slug";
 
 export const dynamic = "force-dynamic";
 
@@ -280,10 +279,13 @@ export default async function ProductsPage({
     <SetHero
       set={setSummary}
       actions={
-        <div className="flex gap-2 text-xs sm:flex-col sm:items-end sm:gap-1">
-          <Link href={setPath(setSummary)} className="text-holo-cyan hover:underline">{tHero("aboutSet")}</Link>
-          <Link href="/sets" className="text-ink-muted hover:text-ink">{tHero("allSets")}</Link>
-        </div>
+        <Link
+          href="/sets"
+          className="inline-flex items-center gap-1.5 rounded-full border border-surface-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-holo-cyan/50 hover:text-ink"
+        >
+          <span aria-hidden>←</span>
+          {tHero("allSets")}
+        </Link>
       }
     />
   ) : null;

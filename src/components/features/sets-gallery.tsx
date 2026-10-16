@@ -28,6 +28,19 @@ import type { SetTile } from "@/services/sets-gallery";
 
 const TAB_KEY = "scoutr:sets-tab";
 
+/**
+ * Varje era får en egen ton (Scoutrs fyra holofärger i tur och ordning) — ett svagt sken
+ * bakom loggorna och en prick vid rubriken. Hela klassnamn, så Tailwind ser dem.
+ */
+const ERA_TONES = [
+  { glow: "from-holo-gold/25", dot: "bg-holo-gold", ring: "hover:border-holo-gold/60" },
+  { glow: "from-holo-violet/25", dot: "bg-holo-violet", ring: "hover:border-holo-violet/60" },
+  { glow: "from-holo-cyan/25", dot: "bg-holo-cyan", ring: "hover:border-holo-cyan/60" },
+  { glow: "from-holo-pink/25", dot: "bg-holo-pink", ring: "hover:border-holo-pink/60" },
+] as const;
+type Tone = (typeof ERA_TONES)[number];
+const toneFor = (era: Era): Tone => ERA_TONES[eraRank(era) % ERA_TONES.length];
+
 function eraId(era: Era): string {
   return `era-${era.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 }
@@ -46,12 +59,14 @@ function Tile({
   loggedIn,
   locale,
   onOpen,
+  tone,
 }: {
   s: SetTile;
   owned: OwnedBySet | null;
   loggedIn: boolean | null;
   locale: string;
   onOpen: (e: MouseEvent<HTMLAnchorElement>, s: SetTile) => void;
+  tone: Tone;
 }) {
   const t = useTranslations("Sets");
   const [broken, setBroken] = useState(false);
@@ -71,13 +86,13 @@ function Tile({
         href={setPath(s)}
         onClick={(e) => onOpen(e, s)}
         className={cn(
-          "group flex h-full flex-col overflow-hidden rounded-xl border transition-colors",
+          "group flex h-full flex-col overflow-hidden rounded-xl border bg-surface-overlay/20 transition-all duration-200",
           complete
             ? "border-transparent [background:linear-gradient(#000,#000)_padding-box,linear-gradient(120deg,#2dd4bf,#a78bfa,#f472b6)_border-box]"
-            : "border-surface-border hover:border-holo-cyan/50"
+            : cn("border-surface-border hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-12px_rgba(45,212,191,0.35)]", tone.ring)
         )}
       >
-        <div className="relative aspect-[2/1] overflow-hidden bg-surface-overlay/40 transition-colors group-hover:bg-surface-overlay/70">
+        <div className={cn("relative aspect-[2/1] overflow-hidden bg-gradient-to-b to-transparent", tone.glow)}>
           {s.logoUrl && !broken ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -90,7 +105,7 @@ function Tile({
                 // Absolut i 2:1-rutan: en hög bild (produktfoto i stället för logga) får aldrig
                 // spränga rutans höjd.
                 "absolute inset-0 h-full w-full object-contain px-4 py-2.5 transition duration-300 group-hover:scale-[1.04]",
-                dim && "opacity-35 grayscale group-hover:opacity-90 group-hover:grayscale-0"
+                dim && "opacity-60 saturate-[0.25] group-hover:opacity-100 group-hover:saturate-100"
               )}
             />
           ) : (
@@ -240,15 +255,21 @@ export function SetsGallery({ sets }: { sets: SetTile[] }) {
         </div>
         <div className="flex items-center gap-3">
           {loggedIn && (
-            <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-ink-muted">
-              <input
-                type="checkbox"
-                checked={onlyMine}
-                onChange={(e) => setOnlyMine(e.target.checked)}
-                className="h-4 w-4 accent-[#2dd4bf]"
-              />
+            <button
+              type="button"
+              role="switch"
+              aria-checked={onlyMine}
+              onClick={() => setOnlyMine((v) => !v)}
+              className={cn(
+                "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                onlyMine ? "border-holo-cyan/60 bg-holo-cyan/15 text-holo-cyan" : "border-surface-border text-ink-muted hover:text-ink"
+              )}
+            >
+              <span className={cn("relative h-3.5 w-6 rounded-full transition-colors", onlyMine ? "bg-holo-cyan" : "bg-surface-overlay")}>
+                <span className={cn("absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white transition-all", onlyMine ? "left-3" : "left-0.5")} />
+              </span>
               {t("onlyMine")}
-            </label>
+            </button>
           )}
           <label className="relative block w-full sm:w-60">
             <IconSearch size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
@@ -264,7 +285,15 @@ export function SetsGallery({ sets }: { sets: SetTile[] }) {
       </div>
 
       {loggedIn && owned && (
-        <p className="mt-3 text-xs text-ink-muted">{t("startedSummary", { started: startedTotal, total: counts[tab] })}</p>
+        <div className="mt-4 inline-flex items-center gap-3 rounded-full border border-holo-cyan/30 bg-holo-cyan/10 px-3 py-1.5">
+          <span className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-overlay">
+            <span
+              className="block h-full rounded-full bg-gradient-to-r from-holo-cyan via-holo-violet to-holo-pink"
+              style={{ width: `${counts[tab] ? Math.max(3, (startedTotal / counts[tab]) * 100) : 0}%` }}
+            />
+          </span>
+          <span className="text-xs text-ink">{t("startedSummary", { started: startedTotal, total: counts[tab] })}</span>
+        </div>
       )}
 
       {/* Mobil: era-chips */}
@@ -315,7 +344,8 @@ export function SetsGallery({ sets }: { sets: SetTile[] }) {
           {groups.map((g) => (
             <section key={g.era} id={eraId(g.era)} className="scroll-mt-24">
               <div className="mb-3 flex items-baseline justify-between gap-3">
-                <h2 className="font-display text-lg font-semibold text-ink">
+                <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink">
+                  <span aria-hidden className={cn("h-2 w-2 rounded-full", toneFor(g.era).dot)} />
                   {g.era === "Other" ? t("eraOther") : g.era}
                   <span className="ml-2 text-sm font-normal text-ink-faint">{yearSpan(g.list)}</span>
                 </h2>
@@ -325,7 +355,7 @@ export function SetsGallery({ sets }: { sets: SetTile[] }) {
               </div>
               <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                 {g.list.map((s) => (
-                  <Tile key={s.id} s={s} owned={owned} loggedIn={loggedIn} locale={locale} onOpen={open} />
+                  <Tile key={s.id} s={s} owned={owned} loggedIn={loggedIn} locale={locale} onOpen={open} tone={toneFor(g.era)} />
                 ))}
               </ul>
             </section>
