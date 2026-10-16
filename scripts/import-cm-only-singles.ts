@@ -451,23 +451,35 @@ async function refreshPrices() {
   const today = utcToday();
   const cmRetailer = await cardmarketRetailerId();
   const cmSource = await prisma.scrapeSource.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
+  const clearOnly = process.argv.includes("--clear-only");
   const offers = await prisma.offer.findMany({
     where: {
       retailerId: cmRetailer,
-      ...(process.argv.includes("--all") ? {} : { lastSeenAt: { lt: today } }),
+      ...(process.argv.includes("--all") || clearOnly ? {} : { lastSeenAt: { lt: today } }),
       OR: [
         { product: { card: { tcgExternalId: { startsWith: CM_ONLY_PREFIX } } } },
         { product: { variantLabel: { in: ["Poké Ball Reverse Holo", "Master Ball Reverse Holo"] } } },
       ],
     },
-    select: { id: true, productId: true, url: true },
+    select: { id: true, productId: true, url: true, price: true },
   });
   const points: { productId: string; priceOre: number }[] = [];
+  let cleared = 0;
   await mapPool(offers, 8, async (o) => {
     // Länken bär produktens idProduct — för bollvarianterna är kortets cardmarketId det VANLIGA kortets.
     const id = Number(/idProduct=(\d+)/.exec(o.url)?.[1] ?? NaN);
-    const priced = Number.isFinite(id) ? guideOffer(guide.get(id), rates) : null;
-    if (priced == null) return;
+    const row = Number.isFinite(id) ? guide.get(id) : undefined;
+    const priced = row ? guideOffer(row, rates) : null;
+    // Guiden HAR raden men den bär inget pris vi kan stå för ⇒ nolla gårdagens tal i stället för att
+    // låta det stå fruset (Pikachu XY-P7af stod på 1 118 000 kr). Saknas raden helt rör vi inget.
+    if (priced == null) {
+      if (row && o.price != null) {
+        await prisma.offer.update({ where: { id: o.id }, data: { price: null, stockStatus: "OUT_OF_STOCK", lastSeenAt: new Date() } });
+        cleared++;
+      }
+      return;
+    }
+    if (clearOnly) return;
     await prisma.offer.update({ where: { id: o.id }, data: { price: priced.priceOre, stockStatus: priced.stock, lastSeenAt: new Date() } });
     points.push({ productId: o.productId, priceOre: priced.priceOre });
   });
@@ -477,7 +489,7 @@ async function refreshPrices() {
   }
   const { recomputeProductPriceCache } = await import("@/services/products");
   await recomputeProductPriceCache();
-  console.log(`[cm-only] ${points.length} av ${offers.length} Cardmarket-only-kort/bollvarianter prissatta ur prisguiden.`);
+  console.log(`[cm-only] ${points.length} av ${offers.length} Cardmarket-only-kort/bollvarianter prissatta ur prisguiden, ${cleared} utan stödbart pris nollade.`);
 }
 
 const args = process.argv.slice(2);

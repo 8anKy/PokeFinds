@@ -132,5 +132,9 @@ export function cmOnlyGuidePrice(g: {
   const floor = sales.length ? Math.min(...sales) : null;
   if (low != null && (floor == null || (pos(g.trend) ?? 0) < CM_ONLY_GUARD_FROM_EUR || low >= CM_ONLY_LOW_MIN_SHARE * floor))
     return { eur: low, live: true };
+  // ⛔ En uppskattning kräver en FÖRSÄLJNINGSSIGNAL (trend/avg30/avg7). Ett ensamt `avg` utan
+  // annonser och utan affärer är inget pris: Pikachu XY-P7af (JP, idProduct 554270) hade bara
+  // avg = 100 000 € och visades som 1 118 000 kr (2026-10-16). Hellre "–".
+  if (!sales.length) return null;
   return mid != null ? { eur: mid, live: false } : null;
 }

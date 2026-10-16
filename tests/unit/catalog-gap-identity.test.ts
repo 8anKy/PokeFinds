@@ -111,6 +111,8 @@ describe("pris för kort som bara finns på Cardmarket", () => {
   it("utan low ⇒ uppskattning, utan något ⇒ null", () => {
     expect(cmOnlyGuidePrice({ trend: 96.98, avg: 106.98, avg30: 99.69 })).toEqual({ eur: 99.69, live: false });
     expect(cmOnlyGuidePrice({})).toBeNull();
+    // Bara ett ensamt avg (inga annonser, inga affärer) ⇒ inget pris (Pikachu XY-P7af, 100 000 €).
+    expect(cmOnlyGuidePrice({ low: null, trend: null, avg: 100000, avg30: null, avg7: null })).toBeNull();
     expect(cmOnlyGuidePrice(null)).toBeNull();
   });
 });
