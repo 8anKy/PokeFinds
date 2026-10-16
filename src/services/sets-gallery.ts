@@ -9,20 +9,24 @@
  *  · `getOwnedBySet` — personlig, hämtas av klienten BARA när någon är inloggad (samma
  *    mönster som setsidans komplettering: en utloggad besökare väcker aldrig Neon).
  *
- * ⛔ NÄMNAREN ÄR TRYCKNINGAR (ägarbeslut 2026-10-16: "räkna som samlare räknar", Pitch Black 187
- * inte 120): varje version vi listar — ordinarie, reverse holo, bollmönster. Utan listade
- * tryckningar faller den tillbaka på kompletteringens kortnämnare (`resolveSetTotals().full`): hela setet inkl. secret
- * rares, aldrig printedTotal och aldrig tryckningar — samma tal som setsidans stapel.
+ * ⛔ NÄMNAREN ÄR KORT (ägarbeslut 2026-10-16: "kort för nu, kanske tryckningar senare"):
+ * kompletteringens nämnare (`resolveSetTotals().full`) — hela setet inkl. secret rares, aldrig
+ * printedTotal. Tryckningar (kort × version) ligger bakom `COUNT_PRINTINGS`; slå inte på den
+ * förrän alla reverse holo finns i katalogen (Pitch Black 187 av TCGdex 194, ~2–3k saknas,
+ * se cardtrader-reverse: bara kort med CardTrader-annonser får en reverse-produkt).
  */
 import { prisma } from "@/lib/db";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { resolveSetTotals } from "@/lib/set-denominator";
 import { loadSetDenominators } from "@/services/set-portfolio";
 
-/** Rutans nämnare: listade TRYCKNINGAR, annars hela setets kort. null = inga kort ännu. */
+/** Spak: räkna framsteg i tryckningar i stället för kort (se filhuvudet). */
+export const COUNT_PRINTINGS = false;
+
+/** Rutans nämnare: hela setets kort (eller tryckningar med spaken). null = inga kort ännu. */
 export function progressTotal(s: { totalCards: number; totalCardsFull: number; cardCount: number; listedPrintings: number }): number | null {
   const t = resolveSetTotals({ totalCards: s.totalCards, totalCardsFull: s.totalCardsFull, cardCount: s.cardCount, listedPrintings: s.listedPrintings });
-  return t.printings ?? t.full;
+  return COUNT_PRINTINGS ? (t.printings ?? t.full) : t.full;
 }
 import { isSetListed } from "@/lib/set-listing";
 import { setEra, type Era } from "@/lib/set-era";
@@ -101,7 +105,7 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
 }
 
 export interface OwnedInSet {
-  /** Antal OLIKA tryckningar ur setet (kort × version; lots räknas en gång). */
+  /** Antal OLIKA kort (eller tryckningar med COUNT_PRINTINGS) ur setet; lots räknas en gång. */
   owned: number;
   /** Värdet av användarens poster ur setet, öre (antal × nattens frysta värde). */
   valueOre: number;
@@ -113,9 +117,10 @@ export interface OwnedInSet {
  * visar slabbens sålda värde.
  */
 export async function getOwnedBySet(userId: string): Promise<Record<string, OwnedInSet>> {
-  const rows = await prisma.$queryRaw<{ setId: string; owned: number; v: bigint | null }[]>`
+  const rows = await prisma.$queryRaw<{ setId: string; owned: number; ownedPrintings: number; v: bigint | null }[]>`
     SELECT c."setId" AS "setId",
-           COUNT(DISTINCT ci."cardId" || '|' || COALESCE(p."variantLabel", ''))::int AS owned,
+           COUNT(DISTINCT ci."cardId")::int AS owned,
+           COUNT(DISTINCT ci."cardId" || '|' || COALESCE(p."variantLabel", ''))::int AS "ownedPrintings",
            SUM(ci.quantity * COALESCE(p."settledValueOre", p."lowestPriceOre", 0))::bigint AS v
       FROM "CollectionItem" ci
       JOIN "Card" c ON c.id = ci."cardId"
@@ -130,7 +135,7 @@ export async function getOwnedBySet(userId: string): Promise<Record<string, Owne
      WHERE ci."userId" = ${userId}
      GROUP BY c."setId"`;
   const out: Record<string, OwnedInSet> = {};
-  for (const r of rows) out[r.setId] = { owned: r.owned, valueOre: Number(r.v ?? 0) };
+  for (const r of rows) out[r.setId] = { owned: COUNT_PRINTINGS ? r.ownedPrintings : r.owned, valueOre: Number(r.v ?? 0) };
   return out;
 }
 
