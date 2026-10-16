@@ -2204,7 +2204,7 @@
     "metaDescription": "Bläddra bland alla Pokémon TCG-set: serier, releasedatum och produkter med aktuella priser.",
     "detailTitle": "{name} — priser och kort",
     "h1": "Set",
-    "intro": "Alla set vi följer. Se hur långt du kommit i varje set och vad det är värt.",
+    "intro": "Följ hur långt du kommit i varje set och vad det är värt. Tryck på ett set för att se korten.",
     "upcomingGuide": "Se kommande Pokémon-set",
     "buyingGuide": "Jämför priser och butiker",
     "emptyTitle": "Inga set ännu",
@@ -2224,7 +2224,17 @@
     "setValue": "Setvärde",
     "yourValue": "Ditt värde",
     "releasesOn": "Släpps {date}",
-    "noCardsYet": "Korten kommer snart"
+    "noCardsYet": "Korten kommer snart",
+    "upcoming": "Kommer snart",
+    "yourValueShort": "Ditt värde",
+    "onlyMine": "Bara mina set",
+    "searchPlaceholder": "Hitta ett set…",
+    "startedSummary": "Du har påbörjat {started} av {total} set.",
+    "eraNav": "Era",
+    "eraOther": "Övrigt",
+    "eraStarted": "{started} av {total} påbörjade",
+    "noMatch": "Inga set matchar.",
+    "compositionToggle": "Setets sammansättning: sällsyntheter och priser"
   },
   "SetCompletion": {
     "title": "Din samling",
@@ -3351,5 +3361,17 @@
       "DEAD_LINK": "Länken fungerar inte",
       "OUT_OF_STOCK": "Slut i lager"
     }
+  },
+  "SetHero": {
+    "otherEra": "Övrigt",
+    "japanese": "Japanskt",
+    "complete": "Komplett",
+    "progress": "Framsteg",
+    "cards": "{count} kort",
+    "noCards": "Korten kommer snart",
+    "setValue": "Setvärde",
+    "yourValue": "Ditt värde",
+    "aboutSet": "Om setet",
+    "allSets": "Alla set"
   }
 }

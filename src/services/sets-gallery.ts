@@ -16,12 +16,15 @@ import { prisma } from "@/lib/db";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { resolveSetTotals } from "@/lib/set-denominator";
 import { isSetListed } from "@/lib/set-listing";
+import { setEra, type Era } from "@/lib/set-era";
+import { cachedRead } from "@/lib/cache";
 
 export interface SetTile {
   id: string;
   slug: string | null;
   name: string;
   language: "EN" | "JP";
+  era: Era;
   logoUrl: string | null;
   /** ISO-datum eller null. */
   releaseDate: string | null;
@@ -45,6 +48,7 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
         slug: true,
         name: true,
         language: true,
+        series: true,
         externalId: true,
         logoUrl: true,
         releaseDate: true,
@@ -73,6 +77,7 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
       slug: s.slug,
       name: s.name,
       language: s.language === "JP" ? "JP" : "EN",
+      era: setEra(s),
       logoUrl: s.logoUrl,
       releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,
       total: totals.full,
@@ -115,3 +120,54 @@ export async function getOwnedBySet(userId: string): Promise<Record<string, Owne
   for (const r of rows) out[r.setId] = { owned: r.owned, valueOre: Number(r.v ?? 0) };
   return out;
 }
+
+export interface SetSummary {
+  id: string;
+  slug: string | null;
+  name: string;
+  language: "EN" | "JP";
+  era: Era;
+  logoUrl: string | null;
+  releaseDate: string | null;
+  total: number | null;
+  setValueOre: number | null;
+}
+
+/**
+ * Setrubriken i Utforska (`/produkter?set=<id>`, ett set valt). Samma tal som /sets-rutan.
+ * Cachad 1 h per set — katalogsidan är dynamisk och får inte fråga Neon per sidvisning.
+ * Returnerar ÄVEN set som inte listas på /sets: korten finns i katalogen och nås därifrån.
+ */
+export const getSetSummary = cachedRead(
+  async (setId: string): Promise<SetSummary | null> => {
+    const [s, v] = await Promise.all([
+      prisma.cardSet.findUnique({
+        where: { id: setId },
+        select: {
+          id: true, slug: true, name: true, language: true, series: true, logoUrl: true, releaseDate: true,
+          totalCards: true, totalCardsFull: true, _count: { select: { cards: true } },
+        },
+      }),
+      prisma.$queryRaw<{ v: bigint | null; priced: number }[]>`
+        SELECT SUM("settledValueOre")::bigint AS v, COUNT("settledValueOre")::int AS priced
+          FROM "Product"
+         WHERE "setId" = ${setId} AND category = 'SINGLE_CARD' AND "variantLabel" IS NULL AND "hiddenAt" IS NULL`,
+    ]);
+    if (!s) return null;
+    const totals = resolveSetTotals({ totalCards: s.totalCards, totalCardsFull: s.totalCardsFull, cardCount: s._count.cards });
+    const row = v[0];
+    return {
+      id: s.id,
+      slug: s.slug,
+      name: s.name,
+      language: s.language === "JP" ? "JP" : "EN",
+      era: setEra(s),
+      logoUrl: s.logoUrl,
+      releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,
+      total: totals.full,
+      setValueOre: row?.v != null && row.priced > 0 ? Number(row.v) : null,
+    };
+  },
+  "setSummary",
+  3600
+);

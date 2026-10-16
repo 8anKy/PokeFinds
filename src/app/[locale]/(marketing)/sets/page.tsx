@@ -33,12 +33,13 @@ export default async function SetsPage({
   const sets = await loadSetsGallery();
 
   return (
-    <div className="mx-auto max-w-6xl px-2.5 py-10 sm:px-6">
-      <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
-      <p className="mt-2 text-ink-muted">
-        {t("intro")}
-      </p>
-      <p className="mt-3 text-sm text-ink-muted">
+    <div className="mx-auto max-w-screen-2xl px-2.5 py-8 sm:px-6 lg:py-10">
+      <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
+      <div>
+        <h1 className="font-display text-2xl font-bold text-ink sm:text-3xl">{t("h1")}</h1>
+        <p className="mt-1 text-sm text-ink-muted">{t("intro")}</p>
+      </div>
+      <p className="text-sm text-ink-muted lg:shrink-0">
         <a
           href={`${locale === "en" ? "/en" : ""}/guider/kommande-pokemon-set`}
           className="font-medium text-holo-cyan hover:underline"
@@ -53,6 +54,7 @@ export default async function SetsPage({
           {t("buyingGuide")}
         </a>
       </p>
+      </div>
 
       {sets.length === 0 ? (
         <EmptyState

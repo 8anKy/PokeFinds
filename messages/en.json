@@ -2204,7 +2204,7 @@
     "metaDescription": "Browse all Pokémon TCG sets: series, release dates and products with current prices.",
     "detailTitle": "{name} — prices and cards",
     "h1": "Sets",
-    "intro": "Every set we track. See how far you have come in each set and what it is worth.",
+    "intro": "Track how far you have come in each set and what it is worth. Tap a set to see its cards.",
     "upcomingGuide": "See upcoming Pokémon sets",
     "buyingGuide": "Compare prices and stores",
     "emptyTitle": "No sets yet",
@@ -2224,7 +2224,17 @@
     "setValue": "Set value",
     "yourValue": "Your value",
     "releasesOn": "Releases {date}",
-    "noCardsYet": "Cards coming soon"
+    "noCardsYet": "Cards coming soon",
+    "upcoming": "Coming soon",
+    "yourValueShort": "Your value",
+    "onlyMine": "Only my sets",
+    "searchPlaceholder": "Find a set…",
+    "startedSummary": "You have started {started} of {total} sets.",
+    "eraNav": "Era",
+    "eraOther": "Other",
+    "eraStarted": "{started} of {total} started",
+    "noMatch": "No sets match.",
+    "compositionToggle": "Set composition: rarities and prices"
   },
   "SetCompletion": {
     "title": "Your collection",
@@ -3351,5 +3361,17 @@
       "DEAD_LINK": "Link is broken",
       "OUT_OF_STOCK": "Out of stock"
     }
+  },
+  "SetHero": {
+    "otherEra": "Other",
+    "japanese": "Japanese",
+    "complete": "Complete",
+    "progress": "Progress",
+    "cards": "{count} cards",
+    "noCards": "Cards coming soon",
+    "setValue": "Set value",
+    "yourValue": "Your value",
+    "aboutSet": "About the set",
+    "allSets": "All sets"
   }
 }

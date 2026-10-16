@@ -7,11 +7,10 @@ import { setPath } from "@/lib/set-slug";
 import { prisma } from "@/lib/db";
 import { headlineCandidates } from "@/lib/offer-source";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
-import { formatDate } from "@/lib/format";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SetProductGrid } from "@/components/features/set-product-grid";
-import { SetCompletionBar } from "@/components/features/set-completion-bar";
+import { SetHero } from "@/components/features/set-hero";
+import { getSetSummary } from "@/services/sets-gallery";
 import { SetComposition } from "@/components/features/set-composition";
 import { computeSetComposition, type CompositionCard } from "@/lib/set-composition";
 import { SetWatchButton } from "@/components/features/set-watch-button";
@@ -104,6 +103,8 @@ export default async function SetPage({ params }: PageProps) {
   // DB-fri: guiderna är en incheckad fil. Länken är setsidans väg IN i guiden och
   // guidens starkaste interna länk (en sida med riktig brödtext om setet).
   const guide = guideForSet(set.id);
+  // Rubrikkortets tal (setvärde, nämnare, era) — samma cachade läsning som Utforska.
+  const summary = await getSetSummary(set.id);
 
   const products = set.products.map((p) => {
     const priced = headlineCandidates(p.offers).filter(
@@ -191,45 +192,26 @@ export default async function SetPage({ params }: PageProps) {
         <span className="text-ink">{set.name}</span>
       </nav>
 
-      {/* Rubrik vänster, åtgärd höger — samma form som /bevakningar. På mobil
-          faller knappen ner under metaraden i stället för att tränga rubriken. */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="hidden flex-wrap items-center gap-3 lg:flex">
-            <h1 className="font-display text-3xl font-bold text-ink">{set.name}</h1>
-            <Badge variant="holo">{set.series}</Badge>
-          </div>
-          <p className="mt-2 text-sm text-ink-muted">
-            {/* ⛔ KORTANTALET ÄR VÅR EGEN LISTA, INTE `totalCards`. `totalCards` är
-                printedTotal — talet på kortet ("12/84") — och 107 av 176 engelska
-                set har secret rares ovanför det. Rubriken sa då "84 kort" medan
-                rutnätet under den listade 120 och stapeln mätte mot 120. Tre tal om
-                samma set på samma skärm; nu ett. */}
-            {t("releaseColon", { date: formatDate(set.releaseDate, locale) })} ·{" "}
-            {t("cards", { count: set._count.cards })} ·{" "}
-            {t("products", { count: products.length })}
-          </p>
-          {guide && (
-            <Link href={`/guider/${guide.slug}`} className="mt-1 inline-block text-sm font-semibold text-holo-cyan hover:underline">
-              {tGuides("readGuide", { name: set.name })}
-            </Link>
-          )}
-        </div>
-        {/* Knappen finns BARA när setet faktiskt har sealed att bevaka — annars
-            vore den ett löfte om larm som aldrig kan avfyras (singlar restockar
-            inte i butiksfeeden). */}
-        {sealedCount > 0 && (
-          <SetWatchButton setId={set.id} setName={set.name} sealedCount={sealedCount} />
-        )}
-      </div>
-
-      {/* Progressraden gör INGET på servern — den ritar sig själv först när den
-          inloggades siffra landat klient-sida (ISR-regeln, se komponenten).
-          Renderas bara för set som faktiskt HAR kort: ett rent sealed-set har
-          ingen komplettering att mäta. */}
-      {set._count.cards > 0 && <SetCompletionBar setId={set.id} />}
-
-      <SetComposition composition={composition} />
+      {/* Setets rubrikkort — samma som i Utforska (ägaren 2026-10-16: den gamla rubriken,
+          stapeln och sammansättningstabellen överst var för tunga). Framsteget ritas
+          klient-sida (ISR-regeln). Bevaka-knappen finns BARA när setet har sealed att
+          bevaka — annars vore den ett löfte om larm som aldrig kan avfyras. */}
+      {summary && (
+        <SetHero
+          set={summary}
+          heading="h1"
+          actions={
+            <div className="flex flex-col gap-2 sm:items-end">
+              {sealedCount > 0 && <SetWatchButton setId={set.id} setName={set.name} sealedCount={sealedCount} />}
+              {guide && (
+                <Link href={`/guider/${guide.slug}`} className="text-xs font-semibold text-holo-cyan hover:underline">
+                  {tGuides("readGuide", { name: set.name })}
+                </Link>
+              )}
+            </div>
+          }
+        />
+      )}
 
       {products.length === 0 ? (
         <EmptyState
@@ -260,6 +242,21 @@ export default async function SetPage({ params }: PageProps) {
             retailerCount: p.inStockCount,
           }))}
         />
+      )}
+
+      {/* Sammansättningen (sällsyntheter + pris) — hopfälld längst ned, inte överst. */}
+      {composition.rows.length > 0 && (
+        <details className="group mt-10 rounded-xl border border-surface-border">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-ink">
+            {t("compositionToggle")}
+            <span className="text-ink-faint transition-transform group-open:rotate-180" aria-hidden>
+              ▾
+            </span>
+          </summary>
+          <div className="px-4 pb-4">
+            <SetComposition composition={composition} />
+          </div>
+        </details>
       )}
     </div>
     </SwipeBack>

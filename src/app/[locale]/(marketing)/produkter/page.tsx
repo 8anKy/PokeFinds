@@ -27,6 +27,10 @@ import { LinkButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconSearch } from "@/components/ui/icons";
 import { SiteSchema } from "@/components/seo/site-schema";
+import { SetHero } from "@/components/features/set-hero";
+import { getSetSummary } from "@/services/sets-gallery";
+import { Link } from "@/i18n/navigation";
+import { setPath } from "@/lib/set-slug";
 
 export const dynamic = "force-dynamic";
 
@@ -259,12 +263,30 @@ export default async function ProductsPage({
   const params = { ...buildParams(searchParams, isAdmin), userId: session?.user?.id };
   // Facetterna är en delad 1h-cache — kostar inga extra Neon-läsningar per
   // sidvisning, bara per TTL-fönster.
-  const [result, sets, retailers, facets] = await Promise.all([
+  // ETT valt set ⇒ setets rubrikkort ovanför flödet (ägarbeslut 2026-10-16: /sets-rutorna
+  // leder hit). Cachad 1 h per set.
+  const onlySet = params.setId?.length === 1 ? params.setId[0] : null;
+  const [result, sets, retailers, facets, setSummary] = await Promise.all([
     getExploreFeed(params, 0, PAGE_SIZE),
     getFilterSets(),
     getFilterRetailers(),
     getExploreFacets(),
+    onlySet ? getSetSummary(onlySet) : Promise.resolve(null),
   ]);
+  const tHero = await getTranslations("SetHero");
+  // ⛔ En FUNKTION, inte ett delat element: samma RSC-element renderat två gånger (mobil +
+  // desktop) gav null-props i det andra (klientfel "Cannot destructure property set").
+  const setHero = () => setSummary ? (
+    <SetHero
+      set={setSummary}
+      actions={
+        <div className="flex gap-2 text-xs sm:flex-col sm:items-end sm:gap-1">
+          <Link href={setPath(setSummary)} className="text-holo-cyan hover:underline">{tHero("aboutSet")}</Link>
+          <Link href="/sets" className="text-ink-muted hover:text-ink">{tHero("allSets")}</Link>
+        </div>
+      }
+    />
+  ) : null;
   const feedQuery = buildFeedQuery(params);
   const filterKey = filterStateKey(searchParams);
 
@@ -382,6 +404,8 @@ export default async function ProductsPage({
           </form>
         </div>
 
+        {setHero()}
+
         <section>{feed}</section>
       </div>
 
@@ -420,6 +444,7 @@ export default async function ProductsPage({
           {/* scroll-mt: "Visa N produkter"-knappen scrollar hit — landa under
               den sticky headern, inte bakom den. */}
           <section id="explore-results" className="scroll-mt-24">
+            {setSummary && <div className="mb-4">{setHero()}</div>}
             <ExploreActiveChips
               categories={panelCategories}
               sets={panelSets}
