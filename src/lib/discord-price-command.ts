@@ -19,6 +19,7 @@ import { formatPrice } from "@/lib/format";
 import { isStoreRetailer } from "@/lib/offer-source";
 import { formatTraderaSold, marketDelta, formatMarketValue, priceEdgeColor } from "@/lib/market-compare";
 import { CARDMARKET_RETAILER_NAME } from "@/lib/market-value";
+import { DISCORD_APP_FIELD } from "@/lib/discord-app-field";
 import type { SnapshotEntry, SnapshotIndexEntry } from "@/lib/catalog-snapshot";
 
 export const PRICE_COMMAND_NAME = "pris";
@@ -183,6 +184,7 @@ export function buildPriceEmbed(
   }
   const sold = index?.sold ? formatTraderaSold(index.sold[0], index.sold[1]) : null;
   if (sold) fields.push({ name: "Tradera sålt", value: sold, inline: false });
+  fields.push({ ...DISCORD_APP_FIELD });
 
   const at = Date.parse(entry.prices.at);
   const productUrl = `${appUrl}/produkter/${entry.slug}`;

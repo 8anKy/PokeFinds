@@ -114,6 +114,11 @@ describe("svaret", () => {
     expect(e.thumbnail).toEqual({ url: "https://scoutr.se/api/cm-image/1" });
   });
 
+  it("slutar med Ladda ner Scoutr-raden", () => {
+    const e = buildPriceEmbed(entry, INDEX[0], "https://scoutr.se");
+    expect(e.fields.at(-1)?.name).toBe("Ladda ner Scoutr");
+  });
+
   it("utan lager: säger det i stället för att tiga", () => {
     const empty = { ...entry, prices: { ...entry.prices, offers: [] } } as SnapshotEntry;
     const e = buildPriceEmbed(empty, null, "https://scoutr.se");
