@@ -199,6 +199,18 @@ export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
   return usable(g?.trend) ?? usable(g?.avg) ?? null;
 }
 
+/**
+ * Japansk sealed ur prisguiden: `low` vägd mot trenden, med SAMMA sealed-golv
+ * (`usable`, MIN_SEALED_EUR) som den engelska vägen (`cmGuideRefEur`).
+ *
+ * Mätt 2026-10-16: Mega Charizard X Poncho-wearing Pikachu Special Box (575126) hade
+ * low 40 000 €, trend 0,02 €, avg 275 €. JP-vägen tog `g.trend` rakt av utan golvet,
+ * `low` underkändes mot den och trenden blev priset: 0,22 kr.
+ */
+export function jpSealedGuideEur(g: CmGuideEntry): number | null {
+  return sanePriceEur(g.low, cmGuideRefEur(g));
+}
+
 // ── ÄGARENS PRISREGEL FÖR SINGLAR: `lowest_near_mint` RAKT AV ────────────────
 // (beslut 2026-07-24, OMBEKRÄFTAT 2026-07-27 efter att guide-substitutionerna rivits)
 //
@@ -1573,7 +1585,7 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
     // Lägsta pris ("low") = det vi visar/spårar; utan aktuell annons → trend/avg
     // som ur-lager-referens (samma semantik som EN-sealed). sanePriceEur skyddar
     // mot glitchade micro-/jättepriser.
-    const eur = g ? sanePriceEur(g.low, g.trend ?? g.avg) : null;
+    const eur = g ? jpSealedGuideEur(g) : null;
     if (g == null || eur == null) {
       // IDENTITETEN FÅR INTE TAPPAS FÖR ATT PRISET SAKNAS (2026-08-09): en
       // nymappad presale-produkt (30th Celebration JP Booster, 890359) hade en

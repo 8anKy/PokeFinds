@@ -6,7 +6,22 @@ import {
   lowIsCredible,
   isJunkLowOnLiquidMarket,
   cmSelfConsistent,
+  jpSealedGuideEur,
 } from "../../src/jobs/cardmarket-refresh";
+
+describe("jpSealedGuideEur", () => {
+  const g = (low: number | null, trend: number | null, avg: number | null) =>
+    ({ idProduct: 1, low, trend, avg }) as Parameters<typeof jpSealedGuideEur>[0];
+  it("en trend under sealed-golvet räknas inte (Poncho X: From 40 000 €, trend 0,02 €, snitt 275 €)", () => {
+    expect(jpSealedGuideEur(g(40000, 0.02, 275))).toBe(275); // var 0,02 € = 0,22 kr
+  });
+  it("tar From när referenserna är ense", () => {
+    expect(jpSealedGuideEur(g(45, 80.79, 72.59))).toBe(45);
+  });
+  it("faller på trenden när From är ett utrop", () => {
+    expect(jpSealedGuideEur(g(15500, 1306.6, 900))).toBe(1306.6);
+  });
+});
 
 // Regression 2026-07-21: sealed-fasen dömde CM:s From mot TRENDEN, fast 0.2x-golvet
 // är kalibrerat mot 30-dagssnittet. På en stigande marknad kastades en äkta From och
