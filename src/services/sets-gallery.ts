@@ -9,12 +9,21 @@
  *  · `getOwnedBySet` — personlig, hämtas av klienten BARA när någon är inloggad (samma
  *    mönster som setsidans komplettering: en utloggad besökare väcker aldrig Neon).
  *
- * ⛔ Nämnaren är kompletteringens (`resolveSetTotals().full`): hela setet inkl. secret
+ * ⛔ NÄMNAREN ÄR TRYCKNINGAR (ägarbeslut 2026-10-16: "räkna som samlare räknar", Pitch Black 187
+ * inte 120): varje version vi listar — ordinarie, reverse holo, bollmönster. Utan listade
+ * tryckningar faller den tillbaka på kompletteringens kortnämnare (`resolveSetTotals().full`): hela setet inkl. secret
  * rares, aldrig printedTotal och aldrig tryckningar — samma tal som setsidans stapel.
  */
 import { prisma } from "@/lib/db";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { resolveSetTotals } from "@/lib/set-denominator";
+import { loadSetDenominators } from "@/services/set-portfolio";
+
+/** Rutans nämnare: listade TRYCKNINGAR, annars hela setets kort. null = inga kort ännu. */
+export function progressTotal(s: { totalCards: number; totalCardsFull: number; cardCount: number; listedPrintings: number }): number | null {
+  const t = resolveSetTotals({ totalCards: s.totalCards, totalCardsFull: s.totalCardsFull, cardCount: s.cardCount, listedPrintings: s.listedPrintings });
+  return t.printings ?? t.full;
+}
 import { isSetListed } from "@/lib/set-listing";
 import { setEra, type Era } from "@/lib/set-era";
 import { cachedRead } from "@/lib/cache";
@@ -37,7 +46,7 @@ export interface SetTile {
 }
 
 export async function loadSetsGallery(): Promise<SetTile[]> {
-  const [sets, values] = await Promise.all([
+  const [sets, values, denoms] = await Promise.all([
     prisma.cardSet.findMany({
       // Samma urval som förut: engelska set + japanska set med kort, minst en synlig produkt.
       where: {
@@ -67,11 +76,13 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
        WHERE category = 'SINGLE_CARD' AND "variantLabel" IS NULL AND "hiddenAt" IS NULL
          AND "setId" IS NOT NULL
        GROUP BY "setId"`,
+    loadSetDenominators(),
   ]);
+  const printingsBySet = new Map(denoms.map((d) => [d.setId, d.listedPrintings]));
   const valueBySet = new Map(values.map((r) => [r.setId, r]));
 
   return sets.filter(isSetListed).map((s) => {
-    const totals = resolveSetTotals({ totalCards: s.totalCards, totalCardsFull: s.totalCardsFull, cardCount: s._count.cards });
+    const total = progressTotal({ totalCards: s.totalCards, totalCardsFull: s.totalCardsFull, cardCount: s._count.cards, listedPrintings: printingsBySet.get(s.id) ?? 0 });
     const v = valueBySet.get(s.id);
     return {
       id: s.id,
@@ -82,7 +93,7 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
       // Bara riktiga loggor — kort/produktfoton/ritade brickor ⇒ null ⇒ namnbricka (lib/set-logo.ts).
       logoUrl: isRealSetLogo(s.logoUrl) ? s.logoUrl : null,
       releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,
-      total: totals.full,
+      total,
       setValueOre: v?.v != null && v.priced > 0 ? Number(v.v) : null,
       pricedCards: v?.priced ?? 0,
     };
@@ -90,7 +101,7 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
 }
 
 export interface OwnedInSet {
-  /** Antal OLIKA kort ur setet (lots räknas en gång). */
+  /** Antal OLIKA tryckningar ur setet (kort × version; lots räknas en gång). */
   owned: number;
   /** Värdet av användarens poster ur setet, öre (antal × nattens frysta värde). */
   valueOre: number;
@@ -104,12 +115,12 @@ export interface OwnedInSet {
 export async function getOwnedBySet(userId: string): Promise<Record<string, OwnedInSet>> {
   const rows = await prisma.$queryRaw<{ setId: string; owned: number; v: bigint | null }[]>`
     SELECT c."setId" AS "setId",
-           COUNT(DISTINCT ci."cardId")::int AS owned,
+           COUNT(DISTINCT ci."cardId" || '|' || COALESCE(p."variantLabel", ''))::int AS owned,
            SUM(ci.quantity * COALESCE(p."settledValueOre", p."lowestPriceOre", 0))::bigint AS v
       FROM "CollectionItem" ci
       JOIN "Card" c ON c.id = ci."cardId"
       LEFT JOIN LATERAL (
-        SELECT pp."settledValueOre", pp."lowestPriceOre"
+        SELECT pp."settledValueOre", pp."lowestPriceOre", pp."variantLabel"
           FROM "Product" pp
          WHERE pp.id = ci."productId"
             OR (ci."productId" IS NULL AND pp."cardId" = ci."cardId" AND pp."variantLabel" IS NULL)
@@ -156,7 +167,8 @@ export const getSetSummary = cachedRead(
          WHERE "setId" = ${setId} AND category = 'SINGLE_CARD' AND "variantLabel" IS NULL AND "hiddenAt" IS NULL`,
     ]);
     if (!s) return null;
-    const totals = resolveSetTotals({ totalCards: s.totalCards, totalCardsFull: s.totalCardsFull, cardCount: s._count.cards });
+    const listed = (await loadSetDenominators()).find((d) => d.setId === s.id)?.listedPrintings ?? 0;
+    const total = progressTotal({ totalCards: s.totalCards, totalCardsFull: s.totalCardsFull, cardCount: s._count.cards, listedPrintings: listed });
     const row = v[0];
     return {
       id: s.id,
@@ -167,7 +179,7 @@ export const getSetSummary = cachedRead(
       // Bara riktiga loggor — kort/produktfoton/ritade brickor ⇒ null ⇒ namnbricka (lib/set-logo.ts).
       logoUrl: isRealSetLogo(s.logoUrl) ? s.logoUrl : null,
       releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,
-      total: totals.full,
+      total,
       setValueOre: row?.v != null && row.priced > 0 ? Number(row.v) : null,
     };
   },

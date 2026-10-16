@@ -8,6 +8,11 @@ import { countQuery, type CountSelection } from "@/lib/explore-count-query";
 import { isSealedCategory } from "@/lib/product-category";
 import { SearchAutocomplete } from "@/components/features/search-autocomplete";
 import { SafeImage } from "@/components/ui/safe-image";
+import { SetNameTile } from "@/components/features/set-name-tile";
+import { isRealSetLogo } from "@/lib/set-logo";
+import { isSetListed } from "@/lib/set-listing";
+import { eraRank, setEra, type Era } from "@/lib/set-era";
+import { useOwnedSets } from "@/lib/owned-sets";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { IconCards, IconCheck, IconFilter, IconSearch, IconX } from "@/components/ui/icons";
 
@@ -18,6 +23,11 @@ export interface FilterSet {
   series: string;
   /** "EN" | "JP" — styr vilken flik setet ligger under i set-arket. */
   language: string;
+  /** Era + listning (lib/set-era, lib/set-listing). Datum som sträng efter cachen. */
+  releaseDate?: Date | string | null;
+  externalId?: string | null;
+  /** Framstegets nämnare (tryckningar, annars kort). null = okänt. */
+  total?: number | null;
 }
 
 export interface FilterOption {
@@ -400,7 +410,6 @@ export function ExploreFilterBar({
           setSheet(null);
         }}
         initialLang={searchParams.sprak === "JP" ? "JP" : searchParams.sprak === "EN" ? "EN" : undefined}
-        onLanguageChange={(lang) => pushParams({ sprak: lang })}
       />
 
       <PriceSheet
@@ -561,7 +570,6 @@ export function SetSheet({
   onClose,
   onApply,
   initialLang,
-  onLanguageChange,
 }: {
   open: boolean;
   sets: FilterSet[];
@@ -575,14 +583,18 @@ export function SetSheet({
   onApply: (ids: string[]) => void;
   /** Språkfiltrets val — arket öppnar på DEN fliken (ägaren 2026-09-17). Utan: EN. */
   initialLang?: "EN" | "JP";
-  /** Flikbyte i arket byter också språkfiltret — ett val, en sanning. */
-  onLanguageChange?: (lang: "EN" | "JP") => void;
 }) {
   const t = useTranslations("Products");
   // Japanska set finns bara när vi säljer något ur dem (jp-set-label.ts) — saknas
   // de helt visas ingen flikrad alls, så EN-katalogen ser ut precis som förut.
-  const jpSets = useMemo(() => sets.filter((s) => s.language === "JP"), [sets]);
-  const enSets = useMemo(() => sets.filter((s) => s.language !== "JP"), [sets]);
+  // Samma urval som /sets: däck/kit-set listas inte (lib/set-listing.ts) — utom de som redan är valda.
+  const shownSets = useMemo(
+    () => sets.filter((s) => activeSetIds.includes(s.id) || isSetListed({ name: s.name, language: s.language, externalId: s.externalId ?? null, releaseDate: s.releaseDate ?? null })),
+    [sets, activeSetIds]
+  );
+  const jpSets = useMemo(() => shownSets.filter((s) => s.language === "JP"), [shownSets]);
+  const enSets = useMemo(() => shownSets.filter((s) => s.language !== "JP"), [shownSets]);
+  const { loggedIn, owned } = useOwnedSets();
   const [lang, setLang] = useState<"EN" | "JP">("EN");
   // FLERVAL (ägaren 2026-09-28): brickorna kryssas i och ur lokalt, knappen
   // applicerar — samma mönster som "Fler filter". Förut applicerade ett tryck
@@ -609,25 +621,32 @@ export function SetSheet({
   // ut som om seten låg i fel serie. Map:en slår ihop dem i stället.
   // Serieordningen = där seriens NYASTE set ligger (först sedd), och inuti varje
   // serie står nyast först — samma ordning som /sets-sidan bygger.
+  // Rubrik per ERA (lib/set-era.ts) — samma som /sets. Nyast era först, "Other" sist.
   const groupBySeries = (items: FilterSet[]) => {
-    const bySeries = new Map<string, FilterSet[]>();
+    const byEra = new Map<Era, FilterSet[]>();
     for (const s of items) {
-      const list = bySeries.get(s.series);
+      const era = setEra({ name: s.name, language: s.language, series: s.series, releaseDate: s.releaseDate ?? null });
+      const list = byEra.get(era);
       if (list) list.push(s);
-      else bySeries.set(s.series, [s]);
+      else byEra.set(era, [s]);
     }
-    return [...bySeries].map(([series, group]) => ({ series, items: group }));
+    return [...byEra]
+      .sort((a, b) => eraRank(a[0]) - eraRank(b[0]))
+      .map(([era, group]) => ({ series: era === "Other" ? t("setEraOther") : era, items: group }));
   };
-  const grouped = useMemo(() => groupBySeries(enSets), [enSets]);
+  const grouped = groupBySeries(enSets);
   // Japanska set grupperas på SAMMA sätt: serien kommer från TCGdex och skrivs med
   // den latinska eran ("Scarlet & Violet"), så rubrikerna läser likadant i båda
   // flikarna. Set vars era vi inte kunnat styrka ligger i "Other" — och eftersom
   // listan är sorterad på releaseDate (nulls sist) hamnar den gruppen sist av sig
   // själv, utan specialfall.
-  const groupedJp = useMemo(() => groupBySeries(jpSets), [jpSets]);
+  const groupedJp = groupBySeries(jpSets);
 
   const tile = (s: FilterSet) => {
     const selected = picked.includes(s.id);
+    const mine = owned?.[s.id]?.owned ?? 0;
+    const dim = loggedIn === true && owned !== null && mine === 0 && !selected;
+    const logo = isRealSetLogo(s.logoUrl) ? s.logoUrl : null;
     return (
       <button
         key={s.id}
@@ -647,19 +666,28 @@ export function SetSheet({
               att upprepa det inuti rutan sa samma sak två gånger.
               JAPANSKA set har ALDRIG en logotyp (ingen leverantör publicerar
               dem) → de ritas alltid med ikonen. */}
-          <SafeImage
-            src={s.logoUrl}
-            alt=""
-            className="max-h-full max-w-full object-contain"
-            fallback={<IconCards size={22} className={selected ? "text-holo-cyan" : "text-ink-faint"} />}
-          />
+          {logo ? (
+            <SafeImage
+              src={logo}
+              alt=""
+              className={cn("max-h-full max-w-full object-contain transition", dim && "opacity-60 saturate-[0.25]")}
+              fallback={<SetNameTile name={s.name} compact />}
+            />
+          ) : (
+            <SetNameTile name={s.name} compact className={cn(dim && "opacity-60")} />
+          )}
           {selected && (
             <span className="absolute right-1 top-1 grid h-[15px] w-[15px] place-items-center rounded-full bg-holo-cyan text-surface">
               <IconCheck size={10} strokeWidth={3.4} />
             </span>
           )}
         </span>
-        <span className="line-clamp-2 text-[11px] font-medium leading-snug text-ink">{s.name}</span>
+        <span className={cn("line-clamp-2 text-[11px] font-medium leading-snug", dim ? "text-ink-muted" : "text-ink")}>{s.name}</span>
+        {loggedIn && s.total ? (
+          <span className={cn("-mt-1 text-[10px] tabular-nums", mine > 0 ? "text-holo-cyan" : "text-ink-faint")}>
+            {mine}/{s.total}
+          </span>
+        ) : null}
       </button>
     );
   };
@@ -674,21 +702,25 @@ export function SetSheet({
       onCta={() => onApply(picked)}
     >
       {jpSets.length > 0 && (
-        <div className="mb-4 flex gap-1.5 rounded-lg bg-surface-overlay/60 p-1">
+        <div role="tablist" className="mb-4 flex gap-6 border-b border-surface-border">
           {(["EN", "JP"] as const).map((code) => (
             <button
               key={code}
               type="button"
               onClick={() => {
+                // Fliken byter BARA listan i arket (ägaren 2026-10-16: förut applicerades
+                // språkfiltret och arket stängdes, så man fick öppna det igen).
                 setLang(code);
-                onLanguageChange?.(code);
               }}
+              role="tab"
+              aria-selected={lang === code}
               className={cn(
-                "flex-1 rounded-md px-3 py-2 text-[13px] font-medium transition-colors",
-                lang === code ? "bg-holo-cyan/10 text-holo-cyan" : "text-ink-muted"
+                "relative -mb-px border-b-2 pb-2 text-sm font-semibold transition-colors",
+                lang === code ? "border-holo-cyan text-ink" : "border-transparent text-ink-muted hover:text-ink"
               )}
             >
               {code === "EN" ? t("setLanguageEn") : t("setLanguageJp")}
+              <span className="ml-1.5 text-xs font-normal text-ink-faint">{code === "EN" ? enSets.length : jpSets.length}</span>
             </button>
           ))}
         </div>

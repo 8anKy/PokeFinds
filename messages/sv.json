@@ -2197,7 +2197,8 @@
     "priceNoCap": "{min}+ kr",
     "priceSpan": "{min}–{max} kr",
     "sortLabel": "Sortera",
-    "removeFilter": "Ta bort filtret {name}"
+    "removeFilter": "Ta bort filtret {name}",
+    "setEraOther": "Övrigt"
   },
   "Sets": {
     "metaTitle": "Alla Pokémon TCG-set",

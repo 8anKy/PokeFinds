@@ -28,7 +28,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { IconSearch } from "@/components/ui/icons";
 import { SiteSchema } from "@/components/seo/site-schema";
 import { SetHero } from "@/components/features/set-hero";
-import { getSetSummary } from "@/services/sets-gallery";
+import { getSetSummary, progressTotal } from "@/services/sets-gallery";
+import { loadSetDenominators } from "@/services/set-portfolio";
 import { Link } from "@/i18n/navigation";
 
 export const dynamic = "force-dynamic";
@@ -61,7 +62,8 @@ const getFilterSets = cachedRead(
       // listan behöver ingen produktfiltrering — varje japansk bricka leder till
       // träffar. De saknar logotyp (ingen leverantör publicerar japanska
       // setlogotyper) och faller tillbaka på kortikonen, precis som EN-set utan bild.
-      select: { id: true, name: true, logoUrl: true, series: true, language: true },
+      // releaseDate + externalId: set-arkets era-rubriker och listningsregel (lib/set-era, lib/set-listing).
+      select: { id: true, name: true, logoUrl: true, series: true, language: true, releaseDate: true, externalId: true },
       // nulls: "last" — Postgres lägger NULL FÖRST vid DESC, så ett set utan
       // releaseDate (t.ex. ett promo-set vi skapat innan pokemontcg.io har det)
       // hamnade överst i filtret som om det vore det allra nyaste.
@@ -265,13 +267,20 @@ export default async function ProductsPage({
   // ETT valt set ⇒ setets rubrikkort ovanför flödet (ägarbeslut 2026-10-16: /sets-rutorna
   // leder hit). Cachad 1 h per set.
   const onlySet = params.setId?.length === 1 ? params.setId[0] : null;
-  const [result, sets, retailers, facets, setSummary] = await Promise.all([
+  const [result, rawSets, retailers, facets, setSummary, denoms] = await Promise.all([
     getExploreFeed(params, 0, PAGE_SIZE),
     getFilterSets(),
     getFilterRetailers(),
     getExploreFacets(),
     onlySet ? getSetSummary(onlySet) : Promise.resolve(null),
+    loadSetDenominators(),
   ]);
+  // Set-arkets framsteg: samma nämnare som /sets (tryckningar, annars kort). Statisk 24 h-cache.
+  const denomById = new Map(denoms.map((d) => [d.setId, d]));
+  const sets = rawSets.map((s) => {
+    const d = denomById.get(s.id);
+    return { ...s, total: d ? progressTotal(d) : null };
+  });
   const tHero = await getTranslations("SetHero");
   // ⛔ En FUNKTION, inte ett delat element: samma RSC-element renderat två gånger (mobil +
   // desktop) gav null-props i det andra (klientfel "Cannot destructure property set").
@@ -323,6 +332,9 @@ export default async function ProductsPage({
     language: s.language,
     logoUrl: s.logoUrl,
     series: s.series,
+    releaseDate: s.releaseDate,
+    externalId: s.externalId,
+    total: s.total,
     count: setCount.get(s.id) ?? 0,
   }));
   const retailerCount = new Map(facets.retailers.map((r) => [r.id, r.count]));

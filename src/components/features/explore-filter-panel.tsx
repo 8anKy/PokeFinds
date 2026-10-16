@@ -28,6 +28,9 @@ export interface FilterSetOption {
   logoUrl: string | null;
   series: string;
   count: number;
+  releaseDate?: Date | string | null;
+  externalId?: string | null;
+  total?: number | null;
 }
 
 interface PanelProps {
@@ -483,7 +486,6 @@ export function ExploreFilterPanel({
         open={setSheetOpen}
         sets={sets}
         initialLang={activeLanguage === "JP" ? "JP" : activeLanguage === "EN" ? "EN" : undefined}
-        onLanguageChange={(lang) => apply({ sprak: lang })}
         activeSetIds={activeSets}
         baseSelection={{ ...Object.fromEntries(sp?.entries() ?? []), set: undefined }}
         total={total}
