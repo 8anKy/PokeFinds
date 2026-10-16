@@ -96,7 +96,10 @@ paths:
   avslutade totalt ⇒ RÖD körning. (4) SAMMA DAG slutade Tradera respektera `EndDateDescending` för avslutade
   annonser (äldst först, maj 2025, oavsett ordning) ⇒ tidsstoppet bröt på sida 1. Är sida 1 helt utanför
   lookbacken byter kategorin till `Relevance` (≈ nyast skapade först) och bläddrar tills 3 sidor i rad saknar
-  en annons inom lookbacken (`STALE_PAGES`); loggen varnar `::warning::`. (3) `verifyTraderaMatches` är en regeldom sedan samma dag (ingen AI) — en ny
+  en annons inom lookbacken (`STALE_PAGES`); loggen varnar `::warning::`. MÄTT i första körningen: 15 491
+  avslutade (mot 0), 1 832 sålda priser — men LÅNGLIVADE annonser som avslutats nyss ligger för djupt (Mew ex
+  152:s auktion missades). Därför stale-kollen 5 000 / ≥ 2 d (var 4 000 / ≥ 3 d); körd samma kväll från 1 d:
+  2 800 frågade, 405 avslutade bort. (3) `verifyTraderaMatches` är en regeldom sedan samma dag (ingen AI) — en ny
   regel läggs bara till efter `scripts/tmp-rules-vs-key.ts` mot facit (`.spike/tradera-eval/`).
 - **Tradera-annonsens kortnummer måste vara produktens** (`matching.ts`): `cardNumberKey` behåller bokstavsSUFFIX (`115a` ≠ `115` — league-promo vs uncommon) och `bareCardNumbers` fångar nummer utan "/total" ("Milotic ex 42" får inte hamna på specialarten 217). Konservativ: setnamnet 151, "annons 2", mängd/pris och årtal filtreras bort. 707 gamla felmatchningar städade 2026-07-25 — alla bevisade (numret fanns som eget kort i samma set)
 - ⛔ **`GetSellerItems` (PublicService) FILTRERAR INTE PÅ `categoryId` — ETT KATEGORI-ID GER TOMT SVAR** (mätt

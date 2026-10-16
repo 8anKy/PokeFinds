@@ -139,8 +139,12 @@ export async function verifyStaleTraderaOffers(opts: {
   dryRun?: boolean;
   log?: (m: string) => void;
 } = {}): Promise<VerifyStaleResult> {
-  const max = opts.max ?? parseInt(process.env.TRADERA_VERIFY_STALE_MAX ?? "4000", 10);
-  const minAgeDays = opts.minAgeDays ?? 3;
+  // 5 000 / 2 d sedan 2026-10-16 (var 4 000 / 3 d): kön av osedda ≥ 3 d var ~6 500 och ett GetItem-stickprov
+  // gav 8 % döda priser. Sålt-svepet använder ~3 300 av GetItems 10 000/dygn (tak 6 000; slår det i kvoten
+  // skriver det det som hann). Relevance-reserven i sålt-svepet ser sämre de LÅNGLIVADE annonserna som
+  // avslutats nyss — de fångas här.
+  const max = opts.max ?? parseInt(process.env.TRADERA_VERIFY_STALE_MAX ?? "5000", 10);
+  const minAgeDays = opts.minAgeDays ?? 2;
   const log = opts.log ?? ((m: string) => console.log(m));
   const appId = process.env.TRADERA_APP_ID;
   const appKey = process.env.TRADERA_APP_KEY;
