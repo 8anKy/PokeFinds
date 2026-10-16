@@ -1,6 +1,7 @@
 /**
- * Tradera-verifiering: `verifyTraderaMatches` (LEVER, körs nattligt) och
- * `verifyDeals` (⛔ AVSTÄNGD 2026-08-16, se kommentaren vid funktionen).
+ * Tradera-verifiering: `verifyTraderaMatches` (LEVER, körs nattligt — REGELDOM, ingen AI sedan
+ * 2026-10-16) och `verifyDeals` (⛔ AVSTÄNGD 2026-08-16, se kommentaren vid funktionen). Allt om
+ * LLM-leverantör och kostnad nedan gäller bara den avstängda `verifyDeals`.
  *
  * ── Fynd-verifiering (Pro-only "Fynd"-feed) ─────────────────────────────────
  *
@@ -307,10 +308,6 @@ export interface VerifyMatchesResult {
   hidden: number;
   restored: number;
   skipped: number;
-  /** Annonser där LLM:en inte gav en tolkbar dom → INGEN TraderaMatch skrevs. */
-  unverified: number;
-  /** Par där regeldomen (skuggläge, utan AI) och LLM-domen var oense. */
-  ruleDisagree: number;
 }
 
 /** Tradera-itemId för en offer: ur URL:en, annars ur senaste sweep-observationens rawData. */
@@ -331,17 +328,17 @@ async function resolveItemId(offer: { url: string; productId: string }): Promise
  * GLOBAL Tradera-matchningsverifiering (ALLA sealed-offers, inte bara fynd). Bigram-
  * matchningen felmatchar mall-namngivna sealed-produkter ("Palkia VSTAR Premium" mot
  * "Arceus VSTAR Premium"), japanska mot engelska, öppnade/tomma varor m.m. Varje annons
- * LLM-koll (samma produkt + komplett/oöppnad/aktiv). SJÄLVLÄKANDE:
+ * regeldöms (`traderaRuleVerdict`: samma produkt + komplett/oöppnad/aktiv; LLM t.o.m. 2026-10-16). SJÄLVLÄKANDE:
  *  - fel/skräp → nollställ offer (pris null + sök-URL → isDirectOfferUrl döljer överallt),
  *  - ok men dold → ÅTERSTÄLL (pris + direktlänk från GetItem) om en tidigare dom var för hård.
  * Domen cachas i TraderaMatch (annons+produkt, stabilt) så sweepen aldrig återskapar en känd
- * felmatch. Kör om en (annons, produkt) tas bort ur TraderaMatch → omprövas med aktuell prompt.
+ * felmatch. Kör om en (annons, produkt) tas bort ur TraderaMatch → omprövas med aktuella regler.
  */
 export async function verifyTraderaMatches(
   log: (msg: string) => void = console.log
 ): Promise<VerifyMatchesResult> {
   const res: VerifyMatchesResult = {
-    offers: 0, checked: 0, ok: 0, wrong: 0, hidden: 0, restored: 0, skipped: 0, unverified: 0, ruleDisagree: 0,
+    offers: 0, checked: 0, ok: 0, wrong: 0, hidden: 0, restored: 0, skipped: 0,
   };
   const appId = process.env.TRADERA_APP_ID;
   const appKey = process.env.TRADERA_APP_KEY;
@@ -349,11 +346,9 @@ export async function verifyTraderaMatches(
     log("[verify-matches] saknar TRADERA_APP_ID/KEY — hoppar över.");
     return res;
   }
-  const adapter = getDealVerifyAdapter(log);
-  if (!adapter) return res;
   const tradera = await prisma.retailer.findFirst({ where: { name: "Tradera" }, select: { id: true } });
   if (!tradera) return res;
-  log(`[verify-matches] leverantör: ${adapter.name} (${adapter.model}).`);
+  log("[verify-matches] dom: regler (ingen AI sedan 2026-10-16).");
 
   // ALLA sealed Tradera-offers (inkl. nollställda/dolda, så en för hård dom kan läkas).
   const offers = await prisma.offer.findMany({
@@ -416,32 +411,10 @@ export async function verifyTraderaMatches(
       res.skipped++;
       return;
     }
-    let ok: boolean;
-    let reason: string;
-    if (item.ended || item.remaining < 1) {
-      ok = false;
-      reason = "Annonsen avslutad";
-    } else {
-      const v = await verifyMatch(
-        adapter,
-        { title: offer.product.title, category: offer.product.category },
-        { title: item.title, description: item.description }
-      );
-      // ⛔ Ingen tolkbar dom → RÖR INGENTING. Här är "fel" destruktivt (offern
-      // nollas + döljs överallt), så ett misslyckat anrop får absolut inte
-      // räknas som en fällande dom. Paret hamnar inte i TraderaMatch och prövas
-      // igen nästa körning.
-      if (!v) {
-        res.unverified++;
-        return;
-      }
-      ok = dealVerdict({ sameProduct: v.sameProduct, sealedComplete: v.sealedComplete, ended: item.ended, remaining: item.remaining });
-      reason = v.reason;
-    }
-    res.checked++;
-
-    // REGELDOMEN I SKUGGLÄGE (2026-10-14): samma annons, utan AI. Påverkar INGET — bokförs bredvid
-    // LLM-domen så de kan jämföras på nya annonser innan reglerna tar över (scripts/tradera-rule-shadow-report.ts).
+    // REGELDOMEN AVGÖR (ägarbeslut 2026-10-16, "varför används API-nycklarna fortfarande?"). Skuggläget
+    // 10-14 → 10-16 och facit (~725 handgranskade par): reglerna fångar ~84 % av de dåliga och fäller
+    // 0,7 % av de goda; Haiku fångade lika många men fällde 13 % av de goda på öppna annonser (danska/
+    // norska annonser, som enligt ägaren ÄR samma produkt). Kostar inget och svarar alltid.
     const ruleReason = item.ended || item.remaining < 1
       ? "Annonsen avslutad"
       : traderaRuleVerdict(
@@ -454,9 +427,10 @@ export async function verifyTraderaMatches(
           },
           setNames
         );
-    const ruleOk = ruleReason === null;
-    if (ruleOk !== ok) res.ruleDisagree++;
-    const shadow = { ruleOk, ruleReason, listingTitle: item.title.slice(0, 300) };
+    const ok = ruleReason === null;
+    const reason = ruleReason ?? "Regeldom: samma produkt";
+    res.checked++;
+    const shadow = { ruleOk: ok, ruleReason, listingTitle: item.title.slice(0, 300) };
 
     await prisma.traderaMatch.upsert({
       where: { itemId_productId: { itemId, productId: offer.productId } },
@@ -488,9 +462,5 @@ export async function verifyTraderaMatches(
   });
 
   log(`[verify-matches] kollade ${res.checked} (ok ${res.ok}, fel ${res.wrong} → dolda ${res.hidden}, återställda ${res.restored}), hoppade ${res.skipped}.`);
-  log(`[verify-matches] regeldom (skuggläge, utan AI): oense med LLM:en i ${res.ruleDisagree} av ${res.checked}.`);
-  if (res.unverified > 0) {
-    log(`[verify-matches] ⚠️  ${res.unverified} annonser fick INGEN dom (LLM-fel/otolkbart svar) — inget skrivet.`);
-  }
   return res;
 }

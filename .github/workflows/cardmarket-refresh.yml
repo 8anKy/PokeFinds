@@ -83,9 +83,7 @@ jobs:
       DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
       APNS_BUNDLE_ID: se.foilio.app
       APNS_PRODUCTION: "true"
-      # JP-sealed-auto-mappningens LLM-dom (Haiku, ören/dygn). Utan nyckel mappas
-      # bara nära-exakta namn (≥0.9) — refresh av redan mappade JP funkar ändå.
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Ingen AI-nyckel: JP-sealed-mappningen är regelbaserad sedan 2026-10-14 (nära-exakt namn ≥ 0,9).
       # Variant-prissättningen (56 specialvarianter) läser pokemontcg.io. KEYLESS-nivån
       # (1000/dygn, 30/min) RÄCKER för vår lilla volym; kretsbrytaren hoppar resten om
       # 429 slår till. En GRATIS 20k-nyckel finns i praktiken inte längre: pokemontcg.io v2

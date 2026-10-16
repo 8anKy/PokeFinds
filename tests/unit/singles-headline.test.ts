@@ -134,9 +134,14 @@ describe("singlesHeadlineEur — utropsvakten", () => {
     expect(r.eur).toBeLessThan(250);
   });
 
-  it("Rayquaza ★ · Deoxys (37 000 € mot högsta snitt 6 271 €) fälls nu", () => {
+  it("Rayquaza ★ · Deoxys (37 000 € mot högsta snitt 6 271 € = 5,9x) står kvar sedan 10x (2026-10-16)", () => {
     const r = singlesHeadlineEur({ from: 37000, avg30: 4093.09 }, { low: 6000, trend: 6271.49, avg30: 4093.09 })!;
-    expect(r).toMatchObject({ from: false, via: "estimate", askRejected: true });
+    expect(r).toEqual({ eur: 37000, from: true, via: "from" });
+  });
+
+  it("Jigglypuff · BW Promos 9 001 € mot snitt 22 € (404x) fälls fortfarande", () => {
+    const r = singlesHeadlineEur({ from: 9001, avg30: 17.15, avg7: 22.27 }, null)!;
+    expect(r).toMatchObject({ from: false, askRejected: true });
   });
 
   it("guiden kan bara GÖRA DET SVÅRARE att fälla: ett högt avg1 räddar ett äkta hopp", () => {
@@ -175,6 +180,10 @@ describe("fromIsOutlierAsk / jpFromEur", () => {
     expect(fromIsOutlierAsk(9001, [26.79, 20], 4, [])).toBe(true);
     const r = singlesHeadlineEur({ from: 9001, avg30: 26.79, avg7: 20, langFroms: [44.9] }, { trend: 25, avg: 24, avg30: 26 });
     expect(r).toMatchObject({ from: false, via: "estimate", askRejected: true });
+  });
+  it("ett glapp ≤ 25 € är aldrig ett utrop (Growlithe JP 2,99 € mot snitt 0,50 €)", () => {
+    expect(jpFromEur({ lowest_near_mint_JP: 2.99, "30d_average": 0.5, "7d_average": 0.49 })).toBe(2.99);
+    expect(fromIsOutlierAsk(30, [1.03, 0.63])).toBe(true); // Rotom JP: 30 € mot 1 € — glapp 29 €, 29x
   });
   it("normal JP-From står kvar", () => {
     expect(jpFromEur({ lowest_near_mint_JP: 4, "30d_average": 4.66, "7d_average": 4.34 })).toBe(4);

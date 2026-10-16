@@ -98,6 +98,9 @@ export function getItemLiveness(xml: string, now = Date.now()): { ended: boolean
   if (/<Ended>true<\/Ended>/.test(xml)) return { ended: true, buyNowOre: null };
   const end = xml.match(/<EndDate>([^<]+)<\/EndDate>/)?.[1];
   if (end && new Date(end).getTime() < now) return { ended: true, buyNowOre: null };
+  // En AUKTION är inget fastpris — Köp nu försvinner vid första budet (se parseItemsFromXml). Gamla
+  // auktions-offers pensioneras som avslutade.
+  if (/<ItemType>Auction/i.test(xml)) return { ended: true, buyNowOre: null };
   const bin = xml.match(/<BuyItNowPrice>([\d.,]+)<\/BuyItNowPrice>/)?.[1];
   const kr = bin ? parseFloat(bin.replace(",", ".")) : NaN;
   return { ended: false, buyNowOre: Number.isFinite(kr) && kr > 0 ? Math.round(kr * 100) : null };

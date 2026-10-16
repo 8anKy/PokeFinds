@@ -86,6 +86,15 @@ paths:
   osedda ≥ 3 d äldst först; levande ⇒ `lastSeenAt` bumpas + Köp nu-priset skrivs, 429/5xx = "vet inte". Pensionering =
   nästa skena-annons eller sök-URL utan pris; prisobservationerna står kvar (historik). Körd 10-14 på de 2 500 äldsta:
   463 avslutade ⇒ 470 offers bort, 2 037 levande.
+- ⛔ **AUKTIONER BLIR ALDRIG ETT PRIS, OCH ETT TOMT SÅLT-SVEP ÄR ETT FEL (2026-10-16)**: ägaren hittade Mew ex
+  152/128 med "Tradera 1 500 kr, I lager" — annonsen var en budlös auktion med Köp nu 1 500 som gått ut 10-15
+  (säljaren lade upp den igen, ledande bud 800 kr). (1) `parseItemsFromXml` släpper inga `Auction`-annonser:
+  Köp nu försvinner vid första budet och vi ser inte budet förrän nästa svep. `getItemLiveness` pensionerar gamla
+  auktions-offers. (2) Sålt-svepet fick den natten 200 + NOLL rader i alla fem kategorierna, loggade "0 avslutade"
+  GRÖNT och pensionerade inget — dagen efter pekade 8 % av Tradera-priserna (24 av 300, GetItem-stickprov) på
+  avslutade annonser. Nu: tom första sida ⇒ 3 omförsök med paus, fortfarande tomt ⇒ kategorin felar, noll
+  avslutade totalt ⇒ RÖD körning. (3) `verifyTraderaMatches` är en regeldom sedan samma dag (ingen AI) — en ny
+  regel läggs bara till efter `scripts/tmp-rules-vs-key.ts` mot facit (`.spike/tradera-eval/`).
 - **Tradera-annonsens kortnummer måste vara produktens** (`matching.ts`): `cardNumberKey` behåller bokstavsSUFFIX (`115a` ≠ `115` — league-promo vs uncommon) och `bareCardNumbers` fångar nummer utan "/total" ("Milotic ex 42" får inte hamna på specialarten 217). Konservativ: setnamnet 151, "annons 2", mängd/pris och årtal filtreras bort. 707 gamla felmatchningar städade 2026-07-25 — alla bevisade (numret fanns som eget kort i samma set)
 - ⛔ **`GetSellerItems` (PublicService) FILTRERAR INTE PÅ `categoryId` — ETT KATEGORI-ID GER TOMT SVAR** (mätt
   2026-09-03: en säljare vars annons bevisligen låg i 1001337 gav 0 rader för `categoryId=1001337`, men hela

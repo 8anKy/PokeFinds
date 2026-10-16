@@ -223,8 +223,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   med annat nummerformat gav annars dubbletter). ⛔ Skannern indexerar inte omtrycken (`lib/scanner-exclusion.ts`
   — samma konst + nummer som originalet hade stulit träffar). Kinesiska/koreanska CM-set ingår aldrig.
   **Ägarbeslut samma kväll (frågat, besvarat)**: (1) CardTrader BEHÅLLS på Reverse Holo + 1st Edition utanför Base
-  (riktiga NM-engelska annonser; CM har bara ett allspråks-trendtal där). (2) Utropsvakten 4x behålls (EN med
-  språkbekräftelse, JP utan). (3) Graderade rutor utan affärer visar begärt märkt "Till salu", aldrig omärkt.
+  (riktiga NM-engelska annonser; CM har bara ett allspråks-trendtal där). (2) Utropsvakten behålls (EN med
+  språkbekräftelse, JP utan) — **10x + glapp > 25 € sedan 2026-10-16** (ägaren, frågat: 4x fällde en äkta NM-From på 446 kort). (3) Graderade rutor utan affärer visar begärt märkt "Till salu", aldrig omärkt.
   (4) Rubriken: en Tradera-annons slår ALDRIG ett CM-pris (`headlineCandidates`, ersätter 09-22-regeln för rubriken).
   **CM-only-korten**: pris = prisguidens `low` (= CM:s From; enspråksutgåvor ⇒ inget språkfel), levande; vakt från 2 €
   (`cmOnlyGuidePrice`). Bild = CardTraders blueprintbild via `/api/ct-image` (CM:s singelbilder kräver expansionskod
@@ -335,8 +335,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   **+ Japanska singlar sedan 2026-08-29** (~5 550 kort, 47 set; 24 JP-set saknar kort hos leverantören) —
   regler i `.claude/rules/jp-sets.md`. RapidAPI-baslinjen är nu ~1 880/3 000 per dygn.
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`;
-  graf/historik = CM trend. ⛔ **Sedan 2026-10-12 (ägarbeslut)**: en From > 4× högsta försäljningssnittet
-  är ett UTROP ⇒ uppskattning (EN + JP), och sealed tar ALDRIG guidens `low` (alla språk) som engelskt pris —
+  graf/historik = CM trend. ⛔ **Sedan 2026-10-12 (ägarbeslut)**: en From > 10× högsta försäljningssnittet
+  (och > 25 € över det; 4× t.o.m. 2026-10-16) är ett UTROP ⇒ uppskattning (EN + JP), och sealed tar ALDRIG guidens `low` (alla språk) som engelskt pris —
   se `.claude/rules/cm-pricing.md` överst.
 - **PORTFÖLJGRAFEN FRYSES MED VÄRDET (2026-10-12)**: grafen slutar på dagen settle-steget senast körde
   (`JobMarker["collection-settle"]`) och ankras i `Product.settledTrendOre` — före nattens CM-jobb syns
@@ -1072,12 +1072,13 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 - **Auth**: NextAuth v4, Credentials provider + JWT-sessioner. RBAC via `role` på User
   (USER/MODERATOR/ADMIN/SUPERADMIN).
 - **VILKEN LEVERANTÖR GÖR VAD**: `*_PROVIDER`-variablerna styr BARA de två BILD-funktionerna. **Gemini** =
-  allt användaren ser (`OCR_PROVIDER=gemini` skannern, `GRADING_PROVIDER=gemini` graderingen). **Claude** =
-  hela bakgrundspipelinen, utan provider-variabel: `judgeSameProduct` (Haiku) i auto-importens gränsfall,
-  veckans stub-dedup, JP→CM-mappningen, fynd-/Tradera-verifieringen.
-  ⛔ **`ANTHROPIC_API_KEY` är därför inte valfri även om båda bild-funktionerna står på Gemini** — utan den
-  returnerar domaren null, omöjligt att skilja från "olika produkter", och HELA gränsfallsbandet blir
-  dubbletter. Tyst, i drift. ⛔ Aldrig `gemini-2.5-*` (spärrad för nya nycklar). ✅ `SCANNER_MODEL_PRECISE` bytte
+  graderingen (`GRADING_PROVIDER=gemini`); skannern är motorn utan AI. ⛔ **INGEN CLAUDE I NÅGOT JOBB SEDAN
+  2026-10-16 (ägaren: "varför används API-nycklarna fortfarande?")**: Tradera-kontrollen (`verifyTraderaMatches`)
+  är en REGELDOM (`traderaRuleVerdict`; facit: fångar ~84 % av de dåliga, fäller 0,7 % av de goda — Haiku fällde
+  13 %), stub-dedupen och JP→CM är regelbaserade (10-14), auto-importens domare är av (`STORE_MATCH_AI`, 09-30).
+  `ANTHROPIC_API_KEY` är BORTTAGEN ur alla workflows — en ny AI-väg kräver ägarens OK + kostnadsbriefing.
+  Den egna textmodellen (`src/lib/tradera-listing-model.ts`, oincheckad) skeppades INTE: tränad på Haikus domar,
+  +3,9 pp fångade mot +2,1 pp fällda goda jämfört med reglerna ensamma. ⛔ Aldrig `gemini-2.5-*` (spärrad för nya nycklar). ✅ `SCANNER_MODEL_PRECISE` bytte
   3.5 → `gemini-3.6-flash` 2026-08-29 (3.5 är strikt dominerad). ⚠️ Det var en DEFAULTÄNDRING, inte en
   besparing: den precisa vägen har **aldrig kört i produktion** (0 rader i hela ScannerJob-tabellen) —
   den kräver `isIntroScan` (default av) eller `precise: true`, som klienten aldrig skickar.

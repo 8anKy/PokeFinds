@@ -14,6 +14,10 @@ describe("getItemLiveness", () => {
   it("levande annons bär sitt Köp nu-pris", () => {
     expect(getItemLiveness(item("<Ended>false</Ended><EndDate>2026-11-01T00:00:00</EndDate><BuyItNowPrice>100</BuyItNowPrice>"), Date.parse("2026-10-14"))).toEqual({ ended: false, buyNowOre: 10000 });
   });
+  it("en levande AUKTION pensioneras — Köp nu försvinner vid första budet (Mew ex 152/128, 2026-10-16)", () => {
+    expect(getItemLiveness(item("<ItemType>Auction</ItemType><Ended>false</Ended><EndDate>2026-11-01T00:00:00</EndDate><BuyItNowPrice>1500</BuyItNowPrice>"), Date.parse("2026-10-14")).ended).toBe(true);
+    expect(getItemLiveness(item("<ItemType>ShopItem</ItemType><Ended>false</Ended><EndDate>2041-11-01T00:00:00</EndDate><BuyItNowPrice>19</BuyItNowPrice>"), Date.parse("2026-10-14")).ended).toBe(false);
+  });
   it("SOAP-fault = borttagen annons", () => {
     expect(getItemLiveness("<s:Envelope><s:Body><s:Fault><faultcode>s:Client</faultcode></s:Fault></s:Body></s:Envelope>").ended).toBe(true);
   });

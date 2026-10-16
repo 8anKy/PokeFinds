@@ -40,6 +40,18 @@ describe("Tradera-regeldomen (utan AI) — fall ur granskningsfacit", () => {
     expect(listingContradiction("Team Rocket's Mewtwo ex Box", "COLLECTION_BOX", "Team Rocket's Mewtwo ex Box", "Sökord: Base set, Jungle, 1st edition")).toBeNull();
   });
 
+  it("skugglägets missar 10-16: japansk titel, '6x' framför ett pack, förvaringslåda", () => {
+    const en = (catalogTitle: string, catalogCategory: string, listingTitle: string) =>
+      traderaRuleVerdict({ catalogTitle, catalogCategory, listingTitle, description: "", catalogLanguage: "EN" }, SETS);
+    expect(en("30th Celebration Espeon ex and Umbreon ex Premium Deck Set", "COLLECTION_BOX", "Pokémon 30th Celebration Premium Deck Set Espeon & Umbreon Japansk")).toMatch(/japanska/);
+    expect(en("Nihil Zero Booster", "BOOSTER_PACK", "Pokemon Nihil Zero (Munikis Zero) Booster Pack (JP M3)")).toMatch(/japanska/);
+    expect(en("Storm Emeralda Booster Box", "BOOSTER_BOX", "Pokémon TCG Japanese M6 Storm Emeralda Sealed Booster Box")).toMatch(/japanska/);
+    expect(v("Phantasmal Flames Sleeved Booster", "BOOSTER_PACK", "6x Mega Evolution Phantasmal Flames Sleeved Booster Pack")).toMatch(/flera paket/);
+    expect(v("Team Rocket's Mewtwo ex Box", "COLLECTION_BOX", "Förvaringslåda Pokémon Team Rocket Mewtwo")).toMatch(/förvaringslåda/);
+    // "2 x … Booster Box" är facit-godkänt (pris per styck) — antalsregeln gäller bara pack.
+    expect(v("Phantasmal Flames Booster Box", "BOOSTER_BOX", "2 x Phantasmal Flames Booster Box", "Sealed")).toBeNull();
+  });
+
   it("en vanlig förseglad annons passerar", () => {
     expect(v("151 Elite Trainer Box", "ETB", "Pokemon 151 Elite Trainer Box", "Perfect condition / new / sealed. Elite Trainer Box från Scarlet & Violet 151.")).toBeNull();
   });

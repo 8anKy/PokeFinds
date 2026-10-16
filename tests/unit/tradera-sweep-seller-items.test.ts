@@ -124,11 +124,11 @@ describe("Fas 2: GetSellerItems-kuvertet", () => {
 });
 
 describe("parseItemsFromXml", () => {
-  it("läser ArrayOfItem-formen (<Item>): ShopItem + budlös auktion med Köp nu behålls, Ended och auktion med bud faller", () => {
+  it("läser ArrayOfItem-formen (<Item>): fastpris behålls, Ended och ALLA auktioner faller (även budlösa, 2026-10-16)", () => {
     const { items } = parseItemsFromXml(SELLER_XML);
-    expect(items.map((i) => i.itemId)).toEqual(["800001", "800002", "800004", "800006"]);
+    // 800006 = budlös auktion med Köp nu — Köp nu försvinner vid första budet, så den blir aldrig ett pris.
+    expect(items.map((i) => i.itemId)).toEqual(["800001", "800002", "800004"]);
     expect(items.find((i) => i.itemId === "800004")?.priceOre).toBe(320_000);
-    expect(items.find((i) => i.itemId === "800006")?.priceOre).toBe(90_000);
     const zard = items[0];
     expect(zard.priceOre).toBe(125_000);
     expect(zard.categoryId).toBe(1001337);
@@ -141,7 +141,7 @@ describe("parseItemsFromXml", () => {
   it("kategorifiltret i koden släpper bara Pokémon-trädet igenom (hela lagret kommer tillbaka)", () => {
     const { items } = parseItemsFromXml(SELLER_XML);
     const kept = items.filter((i) => isPokemonListingCategory(i.categoryId));
-    expect(kept.map((i) => i.itemId)).toEqual(["800001", "800004", "800006"]);
+    expect(kept.map((i) => i.itemId)).toEqual(["800001", "800004"]);
     expect(isPokemonListingCategory(undefined)).toBe(false);
     expect(isPokemonListingCategory(1001341)).toBe(true);
   });

@@ -270,8 +270,15 @@ export function jpSealedGuideEur(g: CmGuideEntry): number | null {
 // En From som ett annat språks EGET NM-golv bekräftar (≤ FROM_LANG_CORROBORATE ×) är
 // marknadsnivån, inte ett utrop. Utropen (9 001 € på en Mewtwo, 9 999 € på en Shaymin)
 // saknar sådan bekräftelse och fälls som förut. Mätt 2026-10-15: 140 EN-singlar fälldes.
+// ── 10x OCH 25 € (ägarbeslut 2026-10-16: "många kort visar uppskattat fast de har ett NM-pris") ──
+// MÄTT samma dag: 4x fällde en äkta NM-From på 446 synliga kort (110 EN, 336 JP). Snitten är alla
+// skick (och för JP även koreanska kopior), så en NM-premie på vintage ligger ofta 4–8x över dem.
+// Varje troll-utrop vakten finns för låg långt över 10x (Jigglypuff 9 001 € = 404x, Shaymin LV.X
+// 9 999 € = 136x, Mewtwo ex 8 999 € = 32x). Och ett glapp ≤ 25 € är aldrig ett utrop värt att
+// dölja (Growlithe JP 2,99 € mot snitt 0,50 €) — det är den billigaste NM-annonsen som finns.
 export const FROM_LANG_CORROBORATE = 1.5;
-export const FROM_ASK_MULT = Number(process.env.CM_FROM_ASK_MULT) || 4;
+export const FROM_ASK_MULT = Number(process.env.CM_FROM_ASK_MULT) || 10;
+export const FROM_ASK_MIN_GAP_EUR = 25;
 const pos = (v: number | null | undefined): number | null =>
   typeof v === "number" && v > 0 ? v : null;
 
@@ -290,7 +297,8 @@ export function fromIsOutlierAsk(
   if (f == null) return false;
   const refs = saleRefs.map(pos).filter((v): v is number => v != null);
   if (refs.length < 2) return false;
-  if (f <= mult * Math.max(...refs)) return false;
+  const top = Math.max(...refs);
+  if (f <= mult * top || f - top <= FROM_ASK_MIN_GAP_EUR) return false;
   const langs = langFroms.map(pos).filter((v): v is number => v != null);
   return !(langs.length > 0 && f <= FROM_LANG_CORROBORATE * Math.max(...langs));
 }

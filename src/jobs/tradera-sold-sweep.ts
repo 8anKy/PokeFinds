@@ -361,6 +361,16 @@ export async function runTraderaSoldSweep(
         const xml = await fetchEndedPage(appId, appKey, catId, page);
         apiCalls++;
         parsed = parseEndedFromXml(xml);
+        // ⛔ EN TOM FÖRSTA SIDA ÄR ETT FEL, INTE "INGA AFFÄRER" (2026-10-16): kategorierna avslutar tusentals
+        // annonser per dygn, men den natten svarade Tradera 200 med noll rader på alla fem — svepet loggade
+        // "0 avslutade", skrev ingen sålt-data och pensionerade INGA döda offers (8 % av Tradera-priserna
+        // pekade på avslutade annonser dagen efter). Försök igen med paus; förblir det tomt kastas felet.
+        for (let retry = 1; page === 1 && parsed.rawRows === 0 && retry <= 3; retry++) {
+          await new Promise((r) => setTimeout(r, retry * 20_000));
+          parsed = parseEndedFromXml(await fetchEndedPage(appId, appKey, catId, page));
+          apiCalls++;
+        }
+        if (page === 1 && parsed.rawRows === 0) throw new Error("tom första sida efter 3 omförsök");
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         log(`   ⚠️ kategori ${catId} sida ${page}: ${msg}`);
@@ -385,6 +395,11 @@ export async function runTraderaSoldSweep(
     if (quotaHit) break;
   }
   log(`   ${apiCalls} sök-anrop → ${ended.size} avslutade annonser inom fönstret`);
+  // Inget alls ur fem kategorier som avslutar ~11 500 annonser per tre dygn = Tradera svarade inte.
+  // RÖD körning hellre än en grön som tyst lämnar döda annonser som "I lager".
+  if (ended.size === 0 && !quotaHit) {
+    throw new Error("Tradera gav 0 avslutade annonser i alla kategorier — sökningen svarade tomt, inget skrivet");
+  }
 
   // AVSLUTADE ANNONSER UT UR PRISTABELLEN (2026-10-14): vi har just hämtat varje avslutad
   // annons — står någon av dem som vår offer/skena-rad är den död. Se tradera-ended.ts.

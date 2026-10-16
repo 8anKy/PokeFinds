@@ -48,6 +48,18 @@ paths:
 >    namn i det set episodens matchade rader pekar på (`episodeSetFromVotes`, ≥ 3 röster, ≥ 80 %).
 >    SVP 166–195 hade stått stilla sedan 2026-06-13 ("SV Black Star Promos" ≠ vårt setnamn, "SVP 173" ≠ "173").
 
+> ⛔ **ÄNDRAT 2026-10-16 (ägaren: "många kort visar uppskattat fast de har ett NM-pris", frågat och besvarat)**:
+> 6. **UTROPSVAKTEN = 10x OCH ETT GLAPP > 25 €** (`FROM_ASK_MULT` 10, `FROM_ASK_MIN_GAP_EUR`). MÄTT mot
+>    leverantören samma dag (1 537 uppskattade kort, ett anrop per kort): 4x fällde en ÄKTA NM-From på 446
+>    synliga kort (110 EN, 336 JP) — snitten är alla skick (JP: även koreanska kopior), och en NM-premie på
+>    vintage ligger ofta 4–8x över dem. Alla troll-utrop ligger långt över 10x (Jigglypuff 9 001 € = 404x,
+>    Shaymin LV.X 9 999 € = 136x, Mewtwo ex 8 999 € = 32x). Ett glapp ≤ 25 € är den billigaste NM-annonsen,
+>    aldrig ett utrop värt att dölja (Growlithe JP 2,99 € mot snitt 0,50 €). Resten av de uppskattade (EN 280,
+>    JP 771) saknar NM-From helt hos leverantören — där ÄR uppskattningen rätt svar. CM-only-korten (398)
+>    fälls av sin egen vakt (`cmOnlyGuidePrice`: guidens `low` långt under affärerna = annat skick/språk).
+>    ⚠️ "Uppskattat" kan flippa mellan nätter: From är den billigaste annonsen JUST DÅ (Mew R/RGB stod i
+>    4 100 € på eftermiddagen men var en uppskattning vid nattkörningen).
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **Singelpris**: `Offer.price` på singlar = Cardmarkets engelska **NM-lägsta ("From")** × live-kurs, hämtat från **CardMarket API TCG (RapidAPI Pro)** — `CARDMARKET_RAPIDAPI_*` i .env, fältet `prices.cardmarket.lowest_near_mint` (DECIMAL EUR; bas-fältet är engelska, `_DE`/`_FR`/`_ES`/`_IT` = språk-överstyrningar). Detta ÄR det engelska From-pris som löste det gamla lowPrice-problemet (pokemontcg.io `lowPrice` = all-språk/all-skick-golv som grovt underskattade — använd ALDRIG). Fyll via `scripts/rapidapi-fill-singles.ts` (set-paginering `/pokemon/episodes/{id}/cards`, matcha på `tcgid`=`tcgExternalId`, ~1000 anrop för hela katalogen). Exakt uppslag = `?tcgid={id}` (1 träff). **GOLVET RAKT AV — HELA REGELN (ägarbeslut 2026-07-24, OMBEKRÄFTAT 2026-07-27)**:

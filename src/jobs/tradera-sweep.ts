@@ -272,6 +272,11 @@ export function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPag
       tagText(block, "HasBids") === "true" ||
       (parseInt(tagText(block, "TotalBids") ?? "0", 10) || 0) > 0;
     if (itemType !== "PureBuyItNow" && itemType !== "ShopItem" && hasBids) continue;
+    // ⛔ AUKTIONER BLIR ALDRIG ETT PRIS (2026-10-16). Köp nu-priset på en auktion försvinner vid första
+    // budet, och vi ser inte budet förrän nästa svep: ägaren hittade Mew ex 152/128 med "Tradera 1 500 kr,
+    // I lager" medan annonsen var en auktion på 800 kr (den gamla hade gått ut 10-15). Bara fastpris
+    // (ShopItem/PureBuyItNow) säger vad varan KOSTAR. Mätt: 2 av 300 Tradera-offers var auktioner.
+    if (/^auction/i.test(itemType)) continue;
 
     const lang = termAttributeValues(block, "pokemon_language")[0];
     if (lang && !/^eng/i.test(lang)) continue;

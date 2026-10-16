@@ -66,6 +66,7 @@ const STORAGE_ONLY = re("förvaring|opbevaring|storage|småting|småsaker|tomme?
 const SERIES_NO = /series\s*(\d)/i;
 const YEAR = /(?<!\d)(19[9]\d|20[0-3]\d)(?!\d)/;
 const JP_MARK = /japan|japansk|japanska|japanskt|japanese|\bjp\b|\(jp\)|日本/i;
+const JP_TITLE = /japansk|japanska|japanskt|japanese|\bjpn?\b|日本/i;
 /** Namn som finns på BÅDA språken — bara där måste en japansk annons säga att den är japansk. */
 const SHARED_JP_EN_NAME = /pok[eé]mon card 151|\b151\b|black bolt|white flare|scarlet ex|violet ex/i;
 const HAS_PACKS = re("booster|paket|pakker|pakke|packs?");
@@ -89,6 +90,9 @@ export function listingWholeProblem(
   // Bara när namnet finns på båda språken — rent japanska setnamn (Triplet Beat, Nihil Zero …) räcker själva.
   if (catalogLanguage === "JP" && SHARED_JP_EN_NAME.test(catalogTitle) && !JP_MARK.test(text)) return "japansk produkt, annonsen säger inte japansk";
   if (catalogLanguage === "EN" && /(?:språk|sprog|language)\s*:\s*(?:japanese|japanska|japansk)/i.test(desc)) return "annonsen anger japanska";
+  // TITELN säger japansk ("… Japansk", "(JP M3)", "Japanese M6 …") mot en engelsk katalogpost (skuggläget 10-16:
+  // tre japanska annonser låg på engelska produkter). "Pokémon Center Japan" är en butik, inte språket.
+  if (catalogLanguage === "EN" && JP_TITLE.test(listingTitle)) return "annonsen anger japanska (titeln)";
   // MOTSÄGELSER mellan katalogpost och annonstext.
   const cs = catalogTitle.match(SERIES_NO), ts = text.match(SERIES_NO);
   if (cs && ts && cs[1] !== ts[1]) return `annan serie (Series ${ts[1]})`;
@@ -130,6 +134,14 @@ export function listingWholeProblem(
   if (catalogCategory === "BOOSTER_PACK") {
     const m = text.match(SELLER_MULTI);
     if (m) return `flera paket ("${m[0].trim().slice(0, 40)}")`;
+  }
+  // "6x Mega Evolution … Booster Pack": antal FÖRST i titeln mot ETT pack (skuggläget 10-16). Bara pack —
+  // facit godkänner "2 x … Booster Box" (priset gäller per styck).
+  const leadQty = catalogCategory === "BOOSTER_PACK" ? listingTitle.match(/^\s*(?:[2-9]|[1-9]\d)\s?[x×](?=\s)/i) : null;
+  if (leadQty) return `flera paket ("${leadQty[0].trim()}")`;
+  // Förvaringslåda/-box i titeln: en låda att förvara kort i, inte den förseglade produkten.
+  if (/(?<![\p{L}])(?:förvaringslåda|förvaringsbox|förvaringsask|opbevaringskasse|opbevaringsboks|storage box)(?![\p{L}])/iu.test(listingTitle) && !/storage|förvaring/i.test(catalogTitle)) {
+    return "förvaringslåda (titeln)";
   }
   // Parti / flera exemplar i samma annons.
   const lot = text.match(LOT);

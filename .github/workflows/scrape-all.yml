@@ -35,8 +35,7 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout
-      # Auto-importens gränsfalls-dom (Haiku, ören/dygn) — attach istället för dubblettstub.
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Ingen AI-nyckel: auto-importens LLM-domare är av sedan 2026-09-30 (STORE_MATCH_AI, runner.ts).
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }} # utan denna mailas inga alerts (mailer går i console-mode)
       # ⛔ RESTOCK-LARMEN ÄR PAUSADE (ägarbeslut 2026-08-23). Att stänga av restock-watch.yml
       # räckte INTE: den fulla insamlingen nedan diffar också lagerstatus och anropar samma
