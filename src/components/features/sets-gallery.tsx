@@ -25,22 +25,12 @@ import { formatKrWhole, useOwnedSets, type OwnedBySet } from "@/lib/owned-sets";
 import { eraRank, type Era } from "@/lib/set-era";
 import { IconSearch } from "@/components/ui/icons";
 import { SetNameTile } from "@/components/features/set-name-tile";
+import { toneFor, type Tone } from "@/lib/era-tone";
 import type { SetTile } from "@/services/sets-gallery";
 
 const TAB_KEY = "scoutr:sets-tab";
 
-/**
- * Varje era får en egen ton (Scoutrs fyra holofärger i tur och ordning) — ett svagt sken
- * bakom loggorna och en prick vid rubriken. Hela klassnamn, så Tailwind ser dem.
- */
-const ERA_TONES = [
-  { glow: "from-holo-gold/25", dot: "bg-holo-gold", ring: "hover:border-holo-gold/60" },
-  { glow: "from-holo-violet/25", dot: "bg-holo-violet", ring: "hover:border-holo-violet/60" },
-  { glow: "from-holo-cyan/25", dot: "bg-holo-cyan", ring: "hover:border-holo-cyan/60" },
-  { glow: "from-holo-pink/25", dot: "bg-holo-pink", ring: "hover:border-holo-pink/60" },
-] as const;
-type Tone = (typeof ERA_TONES)[number];
-const toneFor = (era: Era): Tone => ERA_TONES[eraRank(era) % ERA_TONES.length];
+
 
 function eraId(era: Era): string {
   return `era-${era.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;

@@ -4,6 +4,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { cachedRead } from "@/lib/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { NOT_HIDDEN } from "@/lib/product-visibility";
 import {
   getExploreFeed,
   HIDDEN_CATEGORIES,
@@ -63,6 +64,9 @@ const getFilterSets = cachedRead(
       // träffar. De saknar logotyp (ingen leverantör publicerar japanska
       // setlogotyper) och faller tillbaka på kortikonen, precis som EN-set utan bild.
       // releaseDate + externalId: set-arkets era-rubriker och listningsregel (lib/set-era, lib/set-listing).
+      // Samma urval som /sets: ett set vars produkter alla är dolda (Mega Evolution Energy,
+      // ägarbeslut 2026-10-05) har inget att visa — det stod i arket men inte på /sets.
+      where: { products: { some: NOT_HIDDEN } },
       select: { id: true, name: true, logoUrl: true, series: true, language: true, releaseDate: true, externalId: true },
       // nulls: "last" — Postgres lägger NULL FÖRST vid DESC, så ett set utan
       // releaseDate (t.ex. ett promo-set vi skapat innan pokemontcg.io har det)
