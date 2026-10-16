@@ -409,6 +409,7 @@ export function ProductDetailView({
               isSingle={isSingle}
               isJapanese={data.language === "JP"}
               pending={pricePending}
+              trailing={<ReportProblem slug={data.slug} compact />}
             />
 
             {/* Bevakarantalet ("4 samlare bevakar") är BORTTAGET ur arket (2026-09-05):
@@ -484,9 +485,6 @@ export function ProductDetailView({
               Lagerstatusen här kan därför släpa efter restock-historiken nedanför,
               som är admin-only och hämtas färsk on-demand. */}
           <LiveOffersTable pending={pricePending} slug={data.slug} traderaSearch={traderaSearch} />
-
-          {/* "Något fel?" — EN knapp per produkt, arket frågar vad (ägarbeslut 2026-10-16). */}
-          <ReportProblem slug={data.slug} />
 
           {/* Restock-historik — admin-only, hämtas on-demand (se restock-history.tsx) */}
           <ProductRestockHistory productId={data.id} />

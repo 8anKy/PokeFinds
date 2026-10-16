@@ -221,6 +221,8 @@ export interface LivePricePanelProps {
   isJapanese?: boolean;
   /** Skal-läge: priset är inte hämtat ännu → skelett i stället för "–". */
   pending?: boolean;
+  /** Högerställt under lagerbrickan, på förändringsraden ("Något fel?", ägaren 2026-10-16). */
+  trailing?: ReactNode;
 }
 
 export function LivePricePanel({
@@ -229,6 +231,7 @@ export function LivePricePanel({
   isSingle = false,
   isJapanese = false,
   pending = false,
+  trailing,
 }: LivePricePanelProps) {
   const t = useTranslations("Detail");
   const { stats, offers, flash } = useLivePricing();
@@ -291,11 +294,18 @@ export function LivePricePanel({
           stats.lowestPriceStockStatus && <StockBadge stockStatus={stats.lowestPriceStockStatus} />
         )}
       </div>
-      {change && (
-        <p className="mt-1 flex items-center gap-1.5 text-xs text-ink-muted">
-          <PriceChange percent={change.pct} hideIcon className="text-xs" />
-          {change.suffix}
-        </p>
+      {(change || trailing) && (
+        <div className="mt-1 flex items-center justify-between gap-3">
+          {change ? (
+            <p className="flex items-center gap-1.5 text-xs text-ink-muted">
+              <PriceChange percent={change.pct} hideIcon className="text-xs" />
+              {change.suffix}
+            </p>
+          ) : (
+            <span />
+          )}
+          {trailing}
+        </div>
       )}
     </div>
   );

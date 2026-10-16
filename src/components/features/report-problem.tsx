@@ -37,7 +37,8 @@ function Choice({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
-export function ReportProblem({ slug }: { slug: string }) {
+/** `compact` = i prisblocket, högerställd under lagerbrickan (ägaren 2026-10-16) — samma ark. */
+export function ReportProblem({ slug, compact = false }: { slug: string; compact?: boolean }) {
   const t = useTranslations("Report");
   const offers = useLiveOffers();
   const [open, setOpen] = useState(false);
@@ -89,7 +90,10 @@ export function ReportProblem({ slug }: { slug: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-6 text-sm text-ink-muted underline-offset-4 hover:text-holo-cyan hover:underline"
+        className={cn(
+          "text-ink-muted underline-offset-4 hover:text-holo-cyan hover:underline",
+          compact ? "shrink-0 text-xs" : "mt-6 text-sm"
+        )}
       >
         {t("button")}
       </button>
