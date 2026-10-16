@@ -2199,8 +2199,7 @@
     "priceSpan": "{min}–{max} kr",
     "sortLabel": "Sort",
     "removeFilter": "Remove filter {name}",
-    "setEraOther": "Other",
-    "allSetsLink": "All sets"
+    "setEraOther": "Other"
   },
   "Sets": {
     "metaTitle": "All Pokémon TCG sets",

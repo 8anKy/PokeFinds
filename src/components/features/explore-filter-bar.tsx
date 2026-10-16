@@ -728,10 +728,6 @@ export function SetSheet({
         ) : (
           <span />
         )}
-        {/* Vägen till /sets (framsteg + värde per set) — appen har ingen Set-flik. */}
-        <Link href="/sets" onClick={onClose} className="pb-2 text-xs font-medium text-holo-cyan hover:underline">
-          {t("allSetsLink")}
-        </Link>
       </div>
 
       <div className="space-y-5 pb-2">
