@@ -701,8 +701,9 @@ export function SetSheet({
       cta={t("resultCount", { count: pendingCount })}
       onCta={() => onApply(picked)}
     >
-      {jpSets.length > 0 && (
-        <div role="tablist" className="mb-4 flex gap-6 border-b border-surface-border">
+      <div className="mb-4 flex items-end justify-between gap-4 border-b border-surface-border">
+        {jpSets.length > 0 ? (
+        <div role="tablist" className="flex gap-6">
           {(["EN", "JP"] as const).map((code) => (
             <button
               key={code}
@@ -724,7 +725,14 @@ export function SetSheet({
             </button>
           ))}
         </div>
-      )}
+        ) : (
+          <span />
+        )}
+        {/* Vägen till /sets (framsteg + värde per set) — appen har ingen Set-flik. */}
+        <Link href="/sets" onClick={onClose} className="pb-2 text-xs font-medium text-holo-cyan hover:underline">
+          {t("allSetsLink")}
+        </Link>
+      </div>
 
       <div className="space-y-5 pb-2">
         {(lang === "JP" ? groupedJp : grouped).map((group) => (

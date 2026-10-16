@@ -1919,7 +1919,8 @@
     "guestCardTitle": "Ditt samlarkort",
     "guestChip": "Gäst",
     "tourAgain": "Visa guiden igen",
-    "giveawayRow": "Giveaway – vinn en 30th Celebration ETB"
+    "giveawayRow": "Giveaway – vinn en 30th Celebration ETB",
+    "setsRow": "Set"
   },
   "Invite": {
     "h1": "Bjud in vänner",
@@ -2198,7 +2199,8 @@
     "priceSpan": "{min}–{max} kr",
     "sortLabel": "Sortera",
     "removeFilter": "Ta bort filtret {name}",
-    "setEraOther": "Övrigt"
+    "setEraOther": "Övrigt",
+    "allSetsLink": "Alla set"
   },
   "Sets": {
     "metaTitle": "Alla Pokémon TCG-set",

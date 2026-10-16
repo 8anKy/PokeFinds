@@ -1919,7 +1919,8 @@
     "guestCardTitle": "Your collector card",
     "guestChip": "Guest",
     "tourAgain": "Show the guide again",
-    "giveawayRow": "Giveaway – win a 30th Celebration ETB"
+    "giveawayRow": "Giveaway – win a 30th Celebration ETB",
+    "setsRow": "Sets"
   },
   "Invite": {
     "h1": "Invite friends",
@@ -2198,7 +2199,8 @@
     "priceSpan": "{min}–{max} kr",
     "sortLabel": "Sort",
     "removeFilter": "Remove filter {name}",
-    "setEraOther": "Other"
+    "setEraOther": "Other",
+    "allSetsLink": "All sets"
   },
   "Sets": {
     "metaTitle": "All Pokémon TCG sets",

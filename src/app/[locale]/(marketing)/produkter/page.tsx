@@ -290,9 +290,8 @@ export default async function ProductsPage({
       actions={
         <Link
           href="/sets"
-          className="inline-flex items-center gap-1.5 rounded-full border border-surface-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-holo-cyan/50 hover:text-ink"
+          className="inline-flex items-center rounded-full border border-surface-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-holo-cyan/50 hover:text-ink"
         >
-          <span aria-hidden>←</span>
           {tHero("allSets")}
         </Link>
       }

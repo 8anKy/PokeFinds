@@ -18,6 +18,7 @@ import {
   IconChevronRight,
   IconInfo,
   IconGift,
+  IconCards,
 } from "@/components/ui/icons";
 import { giveawayConfig, giveawayPhase } from "@/lib/giveaway";
 import { LogoutButton } from "./logout-button";
@@ -155,6 +156,8 @@ export default async function MerPage() {
   // står redan på kontokortet ovan, och samma siffra två gånger på en skärm gör
   // ingen av dem trovärdig. Kortet visar TILLSTÅNDET, listan är VÄGEN dit.
   const activity: MenuLink[] = [
+    // Set med framsteg (ägaren 2026-10-16: appen har ingen Set-flik — vägen dit bor här).
+    { href: "/sets", label: t("setsRow"), icon: IconCards },
     { href: "/bevakningar", label: t("watches"), icon: IconBell, tour: "watches-row" },
     { href: "/mer/utmarkelser", label: tA("title"), icon: IconMedal },
     // Giveawayn (lib/giveaway.ts) — raden finns bara medan den PÅGÅR (dold före starten).
