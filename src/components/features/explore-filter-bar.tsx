@@ -12,7 +12,6 @@ import { SetNameTile } from "@/components/features/set-name-tile";
 import { isRealSetLogo } from "@/lib/set-logo";
 import { isSetListed } from "@/lib/set-listing";
 import { eraRank, setEra, type Era } from "@/lib/set-era";
-import { toneFor, type Tone } from "@/lib/era-tone";
 import { useOwnedSets } from "@/lib/owned-sets";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { IconCards, IconCheck, IconFilter, IconSearch, IconX } from "@/components/ui/icons";
@@ -643,9 +642,7 @@ export function SetSheet({
   // själv, utan specialfall.
   const groupedJp = groupBySeries(jpSets);
 
-  // Samma ruta som /sets (sets-gallery.tsx): erans sken, 2:1-logga, namn + framsteg — men i
-  // arket väljer man flera, så rutan är en knapp med bock i stället för en länk.
-  const tile = (s: FilterSet, tone: Tone) => {
+  const tile = (s: FilterSet) => {
     const selected = picked.includes(s.id);
     const mine = owned?.[s.id]?.owned ?? 0;
     const dim = loggedIn === true && owned !== null && mine === 0 && !selected;
@@ -657,49 +654,46 @@ export function SetSheet({
         type="button"
         aria-pressed={selected}
         onClick={() => setPicked((prev) => (selected ? prev.filter((id) => id !== s.id) : [...prev, s.id]))}
-        className={cn(
-          "group flex flex-col overflow-hidden rounded-xl border bg-surface-overlay/20 text-left transition-all",
-          selected ? "border-holo-cyan shadow-glow" : cn("border-surface-border", tone.ring)
-        )}
+        className="flex flex-col gap-1.5 text-center"
       >
-        <span className={cn("relative block aspect-[2/1] bg-gradient-to-b to-transparent", tone.glow)}>
+        <span
+          className={cn(
+            "relative flex h-16 items-center justify-center overflow-hidden rounded-[10px] border bg-surface px-2 transition-all",
+            selected ? "border-holo-cyan shadow-glow" : "border-surface-border"
+          )}
+        >
           {logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <SafeImage
               src={logo}
               alt=""
-              loading="lazy"
-              decoding="async"
-              className={cn(
-                "absolute inset-0 h-full w-full object-contain px-3 py-2 transition",
-                dim && "opacity-60 saturate-[0.25] group-hover:opacity-100 group-hover:saturate-100"
-              )}
+              className={cn("max-h-full max-w-full object-contain transition", dim && "opacity-60 saturate-[0.25]")}
+              fallback={<SetNameTile name={s.name} compact />}
             />
           ) : (
-            <SetNameTile name={s.name} compact className={cn("absolute inset-0", dim && "opacity-60")} />
+            <SetNameTile name={s.name} compact className={cn(dim && "opacity-60")} />
           )}
+          {/* Framstegsstapeln (foliekant) längst ned i brickan. */}
           {mine > 0 && s.total ? (
             <span className="absolute inset-x-0 bottom-0 h-[3px] bg-surface-overlay">
-              <span className="block h-full bg-gradient-to-r from-holo-cyan via-holo-violet to-holo-pink" style={{ width: `${pct}%` }} />
+              <span className="block h-full bg-gradient-to-r from-holo-cyan via-holo-violet to-holo-pink" style={{ width: pct + "%" }} />
             </span>
           ) : null}
           {selected && (
-            <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-holo-cyan text-surface">
+            <span className="absolute right-1 top-1 grid h-[15px] w-[15px] place-items-center rounded-full bg-holo-cyan text-surface">
               <IconCheck size={10} strokeWidth={3.4} />
             </span>
           )}
         </span>
-        <span className="flex flex-col gap-0.5 px-2 py-1.5">
-          <span className={cn("line-clamp-1 text-[11px] font-semibold leading-snug", dim ? "text-ink-muted" : "text-ink")}>{s.name}</span>
-          {loggedIn && s.total ? (
-            <span className={cn("text-[10px] tabular-nums", mine > 0 ? "text-holo-cyan" : "text-ink-faint")}>
-              {mine}/{s.total}
-            </span>
-          ) : null}
-        </span>
+        <span className={cn("line-clamp-2 text-[11px] font-medium leading-snug", dim ? "text-ink-muted" : "text-ink")}>{s.name}</span>
+        {loggedIn && s.total ? (
+          <span className={cn("-mt-1 text-[10px] tabular-nums", mine > 0 ? "text-holo-cyan" : "text-ink-faint")}>
+            {mine}/{s.total}
+          </span>
+        ) : null}
       </button>
     );
   };
+
 
 
   return (
@@ -748,7 +742,7 @@ export function SetSheet({
             </p>
             {/* md/xl-stegen gäller bara när arket öppnas från desktop-sidofältet —
                 mobilens filterrad renderas enbart under lg. */}
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{group.items.map((x) => tile(x, toneFor(group.era)))}</div>
+            <div className="grid grid-cols-3 gap-2.5 md:grid-cols-5 xl:grid-cols-8">{group.items.map(tile)}</div>
           </div>
         ))}
       </div>
