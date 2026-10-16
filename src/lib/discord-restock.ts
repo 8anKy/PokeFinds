@@ -26,6 +26,7 @@ import { formatPercent, formatPrice } from "@/lib/format";
 import { formatMarketValue, formatTraderaSold, marketDelta, priceEdgeColor } from "@/lib/market-compare";
 import type { StoreStock } from "@/scrapers/types";
 import type { BoundHit } from "@/lib/restock-hits";
+import { DISCORD_APP_FIELD } from "@/lib/discord-app-field";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
 const BRAND_COLOR = 0x2dd4bf;
@@ -599,6 +600,7 @@ export function buildRestockEmbed(
       inline: false,
     });
   }
+  fields.push({ ...DISCORD_APP_FIELD });
 
   return {
     title: clamp(

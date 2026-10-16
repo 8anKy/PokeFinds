@@ -8,7 +8,7 @@
  * språkval ger rätt sida av sig själv.
  */
 export const APP_STORE_URL =
-  "https://apps.apple.com/se/app/foilio-kortpriser-larm/id6783443245";
+  "https://apps.apple.com/se/app/scoutr-kortpriser-larm/id6783443245";
 
 /** Google Play — samma app-id som `appId` i capacitor.config.ts. */
 export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=se.foilio.app";

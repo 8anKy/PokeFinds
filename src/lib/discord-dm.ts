@@ -17,6 +17,7 @@
 import { discordFetch } from "@/lib/discord";
 import { formatPrice } from "@/lib/format";
 import { formatMarketValue, formatTraderaSold, marketDelta, priceEdgeColor } from "@/lib/market-compare";
+import { DISCORD_APP_FIELD } from "@/lib/discord-app-field";
 
 /** Turkos signaturaccent (`holo.cyan`). */
 const BRAND_COLOR = 0x2dd4bf;
@@ -73,13 +74,13 @@ function clamp(s: string, max: number): string {
 /** Ren funktion så formatet går att testa utan nätverk. */
 export function buildAlertDmEmbed(c: AlertDmContent) {
   const p = c.pricing ?? null;
-  const fields = p ? pricingFields(p) : [];
+  const fields = [...(p ? pricingFields(p) : []), { ...DISCORD_APP_FIELD }];
   return {
     title: clamp(c.title, MAX_TITLE),
     description: clamp(c.body, MAX_DESCRIPTION),
     ...(c.url ? { url: c.url } : {}),
     color: p ? priceEdgeColor(BRAND_COLOR, p.priceOre, p.marketValueOre, p.soldMedianOre, p.soldCount) : BRAND_COLOR,
-    ...(fields.length ? { fields } : {}),
+    fields,
     ...(c.imageUrl ? { thumbnail: { url: c.imageUrl } } : {}),
     footer: { text: "Scoutr Pro · stäng av under Inställningar → Notiser" },
     timestamp: new Date().toISOString(),

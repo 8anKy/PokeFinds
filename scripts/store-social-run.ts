@@ -25,6 +25,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { discordFetch } from "../src/lib/discord";
+import { DISCORD_APP_FIELD } from "../src/lib/discord-app-field";
 import { captionBody, classifyStorePost, pokemonTermsFromSetNames } from "../src/lib/store-social-filter";
 import { DUPLICATE_WINDOW_DAYS, duplicateKey, rotationSlice } from "../src/lib/store-social-rotation";
 import stores from "../src/data/store-instagram.json";
@@ -170,6 +171,7 @@ function embedFor(store: string, handle: string, m: Media) {
     url: m.permalink,
     description: excerpt || undefined,
     ...(thumb ? { thumbnail: { url: thumb } } : {}),
+    fields: [{ ...DISCORD_APP_FIELD }],
     footer: { text: "Butiksnyheter · Scoutr" },
     timestamp: m.timestamp,
   };

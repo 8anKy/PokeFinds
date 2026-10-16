@@ -25,6 +25,7 @@ import { localeUrl } from "@/lib/canonical";
 import { formatMarketValue, marketDelta } from "@/lib/market-compare";
 import { reportIsFresh, type StoreObservation } from "@/lib/community-stores";
 import { voteLabelSv, type VoteTally } from "@/lib/store-report-votes";
+import { DISCORD_APP_FIELD } from "@/lib/discord-app-field";
 
 const DEFAULT_CHANNEL_ID = "1551982852378337422";
 const SEEN_COLOR = 0x22c55e;
@@ -167,6 +168,7 @@ export function buildStoreReportEmbed(post: StoreReportPost) {
       : []),
   ];
   fields.push({ name: "På Scoutr", value: links.join(" · "), inline: false });
+  fields.push({ ...DISCORD_APP_FIELD });
 
   const comment = post.comment?.replace(/\s+/g, " ").trim();
   const lead = seen
