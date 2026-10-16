@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { formatKrWhole, useOwnedSets, type OwnedBySet } from "@/lib/owned-sets";
 import { eraRank, type Era } from "@/lib/set-era";
 import { IconSearch } from "@/components/ui/icons";
+import { SetNameTile } from "@/components/features/set-name-tile";
 import type { SetTile } from "@/services/sets-gallery";
 
 const TAB_KEY = "scoutr:sets-tab";
@@ -109,7 +110,7 @@ function Tile({
               )}
             />
           ) : (
-            <span className="absolute inset-0 grid place-items-center px-3 text-center text-xs font-semibold text-ink-muted">{s.name}</span>
+            <SetNameTile name={s.name} compact className={cn("absolute inset-0", dim && "opacity-60")} />
           )}
           {count > 0 && s.total && (
             <span className="absolute inset-x-0 bottom-0 h-[3px] bg-surface-overlay">

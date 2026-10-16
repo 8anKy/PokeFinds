@@ -18,6 +18,7 @@ import { resolveSetTotals } from "@/lib/set-denominator";
 import { isSetListed } from "@/lib/set-listing";
 import { setEra, type Era } from "@/lib/set-era";
 import { cachedRead } from "@/lib/cache";
+import { isRealSetLogo } from "@/lib/set-logo";
 
 export interface SetTile {
   id: string;
@@ -78,7 +79,8 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
       name: s.name,
       language: s.language === "JP" ? "JP" : "EN",
       era: setEra(s),
-      logoUrl: s.logoUrl,
+      // Bara riktiga loggor — kort/produktfoton/ritade brickor ⇒ null ⇒ namnbricka (lib/set-logo.ts).
+      logoUrl: isRealSetLogo(s.logoUrl) ? s.logoUrl : null,
       releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,
       total: totals.full,
       setValueOre: v?.v != null && v.priced > 0 ? Number(v.v) : null,
@@ -162,7 +164,8 @@ export const getSetSummary = cachedRead(
       name: s.name,
       language: s.language === "JP" ? "JP" : "EN",
       era: setEra(s),
-      logoUrl: s.logoUrl,
+      // Bara riktiga loggor — kort/produktfoton/ritade brickor ⇒ null ⇒ namnbricka (lib/set-logo.ts).
+      logoUrl: isRealSetLogo(s.logoUrl) ? s.logoUrl : null,
       releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,
       total: totals.full,
       setValueOre: row?.v != null && row.priced > 0 ? Number(row.v) : null,

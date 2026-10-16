@@ -14,6 +14,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { formatKrWhole, useOwnedSets } from "@/lib/owned-sets";
 import type { SetSummary } from "@/services/sets-gallery";
+import { SetNameTile } from "@/components/features/set-name-tile";
 
 function ProgressRing({ pct, complete }: { pct: number; complete: boolean }) {
   const r = 20;
@@ -83,7 +84,7 @@ export function SetHero({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={set.logoUrl} alt="" className="h-full w-full object-contain" />
             ) : (
-              <span className="text-center text-xs font-semibold text-ink-muted">{set.name}</span>
+              <SetNameTile name={set.name} compact />
             )}
           </div>
           <div className="min-w-0">
