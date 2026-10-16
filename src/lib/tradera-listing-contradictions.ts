@@ -1,7 +1,7 @@
 /**
  * MOTSÄGELSER MELLAN TRADERA-ANNONSEN OCH KATALOGPOSTEN (2026-10-14, ägarbeslut: ingen AI i Tradera-
  * kontrollen). Varje regel kommer ur ett handgranskat fall och är mätt mot facit
- * (scripts/tmp-rules-vs-key.ts) innan den lades till. Ren och testad; `setNames` = katalogens setnamn
+ * (scripts/tradera-rules-vs-key.ts) innan den lades till. Ren och testad; `setNames` = katalogens setnamn
  * (CardSet, läses en gång per körning).
  */
 const L = "\\p{L}";

@@ -100,7 +100,7 @@ paths:
   avslutade (mot 0), 1 832 sålda priser — men LÅNGLIVADE annonser som avslutats nyss ligger för djupt (Mew ex
   152:s auktion missades). Därför stale-kollen 5 000 / ≥ 2 d (var 4 000 / ≥ 3 d); körd samma kväll från 1 d:
   2 800 frågade, 405 avslutade bort. (3) `verifyTraderaMatches` är en regeldom sedan samma dag (ingen AI) — en ny
-  regel läggs bara till efter `scripts/tmp-rules-vs-key.ts` mot facit (`.spike/tradera-eval/`).
+  regel läggs bara till efter `scripts/tradera-rules-vs-key.ts` mot facit (`.spike/tradera-eval/`).
 - **Tradera-annonsens kortnummer måste vara produktens** (`matching.ts`): `cardNumberKey` behåller bokstavsSUFFIX (`115a` ≠ `115` — league-promo vs uncommon) och `bareCardNumbers` fångar nummer utan "/total" ("Milotic ex 42" får inte hamna på specialarten 217). Konservativ: setnamnet 151, "annons 2", mängd/pris och årtal filtreras bort. 707 gamla felmatchningar städade 2026-07-25 — alla bevisade (numret fanns som eget kort i samma set)
 - ⛔ **`GetSellerItems` (PublicService) FILTRERAR INTE PÅ `categoryId` — ETT KATEGORI-ID GER TOMT SVAR** (mätt
   2026-09-03: en säljare vars annons bevisligen låg i 1001337 gav 0 rader för `categoryId=1001337`, men hela

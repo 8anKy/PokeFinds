@@ -42,7 +42,7 @@ const NAMED_LINES: { name: string; re: RegExp; words: string[] }[] = [
 /**
  * ANNONSEN SOM HELHET MOT KATALOGPOSTEN (granskningsfacit 2026-10-14, ~700 handgranskade par).
  * Titel + beskrivning. Varje regel är mätt mot facit innan den lades till — se
- * scripts/tmp-rules-vs-key.ts — och ska ha nära noll felträffar.
+ * scripts/tradera-rules-vs-key.ts — och ska ha nära noll felträffar.
  */
 // ⛔ Inte "3 kort": fraktmallar ("1-3 kort kan skickas med frimärke") och General Mills (3 kort) fälldes.
 const DESC_FUN_PACK = re("fun ?packs?|sampling ?packs?|trial pack");
