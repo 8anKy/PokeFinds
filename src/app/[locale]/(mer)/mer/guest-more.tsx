@@ -27,7 +27,6 @@ export async function GuestMore() {
     ...(giveawayPhase(giveawayConfig(), new Date()) === "open"
       ? [{ href: "/giveaway", label: t("giveawayRow") }]
       : []),
-    { href: "/sets", label: t("setsRow") },
     { href: "/om", label: t("guestAbout") },
     { href: "/priser", label: t("guestPricing") },
     { href: "/villkor", label: t("guestTerms") },
