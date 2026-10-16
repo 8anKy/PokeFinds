@@ -64,6 +64,8 @@ const PUBLIC_API = "https://api.tradera.com/v3/publicservice.asmx";
  * ANNONSEN (`detectGrading`), aldrig på kategorin. Kategorin styr bara var vi letar.
  */
 const CATEGORIES = [1001337, 1001340, 1001339, 1001341, 1001338] as const;
+/** Relevance-läget: så många sidor i rad utan en annons inom lookbacken ⇒ kategorin är klar. */
+const STALE_PAGES = 3;
 
 /**
  * Absolut acceptans- OCH dedup-fönster. ⛔ De två MÅSTE vara samma tal: läser
@@ -230,9 +232,10 @@ async function fetchEndedPage(
   appId: string,
   appKey: string,
   catId: number,
-  page: number
+  page: number,
+  orderBy: "EndDateDescending" | "Relevance" = "EndDateDescending"
 ): Promise<string> {
-  const body = `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><SearchAdvanced xmlns="http://api.tradera.com"><request><SearchWords></SearchWords><CategoryId>${catId}</CategoryId><SearchInDescription>false</SearchInDescription><PageNumber>${page}</PageNumber><OrderBy>EndDateDescending</OrderBy><ItemStatus>Ended</ItemStatus><ItemType>All</ItemType><ItemsPerPage>50</ItemsPerPage><CountyId>0</CountyId><OnlyAuctionsWithBuyNow>false</OnlyAuctionsWithBuyNow><OnlyItemsWithThumbnail>false</OnlyItemsWithThumbnail></request></SearchAdvanced></soap:Body></soap:Envelope>`;
+  const body = `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><SearchAdvanced xmlns="http://api.tradera.com"><request><SearchWords></SearchWords><CategoryId>${catId}</CategoryId><SearchInDescription>false</SearchInDescription><PageNumber>${page}</PageNumber><OrderBy>${orderBy}</OrderBy><ItemStatus>Ended</ItemStatus><ItemType>All</ItemType><ItemsPerPage>50</ItemsPerPage><CountyId>0</CountyId><OnlyAuctionsWithBuyNow>false</OnlyAuctionsWithBuyNow><OnlyItemsWithThumbnail>false</OnlyItemsWithThumbnail></request></SearchAdvanced></soap:Body></soap:Envelope>`;
   const res = await fetch(`${SEARCH_API}?appId=${appId}&appKey=${appKey}`, {
     method: "POST",
     headers: {
@@ -354,20 +357,34 @@ export async function runTraderaSoldSweep(
   let apiCalls = 0;
   let quotaHit = false;
 
+  let relevanceFallbacks = 0;
   for (const catId of CATEGORIES) {
+    // ⛔ TRADERA STRUNTAR I `EndDateDescending` SEDAN 2026-10-16: avslutade annonser kom ÄLDST först
+    // (maj 2025) oavsett ordning, svepet bröt på sida 1 (tidsstoppet) och såg 0 affärer. Märks det på
+    // sida 1 byter kategorin till `Relevance` (≈ nyast skapade först) och bläddrar utan tidsstopp —
+    // i stället tills STALE_PAGES sidor i rad saknar en enda annons inom lookbacken.
+    let orderBy: "EndDateDescending" | "Relevance" = "EndDateDescending";
+    let stalePages = 0;
     for (let page = 1; page <= pages; page++) {
       let parsed;
       try {
-        const xml = await fetchEndedPage(appId, appKey, catId, page);
+        const xml = await fetchEndedPage(appId, appKey, catId, page, orderBy);
         apiCalls++;
         parsed = parseEndedFromXml(xml);
+        if (page === 1 && orderBy === "EndDateDescending" && parsed.items.length > 0 &&
+            parsed.items.every((i) => i.endDate < lookbackCutoff)) {
+          orderBy = "Relevance";
+          relevanceFallbacks++;
+          parsed = parseEndedFromXml(await fetchEndedPage(appId, appKey, catId, page, orderBy));
+          apiCalls++;
+        }
         // ⛔ EN TOM FÖRSTA SIDA ÄR ETT FEL, INTE "INGA AFFÄRER" (2026-10-16): kategorierna avslutar tusentals
         // annonser per dygn, men den natten svarade Tradera 200 med noll rader på alla fem — svepet loggade
         // "0 avslutade", skrev ingen sålt-data och pensionerade INGA döda offers (8 % av Tradera-priserna
         // pekade på avslutade annonser dagen efter). Försök igen med paus; förblir det tomt kastas felet.
         for (let retry = 1; page === 1 && parsed.rawRows === 0 && retry <= 3; retry++) {
           await new Promise((r) => setTimeout(r, retry * 20_000));
-          parsed = parseEndedFromXml(await fetchEndedPage(appId, appKey, catId, page));
+          parsed = parseEndedFromXml(await fetchEndedPage(appId, appKey, catId, page, orderBy));
           apiCalls++;
         }
         if (page === 1 && parsed.rawRows === 0) throw new Error("tom första sida efter 3 omförsök");
@@ -382,19 +399,29 @@ export async function runTraderaSoldSweep(
         break;
       }
       let oldestOnPage: Date | null = null;
+      let inLookback = 0;
       for (const item of parsed.items) {
         if (!oldestOnPage || item.endDate < oldestOnPage) oldestOnPage = item.endDate;
+        if (item.endDate >= lookbackCutoff) inLookback++;
         if (item.endDate < windowCutoff) continue;
         if (!ended.has(item.itemId)) ended.set(item.itemId, item);
       }
-      // Tidsstopp: sidorna är sorterade EndDateDescending, så när sidans äldsta
-      // slutdatum passerat lookbacken finns inget nyare kvar längre fram.
-      if (oldestOnPage && oldestOnPage < lookbackCutoff) break;
+      if (orderBy === "EndDateDescending") {
+        // Tidsstopp: sidorna är sorterade EndDateDescending, så när sidans äldsta
+        // slutdatum passerat lookbacken finns inget nyare kvar längre fram.
+        if (oldestOnPage && oldestOnPage < lookbackCutoff) break;
+      } else {
+        stalePages = inLookback === 0 ? stalePages + 1 : 0;
+        if (stalePages >= STALE_PAGES) break;
+      }
       if (parsed.rawRows === 0 || page >= parsed.totalPages) break;
     }
     if (quotaHit) break;
   }
   log(`   ${apiCalls} sök-anrop → ${ended.size} avslutade annonser inom fönstret`);
+  if (relevanceFallbacks > 0) {
+    log(`   ::warning::Tradera ignorerade EndDateDescending i ${relevanceFallbacks} kategorier — bläddrade på Relevance i stället.`);
+  }
   // Inget alls ur fem kategorier som avslutar ~11 500 annonser per tre dygn = Tradera svarade inte.
   // RÖD körning hellre än en grön som tyst lämnar döda annonser som "I lager".
   if (ended.size === 0 && !quotaHit) {

@@ -93,7 +93,10 @@ paths:
   auktions-offers. (2) Sålt-svepet fick den natten 200 + NOLL rader i alla fem kategorierna, loggade "0 avslutade"
   GRÖNT och pensionerade inget — dagen efter pekade 8 % av Tradera-priserna (24 av 300, GetItem-stickprov) på
   avslutade annonser. Nu: tom första sida ⇒ 3 omförsök med paus, fortfarande tomt ⇒ kategorin felar, noll
-  avslutade totalt ⇒ RÖD körning. (3) `verifyTraderaMatches` är en regeldom sedan samma dag (ingen AI) — en ny
+  avslutade totalt ⇒ RÖD körning. (4) SAMMA DAG slutade Tradera respektera `EndDateDescending` för avslutade
+  annonser (äldst först, maj 2025, oavsett ordning) ⇒ tidsstoppet bröt på sida 1. Är sida 1 helt utanför
+  lookbacken byter kategorin till `Relevance` (≈ nyast skapade först) och bläddrar tills 3 sidor i rad saknar
+  en annons inom lookbacken (`STALE_PAGES`); loggen varnar `::warning::`. (3) `verifyTraderaMatches` är en regeldom sedan samma dag (ingen AI) — en ny
   regel läggs bara till efter `scripts/tmp-rules-vs-key.ts` mot facit (`.spike/tradera-eval/`).
 - **Tradera-annonsens kortnummer måste vara produktens** (`matching.ts`): `cardNumberKey` behåller bokstavsSUFFIX (`115a` ≠ `115` — league-promo vs uncommon) och `bareCardNumbers` fångar nummer utan "/total" ("Milotic ex 42" får inte hamna på specialarten 217). Konservativ: setnamnet 151, "annons 2", mängd/pris och årtal filtreras bort. 707 gamla felmatchningar städade 2026-07-25 — alla bevisade (numret fanns som eget kort i samma set)
 - ⛔ **`GetSellerItems` (PublicService) FILTRERAR INTE PÅ `categoryId` — ETT KATEGORI-ID GER TOMT SVAR** (mätt
