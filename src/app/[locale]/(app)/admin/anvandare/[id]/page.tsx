@@ -103,6 +103,8 @@ export default async function AdminUserDetailPage({
       attributedAt: true,
       creatorCode: { select: { code: true, creatorName: true } },
       pushTokens: { select: { platform: true, createdAt: true } },
+      appPlatform: true,
+      signupPlatform: true,
       // Vad hen bevakar — det ägaren vill se bredvid siffrorna.
       watchlistItems: {
         orderBy: { createdAt: "desc" },
@@ -212,7 +214,14 @@ export default async function AdminUserDetailPage({
             {pro ? <FactChip tone="pro" title="isPro: planTier ∪ bonus ∪ Stripe ∪ roll">Pro · {proSource}</FactChip> : <FactChip>Gratis</FactChip>}
             {user.role !== "USER" && <FactChip tone="warn">{user.role}</FactChip>}
             {user.emailVerifiedAt ? <FactChip tone="good">✓ E-post bekräftad</FactChip> : <FactChip tone="warn">E-post obekräftad</FactChip>}
-            {devices.length > 0 ? (
+            {user.appPlatform ? (
+              <FactChip
+                tone="good"
+                title={`Senast använd i ${user.appPlatform === "android" ? "Android" : "iOS"}-appen · skapad: ${user.signupPlatform ?? "okänt"} · push: ${devices.length > 0 ? [...new Set(devices)].join(" + ") : "ingen"}`}
+              >
+                App · {user.appPlatform === "android" ? "Android" : "iOS"}
+              </FactChip>
+            ) : devices.length > 0 ? (
               <FactChip tone="good" title="Registrerad push-token bevisar appen">App · {[...new Set(devices)].join(" + ")}</FactChip>
             ) : (
               <FactChip title="Ingen push-token — appen kan ändå finnas utan push-tillstånd">Ingen app-enhet</FactChip>

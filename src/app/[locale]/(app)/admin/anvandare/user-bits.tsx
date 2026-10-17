@@ -45,20 +45,38 @@ const PLATFORM_LABELS: Record<string, string> = {
  * ha nekat push-behörighet — då finns ingen token. Texten säger därför
  * "Ingen enhet", aldrig "Ingen app".
  */
-export function describeDevices(platforms: string[]): string {
+export function describeDevices(platforms: string[], appPlatform?: string | null): string {
+  // Appen kontot senast användes i (User.appPlatform) står först: Android har ingen push-token
+  // förrän FCM finns, så utan den syntes en Android-användare som "Ingen push-enhet".
+  const app = appPlatform ? `${PLATFORM_LABELS[appPlatform] ?? appPlatform}-appen` : null;
   // "Ingen PUSH-enhet", inte "Ingen enhet": det senare läses som "har ingen
   // telefon", vilket vi inte vet något om. Att en användare skannat 247 kort
   // bevisar en KAMERA, inte appen — /skanna är en vanlig webbsida (getUserMedia)
   // och fungerar lika bra i mobilens webbläsare och som PWA.
-  if (platforms.length === 0) return "Ingen push-enhet";
+  if (platforms.length === 0) return app ? `${app} · ingen push` : "Ingen push-enhet";
   const counts = new Map<string, number>();
   for (const p of platforms) {
     const label = PLATFORM_LABELS[p] ?? p;
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
-  return [...counts.entries()]
+  const push = [...counts.entries()]
     .map(([label, n]) => (n > 1 ? `${label} ×${n}` : label))
     .join(", ");
+  return app ? `${app} · push ${push}` : push;
+}
+
+/** Filtret `?plattform=` på användarlistan = var kontot SKAPADES (User.signupPlatform). */
+export type PlatformFilter = "ios" | "android" | "web" | "unknown";
+
+export const PLATFORM_FILTER_LABELS: Record<PlatformFilter, string> = {
+  ios: "Skapade i iOS-appen",
+  android: "Skapade i Android-appen",
+  web: "Skapade på webben",
+  unknown: "Okänt var de skapades (äldre konton)",
+};
+
+export function parsePlatformFilter(raw: string | undefined): PlatformFilter | null {
+  return raw === "ios" || raw === "android" || raw === "web" || raw === "unknown" ? raw : null;
 }
 
 /** Kompakta notis-brickor: E, P, ALLA. Nedtonade när de är avstängda. */

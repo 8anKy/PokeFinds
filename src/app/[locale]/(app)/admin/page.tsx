@@ -8,7 +8,8 @@ import {
   type ComebackRow,
   type FormerRow,
 } from "@/components/features/admin/subscriber-churn";
-import { getAdminOverview, STORE_CUT } from "@/services/admin/overview";
+import { getAdminOverview, PRO_PRICE_ORE, STORE_CUT } from "@/services/admin/overview";
+import { CHANNEL_LABELS, type PayingChannel } from "@/lib/subscription-store";
 import { getServiceCosts, type CostSource } from "@/services/admin/service-costs";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -242,12 +243,42 @@ export default async function AdminOverviewPage() {
     web: CATEGORICAL[2],
     unknown: "#6b7280",
   };
+  // Ett tryck på en plattform öppnar användarlistan filtrerad på den (?plattform=).
   const platformSlices: DonutSlice[] = platformMix.map((p) => ({
     key: p.key,
     label: p.label,
     value: p.value,
     color: PLATFORM_COLORS[p.key] ?? "#6b7280",
+    href: `/admin/anvandare?plattform=${p.key}`,
   }));
+
+  /**
+   * INTÄKT PER BUTIK (2026-10-17) — en partition av de betalande: varje kund har exakt EN kanal
+   * (Stripe vinner, annars butiken ur webhookens logg). Värdet är NETTO per månad: butikerna tar
+   * STORE_CUT, Stripes avgift dras inte (samma regel som "Efter butiksavdrag" nedan).
+   * ⛔ Okänd butik är en egen post, aldrig gissad till App Store.
+   */
+  const CHANNEL_COLORS: Record<PayingChannel, string> = {
+    app_store: CATEGORICAL[0],
+    play_store: CATEGORICAL[1],
+    stripe: CATEGORICAL[2],
+    store_unknown: "#6b7280",
+  };
+  const channelOrder: PayingChannel[] = ["app_store", "play_store", "stripe", "store_unknown"];
+  const channelCount = (ch: PayingChannel) => payingUsers.filter((u) => u.channel === ch).length;
+  const channelSlices: DonutSlice[] = channelOrder.map((ch) => {
+    const n = channelCount(ch);
+    const netOre = Math.round(n * PRO_PRICE_ORE * (ch === "stripe" ? 1 : 1 - STORE_CUT));
+    return {
+      key: ch,
+      label: `${CHANNEL_LABELS[ch]} · ${nf(n)} ${n === 1 ? "kund" : "kunder"}`,
+      value: netOre,
+      color: CHANNEL_COLORS[ch],
+      display: formatPrice(netOre),
+    };
+  });
+  // Hålet = summan av segmenten, så ringen alltid går ihop med sin egen förklaring.
+  const channelNetOre = channelSlices.reduce((sum, c) => sum + c.value, 0);
 
   const eventSlices: DonutSlice[] = eventMix.map((e) => ({
     key: e.key,
@@ -429,6 +460,7 @@ export default async function AdminOverviewPage() {
               centerLabel="konton"
               centerValue={nf(users.total)}
             />
+            <p className="mt-3 text-xs text-ink-faint">Tryck på en plattform för att se kontona.</p>
           </CardContent>
         </Card>
 
@@ -444,6 +476,23 @@ export default async function AdminOverviewPage() {
               slices={eventSlices}
               centerLabel="händelser"
               centerValue={nf(eventSlices.reduce((sum, e) => sum + e.value, 0))}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Intäkt per butik</CardTitle>
+            <p className="text-sm text-ink-muted">
+              Betalande kunder per kanal, netto per månad efter butikens {Math.round(STORE_CUT * 100)} %.
+              Butiken kommer ur RevenueCats köphändelser.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <DonutChart
+              slices={channelSlices}
+              centerLabel="netto/mån"
+              centerValue={formatPrice(channelNetOre)}
             />
           </CardContent>
         </Card>
@@ -571,7 +620,15 @@ export default async function AdminOverviewPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
-            <Row label="Via App Store / Play" value={nf(revenue.payingStore)} />
+            <Row label="Via App Store" value={nf(channelCount("app_store"))} />
+            <Row label="Via Google Play" value={nf(channelCount("play_store"))} />
+            {channelCount("store_unknown") > 0 && (
+              <Row
+                label="Via app, butik okänd"
+                value={nf(channelCount("store_unknown"))}
+                hint="Köpt före 2026-08-30 eller en RevenueCat-gåva"
+              />
+            )}
             <Row label="Via Stripe (webb)" value={nf(revenue.payingStripe)} />
             <Row
               label="Brutto per månad"

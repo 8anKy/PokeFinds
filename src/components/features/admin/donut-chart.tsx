@@ -20,7 +20,7 @@
  */
 
 import { useId, useState } from "react";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { SURFACE } from "./chart-palette";
 
@@ -31,7 +31,7 @@ export interface DonutSlice {
   color: string;
   /** Färdigformaterat värde (t.ex. "1 234 kr"). Utan det visas råa antalet. */
   display?: string;
-  /** Gör etiketten i förklaringen till en länk (t.ex. användarens detaljsida). */
+  /** Gör etiketten i förklaringen — och segmentet — till en länk (t.ex. en filtrerad lista). */
   href?: string;
 }
 
@@ -74,6 +74,7 @@ export function DonutChart({
   className?: string;
 }) {
   const [active, setActive] = useState<string | null>(null);
+  const router = useRouter();
   const gradientId = useId();
   const total = slices.reduce((s, x) => s + x.value, 0);
   const visible = slices.filter((s) => s.value > 0);
@@ -123,6 +124,8 @@ export function DonutChart({
             fill="none"
             stroke={arcs[0].slice.color}
             strokeWidth={rOuter - rInner}
+            className={arcs[0].slice.href ? "cursor-pointer" : undefined}
+            onClick={arcs[0].slice.href ? () => router.push(arcs[0].slice.href as string) : undefined}
           />
         ) : (
           arcs.map((a) => (
@@ -136,6 +139,7 @@ export function DonutChart({
               strokeWidth={2}
               opacity={active && active !== a.slice.key ? 0.4 : 1}
               className="cursor-pointer transition-opacity duration-150"
+              onClick={a.slice.href ? () => router.push(a.slice.href as string) : undefined}
               onMouseEnter={() => setActive(a.slice.key)}
               onMouseLeave={() => setActive(null)}
             />

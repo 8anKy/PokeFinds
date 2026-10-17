@@ -20,6 +20,7 @@ import {
   subscriptionHistories,
   type SubscriptionHistory,
 } from "@/lib/subscription-history";
+import { latestStoreByUser, storeChannel, type PayingChannel } from "@/lib/subscription-store";
 
 /** Månadspris i öre. Samma tal som prissidan visar. */
 export const PRO_PRICE_ORE = 4900;
@@ -60,8 +61,8 @@ export interface PayingUserRow {
   id: string;
   name: string;
   email: string;
-  /** "store" = App Store/Google Play (planTier), "stripe" = webben. */
-  channel: "store" | "stripe";
+  /** Butiken ur RevenueCat-webhookens logg (lib/subscription-store.ts), "stripe" = webben. */
+  channel: PayingChannel;
   stripeUntil: Date | null;
   /** Första betalda aktiveringen (proSince) — null för köp gjorda innan loggningen fanns. */
   proSince: Date | null;
@@ -269,6 +270,7 @@ export async function getAdminOverview() {
   ]);
 
   const histories = subscriptionHistories(subscriptionAudit);
+  const storeByUser = latestStoreByUser(subscriptionAudit);
   const payingIds = new Set(payingRows.map((u) => u.id));
   // Tidigare kunder = har en betald start i historiken men räknas inte som
   // betalande nu. Staff och sandbox-testare filtreras i frågan, precis som i
@@ -458,7 +460,8 @@ export async function getAdminOverview() {
         id: u.id,
         name: u.name,
         email: u.email,
-        channel: u.stripeProUntil && u.stripeProUntil > now ? "stripe" : "store",
+        channel:
+          u.stripeProUntil && u.stripeProUntil > now ? "stripe" : storeChannel(storeByUser.get(u.id)),
         stripeUntil: u.stripeProUntil ?? null,
         proSince: u.proSince,
         renewal,

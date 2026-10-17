@@ -21,6 +21,7 @@ import {
   type ComputedSortKey,
   type SortDir,
 } from "./users-sort";
+import { parsePlatformFilter } from "./user-bits";
 
 export const dynamic = "force-dynamic";
 
@@ -49,12 +50,14 @@ const ROW_SELECT = {
   createdAt: true,
   // Enheter = beviset på att appen är INSTALLERAD (se users-table.tsx).
   pushTokens: { select: { platform: true } },
+  // Vilken app kontot senast användes i — enda Android-signalen (Android har ingen push).
+  appPlatform: true,
 } satisfies Prisma.UserSelect;
 
 type UserRow = Prisma.UserGetPayload<{ select: typeof ROW_SELECT }>;
 
 interface PageProps {
-  searchParams: { q?: string; page?: string; sort?: string; dir?: string };
+  searchParams: { q?: string; page?: string; sort?: string; dir?: string; plattform?: string };
 }
 
 /**
@@ -208,14 +211,18 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
   const page = Math.max(1, Number.parseInt(searchParams.page ?? "1", 10) || 1);
   const { sort, dir } = parseUserSort(searchParams.sort, searchParams.dir);
 
-  const where = q
-    ? {
-        OR: [
-          { email: { contains: q, mode: "insensitive" as const } },
-          { name: { contains: q, mode: "insensitive" as const } },
-        ],
-      }
-    : {};
+  const platform = parsePlatformFilter(searchParams.plattform);
+  const where: Prisma.UserWhereInput = {
+    ...(q
+      ? {
+          OR: [
+            { email: { contains: q, mode: "insensitive" as const } },
+            { name: { contains: q, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+    ...(platform ? { signupPlatform: platform === "unknown" ? null : platform } : {}),
+  };
 
   const since = utcDaysAgo(COST_WINDOW_DAYS);
   const usage = await usageSplit(since);
@@ -280,6 +287,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
       emailVerified: u.emailVerifiedAt !== null,
       notifications: notif,
       devices: u.pushTokens.map((t) => t.platform),
+      appPlatform: u.appPlatform,
       lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
       createdAt: u.createdAt.toISOString(),
       costOre: cost?.totalOre ?? 0,
@@ -304,6 +312,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         page={page}
         totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
         query={q}
+        platform={platform}
         sort={sort}
         dir={dir}
         costWindowDays={COST_WINDOW_DAYS}

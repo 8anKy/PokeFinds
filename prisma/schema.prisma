@@ -156,6 +156,10 @@ model User {
   // 2026-10-14 utan känd appenhet. Äldre konton backfylldes ur sin första GuestDevice (appen används,
   // inte nödvändigtvis registreringen) — se migrationen 20261014120000_signup_platform.
   signupPlatform       String?
+  // Vilken app kontot SENAST användes i: "ios" | "android" (jwt-callbacken, ur appens UA-tagg,
+  // 2026-10-17). Push-token var enda signalen förut och Android har ingen push ⇒ Android syntes
+  // aldrig i adminen. NULL = aldrig sedd i appen (webb, eller före 1.2 utan skanning).
+  appPlatform          String?
   // Google-/Apple-inloggning: leverantörens stabila `sub` ur id_token. Unika så
   // ett Google-konto aldrig kan öppna två Foilio-konton. Samma mönster som
   // discordUserId nedan — ingen Account-/Session-tabell, ingen token lagras.

@@ -10,10 +10,19 @@
  * ⛔ Äldre appbyggen (< 1.2) saknar taggen och räknas som webb — de är nästan borta.
  */
 export type SignupPlatform = "ios" | "android" | "web";
+export type AppPlatform = "ios" | "android";
 
-export function signupPlatformFrom(userAgent: string | null | undefined, deviceId?: string | null): SignupPlatform {
+/**
+ * Appen requesten kommer ifrån, eller null för en webbläsare. Samma signaler som ovan; används
+ * även för `User.appPlatform` (vilken app kontot SENAST användes i, skriven i jwt-callbacken).
+ */
+export function appPlatformFrom(userAgent: string | null | undefined, deviceId?: string | null): AppPlatform | null {
   if (deviceId) return deviceId.toLowerCase().startsWith("and-") ? "android" : "ios";
   const ua = userAgent ?? "";
   if (ua.includes("FoilioApp/")) return /android/i.test(ua) ? "android" : "ios";
-  return "web";
+  return null;
+}
+
+export function signupPlatformFrom(userAgent: string | null | undefined, deviceId?: string | null): SignupPlatform {
+  return appPlatformFrom(userAgent, deviceId) ?? "web";
 }

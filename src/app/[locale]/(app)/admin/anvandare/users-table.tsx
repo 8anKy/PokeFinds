@@ -11,6 +11,8 @@ import {
   PlanBadge,
   describeDevices,
   formatCostOre,
+  PLATFORM_FILTER_LABELS,
+  type PlatformFilter,
 } from "./user-bits";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,8 @@ export interface AdminUserRow {
   notifications: NotificationSettings;
   /** Plattform per registrerad push-token ("ios", "android", …). */
   devices: string[];
+  /** Appen kontot senast användes i ("ios" | "android"), null = aldrig sedd i appen. */
+  appPlatform: string | null;
   lastSeenAt: string | null;
   createdAt: string;
   /** AI-kostnad i öre under kostnadsfönstret (skanner + gradering). */
@@ -111,7 +115,7 @@ function buildColumns(costWindowDays: number): ColumnDef[] {
       label: "Notiser · enheter",
       sortKey: "devices",
       title:
-        "E-post · Push · Alla restocks · Veckobrev · Nytt, samt registrerade push-enheter (en token bevisar appen — tomt bevisar INTE motsatsen). Sorteras på antal enheter.",
+        "E-post · Push · Alla restocks · Veckobrev · Nytt, appen kontot senast användes i (iOS/Android) samt registrerade push-enheter. Android har ingen push ännu. Sorteras på antal push-enheter.",
     },
     {
       label: "Senast sedd",
@@ -188,6 +192,8 @@ interface UsersTableProps {
   page: number;
   totalPages: number;
   query: string;
+  /** `?plattform=` — var kontona skapades (tryck i översiktens ring). */
+  platform: PlatformFilter | null;
   /** Aktiv sortering — kommer från URL:en, ordnas på servern. */
   sort: UserSortKey;
   dir: SortDir;
@@ -201,6 +207,7 @@ export function UsersTable({
   page,
   totalPages,
   query,
+  platform,
   sort,
   dir,
   costWindowDays,
@@ -218,10 +225,12 @@ export function UsersTable({
     nextQuery: string,
     nextPage: number,
     nextSort: UserSortKey,
-    nextDir: SortDir
+    nextDir: SortDir,
+    nextPlatform: PlatformFilter | null = platform
   ) {
     const params = new URLSearchParams();
     if (nextQuery) params.set("q", nextQuery);
+    if (nextPlatform) params.set("plattform", nextPlatform);
     if (nextPage > 1) params.set("page", String(nextPage));
     if (!isDefaultSort(nextSort, nextDir)) {
       params.set("sort", nextSort);
@@ -258,9 +267,22 @@ export function UsersTable({
         </Button>
       </form>
 
-      <p className="text-sm text-ink-muted">
-        {total === 1 ? "1 användare" : `${total} användare`}
-        {query && ` matchar ”${query}”`}
+      <p className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+        <span>
+          {total === 1 ? "1 användare" : `${total} användare`}
+          {query && ` matchar ”${query}”`}
+        </span>
+        {platform && (
+          <button
+            type="button"
+            onClick={() => navigate(query, 1, sort, dir, null)}
+            title="Visa alla användare"
+            className="inline-flex items-center gap-1.5 rounded-full border border-holo-cyan/40 bg-holo-cyan/10 px-2.5 py-0.5 text-xs text-holo-cyan transition-opacity hover:opacity-80"
+          >
+            {PLATFORM_FILTER_LABELS[platform]}
+            <span aria-hidden>×</span>
+          </button>
+        )}
       </p>
 
       {users.length === 0 ? (
@@ -344,7 +366,7 @@ export function UsersTable({
                 </TD>
                 <TD>
                   <NotificationBadges settings={user.notifications} />
-                  <span className="block text-xs text-ink-muted">{describeDevices(user.devices)}</span>
+                  <span className="block text-xs text-ink-muted">{describeDevices(user.devices, user.appPlatform)}</span>
                 </TD>
                 <TD className="whitespace-nowrap">
                   <LastSeen iso={user.lastSeenAt} />

@@ -7,6 +7,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { RENEWAL_LABELS, type RenewalStatus } from "@/lib/subscription-status";
 import { LastSeen } from "@/app/[locale]/(app)/admin/anvandare/user-bits";
+import { CHANNEL_LABELS, type PayingChannel } from "@/lib/subscription-store";
 
 /**
  * Betalande kunder på adminöversikten — sorterbar per kolumn (ägarönskemål
@@ -21,7 +22,7 @@ export interface PayingCustomerRow {
   id: string;
   name: string;
   email: string;
-  channel: "store" | "stripe";
+  channel: PayingChannel;
   environment: string | null;
   proSince: string | null;
   renewal: RenewalStatus;
@@ -222,8 +223,15 @@ export function PayingCustomersTable({ rows }: { rows: PayingCustomerRow[] }) {
                 <span className="block text-xs text-ink-faint">{u.email}</span>
               </TD>
               <TD>
-                <Badge variant={u.channel === "stripe" ? "info" : "default"}>
-                  {u.channel === "stripe" ? "Stripe" : "App Store / Play"}
+                <Badge
+                  variant={u.channel === "stripe" ? "info" : u.channel === "play_store" ? "success" : "default"}
+                  title={
+                    u.channel === "store_unknown"
+                      ? "Köpt i appen, men webhooken loggade ingen butik (köp före 2026-08-30 eller en RevenueCat-gåva)"
+                      : undefined
+                  }
+                >
+                  {CHANNEL_LABELS[u.channel]}
                 </Badge>
                 {u.environment === "SANDBOX" && (
                   <Badge
