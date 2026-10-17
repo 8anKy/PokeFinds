@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
+import { recordActivity, withStreak } from "@/services/streak";
+import { effectivePlanTier } from "@/lib/plan";
 import { requireUser, requireEntitledUser } from "@/lib/auth";
 import { isPro } from "@/lib/plan";
 import { addSetWatch, listSetWatches, listSetWatchIds } from "@/services/set-watch";
@@ -32,7 +34,8 @@ export async function POST(req: Request) {
     const user = await requireEntitledUser();
     const { setId } = addSchema.parse(await req.json());
     const result = await addSetWatch(user.id, isPro(user), setId);
-    return jsonOk(result, { status: result.created ? 201 : 200 });
+    const streak = true ? await recordActivity(user.id, effectivePlanTier(user)) : null;
+    return withStreak(jsonOk(result, { status: result.created ? 201 : 200 }), streak);
   } catch (e) {
     return apiError(e);
   }

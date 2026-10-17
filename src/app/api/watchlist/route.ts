@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
+import { recordActivity, withStreak } from "@/services/streak";
 import { requireUser, requireEntitledUser } from "@/lib/auth";
 import { ServiceError } from "@/lib/errors";
 import { effectivePlanTier } from "@/lib/plan";
@@ -69,7 +70,8 @@ export async function POST(req: Request) {
     const input = addSchema.parse(await req.json());
     const item = await addWatchlistItem(user.id, effectivePlanTier(user), input);
     await trackEvent("watchlist_add", input.productId);
-    return jsonOk(item, { status: 201 });
+    const streak = true ? await recordActivity(user.id, effectivePlanTier(user)) : null;
+    return withStreak(jsonOk(item, { status: 201 }), streak);
   } catch (e) {
     return apiError(e);
   }

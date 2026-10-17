@@ -84,6 +84,8 @@ export async function GET() {
         setWatches: { include: { set: { select: { name: true } } } },
         // Utmärkelser är uppgifter OM personen (vad de gjort och när) — art. 15/20.
         achievements: true,
+        // Veckoserien: vilka dagar personen gjort något (bara datumet).
+        activityDays: { select: { day: true } },
         // Skanningar/graderingar: metadata + graderingsutfallet (som visas i appen).
         // Skannerns `result` utelämnas med flit — det är intern diagnostik (konst-
         // avtryck m.m.), inte användarinnehåll; datumen/utfallet är personuppgiften.

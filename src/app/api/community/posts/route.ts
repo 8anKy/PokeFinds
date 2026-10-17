@@ -2,7 +2,9 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { ListingKind, ListingStatus } from "@prisma/client";
 import { apiError, jsonOk } from "@/lib/api";
-import { auth, requireUser } from "@/lib/auth";
+import { recordActivity, withStreak } from "@/services/streak";
+import { effectivePlanTier } from "@/lib/plan";
+import { auth, requireEntitledUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { ServiceError } from "@/lib/errors";
@@ -110,7 +112,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireEntitledUser();
     await assertCommunityV2(user.role);
     // Regeln bor här, inte i dialogen — se lib/forum-rules.ts.
     await assertForumRulesAccepted(user.id);
@@ -228,7 +230,8 @@ export async function POST(req: Request) {
       void syncStoreReportToDiscord(post.id);
     }
 
-    return jsonOk({ id: post.id, groupSlug: group.slug }, { status: 201 });
+    const streak = await recordActivity(user.id, effectivePlanTier(user));
+    return withStreak(jsonOk({ id: post.id, groupSlug: group.slug }, { status: 201 }), streak);
   } catch (e) {
     return apiError(e);
   }

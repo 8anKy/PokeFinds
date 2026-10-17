@@ -18,6 +18,7 @@ import { ServiceWorkerRegister } from "@/components/pwa-register";
 import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { ProductOverlayHost } from "@/components/features/product-overlay";
 import { PaywallSheetHost } from "@/components/features/paywall-sheet";
+import { StreakCelebrationHost } from "@/components/features/streak/streak-celebration";
 import { UnseenRouteMarker } from "@/components/ui/unseen-dot";
 import { AppTour } from "@/components/features/app-tour";
 import { stripeCheckoutAdvertised } from "@/lib/stripe";
@@ -173,6 +174,8 @@ export default async function LocaleLayout({
                 /priser. Portalas till <body>, så DOM-ordningen här är oviktig;
                 webCheckout kommer från servern av samma skäl som på prissidan. */}
             <PaywallSheetHost webCheckout={stripeCheckoutAdvertised()} />
+            {/* Veckoserien: firar dagens första handling (svarshuvud från servern). */}
+            <StreakCelebrationHost />
             <UnseenRouteMarker />
             {/* Push-tap-navigering: mountad i ROT-layouten (ej (app)-gruppen) så
                 notis-tap landar rätt även när appen står på en marketing-route som

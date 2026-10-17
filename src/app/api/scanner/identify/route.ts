@@ -7,6 +7,7 @@
  */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
+import { recordActivity, withStreak } from "@/services/streak";
 import { effectivePlanTier, isPro } from "@/lib/plan";
 import { actorKey, resolveScanActor } from "@/lib/scan-actor";
 import { getGuestQuota, recordDeviceScan } from "@/services/scanner/guest-device";
@@ -394,7 +395,8 @@ export async function POST(req: Request) {
       ...clientResult
     } = result;
 
-    return jsonOk({
+    const streak = user && matched ? await recordActivity(user.id, effectivePlanTier(user)) : null;
+    return withStreak(jsonOk({
       ...clientResult,
       remaining: Math.max(0, quota.remaining - 1),
       // Gör att klienten kan rapportera in användarens val (/api/scanner/feedback).
@@ -403,7 +405,7 @@ export async function POST(req: Request) {
       // den snedvridningen fick oss att tro att 79 % av skanningarna var gratis
       // när produktionen låg på 30,5 %. Rader bär nu `recall` att fästa facit i.
       jobId,
-    });
+    }), streak);
   } catch (e) {
     return apiError(e);
   }

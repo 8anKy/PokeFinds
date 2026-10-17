@@ -14,6 +14,7 @@
  */
 import type { GradingJob, PlanTier, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { getStreakBonus } from "@/services/streak";
 import { ServiceError } from "@/lib/errors";
 // ⛔ Delad med skannern OCH adminens kostnadsvy — kvotfönstret måste vara
 // samma gräns överallt. Se src/lib/utils.ts.
@@ -114,7 +115,8 @@ export async function getGradingQuota(
   userId: string,
   planTier: PlanTier
 ): Promise<GradingQuota> {
-  const limit = limitForTier(planTier);
+  // + veckoseriens påfyllning (lib/streak.ts): klara veckor denna månad ger extra graderingar.
+  const limit = limitForTier(planTier) + (await getStreakBonus(userId, planTier)).grades;
   // Misslyckade graderingar ska inte tära på månadskvoten.
   const used = await prisma.gradingJob.count({
     where: {

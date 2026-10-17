@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { recordActivity, withStreak } from "@/services/streak";
+import { effectivePlanTier } from "@/lib/plan";
+import { requireEntitledUser, requireUser } from "@/lib/auth";
 import { addCollectionItem, listCollection } from "@/services/collection";
 import { markScanAdded } from "@/services/giveaway";
 import { CardCondition, CardLanguage } from "@prisma/client";
@@ -42,7 +44,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireEntitledUser();
     const { scanJobId, ...input } = collectionItemSchema.parse(await req.json());
     const item = await addCollectionItem(user.id, input);
     // Bokföringen får aldrig fälla tillägget — kortet ÄR redan i samlingen.
@@ -52,7 +54,8 @@ export async function POST(req: Request) {
         console.error("[giveaway] kunde inte bokföra skanningen:", e)
       );
     }
-    return jsonOk(item, { status: 201 });
+    const streak = await recordActivity(user.id, effectivePlanTier(user));
+    return withStreak(jsonOk(item, { status: 201 }), streak);
   } catch (e) {
     return apiError(e);
   }

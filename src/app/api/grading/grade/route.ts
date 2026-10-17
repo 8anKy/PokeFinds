@@ -1,6 +1,7 @@
 /** POST /api/grading/grade — gradera ett kort utifrån fram- och baksidesbild. */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
+import { recordActivity, withStreak } from "@/services/streak";
 import { requireEntitledUser } from "@/lib/auth";
 import { effectivePlanTier } from "@/lib/plan";
 import { ServiceError } from "@/lib/errors";
@@ -86,7 +87,8 @@ export async function POST(req: Request) {
         ? await gradingWorth(linked.cardId, linked.cardSlug, job.overallGrade, tier === "PREMIUM").catch(() => null)
         : null;
 
-    return jsonOk(
+    const streak = job.status !== "FAILED" ? await recordActivity(user.id, tier) : null;
+    return withStreak(jsonOk(
       {
         jobId: job.id,
         status: job.status,
@@ -98,7 +100,7 @@ export async function POST(req: Request) {
         worth,
       },
       { status: 201 }
-    );
+    ), streak);
   } catch (e) {
     return apiError(e);
   }

@@ -302,6 +302,7 @@ model User {
   watchedListings   WatchedListing[]
   moderationEvents  ModerationEvent[]
   stripePromotionRedemptions StripePromotionRedemption[]
+  activityDays      ActivityDay[]
 
   @@index([email])
   @@index([creatorCodeId])
@@ -2006,4 +2007,18 @@ model ModerationEvent {
 model JobMarker {
   key String   @id
   at  DateTime
+}
+
+/// VECKOSERIEN (2026-10-18, ägarbeslut): en rad per användare och SVENSK kalenderdag då hen
+/// GJORT något (skannat, lagt till i samlingen, bevakat, postat/kommenterat/butiksrapport,
+/// AI-graderat). Dagen sätts av SERVERNS klocka i Europe/Stockholm — telefonens klocka kan
+/// aldrig flytta den. Bara närvaro, inget om VAD som gjordes (dataminimering).
+/// Läses av lib/streak.ts; belöningen (extra kvot) räknas ur raderna, lagras aldrig.
+model ActivityDay {
+  userId    String
+  day       DateTime @db.Date
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
 }

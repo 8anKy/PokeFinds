@@ -643,3 +643,114 @@ html[data-auth] .header-auth-placeholder {
     visibility: hidden;
   }
 }
+
+/* ───────── Veckoserien (2026-10-18) ─────────
+   Lågan, dagbubblorna och firandet. Varje animation ligger på ett EGET omslag-element:
+   en fylld animation skriver över transform på samma element (se tailwind.config.ts). */
+@layer components {
+  .streak-flicker {
+    transform-origin: 50% 92%;
+    animation: streak-flicker 2.4s ease-in-out infinite;
+  }
+  .streak-flicker-core {
+    transform-origin: 50% 95%;
+    animation: streak-flicker-core 1.7s ease-in-out infinite;
+  }
+  .streak-glow {
+    animation: streak-glow 2.4s ease-in-out infinite;
+  }
+  .streak-pop {
+    animation: streak-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .streak-ignite {
+    animation: streak-ignite 900ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .streak-rise {
+    animation: streak-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .streak-count-in {
+    animation: streak-count-in 560ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .streak-count-out {
+    animation: streak-count-out 360ms cubic-bezier(0.55, 0, 1, 0.45) both;
+  }
+  .streak-ring-pulse {
+    animation: streak-ring-pulse 1.8s ease-in-out infinite;
+  }
+  .streak-spark {
+    animation: streak-spark 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .streak-shine {
+    background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+    background-size: 250% 100%;
+    animation: streak-shine 2.8s ease-in-out infinite;
+  }
+  /* Knappen med "läpp" — tryckbar, sjunker 4 px när den trycks. */
+  .streak-button {
+    box-shadow: 0 4px 0 0 #c2410c;
+    transition: transform 90ms ease, box-shadow 90ms ease;
+  }
+  .streak-button:active {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 0 #c2410c;
+  }
+}
+
+@keyframes streak-flicker {
+  0%, 100% { transform: scale(1, 1) skewX(0deg); }
+  25% { transform: scale(1.02, 0.97) skewX(-1.5deg); }
+  50% { transform: scale(0.98, 1.04) skewX(1deg); }
+  75% { transform: scale(1.01, 0.98) skewX(-0.5deg); }
+}
+@keyframes streak-flicker-core {
+  0%, 100% { transform: scale(1, 1); }
+  40% { transform: scale(0.94, 1.07); }
+  70% { transform: scale(1.04, 0.95); }
+}
+@keyframes streak-glow {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.08); }
+}
+@keyframes streak-pop {
+  0% { transform: scale(0.2); opacity: 0; }
+  60% { transform: scale(1.22); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes streak-ignite {
+  0% { transform: translateY(24px) scale(0.3); opacity: 0; filter: saturate(0); }
+  55% { transform: translateY(-6px) scale(1.12); opacity: 1; filter: saturate(1.2); }
+  100% { transform: translateY(0) scale(1); opacity: 1; filter: saturate(1); }
+}
+@keyframes streak-rise {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes streak-count-in {
+  0% { transform: translateY(60%) scale(0.6); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes streak-count-out {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-60%) scale(0.6); opacity: 0; }
+}
+@keyframes streak-ring-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 138, 0, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 138, 0, 0); }
+}
+@keyframes streak-spark {
+  0% { transform: translate(0, 0) scale(0.4); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; }
+}
+@keyframes streak-shine {
+  0% { background-position: 150% 0; }
+  60%, 100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streak-flicker, .streak-flicker-core, .streak-glow, .streak-ring-pulse, .streak-shine,
+  .streak-pop, .streak-ignite, .streak-rise, .streak-count-in, .streak-spark {
+    animation: none !important;
+  }
+  .streak-count-out { display: none; }
+}

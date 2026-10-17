@@ -7,6 +7,7 @@
  */
 import type { PlanTier, Prisma, ScannerJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { getStreakBonus } from "@/services/streak";
 import type { EngineResponse } from "@/lib/scanner-engine-shadow";
 import { ServiceError } from "@/lib/errors";
 import { FINGERPRINT_BYTES, STRUCT_BYTES } from "@/lib/art-fingerprint";
@@ -149,8 +150,11 @@ export async function getScannerQuota(
    */
   deviceId?: string | null
 ): Promise<ScannerQuota> {
+  // + veckoseriens påfyllning (lib/streak.ts): klara veckor denna månad ger extra skanningar.
   const limit =
-    role === "ADMIN" || role === "SUPERADMIN" ? 100000 : scannerLimitForTier(planTier);
+    role === "ADMIN" || role === "SUPERADMIN"
+      ? 100000
+      : scannerLimitForTier(planTier) + (await getStreakBonus(userId, planTier, role)).scans;
   // ⛔ KVOTEN RÄKNAR IDENTIFIERADE KORT — inte rader och inte vision-anrop.
   //
   // Det är VÄRDET kunden får, inte vår kostnad, som ska mätas: en skanning som

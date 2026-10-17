@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { auth, requireUser } from "@/lib/auth";
+import { recordActivity, withStreak } from "@/services/streak";
+import { effectivePlanTier } from "@/lib/plan";
+import { auth, requireEntitledUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { ServiceError } from "@/lib/errors";
 import { assertCommunityV2 } from "@/lib/community-v2-server";
@@ -29,7 +31,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser();
+    const user = await requireEntitledUser();
     await assertCommunityV2(user.role);
     await assertForumRulesAccepted(user.id);
 
@@ -65,7 +67,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       });
     }
 
-    return jsonOk(comment, { status: 201 });
+    const streak = await recordActivity(user.id, effectivePlanTier(user));
+    return withStreak(jsonOk(comment, { status: 201 }), streak);
   } catch (e) {
     return apiError(e);
   }

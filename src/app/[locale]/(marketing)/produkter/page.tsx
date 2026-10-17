@@ -32,6 +32,7 @@ import { SetHero } from "@/components/features/set-hero";
 import { getSetSummary, progressTotal } from "@/services/sets-gallery";
 import { loadSetDenominators } from "@/services/set-portfolio";
 import { Link } from "@/i18n/navigation";
+import { StreakCard } from "@/components/features/streak/streak-card";
 
 export const dynamic = "force-dynamic";
 
@@ -301,6 +302,8 @@ export default async function ProductsPage({
       }
     />
   ) : null;
+  // Veckoserien visas på Utforskas startläge (inga filter/sök) för inloggade.
+  const showStreak = Boolean(session?.user) && !Object.values(searchParams).some(Boolean);
   const feedQuery = buildFeedQuery(params);
   const filterKey = filterStateKey(searchParams);
 
@@ -421,6 +424,8 @@ export default async function ProductsPage({
           </form>
         </div>
 
+        {showStreak && <StreakCard />}
+
         {setHero()}
 
         <section>{feed}</section>
@@ -456,6 +461,7 @@ export default async function ProductsPage({
             />
             {/* Sociala kanaler under filtren (ägarbeslut 2026-08-11: hellre
                 här än i sidfoten som nästan ingen ser). */}
+            {showStreak && <StreakCard />}
             <JoinUsCard />
           </aside>
           {/* scroll-mt: "Visa N produkter"-knappen scrollar hit — landa under
