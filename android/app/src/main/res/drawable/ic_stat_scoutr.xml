@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notisikonen (statusfältet): Scoutr-märket i en färg. Android målar den själv, så den
+     måste vara vit på transparent — appikonen hade blivit en vit ruta. Ur public/brand/scoutr-mark.svg. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="93.746"
+    android:viewportHeight="93.746">
+    <group android:translateX="-3.127" android:translateY="-3.127">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M95.070 20.731 C70.886 9.456 34.425 7.841 22.026 27.696 C12.830 42.099 25.201 51.929 40.288 55.164 A11 11 0 0 1 44.171 40.671 C53.499 34.842 71.576 25.449 95.070 20.731 Z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M4.930 79.269 C29.114 90.544 65.575 92.159 77.974 72.304 C87.170 57.901 74.799 48.071 59.712 44.836 A11 11 0 0 1 55.829 59.329 C46.501 65.158 28.424 74.551 4.930 79.269 Z" />
+    </group>
+</vector>

@@ -1,2 +1,4 @@
 /build/*
 !/build/.npmkeep
+# Firebase-konfigurationen (push, 2026-10-17): lokal fil, inte i det publika repot.
+google-services.json

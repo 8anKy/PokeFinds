@@ -115,7 +115,7 @@ function buildColumns(costWindowDays: number): ColumnDef[] {
       label: "Notiser · enheter",
       sortKey: "devices",
       title:
-        "E-post · Push · Alla restocks · Veckobrev · Nytt, appen kontot senast användes i (iOS/Android) samt registrerade push-enheter. Android har ingen push ännu. Sorteras på antal push-enheter.",
+        "E-post · Push · Alla restocks · Veckobrev · Nytt, appen kontot senast användes i (iOS/Android) samt registrerade push-enheter (Android får push från bygge 1.6). Sorteras på antal push-enheter.",
     },
     {
       label: "Senast sedd",

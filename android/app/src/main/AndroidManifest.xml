@@ -39,11 +39,19 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Push via Firebase (2026-10-17, versionCode 6): notisikon i en färg, Scoutr-turkos och
+             kanalen "alerts" som appen skapar (src/lib/push-client.ts) och servern skickar till (lib/fcm.ts). -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_scoutr" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/notification_accent" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="alerts" />
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+: notiser kräver tillstånd (frågas av PushNotifications.requestPermissions). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Live kort-skanner (/skanna) använder getUserMedia i WebView:en -->
     <uses-permission android:name="android.permission.CAMERA" />

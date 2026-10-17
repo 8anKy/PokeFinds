@@ -4,7 +4,7 @@
  * man ägde för en vecka sedan och veckans största lyft. Text: src/lib/portfolio-push.ts.
  *
  * Mottagare: konton med registrerad enhet (`PushToken`), `push` OCH `portfolioPush`
- * på, och minst en post i samlingen. iOS-only i dag — `sendPush` pratar bara APNs.
+ * på, och minst en post i samlingen. iOS via APNs, Android via FCM (lib/push.ts).
  *
  * ⛔ STEG i scrape-all.yml, aldrig egen cron: Neon är redan vaken i det fönstret och
  *    samlingsvärdet har frysts av nattens cardmarket-refresh. Jobbet avgör själv om
@@ -15,7 +15,7 @@
  *    missade notiser den veckan; en omkörning hade annars gett dubbletter.
  */
 import { prisma } from "@/lib/db";
-import { sendPush } from "@/lib/apns";
+import { sendPush } from "@/lib/push";
 import { parseNotificationSettings } from "@/lib/notification-settings";
 import { portfolioPushMessage } from "@/lib/portfolio-push";
 import { priceAlertQuietUntil } from "@/lib/quiet-hours";
@@ -63,6 +63,8 @@ export async function runPortfolioPush(
 
   // ⛔ Utan APNs-nyckel är sendPush en tyst no-op — då hade loggen sagt "skickad" om
   // notiser som aldrig lämnade huset (och markören bränt veckan). Hellre rött.
+  // (Saknas bara FCM_SERVICE_ACCOUNT tappar Android-mottagarna — fcm.ts loggar inget då,
+  //  så det står i Actions-steget att nyckeln ska finnas.)
   if (!opts?.dryRun && !process.env.APNS_KEY) {
     throw new Error("APNS_KEY saknas — ingen push kan skickas. Kör med --dry-run lokalt.");
   }

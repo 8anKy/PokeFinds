@@ -5,7 +5,7 @@
 import { AlertStatus, AlertType, StockStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sendMail, isPermanentMailError } from "@/lib/mailer";
-import { sendPush } from "@/lib/apns";
+import { sendPush } from "@/lib/push";
 import { newListingEmail, preorderEmail, priceAlertEmail, releasedEmail, restockAlertEmail, withEmailNote } from "@/emails/templates";
 import { alertDueWhere, freeDelayMinutes, freeDelayNotice } from "@/lib/free-restock-alert";
 import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";

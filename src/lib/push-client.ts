@@ -1,6 +1,6 @@
 "use client";
 /**
- * Klient-sida native push (iOS/APNs). Använder native-bryggan window.Capacitor för
+ * Klient-sida native push (iOS/APNs, Android/FCM från versionCode 6). Använder native-bryggan window.Capacitor för
  * plattformsdetektion (den bundlade @capacitor/core-importen gav undefined i
  * WebView:n) + npm-paketets PushNotifications för korrekt event-routing. No-ops på
  * web. Enhetstoken POST:as till /api/push/subscribe.
@@ -34,16 +34,33 @@ function bridge(): Bridge | null {
   return cap && typeof cap.isNativePlatform === "function" && cap.isNativePlatform() ? cap : null;
 }
 
+/** Första Android-bygget med Firebase (android/app/build.gradle). */
+export const ANDROID_FIREBASE_MIN_BUILD = 6;
+
+let androidFirebase: Promise<boolean> | undefined;
+function androidHasFirebase(): Promise<boolean> {
+  androidFirebase ??= (async () => {
+    try {
+      const { App } = await import("@capacitor/app");
+      const info = await App.getInfo();
+      return Number(info.build) >= ANDROID_FIREBASE_MIN_BUILD;
+    } catch {
+      return false; // vet vi inte ⇒ ingen push hellre än en krasch
+    }
+  })();
+  return androidFirebase;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getPushPlugin(): Promise<{ PushNotifications: any; platform: string } | null> {
   const cap = bridge();
   if (!cap) return null;
-  // ponytail: Android push är AV tills Firebase/FCM (google-services.json) är uppsatt.
-  // PushNotifications.register() kastar "Default FirebaseApp is not initialized" som en
-  // NATIV, ofångbar exception (kraschar hela appen → tillbaka till hemskärmen). iOS/APNs
-  // är opåverkat. Ta bort denna guard när FCM är konfigurerat. Fixet ligger i webb-bundeln
-  // → deploy räcker, ingen APK-ombyggnad behövs (register() anropas bara från JS).
-  if (cap.getPlatform() === "android") return null;
+  // ⛔ Android: bara byggen MED Firebase (google-services.json, versionCode ≥ 6, 2026-10-17).
+  // I äldre byggen kastar PushNotifications.register() "Default FirebaseApp is not
+  // initialized" som en NATIV, ofångbar exception — hela appen kraschar. Versionskoden
+  // kommer ur det installerade bygget (App.getInfo), aldrig ur UA:n, som lokala
+  // Android-byggen inte versionsmärker.
+  if (cap.getPlatform() === "android" && !(await androidHasFirebase())) return null;
   // npm-paketets PushNotifications (registerPlugin → korrekt event-routing). Bara
   // @capacitor/core-importen var trasig; push-paketet funkar. Interop-tålig destructure.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,6 +82,18 @@ let registrationWired = false;
 async function wireRegistration(PushNotifications: any, platform: string) {
   if (registrationWired) return;
   registrationWired = true;
+  // Android: larmen går i en egen kanal med hög prioritet (heads-up + ljud). Samma id som
+  // servern skickar (ANDROID_CHANNEL_ID i lib/fcm.ts). Idempotent — finns den redan rörs den inte.
+  if (platform === "android") {
+    await PushNotifications.createChannel({
+      id: "alerts",
+      name: "Larm",
+      description: "Restock- och prislarm, meddelanden",
+      importance: 5,
+      visibility: 1,
+      sound: "default",
+    }).catch(() => undefined);
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await PushNotifications.addListener("registration", (token: any) => {
     postPush({ token: token.value, platform });

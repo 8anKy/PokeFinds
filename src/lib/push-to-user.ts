@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { sendPush, type PushPayload } from "@/lib/apns";
+import { sendPush, type PushPayload } from "@/lib/push";
 import { parseNotificationSettings } from "@/lib/notification-settings";
 
 /**

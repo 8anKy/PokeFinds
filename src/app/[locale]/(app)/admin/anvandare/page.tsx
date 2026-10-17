@@ -50,7 +50,7 @@ const ROW_SELECT = {
   createdAt: true,
   // Enheter = beviset på att appen är INSTALLERAD (se users-table.tsx).
   pushTokens: { select: { platform: true } },
-  // Vilken app kontot senast användes i — enda Android-signalen (Android har ingen push).
+  // Vilken app kontot senast användes i — Android-bygget före 1.6 har ingen push-token.
   appPlatform: true,
 } satisfies Prisma.UserSelect;
 
