@@ -9,8 +9,14 @@
  * Krävs i env (annars är Android-push av och sendFcm en no-op):
  *   FCM_SERVICE_ACCOUNT — tjänstekontots JSON-nyckel från Firebase (rå JSON eller base64)
  */
-import { createSign } from "node:crypto";
 import type { PushPayload } from "@/lib/apns";
+
+// ⛔ Ingen statisk `node:crypto`-import: filen nås från instrumentation.ts (scheduler →
+// notifications → push) och webpack bygger den bundeln även för edge, där Node-moduler
+// fäller hela bygget (Railway 2026-10-17). Samma runtime-require som apns.ts.
+declare const __non_webpack_require__: typeof require;
+const nodeRequire =
+  typeof __non_webpack_require__ !== "undefined" ? __non_webpack_require__ : require;
 
 /** Androids notiskanal — skapas av appen (push-client.ts) innan registreringen. */
 export const ANDROID_CHANNEL_ID = "alerts";
@@ -56,6 +62,7 @@ async function accessToken(sa: ServiceAccount): Promise<string> {
       exp: now + 3600,
     })
   );
+  const { createSign } = nodeRequire("crypto") as typeof import("crypto");
   const signature = createSign("RSA-SHA256").update(`${header}.${claims}`).sign(sa.private_key);
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
