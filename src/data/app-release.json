@@ -1,20 +1,20 @@
 {
-  "version": "1.5",
-  "released": "2026-10-13",
+  "version": "1.6",
+  "released": "2026-10-18",
   "minVersion": "1.5",
   "androidOnPlay": true,
   "notes": [
     {
-      "icon": "spark",
-      "title": "Foilio heter nu Scoutr",
-      "text": "Nytt namn och ny logga. Ditt konto, din samling och dina bevakningar är kvar precis som förut.",
-      "en": { "title": "Foilio is now Scoutr", "text": "New name and new logo. Your account, collection and watchlist are exactly as before." }
+      "icon": "bell",
+      "title": "Notiser på Android",
+      "text": "Restock-larm, prislarm och meddelanden kommer nu som notiser direkt i telefonen, även när appen är stängd.",
+      "en": { "title": "Notifications on Android", "text": "Restock alerts, price alerts and messages now arrive as notifications on your phone, even when the app is closed." }
     },
     {
-      "icon": "link",
-      "title": "Ny adress: scoutr.se",
-      "text": "Gamla foilio.se-länkar fungerar fortfarande och skickar dig rätt.",
-      "en": { "title": "New address: scoutr.se", "text": "Old foilio.se links still work and take you to the right place." }
+      "icon": "spark",
+      "title": "Veckoserie",
+      "text": "Gör något i appen varje dag – skanna, bevaka eller lägg till ett kort. En hel vecka i rad fyller på dina skanningar och AI-graderingar.",
+      "en": { "title": "Weekly streak", "text": "Do something in the app every day – scan, watch or add a card. A full week in a row tops up your scans and AI grades." }
     }
   ]
 }
