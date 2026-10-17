@@ -31,7 +31,7 @@ export function StreakFlame({
       {glow && active && (
         <span
           className="streak-glow pointer-events-none absolute inset-[-40%] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(255,122,0,0.5) 0%, rgba(255,122,0,0) 62%)" }}
+          style={{ background: "radial-gradient(circle, rgba(45,212,191,0.5) 0%, rgba(45,212,191,0) 62%)" }}
         />
       )}
       <span className={cn("relative block h-full w-full", animated && active && "streak-flicker")}>

@@ -314,8 +314,10 @@ export function ProductActions({ productId, title, gradeable = false, imageUrl }
       </div>
 
       {/* Skylten, i det ögonblick bevakningen just skapades. Ligger UTANFÖR
-          knappraden så den blir en egen rad i stället för ett till "chip". */}
-      {justWatched && <DiscordRestockTip />}
+          knappraden så den blir en egen rad i stället för ett till "chip".
+          ⛔ BARA gratiskontot (ägarbeslut 2026-10-18): "ännu snabbare" till någon som
+          betalar för de snabbaste larmen säger att det de köpt inte räcker. */}
+      {justWatched && isPro === false && <DiscordRestockTip />}
 
       <FreeWatchIntroSheet
         open={introOpen}

@@ -29,15 +29,18 @@ function writeSeen(day: string) {
 }
 
 /**
- * Veckoseriens kort överst på Utforska. Renderas bara för inloggade (sidan avgör
- * med sessionen den redan läser). Hämtar sitt tillstånd en
- * gång vid montering och igen när dagens första handling firats — aldrig pollning.
+ * Veckoseriens rad överst på Utforska, under sidhuvudet och ovanför sökfältet.
+ * EN smal rad (ägarbeslut 2026-10-18: kortet tog för mycket plats) — låga, antal
+ * och veckans prickar; status, belöning och reglerna ligger i arket bakom ett tryck.
+ * Renderas bara för inloggade (sidan avgör med sessionen den redan läser). Hämtar
+ * sitt tillstånd en gång vid montering och igen när dagens första handling firats —
+ * aldrig pollning.
  */
 export function StreakCard({ className }: { className?: string }) {
   const t = useTranslations("Streak");
   const [data, setData] = useState<StreakPayload | null>(null);
   const [popToday, setPopToday] = useState(false);
-  const [howOpen, setHowOpen] = useState(false);
+  const [open, setOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -50,7 +53,7 @@ export function StreakCard({ className }: { className?: string }) {
         writeSeen(next.today);
       }
     } catch {
-      // nätverksfel: kortet visas helt enkelt inte
+      // nätverksfel: raden visas helt enkelt inte
     }
   }, []);
 
@@ -60,7 +63,7 @@ export function StreakCard({ className }: { className?: string }) {
   }, [load]);
 
   if (!data) {
-    return <div className={cn("h-[214px] animate-pulse rounded-3xl border border-surface-border bg-surface-overlay/30", className)} />;
+    return <div className={cn("h-[58px] animate-pulse rounded-2xl border border-surface-border bg-surface-overlay/30", className)} />;
   }
 
   const letters = t("dayLetters").split(",");
@@ -70,72 +73,87 @@ export function StreakCard({ className }: { className?: string }) {
   const status = data.daysThisWeek === 7 ? t("weekDone") : !data.weekStillPossible ? t("weekMissed") : t("daysLeft", { count: left });
 
   return (
-    <section
-      className={cn("relative overflow-hidden rounded-3xl border border-surface-border p-4", className)}
-      style={{ background: "linear-gradient(180deg, rgba(255,122,0,0.10) 0%, rgba(0,0,0,0) 55%)" }}
-      aria-label={t("title")}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <StreakFlame size={48} active={data.todayDone} animated glow={data.todayDone} />
-          <div>
-            <div className="flex items-baseline gap-1.5">
-              <span
-                className={cn(
-                  "font-display text-[32px] font-black leading-none tabular-nums",
-                  data.todayDone ? "text-[#ff8a00]" : "text-ink-muted"
-                )}
-              >
-                {data.dayStreak}
-              </span>
-              <span className="text-sm font-bold text-ink">{t("daysLabel", { count: data.dayStreak })}</span>
-            </div>
-            <p className="mt-1 text-xs font-semibold text-ink-faint">{t("weeksInRow", { count: data.weekStreak })}</p>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`${t("title")}: ${data.dayStreak} ${t("daysLabel", { count: data.dayStreak })}`}
+        className={cn(
+          "flex w-full items-center gap-2.5 rounded-2xl border border-surface-border px-3 py-2 text-left transition-transform active:scale-[0.99]",
+          data.todayDone ? "bg-holo-cyan/[0.06]" : "bg-transparent",
+          className
+        )}
+      >
+        <StreakFlame size={30} active={data.todayDone} animated glow={data.todayDone} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-1">
+            <span
+              className={cn(
+                "font-display text-xl font-black leading-none tabular-nums",
+                data.todayDone ? "text-holo-cyan" : "text-ink-muted"
+              )}
+            >
+              {data.dayStreak}
+            </span>
+            <span className="truncate text-xs font-bold text-ink">{t("daysLabel", { count: data.dayStreak })}</span>
           </div>
+          <p className="mt-0.5 truncate text-[11px] font-semibold text-ink-faint">{t("weeksInRow", { count: data.weekStreak })}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setHowOpen(true)}
-          className="rounded-full border border-surface-border px-3 py-1.5 text-xs font-semibold text-ink-muted active:scale-95"
-        >
-          {t("howItWorks")}
-        </button>
-      </div>
+        <div className="shrink-0">
+          <StreakWeekRow
+            days={data.week}
+            letters={letters}
+            todayLabel={t("today")}
+            popIndex={popToday ? todayIndex : -1}
+            size={19}
+            popDelayMs={150}
+            compact
+          />
+        </div>
+      </button>
 
-      <div className="mt-4">
-        <StreakWeekRow
-          days={data.week}
-          letters={letters}
-          todayLabel={t("today")}
-          popIndex={popToday ? todayIndex : -1}
-          size={34}
-          popDelayMs={150}
-        />
-      </div>
-
-      <p className="mt-4 text-sm font-semibold text-ink">{data.todayDone ? t("todayDone") : t("todayTodo")}</p>
-      <p className="mt-0.5 text-xs text-ink-faint">{status}</p>
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        {data.nextReward.scans > 0 && <Chip tone="scan">{t("rewardScans", { count: data.nextReward.scans })}</Chip>}
-        <Chip tone="grade">{t("rewardGrades", { count: data.nextReward.grades })}</Chip>
-        <Chip tone="boost">{boosted ? t("boostActive") : `${t("boost")} ${t("boostLabel")}`}</Chip>
-      </div>
-
-      <BottomSheet open={howOpen} title={t("howTitle")} onClose={() => setHowOpen(false)} closeLabel={t("close")}>
-        <div className="space-y-4 pb-4 text-sm leading-relaxed text-ink-muted">
-          <div className="flex justify-center py-2">
-            <StreakFlame size={72} animated glow />
+      <BottomSheet open={open} title={t("title")} onClose={() => setOpen(false)} closeLabel={t("close")}>
+        <div className="space-y-5 pb-4">
+          <div className="flex items-center gap-3">
+            <StreakFlame size={56} active={data.todayDone} animated glow={data.todayDone} />
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <span className={cn("font-display text-3xl font-black leading-none tabular-nums", data.todayDone ? "text-holo-cyan" : "text-ink-muted")}>
+                  {data.dayStreak}
+                </span>
+                <span className="text-sm font-bold text-ink">{t("daysLabel", { count: data.dayStreak })}</span>
+              </div>
+              <p className="mt-1 text-xs font-semibold text-ink-faint">{t("weeksInRow", { count: data.weekStreak })}</p>
+            </div>
           </div>
-          <p>{t("howDay")}</p>
-          <p>{t("howWeek")}</p>
-          <p className="font-semibold text-ink">{data.isPro ? t("howRewardPro") : t("howRewardFree")}</p>
-          <p>{t("howBoost")}</p>
-          <p>{t("howMiss")}</p>
-          <p className="text-xs text-ink-faint">{t("howTime")}</p>
+
+          <div className="max-w-sm">
+            <StreakWeekRow days={data.week} letters={letters} todayLabel={t("today")} size={34} />
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-ink">{data.todayDone ? t("todayDone") : t("todayTodo")}</p>
+            <p className="mt-0.5 text-xs text-ink-faint">{status}</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {data.nextReward.scans > 0 && <Chip tone="scan">{t("rewardScans", { count: data.nextReward.scans })}</Chip>}
+            <Chip tone="grade">{t("rewardGrades", { count: data.nextReward.grades })}</Chip>
+            <Chip tone="boost">{boosted ? t("boostActive") : `${t("boost")} ${t("boostLabel")}`}</Chip>
+          </div>
+
+          <div className="space-y-3 border-t border-surface-border pt-4 text-sm leading-relaxed text-ink-muted">
+            <p className="font-display text-base font-bold text-ink">{t("howTitle")}</p>
+            <p>{t("howDay")}</p>
+            <p>{t("howWeek")}</p>
+            <p className="font-semibold text-ink">{data.isPro ? t("howRewardPro") : t("howRewardFree")}</p>
+            <p>{t("howBoost")}</p>
+            <p>{t("howMiss")}</p>
+            <p className="text-xs text-ink-faint">{t("howTime")}</p>
+          </div>
         </div>
       </BottomSheet>
-    </section>
+    </>
   );
 }
 
@@ -146,7 +164,7 @@ function Chip({ tone, children }: { tone: "scan" | "grade" | "boost"; children: 
         "rounded-full px-2.5 py-1 text-xs font-bold",
         tone === "scan" && "bg-holo-cyan/15 text-holo-cyan",
         tone === "grade" && "bg-holo-violet/15 text-holo-violet",
-        tone === "boost" && "bg-[#ff8a00]/15 text-[#ffb347]"
+        tone === "boost" && "bg-surface-overlay text-ink"
       )}
     >
       {children}

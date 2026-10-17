@@ -406,6 +406,8 @@ export default async function ProductsPage({
           Träffantalet bor i chip-raden — därav ingen egen rubrikrad här. */}
       <div className="space-y-8 lg:hidden">
         <div className="space-y-3">
+          {/* Veckoserien under sidhuvudet, ovanför sökfältet (ägarbeslut 2026-10-18). */}
+          {showStreak && <StreakCard />}
           {/* App Store-brickan överst (ägarens placering) — bara mobilwebben:
               desktop har den i headern, native-appen döljer den själv. */}
           <div className="flex justify-center">
@@ -424,8 +426,6 @@ export default async function ProductsPage({
           </form>
         </div>
 
-        {showStreak && <StreakCard />}
-
         {setHero()}
 
         <section>{feed}</section>
@@ -437,6 +437,7 @@ export default async function ProductsPage({
             URL:en och måste MONTERAS OM vid klientnavigering (samma skäl som
             mobilformuläret ovan). relative z-30 i komponenten: under headerns
             z-40, över kortgriden (sökförslags-dropdownen målas annars under). */}
+        {showStreak && <StreakCard className="mb-4" />}
         <div>
           <ExploreSearchRow
             key={filterKey}
@@ -461,7 +462,6 @@ export default async function ProductsPage({
             />
             {/* Sociala kanaler under filtren (ägarbeslut 2026-08-11: hellre
                 här än i sidfoten som nästan ingen ser). */}
-            {showStreak && <StreakCard />}
             <JoinUsCard />
           </aside>
           {/* scroll-mt: "Visa N produkter"-knappen scrollar hit — landa under

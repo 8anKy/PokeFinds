@@ -11,13 +11,13 @@ export interface WeekDot {
 function Check({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M5 12.5l4.6 4.6L19 7.6" stroke="#fff" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 12.5l4.6 4.6L19 7.6" stroke="#042f2e" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
 /**
- * Måndag → söndag. Gjord dag = orange bubbla med bock, idag ogjord = pulserande ring,
+ * Måndag → söndag. Gjord dag = turkos bubbla med bock, idag ogjord = pulserande ring,
  * passerad ogjord = grå, kommande = tunn ring. `popIndex` spelar in bubblan som just
  * blev gjord (firandet och kortet när användaren kommer tillbaka).
  */
@@ -28,6 +28,7 @@ export function StreakWeekRow({
   popIndex = -1,
   size = 36,
   popDelayMs = 0,
+  compact = false,
 }: {
   days: WeekDot[];
   letters: string[];
@@ -35,20 +36,22 @@ export function StreakWeekRow({
   popIndex?: number;
   size?: number;
   popDelayMs?: number;
+  /** Kortets smala rad: tätare, mindre bokstäver, dagens bokstav i stället för "Idag". */
+  compact?: boolean;
 }) {
   return (
-    <ol className="grid grid-cols-7 gap-1.5" aria-label={days.map((d, i) => `${letters[i]}: ${d.done ? "✓" : "–"}`).join(", ")}>
+    <ol className={cn("grid grid-cols-7", compact ? "gap-1" : "gap-1.5")} aria-label={days.map((d, i) => `${letters[i]}: ${d.done ? "✓" : "–"}`).join(", ")}>
       {days.map((d, i) => {
         const popping = i === popIndex && d.done;
         return (
-          <li key={i} className="flex flex-col items-center gap-1.5">
+          <li key={i} className={cn("flex flex-col items-center", compact ? "gap-1" : "gap-1.5")}>
             <span className="relative flex items-center justify-center" style={{ width: size, height: size }}>
               {d.done ? (
                 <span
                   className={cn("flex h-full w-full items-center justify-center rounded-full", popping && "streak-pop")}
                   style={{
-                    background: "linear-gradient(180deg, #ffa62b 0%, #ff6a00 100%)",
-                    boxShadow: "inset 0 -3px 0 rgba(0,0,0,0.18), 0 2px 10px -2px rgba(255,106,0,0.55)",
+                    background: "linear-gradient(180deg, #5eead4 0%, #14b8a6 100%)",
+                    boxShadow: "inset 0 -3px 0 rgba(0,0,0,0.18), 0 2px 10px -2px rgba(45,212,191,0.55)",
                     animationDelay: popping ? `${popDelayMs}ms` : undefined,
                   }}
                 >
@@ -56,8 +59,8 @@ export function StreakWeekRow({
                 </span>
               ) : d.isToday ? (
                 <span
-                  className="streak-ring-pulse h-full w-full rounded-full border-[2.5px] border-dashed"
-                  style={{ borderColor: "#ff8a00" }}
+                  className={cn("streak-ring-pulse h-full w-full rounded-full border-dashed", compact ? "border-2" : "border-[2.5px]")}
+                  style={{ borderColor: "#2dd4bf" }}
                 />
               ) : d.isFuture ? (
                 <span className="h-full w-full rounded-full border-2 border-surface-border" />
@@ -68,11 +71,11 @@ export function StreakWeekRow({
             </span>
             <span
               className={cn(
-                "text-[11px] font-bold uppercase leading-none tracking-wide",
-                d.isToday ? "text-[#ff8a00]" : d.done ? "text-ink" : "text-ink-faint"
+                compact ? "text-[9px] font-bold uppercase leading-none" : "text-[11px] font-bold uppercase leading-none tracking-wide",
+                d.isToday ? "text-[#2dd4bf]" : d.done ? "text-ink" : "text-ink-faint"
               )}
             >
-              {d.isToday ? todayLabel : letters[i]}
+              {d.isToday && !compact ? todayLabel : letters[i]}
             </span>
           </li>
         );
@@ -84,8 +87,8 @@ export function StreakWeekRow({
 const SPARKS = [
   { dx: "-26px", dy: "-22px", c: "#ffd84a" },
   { dx: "24px", dy: "-24px", c: "#2dd4bf" },
-  { dx: "30px", dy: "6px", c: "#ff8a00" },
-  { dx: "-30px", dy: "8px", c: "#ff8a00" },
+  { dx: "30px", dy: "6px", c: "#2dd4bf" },
+  { dx: "-30px", dy: "8px", c: "#2dd4bf" },
   { dx: "2px", dy: "-34px", c: "#fff3b0" },
   { dx: "-14px", dy: "26px", c: "#ffd84a" },
   { dx: "16px", dy: "26px", c: "#2dd4bf" },

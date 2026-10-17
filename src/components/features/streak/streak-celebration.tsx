@@ -83,7 +83,7 @@ function Celebration({ event, onClose }: { event: StreakEvent; onClose: () => vo
       {/* Varm ljuskägla bakom lågan. */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-[70%]"
-        style={{ background: "radial-gradient(60% 55% at 50% 38%, rgba(255,106,0,0.28) 0%, rgba(255,106,0,0) 70%)" }}
+        style={{ background: "radial-gradient(60% 55% at 50% 38%, rgba(45,212,191,0.28) 0%, rgba(45,212,191,0) 70%)" }}
         aria-hidden="true"
       />
 
@@ -96,17 +96,17 @@ function Celebration({ event, onClose }: { event: StreakEvent; onClose: () => vo
 
           <div className="relative mt-4 h-[96px] w-full overflow-hidden" aria-live="polite">
             {event.dayStreak > 1 && !counted && (
-              <span className="absolute inset-0 font-display text-[88px] font-black leading-none text-[#ff8a00] tabular-nums">
+              <span className="absolute inset-0 font-display text-[88px] font-black leading-none text-[#2dd4bf] tabular-nums">
                 {event.dayStreak - 1}
               </span>
             )}
             {event.dayStreak > 1 && counted && (
-              <span className="streak-count-out absolute inset-0 font-display text-[88px] font-black leading-none text-[#ff8a00] tabular-nums">
+              <span className="streak-count-out absolute inset-0 font-display text-[88px] font-black leading-none text-[#2dd4bf] tabular-nums">
                 {event.dayStreak - 1}
               </span>
             )}
             {(counted || event.dayStreak <= 1) && (
-              <span className="streak-count-in absolute inset-0 font-display text-[88px] font-black leading-none text-[#ff8a00] tabular-nums">
+              <span className="streak-count-in absolute inset-0 font-display text-[88px] font-black leading-none text-[#2dd4bf] tabular-nums">
                 {event.dayStreak}
               </span>
             )}
@@ -143,7 +143,7 @@ function Celebration({ event, onClose }: { event: StreakEvent; onClose: () => vo
           ref={closeRef}
           type="button"
           onClick={next}
-          className="streak-button streak-rise mx-auto block h-14 w-full max-w-sm rounded-2xl bg-[#ff8a00] font-display text-base font-extrabold uppercase tracking-wide text-white"
+          className="streak-button streak-rise mx-auto block h-14 w-full max-w-sm rounded-2xl bg-[#2dd4bf] font-display text-base font-extrabold uppercase tracking-wide text-[#042f2e]"
           style={{ animationDelay: stage === "day" ? "1100ms" : "1300ms" }}
         >
           {t("continue")}
@@ -185,7 +185,7 @@ function WeekReward({ event }: { event: StreakEvent }) {
         )}
       </div>
       {nextWeek === 4 && (
-        <p className="streak-rise mt-5 text-sm font-semibold text-[#ffb347]" style={{ animationDelay: "1100ms" }}>
+        <p className="streak-rise mt-5 text-sm font-semibold text-[#5eead4]" style={{ animationDelay: "1100ms" }}>
           {t("celebrateNextBoost", { week: nextWeek })}
         </p>
       )}
