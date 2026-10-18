@@ -615,7 +615,7 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   ägarbeslut)**: `POST /products/json` kategori 192, knappen dömer, `Accept-Language: sv-SE` (annars
   felöversatta namn); 41 offers på befintliga produkter, **43 bevakade**. Detaljer i `spelochsant-adapter.ts`.
   Detaljer per butik: `.claude/rules/scraping-restock.md`.
-- **Stripe (webbens Pro)**: kod klar och testad. Kvar = provköp end-to-end + rotera APNs-nyckeln.
+- **Stripe (webbens Pro)**: LIVE och verifierad med ett riktigt köp 2026-08-07; APNs-nyckeln roterad samma dag (783RWWQFH7, Railway + GH-secret). Webhooken pekar fortfarande på foilio.se (fungerar — `/api` hoppas av omdirigeringen) ⇒ flytta till scoutr.se.
 - **Mobilapp via Capacitor** (`android/` finns): iOS-bygge kräver Mac/cloud-build (ägaren på Windows).
 - **Sealed CM-trendrad** i pristabellen kan vara fel pga felmappad `idProduct` (headline-lägsta är ändå
   rätt — butik vinner); kräver bättre sealed→idProduct-mappning.
