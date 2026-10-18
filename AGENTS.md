@@ -238,7 +238,7 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   foilio.se är kvar som ANDRA värd: `LEGACY_HOST_REDIRECT_TO` (Railway) ger webbläsare/crawlers 301 till scoutr.se
   (`lib/legacy-host.ts`), men de INSTALLERADE APPARNA (≤1.4 laddar foilio.se) undantas tills 1.5 är tvingande
   (`app-release.json` `minVersion`). `/api`, `/.well-known` och filer hoppas av middleware-matchern ⇒ webhooks som
-  pekar på foilio.se fungerar. Mejl: scoutr.se är sekundär domän i Google Workspace (2026-10-13, hej/info/kontakt/support/milos@scoutr.se = alias på milos@foilio.se, MX smtp.google.com); `EMAIL_REPLY_TO`/`LEGAL_ENTITY_EMAIL=hej@scoutr.se`. ⛔ Behåll foilio.se ≥ 1 år (gamla appar, 301-ranking, Play-inloggningen milos@foilio.se). Memory:
+  pekar på foilio.se fungerar. Mejl: scoutr.se är PRIMÄR domän i Google Workspace sedan 2026-10-18 (användaren omdöpt till milos@scoutr.se; milos/hej/info/kontakt/support@foilio.se är alias, foilio.se sekundär domän — ta aldrig bort den; DKIM `google._domainkey` på båda, MX smtp.google.com); `EMAIL_REPLY_TO`/`LEGAL_ENTITY_EMAIL=hej@scoutr.se`. ⛔ Behåll foilio.se ≥ 1 år (gamla appar, 301-ranking, Google-kontot heter numera milos@scoutr.se). Memory:
   `project_rename_to_scoutr`.
 - **VECKOBREVET ÄR STOPPAT — VECKOPUSH OM SAMLINGEN I STÄLLET (ägarbeslut 2026-10-13, brevet kändes spammigt)**:
   mejlsteget i `scrape-all.yml` är borttaget (koden + `weekly-digest-manual.yml` finns kvar, inställningsraden är dold).
