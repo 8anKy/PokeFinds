@@ -160,7 +160,12 @@ export default async function PricingPage({
         </PricingTop>
 
         <OpenOnHash id="jamfor" />
-        <details id="jamfor" className="group mt-12 scroll-mt-24 border-t border-surface-border pt-4">
+        {/* Osynlig tills "Jämför allt" öppnar den (OpenOnHash) — en ensam hopfälld rad
+            under köpet läste som en kvarleva (ägaren 2026-10-20). Kvar i HTML:en för sök. */}
+        <details
+          id="jamfor"
+          className="group mt-12 scroll-mt-24 border-t border-surface-border pt-4 [&:not([open])]:hidden"
+        >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-2 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
             {t("specTitle")}
             <IconPlus size={18} className="shrink-0 text-ink-faint transition-transform group-open:rotate-45" />
