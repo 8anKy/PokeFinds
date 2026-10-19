@@ -169,12 +169,26 @@ jobs:
             [ -z "${id:-}" ] && continue
             age=$(( now - $(date -d "$started" +%s) ))
             if [ "$age" -gt 2400 ]; then echo "Ignorerar körning $id (${age} s gammal — hängd?)."; continue; fi
-            if [ -z "$FROM" ]; then
-              echo "Kall start: körning $id lever redan — avstår."; go=false; break
+            [ -n "$FROM" ] && [ "$id" = "$FROM" ] && continue
+            # ⛔ EN KÄLL START SOM AVSTÅTT ÄR INGEN LANE (2026-10-19): dess överhoppade jobb kan
+            #    hålla körningen "in_progress" i 15–25 min. Räknades den som levande avstod nästa
+            #    kalla start också, som höll nästa vid liv … — lanen stod still 15:44 → 16:50 UTC
+            #    (Spel & Sånt-påfyllningen 16:13 postades 16:50). Bara en körning vars grind ännu
+            #    inte avgjort, eller vars `post` köar/kör, blockerar. API-fel ⇒ räknas som levande.
+            if ! jobs=$(gh api "repos/$GH_REPO/actions/runs/$id/jobs" 2>/dev/null); then
+              echo "Körning $id: jobben gick inte att läsa — avstår."; go=false; break
             fi
-            [ "$id" = "$FROM" ] && continue
-            st=$(gh api "repos/$GH_REPO/actions/runs/$id/jobs" | jq -r '[.jobs[] | select(.name == "post") | .status][0] // ""')
-            if [ "$st" = "in_progress" ]; then echo "Körning $id är redan lanen — avstår."; go=false; break; fi
+            gate_st=$(jq -r '[(.jobs // [])[] | select(.name == "gate") | .status][0] // ""' <<< "$jobs" || echo "")
+            post_st=$(jq -r '[(.jobs // [])[] | select(.name == "post") | .status][0] // ""' <<< "$jobs" || echo "")
+            post_concl=$(jq -r '[(.jobs // [])[] | select(.name == "post") | .conclusion][0] // ""' <<< "$jobs" || echo "")
+            if [ "$post_st" = "in_progress" ]; then echo "Körning $id är redan lanen — avstår."; go=false; break; fi
+            if [ -z "$FROM" ]; then
+              if [ "$gate_st" != "completed" ]; then echo "Kall start: körning $id har grinden kvar — avstår."; go=false; break; fi
+              if [ "$post_st" != "completed" ] || [ "$post_concl" = "success" ]; then
+                echo "Kall start: körning $id kan bli lanen (post: ${post_st:-?}/${post_concl:-?}) — avstår."; go=false; break
+              fi
+              echo "Ignorerar körning $id (avstod — post ${post_concl:-?})."
+            fi
           done <<< "$runs"
           echo "go=$go" >> "$GITHUB_OUTPUT"
           echo "Grind: go=$go (föregångare: ${FROM:-ingen})."
@@ -549,7 +563,9 @@ jobs:
             # GITHUB_TOKEN har 1 000 anrop/h per repo (delat med grinden + vakten) —
             # jobbstatusen bara varje minut.
             if [ $(( i % 6 )) -eq 0 ]; then
-              st=$(gh api "repos/$GH_REPO/actions/runs/$ME/jobs" 2>/dev/null | jq -r '[.jobs[] | select(.name == "post") | .status][0] // ""')
+              # ⛔ `|| true` + `.jobs // []`: ett API-fel (2026-10-19 15:34) gav jq exit 5, bash -e
+              #    dödade steget och nästa lane startades aldrig.
+              st=$(gh api "repos/$GH_REPO/actions/runs/$ME/jobs" 2>/dev/null | jq -r '[(.jobs // [])[] | select(.name == "post") | .status][0] // ""' 2>/dev/null || true)
               if [ "$st" = "completed" ]; then
                 echo "::notice::Lanen slutade utan ögonblicksbild — pingern tar nästa start."
                 exit 0
