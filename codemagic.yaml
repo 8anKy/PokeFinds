@@ -28,7 +28,9 @@ workflows:
         # src/lib/app-version.ts är bara ett golv och behöver inte höjas.
         # 1.3 = push-trycket öppnar butikens korg-/produktlänk natively (AppDelegate),
         #       utan att vänta på WebView:en — lib/community-v2-gate.ts läser taggen.
-        MARKETING_VERSION: "1.5"
+        # 1.6 = RevenueCat Capacitor 13.7.4 ⇒ Apples 12-månadersåtagande (premium_yearly:monthly)
+        #       + 14 dagars provperiod på årsplanen. Kräver Xcode ≥ 26.5 (SDK) — `latest`.
+        MARKETING_VERSION: "1.6"
         # Capacitor 8 = SPM-mall: inget CocoaPods, ingen .xcworkspace — bygg xcodeproj:t direkt.
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
