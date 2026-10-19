@@ -234,7 +234,7 @@ function PaywallSheet({
             </p>
           )}
           <p className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 text-[11px] text-ink-muted">
-            <Link href="/priser" onClick={onClose} className="underline underline-offset-2 hover:text-ink">
+            <Link href="/priser#jamfor" onClick={onClose} className="underline underline-offset-2 hover:text-ink">
               {t("compareAll")}
             </Link>
             <span aria-hidden="true" className="text-ink-faint">
@@ -289,7 +289,7 @@ function PaywallSheet({
  * raderna i turkos med lås. ⛔ Den suddiga siffran är en PLATSHÅLLARE ("0 000 kr"),
  * aldrig det riktiga talet: det når aldrig klienten utan Pro.
  */
-function CardPreview({ preview }: { preview: PaywallCardPreview }) {
+export function CardPreview({ preview, showPrice = true }: { preview: PaywallCardPreview; showPrice?: boolean }) {
   const t = useTranslations("Paywall");
   const locked = [t("lockedTradera"), ...(preview.graded ? [t("lockedGraded")] : [])];
   return (
@@ -304,12 +304,14 @@ function CardPreview({ preview }: { preview: PaywallCardPreview }) {
         <p className="truncate text-[15px] font-semibold text-ink">{preview.name}</p>
         {preview.setName && <p className="truncate text-xs text-ink-muted">{preview.setName}</p>}
         <div className="mt-2.5 flex flex-col gap-1.5 text-[13px]">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-ink-muted">{t("cardPriceNow")}</span>
-            <span className="font-semibold text-ink">
-              {preview.priceOre != null ? formatPrice(preview.priceOre) : "–"}
-            </span>
-          </div>
+          {showPrice && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-ink-muted">{t("cardPriceNow")}</span>
+              <span className="font-semibold text-ink">
+                {preview.priceOre != null ? formatPrice(preview.priceOre) : "–"}
+              </span>
+            </div>
+          )}
           {locked.map((label) => (
             <div key={label} className="flex items-center justify-between gap-2">
               <span className="font-medium text-holo-cyan">{label}</span>

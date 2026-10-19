@@ -8,6 +8,8 @@ import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { pausableFeatures, type SpecRow } from "@/lib/pricing-features";
 import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { ProBullets, ProPlanPurchase } from "@/components/features/pro-plan-picker";
+import { CardPreview } from "@/components/features/paywall-sheet";
+import { OpenOnHash } from "./open-on-hash";
 import { ProSpecTable } from "@/components/features/pro-spec-table";
 import { FreePlanCta } from "./free-plan-cta";
 import { SubpageHeader } from "@/components/layout/subpage-header";
@@ -103,22 +105,33 @@ export default async function PricingPage({
         </div>
       )}
 
-      <div className="grid gap-12 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-16">
-        {/* Vänster (mobil: överst): ordet, priset, kortet, köpknappen. Sticky på
-            desktop så knappen står bredvid spec-bladet hela vägen ner. */}
-        {/* A+ (ägarbeslut 2026-10-19): samma uppställning som paywall-arket — rubrik,
-            tre bockrader, planvalet med 12 månader förvalt, EN vit knapp. Holokortet
-            och det stora "Pro."-ordet är borta härifrån ("inte som artifacten"). */}
-        <section className="flex flex-col lg:sticky lg:top-24 lg:self-start">
-          <h1 className="font-display text-[28px] font-bold leading-tight tracking-[-0.025em] text-ink">
-            {tPay("title")}
+      {/* A+ (ägarbeslut 2026-10-19, "som artifacten"): sidan ÄR arket — ett kort med de
+          låsta sålt-raderna, rubriken, tre bockrader, planvalet med 12 månader förvalt
+          och EN vit knapp. Jämförelsen + FAQ ligger HOPFÄLLD under "Jämför allt" (kvar
+          i HTML:en för sök och granskning, men inte en lista under köpet). ⛔ Kortet
+          visar inget pris: sidan är statisk, och ett inbakat pris hade varit gammalt. */}
+      <div className="mx-auto w-full max-w-md">
+        <section className="flex flex-col">
+          <CardPreview
+            showPrice={false}
+            preview={{
+              kind: "card",
+              imageUrl: "https://images.pokemontcg.io/sv8pt5/161_hires.png",
+              name: "Umbreon ex · 161",
+              setName: "Prismatic Evolutions",
+              priceOre: null,
+              graded: true,
+            }}
+          />
+          <h1 className="mt-5 font-display text-[26px] font-bold leading-tight tracking-[-0.025em] text-ink">
+            {tPay("headlineSold")}
           </h1>
-          <p className="mt-1.5 text-sm text-ink-muted" data-price>
-            {t("heroPrice")} {t("heroSub")}
+          <p className="sr-only" data-price>
+            {tPay("title")} · {t("heroPrice")} {t("heroSub")}
           </p>
-          <ProBullets items={bullets} className="mt-4" />
+          <ProBullets items={bullets} className="mt-3.5" />
 
-          <div className="mt-6 w-full">
+          <div className="mt-5 w-full">
             {/* Servern äger frågan "går det att betala?" — en egen
                 NEXT_PUBLIC_-flagga hade blivit en andra sanning som glider isär
                 från STRIPE_ENABLED. */}
@@ -133,7 +146,11 @@ export default async function PricingPage({
                 över exakt den här sidan, så det HÄR är app:ens paywall — ändras
                 texten slår den igenom utan nytt native-bygge. Paywall-arket bär
                 samma text vid sin knapp. */}
-            <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 text-xs text-ink-muted">
+            <p className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 text-[11px] text-ink-muted">
+              <a href="#jamfor" className="underline underline-offset-2 transition-colors duration-150 hover:text-ink">
+                {tPay("compareAll")}
+              </a>
+              <span aria-hidden="true" className="text-ink-faint">·</span>
               <Link href="/villkor" className="underline underline-offset-2 transition-colors duration-150 hover:text-ink">
                 {t("legalTerms")}
               </Link>
@@ -145,10 +162,13 @@ export default async function PricingPage({
           </div>
         </section>
 
-        {/* Höger (mobil: under): Free mot Pro som spec-blad, Free-raden, FAQ. */}
-        <section>
-          <h2 className="font-display text-xl font-bold text-ink">{t("specTitle")}</h2>
-          <ProSpecTable rows={rows} freeLabel={t("specFree")} proLabel={t("specPro")} className="mt-4" />
+        <OpenOnHash id="jamfor" />
+        <details id="jamfor" className="group mt-12 scroll-mt-24 border-t border-surface-border pt-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-2 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+            {t("specTitle")}
+            <IconPlus size={18} className="shrink-0 text-ink-faint transition-transform group-open:rotate-45" />
+          </summary>
+          <ProSpecTable rows={rows} freeLabel={t("specFree")} proLabel={t("specPro")} className="mt-3" />
 
           <div className="card-surface mt-4 flex items-center justify-between gap-4 px-4 py-3">
             <div>
@@ -178,7 +198,7 @@ export default async function PricingPage({
               </details>
             ))}
           </div>
-        </section>
+        </details>
       </div>
     </div>
   );
