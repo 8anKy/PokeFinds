@@ -96,7 +96,7 @@ paths:
   (468 kr) med 14 dagar gratis, en gång per person. Talen bor i `src/lib/pro-plans.ts` och är publicerade
   som fri text (villkor §11, prissidan, kortet, Mer, skannern, checkout, mejl) — vaktat av
   `pro-plans-copy-sync.test.ts`. **Per plattform**: iOS = Apples "månadsvis med 12 månaders åtagande"
-  (RC-SDK ≥ 13.7.4 i NATIVA bygget, iOS ≥ 26.4; annars förbetald årsplan), Android = förbetald 468 kr/år
+  (RC-SDK ≥ 13.7.4 i NATIVA bygget, iOS ≥ 26.4; annars förbetald årsplan), Android = förbetald 465 kr/år (Apple saknar 468-nivå och åtagandet får inte understiga förbetalt ⇒ 465 i båda butikerna, `PRO_ANNUAL_UPFRONT_ORE`)
   (Play har ingen avbetalning i Sverige), webben = Stripe 39 kr/mån där VI håller bindningen: webhooken
   flyttar en uppsägning under bindningen till `cancel_at` = bindningens slut (`commitmentCancelAt`,
   `proration_behavior: "none"`, metadata `plan: "commit"`), sedan månadsvis utan ny bindning.

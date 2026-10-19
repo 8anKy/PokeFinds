@@ -6,6 +6,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  PRO_ANNUAL_UPFRONT_ORE,
   PRO_COMMIT_MONTHLY_ORE,
   PRO_COMMIT_MONTHS,
   PRO_COMMIT_TOTAL_ORE,
@@ -20,6 +21,7 @@ const en = JSON.parse(readFileSync("messages/en.json", "utf8"));
 const month = formatKr(PRO_MONTHLY_ORE);
 const commit = formatKr(PRO_COMMIT_MONTHLY_ORE);
 const total = formatKr(PRO_COMMIT_TOTAL_ORE);
+const upfront = formatKr(PRO_ANNUAL_UPFRONT_ORE);
 
 describe("Pro-planernas tal i copyn", () => {
   it("talen hänger ihop", () => {
@@ -66,5 +68,16 @@ describe("Pro-planernas tal i copyn", () => {
       expect(src).toContain(total);
     }
     expect(checkout).toContain(`${PRO_TRIAL_DAYS} dagarna är gratis`);
+  });
+
+  it("apparnas förbetalda årspris står likadant i villkor, mejl och push", () => {
+    // Apples regel: åtagandets total får inte understiga förbetalt.
+    expect(PRO_ANNUAL_UPFRONT_ORE).toBeLessThanOrEqual(PRO_COMMIT_TOTAL_ORE);
+    expect(sv.Terms.s11Body).toContain(`${upfront} direkt`);
+    expect(sv.Terms.s11Body).toContain(`betalar du ${upfront} för 12 månader`);
+    expect(en.Terms.s11Body).toContain(`${upfront} up front`);
+    for (const f of ["src/emails/templates.ts", "src/services/trial-messages.ts"]) {
+      expect(readFileSync(f, "utf8")).toContain(`${upfront} för 12 månader`);
+    }
   });
 });

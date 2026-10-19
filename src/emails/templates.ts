@@ -372,7 +372,7 @@ export function trialReminderEmail(p: {
   const priceLine =
     p.price === "commit-monthly"
       ? "Därefter kostar Pro 39 kr/mån i 12 månader (468 kr)."
-      : "Därefter kostar Pro 468 kr för 12 månader.";
+      : "Därefter kostar Pro 465 kr för 12 månader.";
   const manage =
     p.source === "APP_STORE"
       ? "Prenumerationen hanteras i iPhonens inställningar under ditt namn → Prenumerationer."

@@ -9,7 +9,7 @@
  *   • year = Apples 12-månadersåtagande (`installmentsInfo`, 12 betalningar) om det
  *     finns, annars den förbetalda årsplanen (P1Y). Åtagandet kräver RevenueCat-SDK
  *     ≥ 13.7.4 i det NATIVA bygget och iOS ≥ 26.4 — äldre appar/telefoner får
- *     årsplanen förbetald. Android får alltid den förbetalda (468 kr/år).
+ *     årsplanen förbetald. Android får alltid den förbetalda (465 kr/år).
  *   • month = P1M utan åtagande.
  *
  * Priserna visas som BUTIKEN formaterat dem (`priceString`), aldrig som våra egna
@@ -47,7 +47,7 @@ export interface StorePlanOption {
   packageId: string;
   productId: string;
   kind: StorePlanKind;
-  /** Det stora priset på raden: "59 kr" (månad), "39 kr" (åtagande), "468 kr" (år). */
+  /** Det stora priset på raden: "59 kr" (månad), "39 kr" (åtagande), "465 kr" (år). */
   price: string;
   /** "/mån" eller "/år" — enheten till `price`. */
   per: "month" | "year";

@@ -7,7 +7,10 @@
  *   • 12 månader: 39 kr/mån i 12 månader (468 kr) med 14 dagar gratis.
  *       – iPhone: Apples "månadsvis med 12 månaders åtagande" (förnyas till ett nytt
  *         åtagande, Apples regel). Äldre iOS/appbyggen får årsplanen förbetald.
- *       – Android: förbetalt 468 kr/år — Play har ingen avbetalning i Sverige
+ *       – Förbetalt (Android alltid, äldre iOS): 465 kr/år — Apple har ingen 468 kr-
+ *         prisnivå, och åtagandets total (468) får inte vara LÄGRE än förbetalt (Apples
+ *         regel), så 465 är närmaste nivå. Play sätts till samma tal.
+ *       – Android: förbetalt — Play har ingen avbetalning i Sverige
  *         (bara BR/FR/IT/ES, oktober 2026).
  *       – Webben: Stripe 39 kr/mån; bindningen upprätthåller VI (stripe-webhooken
  *         flyttar en uppsägning till bindningstidens slut). Efter 12 månader löper
@@ -23,6 +26,8 @@ export const PRO_MONTHLY_ORE = 5_900;
 export const PRO_COMMIT_MONTHLY_ORE = 3_900;
 export const PRO_COMMIT_MONTHS = 12;
 export const PRO_COMMIT_TOTAL_ORE = PRO_COMMIT_MONTHLY_ORE * PRO_COMMIT_MONTHS;
+/** Förbetald årsplan i App Store/Play (se ovan varför inte 468). */
+export const PRO_ANNUAL_UPFRONT_ORE = 46_500;
 
 /** Provperioden. Bara 12-månadersplanen har en. */
 export const PRO_TRIAL_DAYS = 14;

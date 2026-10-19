@@ -108,8 +108,8 @@ export async function runTrialMessages(now = new Date()): Promise<TrialMessagesR
       title: `Provperioden slutar ${endLabel}`,
       body:
         price === "commit-monthly"
-          ? "Därefter 39 kr/mån i 12 månader. Du behöver inte göra något för att behålla Pro."
-          : "Därefter 468 kr för 12 månader. Du behöver inte göra något för att behålla Pro.",
+          ? "Därefter 39 kr/mån i 12 månader (468 kr). Du behöver inte göra något för att behålla Pro."
+          : "Därefter 465 kr för 12 månader. Du behöver inte göra något för att behålla Pro.",
       url: "/samling",
     });
     result.reminders++;
