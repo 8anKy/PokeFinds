@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   LOCALE_COOKIE_NAME,
   dropSetCookie,
+  pinnedAcceptLanguage,
   setCookieName,
   shouldDropLocaleCookie,
 } from "@/lib/locale-cookie";
@@ -157,5 +158,18 @@ describe("routing.localeCookie", () => {
     // Minst ett halvår: kortare och en användare som inte varit inne på ett tag
     // får sitt språk återställt av `Accept-Language`.
     expect(cookie.maxAge).toBeGreaterThanOrEqual(60 * 60 * 24 * 180);
+  });
+});
+
+describe("pinnedAcceptLanguage — svenska som standard (2026-10-20)", () => {
+  const locales = ["sv", "en"] as const;
+  it("ger svenska utan prefix, oavsett telefonens språk", () => {
+    expect(pinnedAcceptLanguage("/", locales, "sv")).toBe("sv");
+    expect(pinnedAcceptLanguage("/priser", locales, "sv")).toBe("sv");
+    expect(pinnedAcceptLanguage("/english-guide", locales, "sv")).toBe("sv");
+  });
+  it("ger prefixets språk på /en så att middlewaren aldrig gör engelska bestående", () => {
+    expect(pinnedAcceptLanguage("/en", locales, "sv")).toBe("en");
+    expect(pinnedAcceptLanguage("/en/priser", locales, "sv")).toBe("en");
   });
 });

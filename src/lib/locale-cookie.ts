@@ -122,3 +122,32 @@ export function dropSetCookie(headers: Headers, name: string): void {
   headers.delete("set-cookie");
   for (const cookie of kept) headers.append("set-cookie", cookie);
 }
+
+/**
+ * SVENSKA ÄR STANDARD, OCKSÅ PÅ EN ENGELSK TELEFON (ägarbeslut 2026-10-20).
+ *
+ * next-intl väljer språk i ordningen URL-prefix → `NEXT_LOCALE` → `Accept-Language`
+ * → standard. Prio 3 gjorde att varje besökare med engelskt telefonspråk fick
+ * engelska — och appen startar alltid om på `/`, så de fick det vid varje start.
+ * Middlewaren ersätter därför `Accept-Language` med det här värdet innan next-intl
+ * ser begäran: språket i URL:ens prefix (`/en/…` ⇒ "en"), annars standardspråket.
+ *
+ * ⛔ **PREFIXETS SPRÅK, INTE ALLTID "sv".** `syncCookie` jämför den upplösta localen
+ * med `Accept-Language` när cookien saknas och SKRIVER `NEXT_LOCALE` vid skillnad.
+ * Stod headern alltid på "sv" hade ett besök på en `/en/`-länk gjort engelska till
+ * ett 1-årsval utan att någon valt det. Med prefixets språk skrivs cookien aldrig
+ * av middlewaren — bara språkväljaren (klienten) gör ett val bestående.
+ *
+ * ⛔ Ett uttryckligt val (`NEXT_LOCALE` från språkväljaren) vinner fortfarande:
+ * cookien är prio 2 och rörs inte.
+ */
+export function pinnedAcceptLanguage(
+  pathname: string,
+  locales: readonly string[],
+  defaultLocale: string
+): string {
+  for (const l of locales) {
+    if (l !== defaultLocale && (pathname === `/${l}` || pathname.startsWith(`/${l}/`))) return l;
+  }
+  return defaultLocale;
+}

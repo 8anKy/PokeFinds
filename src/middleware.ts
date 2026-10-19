@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import SET_SLUG_REDIRECTS from "@/data/set-slug-redirects.json";
 import { encode, getToken, type JWT } from "next-auth/jwt";
 import createMiddleware from "next-intl/middleware";
@@ -13,7 +13,12 @@ import {
   creatorRefAction,
 } from "@/lib/creator-ref";
 import { INVITE_COOKIE, INVITE_COOKIE_MAX_AGE, inviteCodeFromPath } from "@/lib/invite-link";
-import { LOCALE_COOKIE_NAME, dropSetCookie, shouldDropLocaleCookie } from "@/lib/locale-cookie";
+import {
+  LOCALE_COOKIE_NAME,
+  dropSetCookie,
+  pinnedAcceptLanguage,
+  shouldDropLocaleCookie,
+} from "@/lib/locale-cookie";
 import { collectionImportPublic } from "@/lib/collection-import-gate";
 import {
   BETA_COOKIE,
@@ -32,7 +37,20 @@ import {
   shouldRenewSession,
 } from "@/lib/session-cookie";
 
-const intlMiddleware = createMiddleware(routing);
+const nextIntl = createMiddleware(routing);
+
+// Svenska som standard även när telefonen är på engelska (lib/locale-cookie.ts,
+// `pinnedAcceptLanguage`): next-intl får se URL:ens språk i stället för telefonens.
+// Språkväljarens cookie vinner fortfarande. Originalheadern står kvar i `req` —
+// strykningen av NEXT_LOCALE nedan dömer på den.
+function intlMiddleware(req: NextRequest) {
+  const headers = new Headers(req.headers);
+  headers.set(
+    "accept-language",
+    pinnedAcceptLanguage(req.nextUrl.pathname, routing.locales, routing.defaultLocale)
+  );
+  return nextIntl(new NextRequest(req, { headers }));
+}
 
 const MODERATOR_ROLES = new Set(["MODERATOR", "ADMIN", "SUPERADMIN"]);
 

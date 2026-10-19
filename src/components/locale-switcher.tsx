@@ -22,9 +22,19 @@ export function LocaleSwitcher() {
   // nästa omstart: EN→SV "fastnade" inte. Livslängden bor därför i
   // `src/i18n/routing.ts` (vaktat av tests/unit/locale-cookie.test.ts); den här
   // raden är kvar för fallet att `usePathname()` är null och routern bailar.
+  //
+  // ⛔ OCH ÄVEN 1-ÅRSCOOKIEN KAPAS: WebKit ger varje cookie som skrivs med
+  // `document.cookie` högst 7 dygn (iPhone, även i appen) — valet föll tillbaka efter
+  // en vecka. Servern skriver därför om den med `Set-Cookie` (/api/locale), EFTER
+  // `router.replace`, så att serverns skrivning är den sista.
   function selectLocale(l: string) {
     document.cookie = `NEXT_LOCALE=${l}; path=/; max-age=31536000; samesite=lax`;
     router.replace(pathname, { locale: l });
+    void fetch("/api/locale", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ locale: l }),
+    }).catch(() => undefined);
   }
 
   return (
