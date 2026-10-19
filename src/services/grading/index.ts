@@ -99,6 +99,10 @@ export function getGradingAdapter(planTier: PlanTier): GradingAdapter {
 }
 
 
+/** Fast text (ingen siffra) så att den står i api-error-tabellen och översätts. */
+const TRIAL_GRADING_LIMIT_MESSAGE =
+  "Under provperioden ingår gratisplanens AI-graderingar. Fler öppnas när Pro börjar.";
+
 export interface GradingQuota {
   /** Antal graderingar gjorda denna månad. */
   used: number;
@@ -108,6 +112,8 @@ export interface GradingQuota {
   remaining: number | null;
   /** True för Pro (styr UI-text: ingen "uppgradera"-knapp). */
   isPremium: boolean;
+  /** Pågående provperiod: Pro, men gratiskvoten för gradering. */
+  trialing: boolean;
 }
 
 /** Returnerar månadens kvotstatus för en användare. */
@@ -115,8 +121,14 @@ export async function getGradingQuota(
   userId: string,
   planTier: PlanTier
 ): Promise<GradingQuota> {
+  // ⛔ PROVPERIODEN (2026-10-19) ger Pro men GRATISKVOTEN för AI-gradering: det är den
+  // enda Pro-funktionen som kostar oss pengar per användning, och 14 gratis dagar ska
+  // inte gå att tömma på 15 Gemini-graderingar. Gäller tills första betalningen.
+  const trial = await prisma.user.findUnique({ where: { id: userId }, select: { trialEndsAt: true } });
+  const trialing = trial?.trialEndsAt != null && trial.trialEndsAt.getTime() > Date.now();
+  const quotaTier: PlanTier = trialing ? "FREE" : planTier;
   // + veckoseriens påfyllning (lib/streak.ts): klara veckor denna månad ger extra graderingar.
-  const limit = limitForTier(planTier) + (await getStreakBonus(userId, planTier)).grades;
+  const limit = limitForTier(quotaTier) + (await getStreakBonus(userId, quotaTier)).grades;
   // Misslyckade graderingar ska inte tära på månadskvoten.
   const used = await prisma.gradingJob.count({
     where: {
@@ -130,6 +142,7 @@ export async function getGradingQuota(
     limit,
     remaining: Math.max(0, limit - used),
     isPremium: planTier === "PREMIUM",
+    trialing,
   };
 }
 
@@ -155,7 +168,9 @@ export async function runGradingJob(
   if (quota.remaining !== null && quota.remaining <= 0) {
     throw new ServiceError(
       429,
-      planTier === "PREMIUM"
+      quota.trialing
+        ? TRIAL_GRADING_LIMIT_MESSAGE
+        : planTier === "PREMIUM"
         ? `Du har nått månadens gräns på ${quota.limit} graderingar. Tillbaka nästa månad.`
         : `Du har använt dina ${quota.limit} gratis graderingar denna månad. Uppgradera till Pro för fler.`
     );

@@ -16,10 +16,11 @@ function trackUpgradeClick() {
 }
 import {
   purchasesAvailable,
-  purchasePremium,
+  purchasePlan,
   restorePremium,
   storeShellWithoutPurchases,
 } from "@/lib/purchases";
+import type { ProPlanChoice } from "@/lib/pro-plans";
 
 /**
  * I native-appen (Capacitor) = riktig Apple/Google In-App Purchase via RevenueCat.
@@ -37,9 +38,15 @@ import {
 export function UpgradeButton({
   webCheckout = false,
   compact = false,
+  plan = "month",
+  label,
 }: {
   webCheckout?: boolean;
   compact?: boolean;
+  /** Vald plan (arket, 2026-10-19). Utan prop = månadsplanen, som förut. */
+  plan?: ProPlanChoice;
+  /** Knapptexten ("Starta 14 dagar gratis"); utan = "Uppgradera till Pro". */
+  label?: string;
 }) {
   const t = useTranslations("Upgrade");
   const router = useRouter();
@@ -155,11 +162,14 @@ export function UpgradeButton({
       .finally(() => setBusy(false));
   }, []);
 
-  async function openBilling(path: string, failMsg: string) {
+  async function openBilling(path: string, failMsg: string, body?: unknown) {
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch(path, { method: "POST" });
+      const res = await fetch(path, {
+        method: "POST",
+        ...(body ? { headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {}),
+      });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.url) throw new Error(data?.error || failMsg);
       // Stripe är en extern sida → hel navigering, inte router.push.
@@ -230,10 +240,10 @@ export function UpgradeButton({
           disabled={busy}
           onClick={() => {
             trackUpgradeClick();
-            openBilling("/api/billing/checkout", t("msgFailed"));
+            openBilling("/api/billing/checkout", t("msgFailed"), { plan });
           }}
         >
-          {busy ? t("processing") : t("upgradeToPro")}
+          {busy ? t("processing") : label ?? t("upgradeToPro")}
         </Button>
         <p className="mt-2 text-center text-xs text-ink-faint">{t("securePayment")}</p>
         {msg && <p className="mt-2 text-center text-xs text-ink-muted">{msg}</p>}
@@ -283,10 +293,10 @@ export function UpgradeButton({
         disabled={busy}
         onClick={() => {
           trackUpgradeClick();
-          void run(purchasePremium, t("msgThanks"));
+          void run((id) => purchasePlan(id, plan), t("msgThanks"));
         }}
       >
-        {busy ? t("processing") : t("upgradeToPro")}
+        {busy ? t("processing") : label ?? t("upgradeToPro")}
       </Button>
       <button
         type="button"

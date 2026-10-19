@@ -8,12 +8,15 @@
  * nattkedjan) tar också med sig förfallna rader, så rundan är en golvgaranti, inte
  * enda vägen.
  *
+ * Sedan 2026-10-19 skickar rundan även provperiodens meddelanden (services/trial-messages.ts).
+ *
  * Skyddas av x-cron-secret = CRON_SECRET, som de andra cron-rutterna.
  */
 import { type NextRequest, NextResponse } from "next/server";
 import { apiError, jsonOk } from "@/lib/api";
 import { ensureDbAwake } from "@/lib/db";
 import { dispatchPendingAlerts } from "@/services/notifications";
+import { runTrialMessages } from "@/services/trial-messages";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -31,7 +34,17 @@ export async function POST(req: NextRequest) {
     await ensureDbAwake();
     const dispatched = await dispatchPendingAlerts();
     console.log(`[alerts-due] Morgonrundan: skickade ${dispatched.sent}, misslyckade ${dispatched.failed}.`);
-    return jsonOk({ ok: true, dispatched });
+    // Provperiodens värdebesked (dag 7) och påminnelse (dag 12) — samma väckning.
+    const trial = await runTrialMessages();
+    console.log(
+      `[alerts-due] Provperioder: ${trial.candidates} pågående, ${trial.reminders} påminnelser, ` +
+        `${trial.reminderFailures} misslyckade, ${trial.values} värdebesked (${trial.valuesSkipped} utan underlag).`
+    );
+    // ⛔ En påminnelse som inte gick iväg ska synas som en RÖD körning (workflowen kräver 200).
+    if (trial.reminderFailures > 0) {
+      return NextResponse.json({ ok: false, dispatched, trial }, { status: 502 });
+    }
+    return jsonOk({ ok: true, dispatched, trial });
   } catch (error) {
     return apiError(error);
   }

@@ -1,6 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import type { PaywallCardPreview } from "@/lib/paywall";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -217,6 +218,14 @@ export function ProductDetailView({
   const pricePending = pending && !shell?.prices;
 
   const isSingle = data.category === "SINGLE_CARD";
+  const paywallPreview: PaywallCardPreview = {
+    kind: "card",
+    imageUrl: data.imageUrl,
+    name: data.title,
+    setName: data.set?.name ?? null,
+    priceOre: data.stats.lowestPrice,
+    graded: isSingle,
+  };
   const gradedHistory = gradedSel
     // `?? []`: detail-payloaden cachas ≤1 h — direkt efter en deploy saknar den
     // fältet, och ett klick på ett betyg får inte fälla sidan.
@@ -459,6 +468,7 @@ export function ProductDetailView({
                          kvaliteten på datat, och den måste gälla ALLA serier. */
                       subtitle={data.chartData.length === 0 ? t("historyNone") : t("historyQuality")}
                       series={data.chartData}
+                      paywallPreview={paywallPreview}
                     />
                   )}
                   <LiveStatsFootnote className="mt-2" />
@@ -472,6 +482,7 @@ export function ProductDetailView({
                       rawPriceOre={data.stats.lowestPrice}
                       selected={gradedSel}
                       onSelect={setGradedSel}
+                      paywallPreview={paywallPreview}
                     />
                   </ErrorBoundary>
                 </ErrorBoundary>

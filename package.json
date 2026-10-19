@@ -54,7 +54,7 @@
     "@capgo/capacitor-social-login": "^8.5.0",
     "@parse/node-apn": "^7.1.0",
     "@prisma/client": "^5.22.0",
-    "@revenuecat/purchases-capacitor": "^13.2.3",
+    "@revenuecat/purchases-capacitor": "^13.7.4",
     "@sentry/nextjs": "^10.62.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.25.6",

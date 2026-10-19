@@ -6,17 +6,23 @@ import { Link, usePathname } from "@/i18n/navigation";
 import { LinkButton } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { ProHoloCard } from "@/components/features/pro-holo-card";
-import { ProSpecTable } from "@/components/features/pro-spec-table";
 import { UpgradeButton } from "@/components/features/upgrade-button";
-import { registerPaywallOpen, type PaywallSlabPreview } from "@/lib/paywall";
+import {
+  registerPaywallOpen,
+  type PaywallCardPreview,
+  type PaywallPreview,
+  type PaywallSlabPreview,
+} from "@/lib/paywall";
+import { IconLock } from "@/components/ui/icons";
+import { formatPrice } from "@/lib/format";
+import { ProPlanPicker, usePlanCopy, useProPlans } from "@/components/features/pro-plan-picker";
+import type { ProPlanChoice } from "@/lib/pro-plans";
 import { GradedSlab } from "@/components/features/graded-slab";
 import { ISSUER_LABELS, type GradingIssuer } from "@/lib/graded-listing";
 import { gradeNumber } from "@/lib/graded-slab";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { getSharedSession } from "@/lib/client-session";
 import { onOverlayElevationChange, overlayIsElevated } from "@/lib/product-overlay-open";
-import { pausableFeatures, proOnlyRows, type SpecRow } from "@/lib/pricing-features";
-import { priceAlertsPausedClient } from "@/lib/price-alerts-pause";
 import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
 
 /**
@@ -38,7 +44,14 @@ import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
  * hanterar återkomsten från Stripe (`?checkout=klar`) och den ska köras av sidans
  * instans, inte av ett stängt ark i rot-layouten.
  */
-export function PaywallSheetHost({ webCheckout }: { webCheckout: boolean }) {
+export function PaywallSheetHost({
+  webCheckout,
+  webYearPlan = false,
+}: {
+  webCheckout: boolean;
+  /** Stripe-priset för 12-månadersplanen finns (rot-layouten läser env). */
+  webYearPlan?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   /**
    * Vilket ark som ska upp. ⛔ VALET GÖRS HÄR, INTE HOS ANROPAREN: varje Pro-låst
@@ -54,7 +67,8 @@ export function PaywallSheetHost({ webCheckout }: { webCheckout: boolean }) {
    * DB-fria hämtning och är oftast redan besvarad.
    */
   const [variant, setVariant] = useState<"pro" | "signup">("pro");
-  const [preview, setPreview] = useState<PaywallSlabPreview | null>(null);
+  const [preview, setPreview] = useState<PaywallPreview | null>(null);
+  const [source, setSource] = useState<string | null>(null);
   // Skannern är fixed z-[60] över hela appen; öppnas arket därifrån måste det
   // lyftas över den — samma mekanism som produkt-overlayn (registerFullscreenHost).
   const [elevated, setElevated] = useState(false);
@@ -70,6 +84,7 @@ export function PaywallSheetHost({ webCheckout }: { webCheckout: boolean }) {
       const forced = opts?.mode;
       setVariant(forced ?? (hasAuthHint() ? "pro" : "signup"));
       setPreview(opts?.preview ?? null);
+      setSource(opts?.source ?? null);
       setOpen(true);
       if (forced) return;
       void getSharedSession().then((session) => {
@@ -85,7 +100,14 @@ export function PaywallSheetHost({ webCheckout }: { webCheckout: boolean }) {
   if (!open) return null;
   if (variant === "signup") return <SignupSheet onClose={() => setOpen(false)} elevated={elevated} />;
   return (
-    <PaywallSheet onClose={() => setOpen(false)} webCheckout={webCheckout} elevated={elevated} preview={preview} />
+    <PaywallSheet
+      onClose={() => setOpen(false)}
+      webCheckout={webCheckout}
+      webYearPlan={webYearPlan}
+      elevated={elevated}
+      preview={preview}
+      source={source}
+    />
   );
 }
 
@@ -149,26 +171,49 @@ function SignupSheet({ onClose, elevated }: { onClose: () => void; elevated: boo
   );
 }
 
+/** Rubriken följer prompten man tryckte på — arket säljer det man just ville ha. */
+function headlineKey(source: string | null, preview: PaywallPreview | null): string {
+  if (preview?.kind === "card" || preview?.kind === "slab") return "headlineSold";
+  if (source?.startsWith("chart") || source === "graded") return "headlineSold";
+  if (source?.startsWith("scan")) return "headlineScan";
+  if (source?.includes("restock") || source?.includes("watch") || source?.includes("alert")) return "headlineAlerts";
+  return "headlineDefault";
+}
+
+/**
+ * PRO-ARKET, design "A+" (ägarbeslut 2026-10-19): kortet man stod på (eller slabben,
+ * eller Pro-kortet), en rubrik efter prompten, tre rader, planvalet (12 månader
+ * förvalt) och EN knapp. Hela jämförelsen bor på /priser ("Jämför allt").
+ *
+ * ⛔ Villkorsraden vid knappen följer vald plan och plattform (Apple 3.1.2: pris,
+ * period, förnyelse) — samma text som checkoutens samtycke på webben.
+ * ⛔ Restock-raden följer pausflaggan, som spec-raderna gör.
+ */
 function PaywallSheet({
   onClose,
   webCheckout,
+  webYearPlan,
   elevated,
   preview,
+  source,
 }: {
   onClose: () => void;
   webCheckout: boolean;
+  webYearPlan: boolean;
   elevated: boolean;
-  preview: PaywallSlabPreview | null;
+  preview: PaywallPreview | null;
+  source: string | null;
 }) {
   const t = useTranslations("Paywall");
   const tp = useTranslations("Pricing");
-  // Bara raderna där Pro skiljer sig — arket säljer skillnaden, sidan visar allt.
-  const rows = proOnlyRows(
-    pausableFeatures(tp.raw("specRows") as SpecRow[], [
-      { items: tp.raw("specRowsPrice") as SpecRow[], paused: priceAlertsPausedClient() },
-      { items: tp.raw("specRowsRestock") as SpecRow[], paused: restockAlertsPausedClient() },
-    ])
-  );
+  const plans = useProPlans(webCheckout && webYearPlan);
+  const [choice, setChoice] = useState<ProPlanChoice>("year");
+  // Ingen årsplan (gammal app, butiken svarar inte, Stripe-priset saknas) ⇒ månad.
+  const effective: ProPlanChoice = plans.year ? choice : "month";
+  const { cta, note } = usePlanCopy(plans, effective);
+  const bullets: [string, string][] = [[t("bulletSoldTitle"), t("bulletSoldBody")]];
+  if (!restockAlertsPausedClient()) bullets.push([t("bulletRestockTitle"), t("bulletRestockBody")]);
+  bullets.push([t("bulletScanTitle"), t("bulletScanBody")]);
 
   return (
     <BottomSheet
@@ -182,9 +227,17 @@ function PaywallSheet({
       panelClassName="sm:mx-auto sm:mb-6 sm:w-full sm:max-w-md sm:rounded-[20px]"
       footer={
         <>
-          <UpgradeButton webCheckout={webCheckout} compact />
-          <p className="mt-2.5 text-center text-[11px] leading-snug text-ink-faint">{tp("subRenewNote")}</p>
+          <UpgradeButton webCheckout={webCheckout} compact plan={effective} label={cta} />
+          <p className="mt-2.5 text-center text-[11px] leading-snug text-ink-faint">
+            {note ?? tp("subRenewNote")}
+          </p>
           <p className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 text-[11px] text-ink-muted">
+            <Link href="/priser" onClick={onClose} className="underline underline-offset-2 hover:text-ink">
+              {t("compareAll")}
+            </Link>
+            <span aria-hidden="true" className="text-ink-faint">
+              ·
+            </span>
             <Link href="/villkor" onClick={onClose} className="underline underline-offset-2 hover:text-ink">
               {tp("legalTerms")}
             </Link>
@@ -208,29 +261,77 @@ function PaywallSheet({
       <div className="flex flex-col items-center pb-2 pt-1">
         {preview?.kind === "slab" ? (
           <SlabPreview preview={preview} />
+        ) : preview?.kind === "card" ? (
+          <CardPreview preview={preview} />
         ) : (
           <ProHoloCard size="compact" showHint={false} />
         )}
-        <p className="mt-5 text-center font-display text-[26px] font-bold leading-none tracking-tight text-ink">
-          {tp("heroPrice")}
+        <p className="mt-5 w-full text-left font-display text-[22px] font-bold leading-tight tracking-tight text-ink">
+          {t(headlineKey(source, preview))}
         </p>
-        <p className="mt-2 text-center text-sm text-ink-muted">{preview ? t("slabLead") : t("lead")}</p>
-        <ProSpecTable
-          rows={rows}
-          freeLabel={tp("specFree")}
-          proLabel={tp("specPro")}
-          compact
-          className="mt-4 w-full"
-        />
-        <Link
-          href="/priser"
-          onClick={onClose}
-          className="mt-3 text-xs font-medium text-holo-cyan underline-offset-2 hover:underline"
-        >
-          {t("seeAll")}
-        </Link>
+        <ul className="mt-3 flex w-full flex-col gap-2">
+          {bullets.map(([title, body]) => (
+            <li key={title} className="flex gap-2.5 text-sm leading-snug">
+              <span aria-hidden="true" className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-holo-cyan" />
+              <span>
+                <span className="font-semibold text-ink">{title}</span>
+                <span className="text-ink-muted"> · {body}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        {plans.year && plans.month ? (
+          <div className="mt-5 w-full">
+            <ProPlanPicker plans={plans} choice={effective} onChoose={setChoice} />
+          </div>
+        ) : plans.ready && !plans.store ? (
+          <p className="mt-5 w-full text-left font-display text-lg font-bold text-ink">{tp("heroPrice")}</p>
+        ) : null}
       </div>
     </BottomSheet>
+  );
+}
+
+/**
+ * KORTET MAN STOD PÅ (A+): bild, namn, set, priset man redan såg — och de låsta
+ * raderna i turkos med lås. ⛔ Den suddiga siffran är en PLATSHÅLLARE ("0 000 kr"),
+ * aldrig det riktiga talet: det når aldrig klienten utan Pro.
+ */
+function CardPreview({ preview }: { preview: PaywallCardPreview }) {
+  const t = useTranslations("Paywall");
+  const locked = [t("lockedTradera"), ...(preview.graded ? [t("lockedGraded")] : [])];
+  return (
+    <div className="flex w-full gap-3.5 rounded-2xl border border-surface-border p-3">
+      <div className="h-[118px] w-[84px] shrink-0 overflow-hidden rounded-md bg-surface-overlay">
+        {preview.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview.imageUrl} alt="" className="h-full w-full object-contain" loading="eager" />
+        )}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <p className="truncate text-[15px] font-semibold text-ink">{preview.name}</p>
+        {preview.setName && <p className="truncate text-xs text-ink-muted">{preview.setName}</p>}
+        <div className="mt-2.5 flex flex-col gap-1.5 text-[13px]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-ink-muted">{t("cardPriceNow")}</span>
+            <span className="font-semibold text-ink">
+              {preview.priceOre != null ? formatPrice(preview.priceOre) : "–"}
+            </span>
+          </div>
+          {locked.map((label) => (
+            <div key={label} className="flex items-center justify-between gap-2">
+              <span className="font-medium text-holo-cyan">{label}</span>
+              <span className="flex items-center gap-1.5" aria-label={t("lockedValue")}>
+                <IconLock aria-hidden="true" className="h-3 w-3 text-holo-cyan" />
+                <span aria-hidden="true" className="select-none font-semibold text-ink blur-[5px]">
+                  0 000 kr
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

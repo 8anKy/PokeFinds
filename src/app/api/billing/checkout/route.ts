@@ -6,6 +6,15 @@ import { legalEntity } from "@/lib/legal-entity";
 import { rateLimit } from "@/lib/rate-limit";
 import { automaticTaxEnabled, getStripe } from "@/lib/stripe";
 import { checkoutPromotionCodeFor } from "@/services/creator-codes";
+import { z } from "zod";
+import { PRO_COMMIT_MONTHS, PRO_TRIAL_DAYS } from "@/lib/pro-plans";
+import { COMMIT_PLAN } from "@/app/api/webhooks/stripe/mapping";
+
+/**
+ * Vilken plan (2026-10-19). Utan kropp = månadsplanen, så en äldre klient som
+ * POST:ar tomt köper samma sak som förut.
+ */
+const bodySchema = z.object({ plan: z.enum(["year", "month"]).default("month") });
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +25,10 @@ export const dynamic = "force-dynamic";
  * för digitala varor i app:en); grinden sitter i upgrade-button.tsx, som bara
  * anropar den här routen i `!native`-grenen.
  */
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const sessionUser = await requireUser();
+    const { plan } = bodySchema.parse(await req.json().catch(() => ({})));
 
     // Varje session skapar en Stripe-kund och en Checkout-session. Utan broms
     // kan ett kapat konto fylla vårt Stripe-konto med skräpkunder.
@@ -27,7 +37,10 @@ export async function POST() {
       throw new ServiceError(429, "För många försök. Vänta en stund och prova igen.");
     }
 
-    const priceId = process.env.STRIPE_PRICE_ID_PRO_MONTHLY;
+    // Två priser: 59 kr/mån (månadsplanen) och 39 kr/mån (12-månadersplanen, bindningen
+    // upprätthålls av stripe-webhooken). Gamla prenumerationer ligger kvar på sitt pris.
+    const priceId =
+      plan === "year" ? process.env.STRIPE_PRICE_ID_PRO_COMMIT : process.env.STRIPE_PRICE_ID_PRO_MONTHLY;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL;
     if (!priceId || !appUrl) {
       throw new ServiceError(503, "Betalning är inte färdigkonfigurerad.");
@@ -52,6 +65,9 @@ export async function POST() {
           planTier: true,
           stripeCustomerId: true,
           stripeProUntil: true,
+          stripeSubscriptionId: true,
+          proSince: true,
+          trialEndsAt: true,
         },
       })
     );
@@ -101,6 +117,12 @@ export async function POST() {
     // billigare för oss än butikernas provision).
     const promotionCodeId = await checkoutPromotionCodeFor(user.id);
 
+    // PROVPERIODEN: bara 12-månadersplanen, och bara för den som aldrig betalat för
+    // eller provat Pro — på någon plattform (proSince/trialEndsAt skrivs av båda
+    // webhookarna) eller via en tidigare webbprenumeration.
+    const trialEligible =
+      plan === "year" && !user.proSince && !user.trialEndsAt && !user.stripeSubscriptionId;
+
     const buildSession = (discountId: string | null) =>
       stripe.checkout.sessions.create({
         mode: "subscription",
@@ -110,7 +132,13 @@ export async function POST() {
         // checkout.session.completed innan någon stripeCustomerId hunnit sparas,
         // och metadatan följer med prenumerationen genom ALLA senare event.
         client_reference_id: user.id,
-        subscription_data: { metadata: { userId: user.id } },
+        subscription_data: {
+          metadata: {
+            userId: user.id,
+            ...(plan === "year" ? { plan: COMMIT_PLAN, commitMonths: String(PRO_COMMIT_MONTHS) } : {}),
+          },
+          ...(trialEligible ? { trial_period_days: PRO_TRIAL_DAYS } : {}),
+        },
         // Stripe Tax: räknar och tar ut moms automatiskt. ⛔ Måste vara aktiverat
         // på KONTOT — annars felar hela anropet och köpknappen dör (inte bara
         // momsen). Se automaticTaxEnabled(); default AV.
@@ -144,7 +172,9 @@ export async function POST() {
             // inte rättsligt hade kunden BEHÅLLIT full ångerrätt, vilket är sämre
             // för oss än att lova pro rata. Se villkoren avsnitt 12 + jurist-TODO.
             message:
-              "Scoutr Pro levereras direkt. Genom att godkänna samtycker du till att leveransen påbörjas under ångerfristen; ångrar du dig inom 14 dagar betalar du för den tid du haft tillgång och får resten åter.",
+              plan === "year"
+                ? `${trialEligible ? "De första 14 dagarna är gratis, sedan " : ""}39 kr/mån med 12 månaders bindningstid räknat från första betalningen (468 kr). Därefter fortsätter Pro månadsvis till samma pris tills du säger upp det. Scoutr Pro levereras direkt. Genom att godkänna samtycker du till att leveransen påbörjas under ångerfristen; ångrar du dig inom 14 dagar betalar du för den tid du haft betald tillgång och får resten åter.`
+                : "Scoutr Pro levereras direkt. Genom att godkänna samtycker du till att leveransen påbörjas under ångerfristen; ångrar du dig inom 14 dagar betalar du för den tid du haft tillgång och får resten åter.",
           },
         },
         success_url: `${appUrl}/priser?checkout=klar&session_id={CHECKOUT_SESSION_ID}`,

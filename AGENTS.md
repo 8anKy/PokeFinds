@@ -230,6 +230,11 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   (`cmOnlyGuidePrice`). Bild = CardTraders blueprintbild via `/api/ct-image` (CM:s singelbilder kräver expansionskod
   vi saknar), reserv = originalkortets bild. **Setbrickor**: set utan (eller med död) logotyp får en ritad bricka av
   tre kort (`scripts/generate-set-tiles.ts`, `public/set-logos/generated/`, 184 set 2026-10-15).
+- **PRO = 59 KR/MÅN ELLER 12 MÅN À 39 KR MED 14 DAGAR GRATIS (ägarbeslut 2026-10-19)**: befintliga prenumeranter
+  behåller 49 kr (gamla priset ligger kvar i alla butiker — inget besked behövs). Paywall-arket = design "A+"
+  (kortet man stod på + låsta Tradera/graderat-rader i turkos, planval med 12 månader förvalt). iOS-åtagandet
+  kräver nytt Codemagic-bygge (RC 13.7.4); webbens bindning hålls av Stripe-webhooken. Påminnelse dag 12 i
+  morgonrundan. Regler: `billing-entitlements.md` sist.
 - **FOILIO HETER SCOUTR SEDAN 2026-10-12 (ägarbeslut, EUIPO-anspråket på FOILIO)**: all synlig text, mejl, logga
   (`public/brand/scoutr-*`, källfiler + generatorer i `work/scoutr-logo/`, original-6 sparad som alt) och domänen
   **scoutr.se** (Cloudflare-zon, Railway-domän, Resend verifierad; Brevo används INTE längre — bulk går via Resend).

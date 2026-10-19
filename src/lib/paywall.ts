@@ -37,8 +37,10 @@ export interface PaywallOpenOptions {
    * prompten handlar om — användarens EGET kort i sin slab. Arket är fortfarande
    * samma ark (samma rader, samma köpknapp); bara bilden högst upp byts.
    */
-  preview?: PaywallSlabPreview;
+  preview?: PaywallPreview;
 }
+
+export type PaywallPreview = PaywallSlabPreview | PaywallCardPreview;
 
 export interface PaywallSlabPreview {
   kind: "slab";
@@ -47,6 +49,23 @@ export interface PaywallSlabPreview {
   issuer: string;
   gradeTenths: number;
   name: string;
+}
+
+/**
+ * KORTET MAN STOD PÅ (design "A+", 2026-10-19): bild, namn, set och priset man redan
+ * ser — plus de två låsta raderna (Tradera sålt, graderat sålt). ⛔ De låsta talen
+ * skickas ALDRIG hit: arket ritar en suddig platshållare. Ett riktigt tal i DOM:en
+ * vore Pro-data till den som inte betalat, bara gömt bakom en CSS-oskärpa.
+ */
+export interface PaywallCardPreview {
+  kind: "card";
+  imageUrl: string | null;
+  name: string;
+  setName: string | null;
+  /** Priset produktsidan redan visar (öre), null = "–". */
+  priceOre: number | null;
+  /** Visa raden "graderat sålt" — bara för singlar. */
+  graded: boolean;
 }
 
 import { track } from "@/lib/track";

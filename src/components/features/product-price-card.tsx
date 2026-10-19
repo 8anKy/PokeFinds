@@ -12,7 +12,7 @@ import { IconLock } from "@/components/ui/icons";
 import { SOURCE_ORDER, sourceGate, type SourceKey } from "@/lib/price-graph-sources";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import type { PriceChartSeries } from "@/components/features/price-chart";
-import { openPaywallOrNavigate } from "@/lib/paywall";
+import { openPaywallOrNavigate, type PaywallCardPreview } from "@/lib/paywall";
 import { ProTextLink } from "@/components/features/pro-cta";
 
 export interface PricePoint {
@@ -85,6 +85,7 @@ export function ProductPriceCard({
   bySource,
   plain = false,
   preferSources,
+  paywallPreview,
 }: {
   title: string;
   subtitle: string;
@@ -104,6 +105,8 @@ export function ProductPriceCard({
    * första tillgängliga — som förut.
    */
   preferSources?: readonly SourceKey[];
+  /** Kortet till Pro-arkets hjälte (A+) när ett låst lager trycks. */
+  paywallPreview?: PaywallCardPreview;
 }) {
   const t = useTranslations("Detail");
   const router = useRouter();
@@ -212,7 +215,7 @@ export function ProductPriceCard({
           <button
             key={p.value}
             type="button"
-            onClick={() => (locked ? openPaywallOrNavigate(router, { source: "chart-max" }) : setPeriod(p))}
+            onClick={() => (locked ? openPaywallOrNavigate(router, { source: "chart-max", preview: paywallPreview }) : setPeriod(p))}
             aria-current={p.value === period.value ? "true" : undefined}
             title={locked ? t("maxProOnly") : undefined}
             className={cn(
@@ -260,7 +263,7 @@ export function ProductPriceCard({
               // Låst chip väljer INGENTING — den säljer. Samma gest som
               // MAX-perioden: ett tryck tar dig till prissidan.
               if (chipLocked) {
-                openPaywallOrNavigate(router, { source: "chart-tradera" });
+                openPaywallOrNavigate(router, { source: "chart-tradera", preview: paywallPreview });
                 return;
               }
               setOff((prev) => {

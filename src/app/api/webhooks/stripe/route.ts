@@ -3,7 +3,14 @@ import { prisma, withDbRetry } from "@/lib/db";
 import { getStripe, stripeEnabled, subscriptionPeriodEnd } from "@/lib/stripe";
 import { syncDiscordRoles } from "@/services/discord-sync";
 import { recordCheckoutPromotionRedemptions } from "@/services/stripe-promotion-redemptions";
-import { HANDLED_EVENTS, proUntilForSubscription } from "./mapping";
+import { PRO_COMMIT_MONTHS } from "@/lib/pro-plans";
+import {
+  COMMIT_PLAN,
+  HANDLED_EVENTS,
+  commitmentCancelAt,
+  commitmentEndFor,
+  proUntilForSubscription,
+} from "./mapping";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +65,34 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
   if (!subscriptionId) return;
 
   // Färsk hämtning, aldrig eventets egen ögonblicksbild — se HANDLED_EVENTS.
-  const sub = await stripe.subscriptions.retrieve(subscriptionId);
+  let sub = await stripe.subscriptions.retrieve(subscriptionId);
+
+  // 12-MÅNADERSBINDNINGEN (mapping.ts): en uppsägning under bindningstiden flyttas
+  // till bindningstidens slut. Uppdateringen ger ett nytt `updated`-event, som då
+  // ser `cancel_at` = slutet och inte gör något — idempotent.
+  const isCommit = sub.metadata?.plan === COMMIT_PLAN;
+  const commitmentEndsAt = isCommit
+    ? commitmentEndFor(sub.trial_end ?? sub.start_date, PRO_COMMIT_MONTHS)
+    : null;
+  const moveTo = commitmentCancelAt({
+    status: sub.status,
+    cancelAtPeriodEnd: sub.cancel_at_period_end,
+    cancelAtSeconds: sub.cancel_at ?? null,
+    commitmentEndsAt,
+    periodEndSeconds: subscriptionPeriodEnd(sub),
+  });
+  if (moveTo != null) {
+    // ⛔ Ett fel här får inte stoppa skrivningen av Pro nedan (då hade en betalande
+    // kund tappat Pro för att bindningen inte gick att flytta) — men det ska synas.
+    try {
+      sub = await stripe.subscriptions.update(sub.id, { cancel_at: moveTo, proration_behavior: "none" });
+      console.log(
+        `[stripe] uppsägning under bindningstiden flyttad till ${new Date(moveTo * 1000).toISOString()} (${sub.id})`
+      );
+    } catch (err) {
+      console.error(`[stripe] BINDNINGEN KUNDE INTE UPPRÄTTHÅLLAS för ${sub.id}:`, err);
+    }
+  }
   const userId =
     (typeof sub.metadata?.userId === "string" ? sub.metadata.userId : null) ??
     fallbackUserId ??
@@ -76,12 +110,18 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
   await withDbRetry(async () => {
     const before = await prisma.user.findUnique({
       where: { id: userId },
-      select: { stripeProUntil: true, proSince: true },
+      select: { stripeProUntil: true, proSince: true, trialEndsAt: true },
     });
     if (!before) return; // raderat konto — samma hantering som RC-webhooken
 
-    // "Prenumerant sedan" = första gången Stripe faktiskt gav Pro. Sätts en gång.
-    const firstPaid = proUntil !== null && before.proSince === null;
+    // "Prenumerant sedan" = första gången Stripe faktiskt gav BETALD Pro. Sätts en
+    // gång. ⛔ En provperiod är inte betald (2026-10-19).
+    const firstPaid = proUntil !== null && before.proSince === null && sub.status !== "trialing";
+    // Provperioden: stämplas första gången vi ser den. Ett nytt slutdatum (Stripe
+    // kan förlänga en provperiod) nollar stämplarna, så påminnelsen följer datumet.
+    const trialEndsAt = sub.trial_end ? new Date(sub.trial_end * 1000) : null;
+    const trialChanged =
+      trialEndsAt != null && before.trialEndsAt?.getTime() !== trialEndsAt.getTime();
 
     await prisma.user.updateMany({
       where: { id: userId },
@@ -90,8 +130,20 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
         stripeCustomerId: customerId,
         stripeSubscriptionId: sub.id,
         // Auto-förnyelse, ur den FÄRSKA prenumerationen (aldrig eventets kopia).
-        stripeCancelAtPeriodEnd: sub.cancel_at_period_end,
+        // En flyttad uppsägning (cancel_at) är också "förnyas inte".
+        stripeCancelAtPeriodEnd: sub.cancel_at_period_end || sub.cancel_at != null,
+        stripeCommitmentEndsAt: commitmentEndsAt,
         proSince: firstPaid ? new Date() : undefined,
+        ...(trialChanged
+          ? {
+              trialStartedAt: sub.trial_start ? new Date(sub.trial_start * 1000) : new Date(),
+              trialEndsAt,
+              trialSource: "STRIPE",
+              trialProductId: sub.items?.data?.[0]?.price?.id ?? null,
+              trialValueSentAt: null,
+              trialReminderSentAt: null,
+            }
+          : {}),
       },
     });
     await prisma.auditLog.create({
@@ -104,6 +156,9 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
           event: event.type,
           status: sub.status,
           cancelAtPeriodEnd: sub.cancel_at_period_end,
+          cancelAt: sub.cancel_at ?? null,
+          movedCancelTo: moveTo,
+          plan: sub.metadata?.plan ?? null,
           from: before.stripeProUntil?.toISOString() ?? null,
           to: proUntil?.toISOString() ?? null,
           subscriptionId: sub.id,

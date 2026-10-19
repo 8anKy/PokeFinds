@@ -160,3 +160,33 @@ export function subscriptionStatesForEvent(event: unknown): SubscriptionState[] 
     ? [{ userId: e.app_user_id, willRenew, expiresAt, environment }]
     : [];
 }
+
+/**
+ * PROVPERIODEN (2026-10-19). Ett köp med `period_type: TRIAL` startar en provperiod
+ * som slutar vid `expiration_at_ms`. Vi sparar den för påminnelsen dag 12 och för
+ * att hålla AI-graderingen på gratiskvoten tills första betalningen.
+ * Bara INITIAL_PURCHASE: en förnyelse är aldrig en ny provperiod, och Apple/Google
+ * ger samma Apple-ID/Google-konto en provperiod en gång per prenumerationsgrupp.
+ */
+export interface TrialStart {
+  userId: string;
+  startedAt: Date;
+  endsAt: Date;
+  source: string | null;
+  productId: string | null;
+}
+
+export function trialForEvent(event: unknown): TrialStart | null {
+  const e = (event ?? {}) as Record<string, unknown>;
+  if (String(e.type) !== "INITIAL_PURCHASE" || e.period_type !== "TRIAL") return null;
+  if (!isOurUserId(e.app_user_id)) return null;
+  const endsAt = msToDate(e.expiration_at_ms);
+  if (!endsAt) return null;
+  return {
+    userId: e.app_user_id,
+    startedAt: msToDate(e.purchased_at_ms) ?? new Date(),
+    endsAt,
+    source: typeof e.store === "string" ? e.store : null,
+    productId: typeof e.product_id === "string" ? e.product_id : null,
+  };
+}

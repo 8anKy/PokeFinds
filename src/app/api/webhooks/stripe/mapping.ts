@@ -75,3 +75,57 @@ export const HANDLED_EVENTS = new Set([
   "customer.subscription.updated",
   "customer.subscription.deleted",
 ]);
+
+/**
+ * WEBBENS 12-MÅNADERSBINDNING (2026-10-19). Stripe har ingen bindningstid, så vi
+ * upprätthåller den själva: prenumerationen bär `metadata.plan = "commit"`, och
+ * bindningen löper 12 månader från FÖRSTA BETALNINGEN (provperiodens slut, annars
+ * starten). Kunden säger upp precis som vanligt i Stripes kundportal; webhooken
+ * flyttar då slutet från periodens slut till bindningstidens slut (`cancel_at`) —
+ * samma beteende som Apples 12-månadersåtagande ("säg upp när du vill, du betalar
+ * året ut"). Efter bindningstiden löper planen vidare månadsvis tills den sägs upp.
+ */
+export const COMMIT_PLAN = "commit";
+
+/** start + N månader, UTC. 29 feb → 28 feb, som Stripes egen faktureringsankare. */
+export function addMonthsUtc(at: Date, months: number): Date {
+  const y = at.getUTCFullYear();
+  const m = at.getUTCMonth() + months;
+  const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return new Date(
+    Date.UTC(y, m, Math.min(at.getUTCDate(), lastDay), at.getUTCHours(), at.getUTCMinutes(), at.getUTCSeconds())
+  );
+}
+
+export function commitmentEndFor(
+  firstChargeSeconds: number | null | undefined,
+  months: number
+): Date | null {
+  if (typeof firstChargeSeconds !== "number" || firstChargeSeconds <= 0) return null;
+  return addMonthsUtc(new Date(firstChargeSeconds * 1000), months);
+}
+
+/**
+ * Ska uppsägningen flyttas? Returnerar `cancel_at` i sekunder, eller null = låt den vara.
+ *
+ * ⛔ Under PROVPERIODEN flyttas ingenting: "avsluta före dag 14 så kostar det
+ * ingenting" är löftet i arket, villkoren och påminnelsen. Och den sista perioden
+ * i bindningen får avslutas vid sitt naturliga slut — då är bindningen redan uppfylld.
+ */
+export function commitmentCancelAt(input: {
+  status: string;
+  cancelAtPeriodEnd: boolean;
+  cancelAtSeconds: number | null;
+  commitmentEndsAt: Date | null;
+  periodEndSeconds: number | null;
+}): number | null {
+  if (!input.commitmentEndsAt) return null;
+  if (input.status !== "active" && input.status !== "past_due") return null;
+  const end = Math.floor(input.commitmentEndsAt.getTime() / 1000);
+  const wantsOut =
+    input.cancelAtPeriodEnd || (input.cancelAtSeconds != null && input.cancelAtSeconds < end - 60);
+  if (!wantsOut) return null;
+  if (input.periodEndSeconds != null && input.periodEndSeconds >= end - 3600) return null;
+  if (input.cancelAtSeconds === end) return null;
+  return end;
+}

@@ -206,6 +206,22 @@ model User {
   rcWillRenew             Boolean?
   rcExpiresAt             DateTime?
   rcEnvironment           String?
+  // PROVPERIODEN (2026-10-19, 14 dagar på 12-månadersplanen). Skrivs av BÅDA
+  // webhookarna: RevenueCat (`period_type: TRIAL`) och Stripe (`trial_end`).
+  // source = APP_STORE | PLAY_STORE | STRIPE; productId avgör prisraden i
+  // påminnelsen (Apples `:monthly` = 39 kr × 12, annars 468 kr i ett). Stämplarna
+  // är dubblettspärrar för src/services/trial-messages.ts — sätts EFTER lyckat
+  // utskick. En pågående provperiod ger Pro men gratiskvoten för AI-gradering.
+  trialStartedAt          DateTime?
+  trialEndsAt             DateTime?
+  trialSource             String?
+  trialProductId          String?
+  trialValueSentAt        DateTime?
+  trialReminderSentAt     DateTime?
+  // Webbens 12-månadersbindning: Stripe kan inte binda en prenumeration, så
+  // webhooken flyttar en uppsägning under bindningstiden till det här datumet
+  // (`cancel_at`). null = månadsplanen eller ingen webbprenumeration.
+  stripeCommitmentEndsAt  DateTime?
   resetToken              String?      @unique
   resetTokenExpiresAt     DateTime?
   onboardingCompleted     Boolean      @default(false)

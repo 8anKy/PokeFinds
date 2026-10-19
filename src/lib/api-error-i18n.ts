@@ -24,6 +24,8 @@ export const API_ERROR_KEYS: Record<string, string> = {
   "För många butiksförslag. Försök igen i morgon.": "storeSuggestionLimit",
   "Ange ett besök under de senaste sju dagarna, inte i framtiden.": "storeVisitTime",
   "För många förfrågningar. Försök igen om en stund.": "storeFollowLimit",
+  // gradering
+  "Under provperioden ingår gratisplanens AI-graderingar. Fler öppnas när Pro börjar.": "gradingTrialLimit",
   // auth
   "Du måste vara inloggad.": "loginRequired",
   "Du saknar behörighet.": "forbidden",

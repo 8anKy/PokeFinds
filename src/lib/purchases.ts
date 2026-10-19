@@ -1,5 +1,13 @@
 import { Capacitor } from "@capacitor/core";
-import { Purchases, LOG_LEVEL, STOREKIT_VERSION } from "@revenuecat/purchases-capacitor";
+import {
+  Purchases,
+  INTRO_ELIGIBILITY_STATUS,
+  LOG_LEVEL,
+  STOREKIT_VERSION,
+  type PurchasesPackage,
+} from "@revenuecat/purchases-capacitor";
+import { pickStorePlans, type StorePlanOption } from "@/lib/store-plans";
+import type { ProPlanChoice } from "@/lib/pro-plans";
 
 // Plattforms-specifika RC API-nycklar (publika, ok i klienten). Sätt vid bygge.
 const API_KEY = Capacitor.getPlatform() === "ios"
@@ -66,16 +74,67 @@ export const purchasesAvailable = () => Capacitor.isNativePlatform() && !!API_KE
  */
 export const storeShellWithoutPurchases = () => Capacitor.isNativePlatform() && !API_KEY;
 
-/** Köp Premium. Returnerar true om köpet gav premium-entitlement. */
-export async function purchasePremium(userId: string): Promise<boolean> {
+export interface StorePlans {
+  month: StorePlanOption | null;
+  year: StorePlanOption | null;
+}
+
+/**
+ * Butikens planer för arket (2026-10-19): 12 månader (Apples åtagande, annars
+ * förbetald årsplan) och månadsvis — med BUTIKENS priser och provperiod.
+ *
+ * ⛔ Provperioden visas bara när Apple säger att kontot är berättigat (en
+ * provperiod per Apple-ID och prenumerationsgrupp). Okänt ⇒ visa den INTE —
+ * RevenueCats egen rekommendation: att lova gratisdagar som sedan inte ges är
+ * vilseledande. Android: Google lägger bara in provperioden i `defaultOption`
+ * när kontot är berättigat.
+ */
+export async function loadStorePlans(userId: string): Promise<StorePlans> {
   await ensureConfigured(userId);
   const offerings = await Purchases.getOfferings();
-  const offering = offerings.current;
-  // Planen är 49 kr/MÅNAD → välj månadspaketet deterministiskt.
-  const pkg = offering?.monthly ?? offering?.availablePackages[0];
+  const plans = pickStorePlans(offerings.current?.availablePackages ?? []);
+  if (plans.year?.trialDays && Capacitor.getPlatform() === "ios") {
+    const eligibility = await Purchases.checkTrialOrIntroductoryPriceEligibility({
+      productIdentifiers: [plans.year.productId],
+    }).catch(() => null);
+    const status = eligibility?.[plans.year.productId]?.status;
+    if (status !== INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE) {
+      plans.year = { ...plans.year, trialDays: null };
+    }
+  }
+  return plans;
+}
+
+async function packageFor(choice: ProPlanChoice): Promise<PurchasesPackage | null> {
+  const offerings = await Purchases.getOfferings();
+  const pkgs = offerings.current?.availablePackages ?? [];
+  const plans = pickStorePlans(pkgs);
+  const id = (choice === "year" ? plans.year : plans.month)?.packageId;
+  return pkgs.find((p) => p.identifier === id) ?? null;
+}
+
+/** Köp Pro på vald plan. Returnerar true om köpet gav premium-entitlement. */
+export async function purchasePlan(userId: string, choice: ProPlanChoice): Promise<boolean> {
+  await ensureConfigured(userId);
+  const pkg = await packageFor(choice);
   if (!pkg) throw new Error("Ingen prenumeration tillgänglig just nu.");
   const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
   return !!customerInfo.entitlements.active[ENTITLEMENT];
+}
+
+/** Månadsplanen — kvar för anropare som inte väljer plan. */
+export async function purchasePremium(userId: string): Promise<boolean> {
+  return purchasePlan(userId, "month");
+}
+
+/**
+ * Butikens egen sida för prenumerationen (Apple: Prenumerationer i inställningarna,
+ * Google: Play-prenumerationerna). null = butiken gav ingen länk (t.ex. inget köp).
+ */
+export async function storeManagementUrl(userId: string): Promise<string | null> {
+  await ensureConfigured(userId);
+  const { customerInfo } = await Purchases.getCustomerInfo();
+  return customerInfo.managementURL ?? null;
 }
 
 /** Återställ tidigare köp (App Store-krav: knapp för "Restore purchases"). */

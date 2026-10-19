@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
-import { openPaywallOrNavigate } from "@/lib/paywall";
+import { openPaywallOrNavigate, type PaywallCardPreview } from "@/lib/paywall";
 import { ISSUER_LABELS, formatGrade, type GradingIssuer } from "@/lib/graded-listing";
 import { buildGradedCards, cellSold, defaultGrade, type GradedGradeCell, type GradedIssuerCard } from "@/lib/graded-merge";
 import type { GradedSummary } from "@/services/graded";
@@ -42,6 +42,7 @@ export function GradedCarousel({
   rawPriceOre,
   selected,
   onSelect,
+  paywallPreview,
 }: {
   /** Pro: hela sammanställningen (hämtad ur den plangrindade routen). Annars tom. */
   graded: GradedSummary | undefined;
@@ -52,6 +53,8 @@ export function GradedCarousel({
   rawPriceOre: number | null;
   selected: GradedSelection | null;
   onSelect: (sel: GradedSelection | null) => void;
+  /** Kortet till Pro-arkets hjälte (A+). */
+  paywallPreview?: PaywallCardPreview;
 }) {
   const t = useTranslations("Detail");
   const router = useRouter();
@@ -62,7 +65,7 @@ export function GradedCarousel({
   // GRADERADE PRISER ÄR PRO (ägarbeslut 2026-09-17). Talen finns bara hos Pro
   // (payloaden bär en teaser utan pris); en låst badge VÄLJER INGENTING — den
   // säljer (samma regel som Tradera-chippet i grafen).
-  const sell = () => openPaywallOrNavigate(router, { source: "graded" });
+  const sell = () => openPaywallOrNavigate(router, { source: "graded", preview: paywallPreview });
   // Aktivt betyg per bolag — badgen minns sitt betyg även när ett annat bolag är
   // valt i grafen.
   const [active, setActive] = useState<Record<string, number>>({});

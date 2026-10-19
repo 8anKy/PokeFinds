@@ -346,10 +346,55 @@ export function proExpiringEmail(name: string, until: Date, daysLeft: number): E
     "Din Pro-period närmar sig slutet",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Din gratisperiod med Scoutr Pro gäller till och med <strong style="color:#ffffff;">${untilStr}</strong>.</p>
      <p style="line-height:1.6;color:#cbd5e1;">Efter det pausas dina <strong style="color:#ffffff;">restock-larm</strong> och du går tillbaka till gratisplanens gränser. Dina bevakningar och din samling ligger kvar — du behöver inte göra någonting för att spara dem.</p>
-     <p style="line-height:1.6;color:#cbd5e1;">Vill du behålla larmen kostar Pro 49 kr i månaden och kan sägas upp när som helst.</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Vill du behålla larmen kostar Pro från 39 kr i månaden.</p>
      ${button(`${APP_URL}/priser`, "Fortsätt med Pro")}`
   );
-  const text = `Hej ${name}!\n\nDin gratisperiod med Scoutr Pro gäller till och med ${untilStr}.\n\nEfter det pausas dina restock-larm och du går tillbaka till gratisplanens gränser. Dina bevakningar och din samling ligger kvar.\n\nVill du behålla larmen kostar Pro 49 kr i månaden och kan sägas upp när som helst: ${APP_URL}/priser${textFooter}`;
+  const text = `Hej ${name}!\n\nDin gratisperiod med Scoutr Pro gäller till och med ${untilStr}.\n\nEfter det pausas dina restock-larm och du går tillbaka till gratisplanens gränser. Dina bevakningar och din samling ligger kvar.\n\nVill du behålla larmen kostar Pro från 39 kr i månaden: ${APP_URL}/priser${textFooter}`;
+  return { subject, html, text };
+}
+
+/**
+ * PROVPERIODENS PÅMINNELSE (2026-10-19), dag 12 av 14 — samma löfte som arket ("Vi
+ * påminner dig 2 dagar innan"). Ordningen är medveten: först vad Pro gett, sedan datum
+ * och pris i klartext, sist EN neutral rad om var prenumerationen hanteras. Den raden
+ * säljer ingen uppsägning, men utan den är påminnelsen inte ärlig — och en kund som
+ * känner sig lurad begär återbetalning och sätter ett betyg.
+ */
+export type TrialMailPrice = "commit-monthly" | "annual-upfront";
+
+export function trialReminderEmail(p: {
+  name: string;
+  endLabel: string;
+  usageLine: string | null;
+  price: TrialMailPrice;
+  source: string | null;
+}): EmailContent {
+  const priceLine =
+    p.price === "commit-monthly"
+      ? "Därefter kostar Pro 39 kr/mån i 12 månader (468 kr)."
+      : "Därefter kostar Pro 468 kr för 12 månader.";
+  const manage =
+    p.source === "APP_STORE"
+      ? "Prenumerationen hanteras i iPhonens inställningar under ditt namn → Prenumerationer."
+      : p.source === "PLAY_STORE"
+        ? "Prenumerationen hanteras i Google Play under Betalningar och prenumerationer."
+        : "Prenumerationen hanteras under Hantera prenumeration på scoutr.se/priser.";
+  const usage = p.usageLine ? `Hittills med Pro: ${p.usageLine}. ` : "";
+  const subject = `Din provperiod med Pro slutar ${p.endLabel} · Scoutr`;
+  const html = layout(
+    "Din provperiod slutar snart",
+    `<p style="${P_STYLE}">Hej ${esc(p.name)}! ${esc(usage)}Din provperiod med Scoutr Pro slutar <strong style="color:${D_WHITE};">${esc(p.endLabel)}</strong>.</p>
+     <p style="${P_STYLE}">${esc(priceLine)} Du behöver inte göra något för att behålla Pro.</p>
+     ${button(`${APP_URL}/samling`, "Öppna Scoutr")}
+     <p style="margin:16px 0 0;font-family:${D_FONT};font-size:12px;line-height:1.5;color:${D_FAINT};">${esc(manage)}</p>`
+  );
+  const text = `Hej ${p.name}!
+
+${usage}Din provperiod med Scoutr Pro slutar ${p.endLabel}.
+
+${priceLine} Du behöver inte göra något för att behålla Pro.
+
+${manage}${textFooter}`;
   return { subject, html, text };
 }
 

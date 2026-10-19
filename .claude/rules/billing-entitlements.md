@@ -91,3 +91,20 @@ paths:
   `proSince` sätts inte. Bakfyllnad ur AuditLog i migrationen `20260902010000_subscription_status`; äldre
   RC-rader saknar miljö och räknas som riktiga (går inte att skilja). Fälten ligger i GDPR-exporten.
   Vaktat av `tests/unit/subscription-status.test.ts` + `revenuecat-subscription-state.test.ts`.
+- **TVÅ PLANER + PROVPERIOD (ägarbeslut 2026-10-19)**: månadsvis 59 kr (nya kunder; befintliga ligger kvar
+  på 49 kr i alla tre butikerna — arkivera ALDRIG det gamla Stripe-priset) och 12 månader à 39 kr/mån
+  (468 kr) med 14 dagar gratis, en gång per person. Talen bor i `src/lib/pro-plans.ts` och är publicerade
+  som fri text (villkor §11, prissidan, kortet, Mer, skannern, checkout, mejl) — vaktat av
+  `pro-plans-copy-sync.test.ts`. **Per plattform**: iOS = Apples "månadsvis med 12 månaders åtagande"
+  (RC-SDK ≥ 13.7.4 i NATIVA bygget, iOS ≥ 26.4; annars förbetald årsplan), Android = förbetald 468 kr/år
+  (Play har ingen avbetalning i Sverige), webben = Stripe 39 kr/mån där VI håller bindningen: webhooken
+  flyttar en uppsägning under bindningen till `cancel_at` = bindningens slut (`commitmentCancelAt`,
+  `proration_behavior: "none"`, metadata `plan: "commit"`), sedan månadsvis utan ny bindning.
+  Arket väljer butikspaket på PRODUKTENS data (`pickStorePlans`), aldrig på paket-id, och visar butikens
+  `priceString`. Provperioden visas bara när butiken/servern säger att den ges (iOS: eligibility-anropet,
+  okänt ⇒ visa INTE). ⛔ En provperiod sätter aldrig `proSince` (inte betald). ⛔ Under provperioden gäller
+  GRATISKVOTEN för AI-gradering (`getGradingQuota`). **Meddelanden** (`services/trial-messages.ts`, i
+  morgonrundan `alerts-due` — aldrig egen cron): dag 7 värdepush utan pris (hoppas över vid låg
+  användning), dag 12 påminnelsemejl + push med datum och pris; mejlet stämplas först när det gått iväg
+  och prövas om nästa morgon så länge ≥ 26 h återstår (Apple drar upp till 24 h före slutet). Ett
+  misslyckat mejl gör morgonrundan RÖD (502). Stripe-priserna skapas av `scripts/stripe-create-pro-prices.ts`.

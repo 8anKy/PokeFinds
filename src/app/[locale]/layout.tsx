@@ -173,7 +173,11 @@ export default async function LocaleLayout({
                 openPaywall() (lib/paywall.ts) i stället för att navigera till
                 /priser. Portalas till <body>, så DOM-ordningen här är oviktig;
                 webCheckout kommer från servern av samma skäl som på prissidan. */}
-            <PaywallSheetHost webCheckout={stripeCheckoutAdvertised()} />
+            <PaywallSheetHost
+              webCheckout={stripeCheckoutAdvertised()}
+              // 12-månadersplanen på webben finns först när Stripe-priset är satt.
+              webYearPlan={!!process.env.STRIPE_PRICE_ID_PRO_COMMIT}
+            />
             {/* Veckoserien: firar dagens första handling (svarshuvud från servern). */}
             <StreakCelebrationHost />
             <UnseenRouteMarker />

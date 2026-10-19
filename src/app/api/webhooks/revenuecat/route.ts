@@ -4,6 +4,7 @@ import { syncDiscordRoles } from "@/services/discord-sync";
 import {
   planChangesForEvent,
   subscriptionStatesForEvent,
+  trialForEvent,
   type Plan,
   type SubscriptionState,
 } from "./mapping";
@@ -32,6 +33,8 @@ export async function POST(req: Request) {
   // (access kvar till EXPIRATION) men MÅSTE skrivas — annars står en uppsagd
   // kund som prenumerant i adminen tills perioden tar slut.
   const states = subscriptionStatesForEvent(event);
+  const trial = trialForEvent(event);
+  const periodType = typeof event?.period_type === "string" ? event.period_type : null;
 
   const perUser = new Map<string, { plan: Plan | null; state: SubscriptionState | null }>();
   for (const c of changes) perUser.set(c.userId, { plan: c.plan, state: null });
@@ -48,7 +51,7 @@ export async function POST(req: Request) {
     // plan-ändring som webhooken gör (även no-op) så det syns i AuditLog.
     const before = await prisma.user.findUnique({
       where: { id: userId },
-      select: { planTier: true, proSince: true },
+      select: { planTier: true, proSince: true, trialEndsAt: true },
     });
     if (!before) continue; // raderat konto, eller ett id som inte är vårt
 
@@ -64,13 +67,25 @@ export async function POST(req: Request) {
     if (environment) data.rcEnvironment = environment;
     // "Prenumerant sedan" = första BETALDA aktiveringen. Sätts en gång, skrivs
     // aldrig över, och aldrig av ett SANDBOX-köp (en testare är inte en kund).
+    // ⛔ En PROVPERIOD är inte betald (2026-10-19): den ger PREMIUM men inget
+    // proSince. Den första förnyelsen efter provperioden är då första betalningen —
+    // planTier står redan på PREMIUM då, därav grenen för `trialEndsAt`.
     if (
       plan === "PREMIUM" &&
-      before.planTier !== "PREMIUM" &&
+      periodType !== "TRIAL" &&
+      (before.planTier !== "PREMIUM" || before.trialEndsAt != null) &&
       !before.proSince &&
       environment !== "SANDBOX"
     ) {
       data.proSince = msToDate(event?.purchased_at_ms) ?? new Date();
+    }
+    if (trial && trial.userId === userId) {
+      data.trialStartedAt = trial.startedAt;
+      data.trialEndsAt = trial.endsAt;
+      data.trialSource = trial.source;
+      data.trialProductId = trial.productId;
+      data.trialValueSentAt = null;
+      data.trialReminderSentAt = null;
     }
 
     // updateMany = ingen krasch om id:t inte finns (race mot kontoradering).
@@ -93,7 +108,7 @@ export async function POST(req: Request) {
           // RevenueCat men aldrig hos Apple — sandbox-köp bär `environment: SANDBOX`
           // och provperioder `period_type: TRIAL/INTRO`, och ingetdera loggades.
           environment,
-          periodType: typeof event?.period_type === "string" ? event.period_type : null,
+          periodType,
           store: typeof event?.store === "string" ? event.store : null,
           productId: typeof event?.product_id === "string" ? event.product_id : null,
           price: typeof event?.price === "number" ? event.price : null,

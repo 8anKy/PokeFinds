@@ -29,6 +29,10 @@ const profileSelect = {
   // hade setts som gratisanvändare. Samma familj som variantLabel-missen 07-28.
   stripeProUntil: true,
   stripeCustomerId: true,
+  // Provperiodens behörighet på webben (checkout-routen dömer samma sak).
+  stripeSubscriptionId: true,
+  proSince: true,
+  trialEndsAt: true,
   avatarUrl: true,
   bio: true,
   emailVerifiedAt: true,
@@ -49,9 +53,12 @@ const profileSelect = {
  * App Store i stället.
  */
 function publicProfile(user: Prisma.UserGetPayload<{ select: typeof profileSelect }>) {
-  const { stripeCustomerId, ...rest } = user;
+  const { stripeCustomerId, stripeSubscriptionId, proSince, ...rest } = user;
   return {
     ...rest,
+    // 14 dagar gratis på 12-månadersplanen — bara för den som aldrig betalat eller
+    // provat Pro. Speglar `trialEligible` i billing/checkout (som är den som avgör).
+    webTrialEligible: !proSince && !user.trialEndsAt && !stripeSubscriptionId,
     isPro: isPro(user),
     hasWebSubscription: !!stripeCustomerId,
     // Varför användaren har Pro — gränssnittet får bara lova uppsägning för den

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const count = vi.fn();
 const create = vi.fn();
 const update = vi.fn();
+const findUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -15,6 +16,7 @@ vi.mock("@/lib/db", () => ({
       create: (...a: unknown[]) => create(...a),
       update: (...a: unknown[]) => update(...a),
     },
+    user: { findUnique: (...a: unknown[]) => findUser(...a) },
   },
 }));
 
@@ -28,6 +30,8 @@ beforeEach(() => {
   count.mockReset();
   create.mockReset();
   update.mockReset();
+  findUser.mockReset();
+  findUser.mockResolvedValue({ trialEndsAt: null });
   process.env.GRADING_PROVIDER = "mock";
   delete process.env.GRADING_FREE_MONTHLY_LIMIT;
   delete process.env.GRADING_PREMIUM_MONTHLY_LIMIT;
@@ -52,13 +56,13 @@ describe("getGradingQuota", () => {
   it("PREMIUM = 15/mån default", async () => {
     count.mockResolvedValue(4);
     const q = await getGradingQuota("u1", "PREMIUM");
-    expect(q).toEqual({ used: 4, limit: 15, remaining: 11, isPremium: true });
+    expect(q).toEqual({ used: 4, limit: 15, remaining: 11, isPremium: true, trialing: false });
   });
 
   it("FREE = 3/mån default, räknar månadens jobb", async () => {
     count.mockResolvedValue(2);
     const q = await getGradingQuota("u1", "FREE");
-    expect(q).toEqual({ used: 2, limit: 3, remaining: 1, isPremium: false });
+    expect(q).toEqual({ used: 2, limit: 3, remaining: 1, isPremium: false, trialing: false });
   });
 
   it("räknar bara denna månads icke-misslyckade jobb", async () => {
@@ -102,5 +106,22 @@ describe("runGradingJob", () => {
     expect(create).toHaveBeenCalledOnce();
     expect(job.status).toBe("COMPLETED");
     expect(typeof job.overallGrade).toBe("number");
+  });
+});
+
+describe("provperioden (2026-10-19)", () => {
+  it("ger Pro men gratiskvoten för gradering", async () => {
+    findUser.mockResolvedValue({ trialEndsAt: new Date(Date.now() + 5 * 864e5) });
+    count.mockResolvedValue(0);
+    const q = await getGradingQuota("u1", "PREMIUM");
+    expect(q.trialing).toBe(true);
+    expect(q.limit).toBe(freeMonthlyLimit());
+  });
+  it("en avslutad provperiod ger full Pro-kvot", async () => {
+    findUser.mockResolvedValue({ trialEndsAt: new Date(Date.now() - 864e5) });
+    count.mockResolvedValue(0);
+    const q = await getGradingQuota("u1", "PREMIUM");
+    expect(q.trialing).toBe(false);
+    expect(q.limit).toBeGreaterThan(freeMonthlyLimit());
   });
 });
