@@ -2814,7 +2814,8 @@
     "signupLead": "Scoutr är gratis att börja med. Med ett konto bevakar du priser, värderar din samling och skannar kort.",
     "signupProNote": "Tradera-kurvan och hela prishistoriken ingår i Pro, som du kan lägga till när du vill.",
     "signupCreate": "Skapa konto",
-    "signupLogin": "Jag har redan ett konto"
+    "signupLogin": "Jag har redan ett konto",
+    "unlockedValue": "Upplåst"
   },
   "Home": {
     "hero": {
@@ -3445,5 +3446,23 @@
     "scansLabel": "Skanningar",
     "gradesLabel": "AI-graderingar",
     "daysLabel": "{count, plural, one {dag i rad} other {dagar i rad}}"
+  },
+  "ProHome": {
+    "title": "Du har Scoutr Pro",
+    "viaStore": "via {store}",
+    "viaWeb": "Betalas på webben",
+    "viaBonus": "Pro i gåva",
+    "viaRole": "Pro via ditt konto",
+    "offerSub": "Samma Pro, lägre pris per månad",
+    "switchCta": "Byt till 12 månader",
+    "working": "Ett ögonblick …",
+    "switched": "Klart — du har nu 12-månadersplanen.",
+    "switchFailed": "Bytet gick inte igenom. Försök igen om en stund.",
+    "manage": "Hantera prenumerationen",
+    "manageFailed": "Kunde inte öppna prenumerationen just nu.",
+    "manageHint": "Ändra eller säg upp i telefonens inställningar under Prenumerationer.",
+    "manageWeb": "Ändra eller säg upp på scoutr.se i en webbläsare.",
+    "manageBonus": "Du har Pro i gåva — inget att betala eller säga upp.",
+    "manageRole": "Pro ingår i ditt konto."
   }
 }

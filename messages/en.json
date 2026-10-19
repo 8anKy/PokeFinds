@@ -2814,7 +2814,8 @@
     "signupLead": "Scoutr is free to start. With an account you can watch prices, value your collection and scan cards.",
     "signupProNote": "The Tradera curve and the full price history are part of Pro, which you can add whenever you like.",
     "signupCreate": "Create account",
-    "signupLogin": "I already have an account"
+    "signupLogin": "I already have an account",
+    "unlockedValue": "Unlocked"
   },
   "Home": {
     "hero": {
@@ -3445,5 +3446,23 @@
     "scansLabel": "Scans",
     "gradesLabel": "AI grades",
     "daysLabel": "{count, plural, one {day streak} other {day streak}}"
+  },
+  "ProHome": {
+    "title": "You have Scoutr Pro",
+    "viaStore": "via {store}",
+    "viaWeb": "Paid on the web",
+    "viaBonus": "Pro as a gift",
+    "viaRole": "Pro through your account",
+    "offerSub": "Same Pro, lower price per month",
+    "switchCta": "Switch to 12 months",
+    "working": "One moment …",
+    "switched": "Done — you're now on the 12-month plan.",
+    "switchFailed": "The switch didn't go through. Try again in a moment.",
+    "manage": "Manage subscription",
+    "manageFailed": "Couldn't open your subscription right now.",
+    "manageHint": "Change or cancel in your phone's settings under Subscriptions.",
+    "manageWeb": "Change or cancel on scoutr.se in a web browser.",
+    "manageBonus": "You have Pro as a gift — nothing to pay or cancel.",
+    "manageRole": "Pro is included with your account."
   }
 }

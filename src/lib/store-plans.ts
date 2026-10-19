@@ -102,3 +102,22 @@ export function pickStorePlans(packages: StorePackageLike[]): {
   }
   return { month, year: commit ?? annual };
 }
+
+/**
+ * Vilken av våra planer en aktiv prenumeration är (Pro-vyn, 2026-10-20) — ur
+ * entitlementens `productIdentifier`. Basen före ":" jämförs: iOS rapporterar
+ * produkten (`premium_yearly`), Play produkt + basplan i erbjudandet
+ * (`premium_yearly:annual`) men bara produkten i entitlementen. null = okänd
+ * (en gammal produkt, ett gåvo-Pro) — då erbjuds inget byte.
+ */
+export function currentPlanKind(
+  activeProductId: string | null | undefined,
+  plans: { month: StorePlanOption | null; year: StorePlanOption | null }
+): "month" | "year" | null {
+  if (!activeProductId) return null;
+  const base = (id: string) => id.split(":")[0];
+  const active = base(activeProductId);
+  if (plans.year && base(plans.year.productId) === active) return "year";
+  if (plans.month && base(plans.month.productId) === active) return "month";
+  return null;
+}

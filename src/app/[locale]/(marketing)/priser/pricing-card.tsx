@@ -12,7 +12,7 @@ import type { PaywallCardPreview } from "@/lib/paywall";
  */
 const SLUG = "umbreon-ex-sv8pt5-161";
 
-export function PricingCard() {
+export function PricingCard({ unlocked = false }: { unlocked?: boolean }) {
   const [preview, setPreview] = useState<PaywallCardPreview>({
     kind: "card",
     imageUrl: "https://images.pokemontcg.io/sv8pt5/161_hires.png",
@@ -41,5 +41,5 @@ export function PricingCard() {
     };
   }, []);
 
-  return <CardPreview preview={preview} />;
+  return <CardPreview preview={preview} unlocked={unlocked} />;
 }

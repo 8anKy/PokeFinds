@@ -108,3 +108,11 @@ paths:
   användning), dag 12 påminnelsemejl + push med datum och pris; mejlet stämplas först när det gått iväg
   och prövas om nästa morgon så länge ≥ 26 h återstår (Apple drar upp till 24 h före slutet). Ett
   misslyckat mejl gör morgonrundan RÖD (502). Stripe-priserna skapas av `scripts/stripe-create-pro-prices.ts`.
+- **PRO-VYN + BYTE TILL 12 MÅNADER (ägarbeslut 2026-10-20)**: en Pro-medlem ser inte säljsidan på /priser utan
+  Pro-vyn (`priser/pricing-top.tsx`): kortet med raderna "Upplåst", plan + butik, de tre raderna och "Hantera
+  prenumerationen" (butikens `managementURL`; Stripe-portalen bara utanför appen). En MÅNADSPRENUMERANT i appen,
+  i SAMMA butik som telefonen, får erbjudandet att byta (`switchToYear`, `currentPlanKind` i `store-plans.ts`).
+  ⛔ **Android kräver `googleProductChangeInfo` med den gamla produkten** — annars blir årsplanen en ANDRA
+  prenumeration och kunden betalar för båda. `googleProductChangeInfo`, inte `storeProductChangeInfo`: Android
+  1.6.0 bär plugin 13.2.3. iOS byter inom prenumerationsgruppen själv. Webbens Stripe-plan byts inte härifrån.
+  Webhooken tar bytet som `PRODUCT_CHANGE` ⇒ PREMIUM (mapping.ts). Okänd produkt ⇒ inget erbjudande.

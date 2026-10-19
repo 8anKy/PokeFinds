@@ -319,7 +319,16 @@ function Sparkline({ values: raw }: { values: number[] }) {
   );
 }
 
-export function CardPreview({ preview, showPrice = true }: { preview: PaywallCardPreview; showPrice?: boolean }) {
+export function CardPreview({
+  preview,
+  showPrice = true,
+  unlocked = false,
+}: {
+  preview: PaywallCardPreview;
+  showPrice?: boolean;
+  /** Pro-vyn: raderna är upplåsta — "Upplåst" i stället för lås + suddigt tal. */
+  unlocked?: boolean;
+}) {
   const t = useTranslations("Paywall");
   const locked = [t("lockedTradera"), ...(preview.graded ? [t("lockedGraded")] : [])];
   const trend = preview.trend && preview.trend.length >= 2 ? preview.trend : null;
@@ -348,12 +357,16 @@ export function CardPreview({ preview, showPrice = true }: { preview: PaywallCar
             {locked.map((label) => (
               <div key={label} className="flex items-center justify-between gap-2">
                 <span className="font-medium text-holo-cyan">{label}</span>
-                <span className="flex items-center gap-1.5" aria-label={t("lockedValue")}>
-                  <IconLock aria-hidden="true" className="h-3 w-3 text-holo-cyan" />
-                  <span aria-hidden="true" className="select-none font-semibold text-ink blur-[5px]">
-                    0 000 kr
+                {unlocked ? (
+                  <span className="font-semibold text-holo-cyan">{t("unlockedValue")}</span>
+                ) : (
+                  <span className="flex items-center gap-1.5" aria-label={t("lockedValue")}>
+                    <IconLock aria-hidden="true" className="h-3 w-3 text-holo-cyan" />
+                    <span aria-hidden="true" className="select-none font-semibold text-ink blur-[5px]">
+                      0 000 kr
+                    </span>
                   </span>
-                </span>
+                )}
               </div>
             ))}
           </div>

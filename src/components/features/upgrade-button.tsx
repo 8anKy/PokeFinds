@@ -254,7 +254,9 @@ export function UpgradeButton({
         >
           {busy ? t("processing") : label ?? t("upgradeToPro")}
         </Button>
-        <p className="mt-2 text-center text-xs text-ink-faint">{t("securePayment")}</p>
+        {/* Med `label` står anroparen (arket, /priser) för villkorsraden för VALD plan —
+            "förnyas varje månad" hade motsagt 12-månadersplanen precis under. */}
+        {!label && <p className="mt-2 text-center text-xs text-ink-faint">{t("securePayment")}</p>}
         {msg && <p className="mt-2 text-center text-xs text-ink-muted">{msg}</p>}
       </>
     );

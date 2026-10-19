@@ -10,6 +10,7 @@ import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { ProBullets, ProPlanPurchase } from "@/components/features/pro-plan-picker";
 import { OpenOnHash } from "./open-on-hash";
 import { PricingCard } from "./pricing-card";
+import { PricingTop } from "./pricing-top";
 import { ProSpecTable } from "@/components/features/pro-spec-table";
 import { FreePlanCta } from "./free-plan-cta";
 import { SubpageHeader } from "@/components/layout/subpage-header";
@@ -111,46 +112,52 @@ export default async function PricingPage({
           i HTML:en för sök och granskning, men inte en lista under köpet). Kortets pris
           och linje hämtas i klienten (pricing-card.tsx) — ett inbakat pris hade varit gammalt. */}
       <div className="mx-auto w-full max-w-md">
-        <section className="flex flex-col">
-          <PricingCard />
-          <h1 className="mt-5 font-display text-[26px] font-bold leading-tight tracking-[-0.025em] text-ink">
-            {tPay("headlineSold")}
-          </h1>
-          <p className="sr-only" data-price>
-            {tPay("title")} · {t("heroPrice")} {t("heroSub")}
-          </p>
-          <ProBullets items={bullets} className="mt-3.5" />
-
-          <div className="mt-5 w-full">
-            {/* Servern äger frågan "går det att betala?" — en egen
-                NEXT_PUBLIC_-flagga hade blivit en andra sanning som glider isär
-                från STRIPE_ENABLED. */}
-            <ProPlanPurchase
-              webCheckout={stripeCheckoutAdvertised()}
-              webYearPlan={!!process.env.STRIPE_PRICE_ID_PRO_COMMIT}
-              fallbackNote={t("subRenewNote")}
-            />
-            {/* Apple 3.1.2: förnyelsevillkoret och BÅDA de legala länkarna måste
-                stå VID köpknappen, inte bara i sidfoten (som dessutom är dold
-                bakom bottenflikarna i appen). iOS-appen är en Capacitor-WebView
-                över exakt den här sidan, så det HÄR är app:ens paywall — ändras
-                texten slår den igenom utan nytt native-bygge. Paywall-arket bär
-                samma text vid sin knapp. */}
-            <p className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 text-[11px] text-ink-muted">
-              <a href="#jamfor" className="underline underline-offset-2 transition-colors duration-150 hover:text-ink">
-                {tPay("compareAll")}
-              </a>
-              <span aria-hidden="true" className="text-ink-faint">·</span>
-              <Link href="/villkor" className="underline underline-offset-2 transition-colors duration-150 hover:text-ink">
-                {t("legalTerms")}
-              </Link>
-              <span aria-hidden="true" className="text-ink-faint">·</span>
-              <Link href="/integritetspolicy" className="underline underline-offset-2 transition-colors duration-150 hover:text-ink">
-                {t("legalPrivacy")}
-              </Link>
+        {/* Pro-medlemmar får Pro-vyn i stället (pricing-top.tsx). */}
+        <PricingTop
+          webYearPlan={stripeCheckoutAdvertised() && !!process.env.STRIPE_PRICE_ID_PRO_COMMIT}
+          bullets={bullets}
+        >
+          <section className="flex flex-col">
+            <PricingCard />
+            <h1 className="mt-5 font-display text-[26px] font-bold leading-tight tracking-[-0.025em] text-ink">
+              {tPay("headlineSold")}
+            </h1>
+            <p className="sr-only" data-price>
+              {tPay("title")} · {t("heroPrice")} {t("heroSub")}
             </p>
-          </div>
-        </section>
+            <ProBullets items={bullets} className="mt-3.5" />
+
+            <div className="mt-5 w-full">
+              {/* Servern äger frågan "går det att betala?" — en egen
+                  NEXT_PUBLIC_-flagga hade blivit en andra sanning som glider isär
+                  från STRIPE_ENABLED. */}
+              <ProPlanPurchase
+                webCheckout={stripeCheckoutAdvertised()}
+                webYearPlan={!!process.env.STRIPE_PRICE_ID_PRO_COMMIT}
+                fallbackNote={t("subRenewNote")}
+              />
+              {/* Apple 3.1.2: förnyelsevillkoret och BÅDA de legala länkarna måste
+                  stå VID köpknappen, inte bara i sidfoten (som dessutom är dold
+                  bakom bottenflikarna i appen). iOS-appen är en Capacitor-WebView
+                  över exakt den här sidan, så det HÄR är app:ens paywall — ändras
+                  texten slår den igenom utan nytt native-bygge. Paywall-arket bär
+                  samma text vid sin knapp. */}
+              <p className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 text-[11px] text-ink-muted">
+                <a href="#jamfor" className="underline underline-offset-2 transition-colors duration-150 hover:text-ink">
+                  {tPay("compareAll")}
+                </a>
+                <span aria-hidden="true" className="text-ink-faint">·</span>
+                <Link href="/villkor" className="underline underline-offset-2 transition-colors duration-150 hover:text-ink">
+                  {t("legalTerms")}
+                </Link>
+                <span aria-hidden="true" className="text-ink-faint">·</span>
+                <Link href="/integritetspolicy" className="underline underline-offset-2 transition-colors duration-150 hover:text-ink">
+                  {t("legalPrivacy")}
+                </Link>
+              </p>
+            </div>
+          </section>
+        </PricingTop>
 
         <OpenOnHash id="jamfor" />
         <details id="jamfor" className="group mt-12 scroll-mt-24 border-t border-surface-border pt-4">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { hasAuthHint } from "@/lib/auth-hint";
@@ -39,8 +39,11 @@ export interface ProPlans {
   ready: boolean;
   /** Butiksköp (app) — styr villkorsraden: Apple förnyar åtagandet 12 mån i taget. */
   store: boolean;
-  /** Har redan Pro ⇒ inget planval, ingen provperiodsrad — bara "Din nuvarande plan". */
+  /** Har redan Pro ⇒ inget planval, ingen provperiodsrad — /priser visar Pro-vyn. */
   pro: boolean;
+  /** Pro-medlemmens källa (`proSource` ur /api/users/me) + id — Pro-vyns planrad och byte. */
+  proSource?: "stripe" | "store" | "bonus" | "role" | null;
+  userId?: string | null;
   year: PlanView | null;
   month: PlanView | null;
 }
@@ -56,20 +59,35 @@ const WEB_PLANS = (trial: boolean): Pick<ProPlans, "year" | "month"> => ({
   month: { kind: "month", price: formatKr(PRO_MONTHLY_ORE), per: "month", secondary: null, trialDays: null },
 });
 
-export function useProPlans(webYearPlan: boolean): ProPlans {
+/**
+ * /priser hämtar planerna EN gång (Pro-vyn eller säljvyn avgörs av dem) och delar
+ * dem med köpblocket — annars två /api/users/me per sidvisning.
+ */
+export const ProPlansContext = createContext<ProPlans | null>(null);
+
+export function useProPlans(webYearPlan: boolean, skip = false): ProPlans {
   const [plans, setPlans] = useState<ProPlans>({ ready: false, store: false, pro: false, year: null, month: null });
 
   useEffect(() => {
+    if (skip) return;
     let alive = true;
     const loggedIn = hasAuthHint();
-    const proPlans = (store: boolean): ProPlans => ({ ready: true, store, pro: true, year: null, month: null });
+    const proPlans = (store: boolean, me: { id?: string; proSource?: ProPlans["proSource"] }): ProPlans => ({
+      ready: true,
+      store,
+      pro: true,
+      proSource: me.proSource ?? null,
+      userId: me.id ?? null,
+      year: null,
+      month: null,
+    });
     if (purchasesAvailable()) {
       void (async () => {
         try {
           // Utloggad ⇒ butikens planer ändå (anonymt SDK); knappen ber om inloggning.
           const me = loggedIn ? await fetch("/api/users/me").then((r) => r.json()) : null;
           if (me?.isPro) {
-            if (alive) setPlans(proPlans(true));
+            if (alive) setPlans(proPlans(true, me));
             return;
           }
           const p = await loadStorePlans(me?.id ?? null);
@@ -93,12 +111,12 @@ export function useProPlans(webYearPlan: boolean): ProPlans {
     }
     fetch("/api/users/me")
       .then((r) => r.json())
-      .then((me) => alive && setPlans(me?.isPro ? proPlans(false) : web(me?.webTrialEligible !== false)))
+      .then((me) => alive && setPlans(me?.isPro ? proPlans(false, me) : web(me?.webTrialEligible !== false)))
       .catch(() => alive && setPlans(web(false)));
     return () => {
       alive = false;
     };
-  }, [webYearPlan]);
+  }, [webYearPlan, skip]);
 
   return plans;
 }
@@ -243,7 +261,9 @@ export function ProPlanPurchase({
   webYearPlan: boolean;
   fallbackNote: string;
 }) {
-  const plans = useProPlans(webCheckout && webYearPlan);
+  const shared = useContext(ProPlansContext);
+  const own = useProPlans(webCheckout && webYearPlan, shared != null);
+  const plans = shared ?? own;
   const [choice, setChoice] = useState<ProPlanChoice>("year");
   const effective: ProPlanChoice = plans.year ? choice : "month";
   const { cta, note } = usePlanCopy(plans, effective);

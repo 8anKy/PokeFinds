@@ -3,10 +3,11 @@ import {
   Purchases,
   INTRO_ELIGIBILITY_STATUS,
   LOG_LEVEL,
+  PRORATION_MODE,
   STOREKIT_VERSION,
   type PurchasesPackage,
 } from "@revenuecat/purchases-capacitor";
-import { pickStorePlans, type StorePlanOption } from "@/lib/store-plans";
+import { currentPlanKind, pickStorePlans, type StorePlanOption } from "@/lib/store-plans";
 import type { ProPlanChoice } from "@/lib/pro-plans";
 
 // Plattforms-specifika RC API-nycklar (publika, ok i klienten). Sätt vid bygge.
@@ -133,6 +134,61 @@ export async function purchasePlan(userId: string, choice: ProPlanChoice): Promi
   const pkg = await packageFor(choice);
   if (!pkg) throw new Error("Ingen prenumeration tillgänglig just nu.");
   const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
+  return !!customerInfo.entitlements.active[ENTITLEMENT];
+}
+
+/** Pro-medlemmens butiksprenumeration just nu (Pro-vyn på /priser). */
+export interface CurrentStorePlan {
+  /** Vilken av VÅRA planer, null = okänd produkt (ingen bytesknapp). */
+  kind: "month" | "year" | null;
+  productId: string;
+  store: "app_store" | "play_store" | "other";
+  /** 12-månadersplanen om ett byte går att erbjuda, annars null. */
+  switchTo: StorePlanOption | null;
+}
+
+export async function loadCurrentStorePlan(userId: string): Promise<CurrentStorePlan | null> {
+  await ensureConfigured(userId);
+  const { customerInfo } = await Purchases.getCustomerInfo();
+  const ent = customerInfo.entitlements.active[ENTITLEMENT];
+  if (!ent) return null;
+  const store = ent.store === "APP_STORE" ? "app_store" : ent.store === "PLAY_STORE" ? "play_store" : "other";
+  // Ett köp i den ANDRA butiken (iPhone-köp, Android-telefon) går inte att byta härifrån.
+  const here = Capacitor.getPlatform() === "ios" ? "app_store" : "play_store";
+  const plans = await loadStorePlans(userId);
+  const kind = currentPlanKind(ent.productIdentifier, plans);
+  return {
+    kind,
+    productId: ent.productIdentifier,
+    store,
+    switchTo: kind === "month" && store === here ? plans.year : null,
+  };
+}
+
+/**
+ * Byt en månadsprenumeration till 12 månader (2026-10-20). iOS: samma
+ * prenumerationsgrupp ⇒ Apple byter själv och visar sitt eget ark. ⛔ ANDROID MÅSTE
+ * FÅ DEN GAMLA PRODUKTEN: utan `googleProductChangeInfo` blir årsplanen en ANDRA
+ * prenumeration bredvid månadsplanen och kunden betalar för båda. Tidsproration ⇒
+ * bytet gäller direkt och återstående månadstid räknas av.
+ * ⛔ `googleProductChangeInfo`, inte `storeProductChangeInfo`: Android 1.6.0 bär
+ * plugin 13.2.3, och den nya formen finns inte där.
+ */
+export async function switchToYear(userId: string, oldProductId: string): Promise<boolean> {
+  await ensureConfigured(userId);
+  const pkg = await packageFor("year");
+  if (!pkg) throw new Error("Ingen prenumeration tillgänglig just nu.");
+  const { customerInfo } = await Purchases.purchasePackage({
+    aPackage: pkg,
+    ...(Capacitor.getPlatform() === "android"
+      ? {
+          googleProductChangeInfo: {
+            oldProductIdentifier: oldProductId.split(":")[0],
+            prorationMode: PRORATION_MODE.IMMEDIATE_WITH_TIME_PRORATION,
+          },
+        }
+      : {}),
+  });
   return !!customerInfo.entitlements.active[ENTITLEMENT];
 }
 
