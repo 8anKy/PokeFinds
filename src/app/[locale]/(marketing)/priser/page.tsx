@@ -7,8 +7,7 @@ import { stripeCheckoutAdvertised } from "@/lib/stripe";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { pausableFeatures, type SpecRow } from "@/lib/pricing-features";
 import { priceAlertsPaused } from "@/lib/price-alerts-pause";
-import { ProPlanPurchase } from "@/components/features/pro-plan-picker";
-import { ProHoloCard } from "@/components/features/pro-holo-card";
+import { ProBullets, ProPlanPurchase } from "@/components/features/pro-plan-picker";
 import { ProSpecTable } from "@/components/features/pro-spec-table";
 import { FreePlanCta } from "./free-plan-cta";
 import { SubpageHeader } from "@/components/layout/subpage-header";
@@ -34,6 +33,7 @@ export default async function PricingPage({
 }) {
   setRequestLocale(params.locale);
   const t = await getTranslations("Pricing");
+  const tPay = await getTranslations("Paywall");
   const tNav = await getTranslations("Nav");
   const faq = t.raw("faqItems") as { q: string; a: string }[];
 
@@ -59,6 +59,10 @@ export default async function PricingPage({
     { items: t.raw("specRowsPrice") as SpecRow[], paused: pricePaused },
     { items: t.raw("specRowsRestock") as SpecRow[], paused: restockPaused },
   ]);
+  // Samma tre rader som arket, med samma pausflagga på restock-raden.
+  const bullets: [string, string][] = [[tPay("bulletSoldTitle"), tPay("bulletSoldBody")]];
+  if (!restockPaused) bullets.push([tPay("bulletRestockTitle"), tPay("bulletRestockBody")]);
+  bullets.push([tPay("bulletScanTitle"), tPay("bulletScanBody")]);
 
   return (
     // Mobil: pt-6 så bakåtknappen sitter i höjd med Mer-tabbens andra undersidor
@@ -102,20 +106,19 @@ export default async function PricingPage({
       <div className="grid gap-12 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-16">
         {/* Vänster (mobil: överst): ordet, priset, kortet, köpknappen. Sticky på
             desktop så knappen står bredvid spec-bladet hela vägen ner. */}
-        <section className="flex flex-col items-center text-center lg:sticky lg:top-24 lg:self-start lg:items-start lg:text-left">
-          {/* Ordet står EN gång här; kortet säger "Scoutr", inte "Pro" igen
-              (ägaren 2026-09-05: "Pro på alldeles för många ställen"). */}
-          <h1 className="holo-word font-display text-[76px] font-extrabold leading-[0.9] tracking-[-0.05em] sm:text-[88px]">
-            {t("heroWord")}
+        {/* A+ (ägarbeslut 2026-10-19): samma uppställning som paywall-arket — rubrik,
+            tre bockrader, planvalet med 12 månader förvalt, EN vit knapp. Holokortet
+            och det stora "Pro."-ordet är borta härifrån ("inte som artifacten"). */}
+        <section className="flex flex-col lg:sticky lg:top-24 lg:self-start">
+          <h1 className="font-display text-[28px] font-bold leading-tight tracking-[-0.025em] text-ink">
+            {tPay("title")}
           </h1>
-          <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-ink" data-price>
-            {t("heroPrice")}
+          <p className="mt-1.5 text-sm text-ink-muted" data-price>
+            {t("heroPrice")} {t("heroSub")}
           </p>
-          <p className="mt-1.5 max-w-xs text-sm text-ink-muted">{t("heroSub")}</p>
+          <ProBullets items={bullets} className="mt-4" />
 
-          <ProHoloCard className="mt-8" />
-
-          <div className="mt-6 w-full max-w-sm">
+          <div className="mt-6 w-full">
             {/* Servern äger frågan "går det att betala?" — en egen
                 NEXT_PUBLIC_-flagga hade blivit en andra sanning som glider isär
                 från STRIPE_ENABLED. */}

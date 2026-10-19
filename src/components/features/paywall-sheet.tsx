@@ -15,7 +15,7 @@ import {
 } from "@/lib/paywall";
 import { IconLock } from "@/components/ui/icons";
 import { formatPrice } from "@/lib/format";
-import { ProPlanPicker, usePlanCopy, useProPlans } from "@/components/features/pro-plan-picker";
+import { ProBullets, ProPlanPicker, usePlanCopy, useProPlans } from "@/components/features/pro-plan-picker";
 import type { ProPlanChoice } from "@/lib/pro-plans";
 import { GradedSlab } from "@/components/features/graded-slab";
 import { ISSUER_LABELS, type GradingIssuer } from "@/lib/graded-listing";
@@ -227,10 +227,12 @@ function PaywallSheet({
       panelClassName="sm:mx-auto sm:mb-6 sm:w-full sm:max-w-md sm:rounded-[20px]"
       footer={
         <>
-          <UpgradeButton webCheckout={webCheckout} compact plan={effective} label={cta} />
-          <p className="mt-2.5 text-center text-[11px] leading-snug text-ink-faint">
-            {note ?? tp("subRenewNote")}
-          </p>
+          <UpgradeButton webCheckout={webCheckout} compact plan={effective} label={cta} tone="light" />
+          {!plans.pro && (
+            <p className="mt-2.5 text-center text-[11px] leading-snug text-ink-faint">
+              {note ?? tp("subRenewNote")}
+            </p>
+          )}
           <p className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 text-[11px] text-ink-muted">
             <Link href="/priser" onClick={onClose} className="underline underline-offset-2 hover:text-ink">
               {t("compareAll")}
@@ -269,22 +271,12 @@ function PaywallSheet({
         <p className="mt-5 w-full text-left font-display text-[22px] font-bold leading-tight tracking-tight text-ink">
           {t(headlineKey(source, preview))}
         </p>
-        <ul className="mt-3 flex w-full flex-col gap-2">
-          {bullets.map(([title, body]) => (
-            <li key={title} className="flex gap-2.5 text-sm leading-snug">
-              <span aria-hidden="true" className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-holo-cyan" />
-              <span>
-                <span className="font-semibold text-ink">{title}</span>
-                <span className="text-ink-muted"> · {body}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <ProBullets items={bullets} className="mt-3.5" />
         {plans.year && plans.month ? (
           <div className="mt-5 w-full">
             <ProPlanPicker plans={plans} choice={effective} onChoose={setChoice} />
           </div>
-        ) : plans.ready && !plans.store ? (
+        ) : plans.ready && !plans.store && !plans.pro ? (
           <p className="mt-5 w-full text-left font-display text-lg font-bold text-ink">{tp("heroPrice")}</p>
         ) : null}
       </div>

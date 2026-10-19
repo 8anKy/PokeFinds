@@ -39,6 +39,8 @@ export interface ProPlans {
   ready: boolean;
   /** Butiksköp (app) — styr villkorsraden: Apple förnyar åtagandet 12 mån i taget. */
   store: boolean;
+  /** Har redan Pro ⇒ inget planval, ingen provperiodsrad — bara "Din nuvarande plan". */
+  pro: boolean;
   year: PlanView | null;
   month: PlanView | null;
 }
@@ -55,30 +57,35 @@ const WEB_PLANS = (trial: boolean): Pick<ProPlans, "year" | "month"> => ({
 });
 
 export function useProPlans(webYearPlan: boolean): ProPlans {
-  const [plans, setPlans] = useState<ProPlans>({ ready: false, store: false, year: null, month: null });
+  const [plans, setPlans] = useState<ProPlans>({ ready: false, store: false, pro: false, year: null, month: null });
 
   useEffect(() => {
     let alive = true;
     const loggedIn = hasAuthHint();
+    const proPlans = (store: boolean): ProPlans => ({ ready: true, store, pro: true, year: null, month: null });
     if (purchasesAvailable()) {
       void (async () => {
         try {
           const me = loggedIn ? await fetch("/api/users/me").then((r) => r.json()) : null;
           if (!me?.id) throw new Error("no user");
+          if (me.isPro) {
+            if (alive) setPlans(proPlans(true));
+            return;
+          }
           const p = await loadStorePlans(me.id);
-          if (alive) setPlans({ ready: true, store: true, year: p.year, month: p.month });
+          if (alive) setPlans({ ready: true, store: true, pro: false, year: p.year, month: p.month });
         } catch {
           // Butiken svarar inte ⇒ bara knappen (månadsplanen), som förut.
-          if (alive) setPlans({ ready: true, store: true, year: null, month: null });
+          if (alive) setPlans({ ready: true, store: true, pro: false, year: null, month: null });
         }
       })();
       return () => {
         alive = false;
       };
     }
-    const web = (trial: boolean) => {
+    const web = (trial: boolean): ProPlans => {
       const p = WEB_PLANS(trial);
-      return { ready: true, store: false, year: webYearPlan ? p.year : null, month: p.month };
+      return { ready: true, store: false, pro: false, year: webYearPlan ? p.year : null, month: p.month };
     };
     if (!loggedIn) {
       setPlans(web(true));
@@ -86,7 +93,7 @@ export function useProPlans(webYearPlan: boolean): ProPlans {
     }
     fetch("/api/users/me")
       .then((r) => r.json())
-      .then((me) => alive && setPlans(web(me?.webTrialEligible !== false)))
+      .then((me) => alive && setPlans(me?.isPro ? proPlans(false) : web(me?.webTrialEligible !== false)))
       .catch(() => alive && setPlans(web(false)));
     return () => {
       alive = false;
@@ -175,7 +182,7 @@ export function ProPlanPicker({
 export function usePlanCopy(plans: ProPlans, choice: ProPlanChoice): { cta: string | undefined; note: string | null } {
   const t = useTranslations("Paywall");
   const plan = choice === "year" ? plans.year : plans.month;
-  if (!plan) return { cta: undefined, note: null };
+  if (plans.pro || !plan) return { cta: undefined, note: null };
   if (plan.kind === "month") {
     return { cta: t("ctaMonth", { price: plan.price }), note: t("noteMonth", { price: plan.price }) };
   }
@@ -193,6 +200,33 @@ export function usePlanCopy(plans: ProPlans, choice: ProPlanChoice): { cta: stri
       ? "noteCommitTrialWeb"
       : "noteCommitWeb";
   return { cta, note: t(key, { days: days ?? 0, price: plan.price, total }) };
+}
+
+/** A+-arkets tre rader: turkos bock, fet rubrik, dämpad förklaring. Delas av arket och /priser. */
+export function ProBullets({ items, className }: { items: [string, string][]; className?: string }) {
+  return (
+    <ul className={cn("flex w-full flex-col gap-2.5", className)}>
+      {items.map(([title, body]) => (
+        <li key={title} className="flex items-start gap-2.5 text-[14.5px] leading-snug">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="mt-0.5 shrink-0">
+            <path
+              d="M3 8.5l3 3 7-7"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-holo-cyan"
+            />
+          </svg>
+          <span>
+            <span className="font-semibold text-ink">{title}</span>
+            <span className="text-ink-faint"> — {body}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /**
@@ -216,12 +250,14 @@ export function ProPlanPurchase({
   return (
     <>
       {plans.year && plans.month && (
-        <div className="mb-4">
+        <div className="mb-5">
           <ProPlanPicker plans={plans} choice={effective} onChoose={setChoice} />
         </div>
       )}
-      <UpgradeButton webCheckout={webCheckout} compact plan={effective} label={cta} />
-      <p className="mt-3 text-center text-xs text-ink-faint">{note ?? fallbackNote}</p>
+      <UpgradeButton webCheckout={webCheckout} compact plan={effective} label={cta} tone="light" />
+      {!plans.pro && (
+        <p className="mt-2.5 text-center text-[11px] leading-snug text-ink-faint">{note ?? fallbackNote}</p>
+      )}
     </>
   );
 }

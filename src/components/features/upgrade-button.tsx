@@ -40,6 +40,7 @@ export function UpgradeButton({
   compact = false,
   plan = "month",
   label,
+  tone = "accent",
 }: {
   webCheckout?: boolean;
   compact?: boolean;
@@ -47,6 +48,8 @@ export function UpgradeButton({
   plan?: ProPlanChoice;
   /** Knapptexten ("Starta 14 dagar gratis"); utan = "Uppgradera till Pro". */
   label?: string;
+  /** "light" = A+-arkets vita köpknapp (54 px, turkos bara som accent runt den). */
+  tone?: "accent" | "light";
 }) {
   const t = useTranslations("Upgrade");
   const router = useRouter();
@@ -60,6 +63,12 @@ export function UpgradeButton({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const top = compact ? "mt-0" : "mt-8";
+  const buy = cn(
+    top,
+    "w-full",
+    tone === "light" &&
+      "h-[54px] rounded-[14px] bg-ink text-base font-bold text-black hover:bg-ink/90 hover:shadow-none active:bg-ink/80"
+  );
 
   /**
    * Vänta in att Pro slår igenom efter ett köp.
@@ -228,7 +237,7 @@ export function UpgradeButton({
     }
     if (!loggedIn) {
       return (
-        <LinkButton href="/logga-in" className={cn(top, "w-full")}>
+        <LinkButton href="/logga-in" className={buy}>
           {t("loginToUpgrade")}
         </LinkButton>
       );
@@ -236,7 +245,7 @@ export function UpgradeButton({
     return (
       <>
         <Button
-          className={cn(top, "w-full")}
+          className={buy}
           disabled={busy}
           onClick={() => {
             trackUpgradeClick();
@@ -253,7 +262,7 @@ export function UpgradeButton({
 
   if (!loggedIn) {
     return (
-      <LinkButton href="/logga-in" className={cn(top, "w-full")}>
+      <LinkButton href="/logga-in" className={buy}>
         {t("loginToUpgrade")}
       </LinkButton>
     );
@@ -289,7 +298,7 @@ export function UpgradeButton({
   return (
     <>
       <Button
-        className={cn(top, "w-full")}
+        className={buy}
         disabled={busy}
         onClick={() => {
           trackUpgradeClick();
