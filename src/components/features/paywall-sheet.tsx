@@ -289,42 +289,77 @@ function PaywallSheet({
  * raderna i turkos med lås. ⛔ Den suddiga siffran är en PLATSHÅLLARE ("0 000 kr"),
  * aldrig det riktiga talet: det når aldrig klienten utan Pro.
  */
+/** Kortets lilla prislinje (A+): den publika kurvan, normaliserad till rutans höjd. */
+function Sparkline({ values: raw }: { values: number[] }) {
+  const W = 330;
+  const H = 36;
+  // Dagliga tal är taggiga på 330 px — ~24 medelvärden ger kortets lugna linje.
+  const buckets = Math.min(24, raw.length);
+  const values = Array.from({ length: buckets }, (_, b) => {
+    const part = raw.slice(Math.floor((b * raw.length) / buckets), Math.floor(((b + 1) * raw.length) / buckets));
+    return part.reduce((s, v) => s + v, 0) / part.length;
+  });
+  const min = Math.min(...values);
+  const span = Math.max(...values) - min || 1;
+  const points = values
+    .map((v, i) => `${((i / (values.length - 1)) * W).toFixed(1)},${(H - 2 - ((v - min) / span) * (H - 4)).toFixed(1)}`)
+    .join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true" className="mt-3 h-9 w-full">
+      <polyline
+        points={points}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+        className="text-ink"
+      />
+    </svg>
+  );
+}
+
 export function CardPreview({ preview, showPrice = true }: { preview: PaywallCardPreview; showPrice?: boolean }) {
   const t = useTranslations("Paywall");
   const locked = [t("lockedTradera"), ...(preview.graded ? [t("lockedGraded")] : [])];
+  const trend = preview.trend && preview.trend.length >= 2 ? preview.trend : null;
   return (
-    <div className="flex w-full gap-3.5 rounded-2xl border border-surface-border p-3">
-      <div className="h-[118px] w-[84px] shrink-0 overflow-hidden rounded-md bg-surface-overlay">
-        {preview.imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview.imageUrl} alt="" className="h-full w-full object-contain" loading="eager" />
-        )}
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <p className="truncate text-[15px] font-semibold text-ink">{preview.name}</p>
-        {preview.setName && <p className="truncate text-xs text-ink-muted">{preview.setName}</p>}
-        <div className="mt-2.5 flex flex-col gap-1.5 text-[13px]">
-          {showPrice && (
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-ink-muted">{t("cardPriceNow")}</span>
-              <span className="font-semibold text-ink">
-                {preview.priceOre != null ? formatPrice(preview.priceOre) : "–"}
-              </span>
-            </div>
+    <div className="w-full rounded-2xl border border-surface-border p-3.5">
+      <div className="flex w-full gap-3.5">
+        <div className="h-[118px] w-[84px] shrink-0 overflow-hidden rounded-md bg-surface-overlay">
+          {preview.imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={preview.imageUrl} alt="" className="h-full w-full object-contain" loading="eager" />
           )}
-          {locked.map((label) => (
-            <div key={label} className="flex items-center justify-between gap-2">
-              <span className="font-medium text-holo-cyan">{label}</span>
-              <span className="flex items-center gap-1.5" aria-label={t("lockedValue")}>
-                <IconLock aria-hidden="true" className="h-3 w-3 text-holo-cyan" />
-                <span aria-hidden="true" className="select-none font-semibold text-ink blur-[5px]">
-                  0 000 kr
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col justify-center">
+          <p className="truncate text-[15px] font-semibold text-ink">{preview.name}</p>
+          {preview.setName && <p className="truncate text-xs text-ink-muted">{preview.setName}</p>}
+          <div className="mt-2.5 flex flex-col gap-1.5 text-[13px]">
+            {showPrice && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-ink-muted">{t("cardPriceNow")}</span>
+                <span className="font-semibold text-ink">
+                  {/* Hela kronor i kortet (A+): ören är brus i en rad bredvid låsta tal. */}
+                  {preview.priceOre != null ? formatPrice(Math.round(preview.priceOre / 100) * 100) : "–"}
                 </span>
-              </span>
-            </div>
-          ))}
+              </div>
+            )}
+            {locked.map((label) => (
+              <div key={label} className="flex items-center justify-between gap-2">
+                <span className="font-medium text-holo-cyan">{label}</span>
+                <span className="flex items-center gap-1.5" aria-label={t("lockedValue")}>
+                  <IconLock aria-hidden="true" className="h-3 w-3 text-holo-cyan" />
+                  <span aria-hidden="true" className="select-none font-semibold text-ink blur-[5px]">
+                    0 000 kr
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+      {trend && <Sparkline values={trend} />}
     </div>
   );
 }

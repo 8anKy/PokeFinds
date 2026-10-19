@@ -66,6 +66,8 @@ export interface PaywallCardPreview {
   priceOre: number | null;
   /** Visa raden "graderat sålt" — bara för singlar. */
   graded: boolean;
+  /** Prisgrafens publika kurva (öre, äldst först) — kortets lilla linje. Aldrig Pro-data. */
+  trend?: number[] | null;
 }
 
 import { track } from "@/lib/track";

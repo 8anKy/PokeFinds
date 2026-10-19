@@ -8,8 +8,8 @@ import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { pausableFeatures, type SpecRow } from "@/lib/pricing-features";
 import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { ProBullets, ProPlanPurchase } from "@/components/features/pro-plan-picker";
-import { CardPreview } from "@/components/features/paywall-sheet";
 import { OpenOnHash } from "./open-on-hash";
+import { PricingCard } from "./pricing-card";
 import { ProSpecTable } from "@/components/features/pro-spec-table";
 import { FreePlanCta } from "./free-plan-cta";
 import { SubpageHeader } from "@/components/layout/subpage-header";
@@ -108,21 +108,11 @@ export default async function PricingPage({
       {/* A+ (ägarbeslut 2026-10-19, "som artifacten"): sidan ÄR arket — ett kort med de
           låsta sålt-raderna, rubriken, tre bockrader, planvalet med 12 månader förvalt
           och EN vit knapp. Jämförelsen + FAQ ligger HOPFÄLLD under "Jämför allt" (kvar
-          i HTML:en för sök och granskning, men inte en lista under köpet). ⛔ Kortet
-          visar inget pris: sidan är statisk, och ett inbakat pris hade varit gammalt. */}
+          i HTML:en för sök och granskning, men inte en lista under köpet). Kortets pris
+          och linje hämtas i klienten (pricing-card.tsx) — ett inbakat pris hade varit gammalt. */}
       <div className="mx-auto w-full max-w-md">
         <section className="flex flex-col">
-          <CardPreview
-            showPrice={false}
-            preview={{
-              kind: "card",
-              imageUrl: "https://images.pokemontcg.io/sv8pt5/161_hires.png",
-              name: "Umbreon ex · 161",
-              setName: "Prismatic Evolutions",
-              priceOre: null,
-              graded: true,
-            }}
-          />
+          <PricingCard />
           <h1 className="mt-5 font-display text-[26px] font-bold leading-tight tracking-[-0.025em] text-ink">
             {tPay("headlineSold")}
           </h1>

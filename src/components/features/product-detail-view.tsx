@@ -225,6 +225,7 @@ export function ProductDetailView({
     setName: data.set?.name ?? null,
     priceOre: data.stats.lowestPrice,
     graded: isSingle,
+    trend: data.chartData.slice(-90).map((p) => p.price),
   };
   const gradedHistory = gradedSel
     // `?? []`: detail-payloaden cachas ≤1 h — direkt efter en deploy saknar den
