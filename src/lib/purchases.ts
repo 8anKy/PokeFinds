@@ -16,10 +16,23 @@ const API_KEY = Capacitor.getPlatform() === "ios"
 
 const ENTITLEMENT = "premium"; // entitlement-id i RevenueCat-dashboarden
 
+let configured = false;
 let configuredFor: string | null = null;
 
-async function ensureConfigured(userId: string) {
-  if (configuredFor === userId) return;
+/**
+ * `null` = utloggad: SDK:t konfigureras anonymt så arket och /priser kan visa
+ * BUTIKENS planer även före inloggning (2026-10-20 — förut syntes bara
+ * "Logga in för att uppgradera"). Köp kräver alltid ett id: då byter `logIn` det
+ * anonyma id:t mot vårt, så webhooken får rätt app_user_id.
+ */
+async function ensureConfigured(userId: string | null) {
+  if (configured) {
+    if (userId && configuredFor !== userId) {
+      await Purchases.logIn({ appUserID: userId });
+      configuredFor = userId;
+    }
+    return;
+  }
   await Purchases.setLogLevel({ level: LOG_LEVEL.WARN });
   // appUserID = vår user-id → kommer tillbaka som app_user_id i webhooken.
   await Purchases.configure({
@@ -57,6 +70,7 @@ async function ensureConfigured(userId: string) {
      */
     storeKitVersion: STOREKIT_VERSION.STOREKIT_2,
   });
+  configured = true;
   configuredFor = userId;
 }
 
@@ -89,7 +103,7 @@ export interface StorePlans {
  * vilseledande. Android: Google lägger bara in provperioden i `defaultOption`
  * när kontot är berättigat.
  */
-export async function loadStorePlans(userId: string): Promise<StorePlans> {
+export async function loadStorePlans(userId: string | null): Promise<StorePlans> {
   await ensureConfigured(userId);
   const offerings = await Purchases.getOfferings();
   const plans = pickStorePlans(offerings.current?.availablePackages ?? []);

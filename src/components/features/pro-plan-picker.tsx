@@ -66,13 +66,13 @@ export function useProPlans(webYearPlan: boolean): ProPlans {
     if (purchasesAvailable()) {
       void (async () => {
         try {
+          // Utloggad ⇒ butikens planer ändå (anonymt SDK); knappen ber om inloggning.
           const me = loggedIn ? await fetch("/api/users/me").then((r) => r.json()) : null;
-          if (!me?.id) throw new Error("no user");
-          if (me.isPro) {
+          if (me?.isPro) {
             if (alive) setPlans(proPlans(true));
             return;
           }
-          const p = await loadStorePlans(me.id);
+          const p = await loadStorePlans(me?.id ?? null);
           if (alive) setPlans({ ready: true, store: true, pro: false, year: p.year, month: p.month });
         } catch {
           // Butiken svarar inte ⇒ bara knappen (månadsplanen), som förut.
