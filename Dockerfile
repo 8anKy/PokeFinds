@@ -33,6 +33,10 @@ ARG NEXT_PUBLIC_RC_ANDROID_KEY
 # `stripeEnabled()` i RUNTIME, så checkout slutar sälja direkt; bara knappens
 # utseende släpar tills bygget är klart.
 ARG STRIPE_ENABLED
+# 12-månadersplanens Stripe-pris (ett publikt id, ingen hemlighet): den STATISKA /priser
+# och rot-layoutens paywall-ark läser `!!STRIPE_PRICE_ID_PRO_COMMIT` vid bygget. Utan
+# raden bakades "ingen årsplan" in ⇒ webben visade bara 59 kr/mån (2026-10-20).
+ARG STRIPE_PRICE_ID_PRO_COMMIT
 # Kampanjen "gratis Pro till nya konton": bannern är en klientkomponent, så datumet
 # BAKAS IN här. Utan de här raderna är det undefined i bunten och remsan syns aldrig,
 # hur rätt variabeln än står på Railway — exakt samma fälla som STRIPE_ENABLED ovan.
@@ -71,6 +75,7 @@ ENV NODE_ENV=production \
     NEXT_PUBLIC_RC_IOS_KEY=$NEXT_PUBLIC_RC_IOS_KEY \
     NEXT_PUBLIC_RC_ANDROID_KEY=$NEXT_PUBLIC_RC_ANDROID_KEY \
     STRIPE_ENABLED=$STRIPE_ENABLED \
+    STRIPE_PRICE_ID_PRO_COMMIT=$STRIPE_PRICE_ID_PRO_COMMIT \
     NEXT_PUBLIC_SIGNUP_BONUS_UNTIL=$NEXT_PUBLIC_SIGNUP_BONUS_UNTIL \
     NEXT_PUBLIC_SIGNUP_BONUS_MONTHS=$NEXT_PUBLIC_SIGNUP_BONUS_MONTHS \
     LEGAL_ENTITY_NAME=$LEGAL_ENTITY_NAME \
