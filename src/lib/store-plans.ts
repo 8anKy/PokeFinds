@@ -105,19 +105,33 @@ export function pickStorePlans(packages: StorePackageLike[]): {
 
 /**
  * Vilken av våra planer en aktiv prenumeration är (Pro-vyn, 2026-10-20) — ur
- * entitlementens `productIdentifier`. Basen före ":" jämförs: iOS rapporterar
- * produkten (`premium_yearly`), Play produkt + basplan i erbjudandet
- * (`premium_yearly:annual`) men bara produkten i entitlementen. null = okänd
- * (en gammal produkt, ett gåvo-Pro) — då erbjuds inget byte.
+ * entitlementens `productIdentifier` + `productPlanIdentifier`.
+ *
+ * ⛔ PÅ PLAY ÄR MÅNAD OCH ÅR SAMMA PRODUKT (`foilio_pro_monthly`, basplanerna
+ * `monthly`/`yearly`) — produkten ensam säger ingenting. Basplanen avgör då:
+ * `foilio_pro_monthly` + `monthly` ⇒ "foilio_pro_monthly:monthly", exakt som
+ * erbjudandets produkt-id. iOS har ingen basplan; där är produkterna olika
+ * (`premium_monthly` / `premium_yearly`) och basen före ":" jämförs (åtagandet
+ * heter `premium_yearly:monthly` i RevenueCat). Delar planerna bas och basplanen
+ * saknas ⇒ null hellre än en gissning (ingen bytesknapp).
  */
 export function currentPlanKind(
   activeProductId: string | null | undefined,
-  plans: { month: StorePlanOption | null; year: StorePlanOption | null }
+  plans: { month: StorePlanOption | null; year: StorePlanOption | null },
+  activePlanId?: string | null
 ): "month" | "year" | null {
   if (!activeProductId) return null;
   const base = (id: string) => id.split(":")[0];
+  if (activePlanId) {
+    const full = `${base(activeProductId)}:${activePlanId}`;
+    if (plans.year?.productId === full) return "year";
+    if (plans.month?.productId === full) return "month";
+  }
   const active = base(activeProductId);
-  if (plans.year && base(plans.year.productId) === active) return "year";
-  if (plans.month && base(plans.month.productId) === active) return "month";
+  const yearBase = plans.year ? base(plans.year.productId) : null;
+  const monthBase = plans.month ? base(plans.month.productId) : null;
+  if (yearBase && yearBase === monthBase) return null;
+  if (yearBase === active) return "year";
+  if (monthBase === active) return "month";
   return null;
 }

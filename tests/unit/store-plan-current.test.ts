@@ -15,15 +15,24 @@ const opt = (productId: string, kind: StorePlanOption["kind"]): StorePlanOption 
 
 describe("currentPlanKind", () => {
   const ios = { month: opt("premium_monthly", "month"), year: opt("premium_yearly", "commit") };
-  const play = { month: opt("premium_monthly:monthly", "month"), year: opt("premium_yearly:annual", "annual") };
+  // Som i Play Console: EN prenumeration, två basplaner.
+  const play = { month: opt("foilio_pro_monthly:monthly", "month"), year: opt("foilio_pro_monthly:yearly", "annual") };
 
   it("känner igen månads- och årsplanen på iOS", () => {
     expect(currentPlanKind("premium_monthly", ios)).toBe("month");
     expect(currentPlanKind("premium_yearly", ios)).toBe("year");
   });
-  it("jämför Plays produkt utan basplan", () => {
-    expect(currentPlanKind("premium_monthly", play)).toBe("month");
-    expect(currentPlanKind("premium_yearly:annual", play)).toBe("year");
+  it("Play: basplanen avgör när månad och år är samma produkt", () => {
+    expect(currentPlanKind("foilio_pro_monthly", play, "monthly")).toBe("month");
+    expect(currentPlanKind("foilio_pro_monthly", play, "yearly")).toBe("year");
+  });
+  it("Play utan basplan ⇒ null, aldrig en gissning", () => {
+    expect(currentPlanKind("foilio_pro_monthly", play)).toBeNull();
+  });
+  it("iOS-åtagandet (premium_yearly:monthly) räknas som året", () => {
+    const commit = { month: opt("premium_monthly", "month"), year: opt("premium_yearly:monthly", "commit") };
+    expect(currentPlanKind("premium_yearly", commit)).toBe("year");
+    expect(currentPlanKind("premium_monthly", commit)).toBe("month");
   });
   it("okänd eller saknad produkt ⇒ null (inget byte erbjuds)", () => {
     expect(currentPlanKind("foilio_pro_legacy", ios)).toBeNull();

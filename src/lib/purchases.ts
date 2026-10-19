@@ -156,7 +156,7 @@ export async function loadCurrentStorePlan(userId: string): Promise<CurrentStore
   // Ett köp i den ANDRA butiken (iPhone-köp, Android-telefon) går inte att byta härifrån.
   const here = Capacitor.getPlatform() === "ios" ? "app_store" : "play_store";
   const plans = await loadStorePlans(userId);
-  const kind = currentPlanKind(ent.productIdentifier, plans);
+  const kind = currentPlanKind(ent.productIdentifier, plans, ent.productPlanIdentifier);
   return {
     kind,
     productId: ent.productIdentifier,
