@@ -30,9 +30,9 @@ export interface GiveawayConfig {
  * nås — sätt den ~24 h framåt och meddela det.
  */
 export const GIVEAWAY_KEY = "30th-etb-2026";
-// Start = dagen ägaren tillkännager (2026-10-20, ägarbeslut — flyttad från 10-15 och 10-17). Före starten är
+// Start = dagen ägaren tillkännager (2026-10-23, ägarbeslut — flyttad från 10-15, 10-17 och 10-20). Före starten är
 // giveawayn DOLD för alla utom admin (sidan 404:ar, Mer-raden syns inte).
-const DEFAULT_STARTS_AT = "2026-10-20T00:00:00+02:00";
+const DEFAULT_STARTS_AT = "2026-10-23T00:00:00+02:00";
 const DEFAULT_CLOSES_AT = "2026-11-15T23:59:59+01:00";
 
 export const TICKETS = {
