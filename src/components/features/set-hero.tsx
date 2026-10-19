@@ -49,12 +49,15 @@ export function SetHero({
   set,
   actions,
   heading = "h2",
+  compact = false,
   className,
 }: {
   set: SetSummary;
   /** Högerställd åtgärd (t.ex. "Bevaka förseglat"). */
   actions?: ReactNode;
   heading?: "h1" | "h2";
+  /** Smal rad för mobilens Utforska (ägaren 2026-10-19: det stora kortet tog halva skärmen). */
+  compact?: boolean;
   className?: string;
 }) {
   const t = useTranslations("SetHero");
@@ -68,12 +71,68 @@ export function SetHero({
     ? new Intl.DateTimeFormat(locale === "en" ? "en-GB" : "sv-SE", { dateStyle: "medium" }).format(new Date(set.releaseDate))
     : null;
   const H = heading;
+  const border = complete
+    ? "border-transparent [background:linear-gradient(#000,#000)_padding-box,linear-gradient(120deg,#2dd4bf,#a78bfa,#f472b6)_border-box]"
+    : "border-surface-border";
+
+  if (compact) {
+    return (
+      <section className={cn("rounded-xl border px-2.5 py-2", border, className)}>
+        <div className="flex items-center gap-2.5">
+          <div className="grid h-9 w-14 shrink-0 place-items-center">
+            {set.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={set.logoUrl} alt="" className="h-full w-full object-contain" />
+            ) : (
+              <SetNameTile name={set.name} compact />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <H className="truncate text-sm font-bold text-ink">{set.name}</H>
+            <p className="truncate text-[11px] text-ink-muted">
+              {set.total
+                ? loggedIn ? `${count} / ${set.total}` : t("cards", { count: set.total })
+                : t("noCards")}
+              {date && <> · {date}</>}
+              {set.language === "JP" && <> · {t("japanese")}</>}
+            </p>
+          </div>
+          <dl className="shrink-0 text-right">
+            {loggedIn && (
+              <>
+                <dt className="sr-only">{t("yourValue")}</dt>
+                <dd className={cn("text-sm font-semibold tabular-nums", count > 0 ? "text-holo-cyan" : "text-ink-muted")}>
+                  {owned ? formatKrWhole(mine?.valueOre ?? 0, locale) : "…"}
+                </dd>
+              </>
+            )}
+            <dt className="sr-only">{t("setValue")}</dt>
+            <dd className={cn("tabular-nums", loggedIn ? "text-[11px] text-ink-faint" : "text-sm font-semibold text-ink")}>
+              {loggedIn && <>{t("setValue")} </>}
+              {formatKrWhole(set.setValueOre, locale)}
+            </dd>
+          </dl>
+        </div>
+        {loggedIn && set.total ? (
+          <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-overlay" aria-hidden>
+            <div
+              className={cn(
+                "h-full rounded-full transition-[width] duration-700",
+                complete ? "bg-gradient-to-r from-holo-cyan via-holo-violet to-holo-pink" : "bg-holo-cyan"
+              )}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <section
       className={cn(
         "relative overflow-hidden rounded-2xl border p-3 sm:p-4",
-        complete ? "border-transparent [background:linear-gradient(#000,#000)_padding-box,linear-gradient(120deg,#2dd4bf,#a78bfa,#f472b6)_border-box]" : "border-surface-border",
+        border,
         className
       )}
     >

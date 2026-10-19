@@ -289,17 +289,19 @@ export default async function ProductsPage({
   const tHero = await getTranslations("SetHero");
   // ⛔ En FUNKTION, inte ett delat element: samma RSC-element renderat två gånger (mobil +
   // desktop) gav null-props i det andra (klientfel "Cannot destructure property set").
-  const setHero = () => setSummary ? (
+  // Mobil: smal rad utan "Alla set" (ägaren 2026-10-19); desktop behåller hela kortet.
+  const setHero = (compact = false) => setSummary ? (
     <SetHero
       set={setSummary}
-      actions={
+      compact={compact}
+      actions={compact ? undefined : (
         <Link
           href="/sets"
           className="inline-flex items-center rounded-full border border-surface-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-holo-cyan/50 hover:text-ink"
         >
           {tHero("allSets")}
         </Link>
-      }
+      )}
     />
   ) : null;
   // Veckoserien visas på Utforskas startläge (inga filter/sök) för inloggade.
@@ -426,7 +428,7 @@ export default async function ProductsPage({
           </form>
         </div>
 
-        {setHero()}
+        {setHero(true)}
 
         <section>{feed}</section>
       </div>
