@@ -53,12 +53,9 @@ const OVERRIDES: Record<string, Override> = {
   "Gekås Ullared": {
     url: "https://www.gekas.se/wp-content/themes/gekas-new/assets/frontend/media/gekas-logo.svg",
   },
-  // Ägaren levererade märkesfilen 2026-09-08 (deras header-logga); butikens favicon är
-  // en tom platta, så nätet erbjuder inget användbart. Ordmärket är ~950×360 och
-  // "contain" ger en LÄSBAR platta trots det: mätt på den riktiga 44 px-rutan står
-  // "Cardshop" kvar och den gröna linjen överlever som märkescue (bara "SWEDEN" blir
-  // prickar). Därför INGEN `firstGlyph`-beskärning här — ett ensamt "C" hade kastat
-  // bort just den gröna linjen. Texten är nästan vit → plattlogiken väljer mörk botten.
+  // Ägaren levererade märkesfilen (2026-09-08 ordmärket, 2026-10-20 butikens nya
+  // "CS"-ikon 430×430). Ikonens genomskinliga rundade hörn är plattade på dess egen
+  // gröna (rgb 6,40,22) i källfilen ⇒ "cover" fyller plattan kant i kant utan ljusa hörn.
   "Cardshop Sweden": {
     url: "repo:assets/retailer-logos/cardshop-sweden-source.png",
   },
