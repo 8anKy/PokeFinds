@@ -1,4 +1,6 @@
 import type { CapacitorConfig } from "@capacitor/cli";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * Capacitor-konfiguration för Foilio iOS/Android-app.
@@ -14,9 +16,23 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * dig sätta URL:en. Se docs/MOBILE.md.
  */
 const SERVER_URL = process.env.CAP_SERVER_URL?.trim() || "https://scoutr.se";
+/**
+ * Appversionen i UA-taggen. iOS: `MARKETING_VERSION` ur codemagic.yaml. Android byggs
+ * lokalt där ingen sätter den — då läses `versionName` ur android/app/build.gradle, så
+ * taggen aldrig glider från appens riktiga version (Android 1.6.0 bar "FoilioApp/1.2"
+ * fram till 2026-10-20). "1.2" bara om båda saknas.
+ */
+function androidVersionName(): string | null {
+  try {
+    const gradle = readFileSync(join(process.cwd(), "android", "app", "build.gradle"), "utf8");
+    return gradle.match(/versionName\s+"([^"]+)"/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
 // Håll i takt med `NATIVE_UA_TAG` i src/lib/community-v2-gate.ts (kan inte
 // importeras här — filen evalueras av Capacitors CLI utan tsconfig-alias).
-const NATIVE_UA_TAG = `FoilioApp/${process.env.MARKETING_VERSION?.trim() || "1.2"}`;
+const NATIVE_UA_TAG = `FoilioApp/${process.env.MARKETING_VERSION?.trim() || androidVersionName() || "1.2"}`;
 
 const config: CapacitorConfig = {
   // android/ har applicationId se.foilio.app (build.gradle); intern namespace är

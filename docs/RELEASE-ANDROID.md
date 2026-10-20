@@ -49,10 +49,10 @@ keyPassword=DITT_LOSENORD
 #    i android/app/build.gradle (versionCode 1 → 2 → 3 …)
 
 # 2. Synka webbkonfig → android (glöm inte efter capacitor.config.ts-ändringar).
-#    Samma start-URL som iOS (codemagic.yaml) och samma UA-tagg som versionsnamnet —
-#    taggen är det som släpper in bygget i community v2 (lib/community-v2-gate.ts).
-$env:CAP_SERVER_URL = "https://foilio.se/produkter"
-$env:MARKETING_VERSION = "1.2"
+#    Samma start-URL som iOS (codemagic.yaml). UA-taggens version läses ur
+#    android/app/build.gradle (versionName) av capacitor.config.ts — sätt INTE
+#    MARKETING_VERSION här, den vinner över versionName.
+$env:CAP_SERVER_URL = "https://scoutr.se/produkter"
 npx cap sync android
 
 # 3. Bygg signerad AAB (Android Studios JDK: D:\Emulator\jbr)
@@ -67,7 +67,7 @@ rekommenderas: syns inom minuter, inga granskningskrav).
 
 ## Kom ihåg
 - **versionCode** bumpas manuellt — Play avvisar återanvända nummer. Håll `versionName`
-  = iOS `MARKETING_VERSION` = `MARKETING_VERSION` vid `cap sync` (tre ställen, ett tal).
+  = iOS `MARKETING_VERSION` (codemagic.yaml); UA-taggen följer `versionName` av sig själv.
 - **Google-inloggning i Play-bygget kräver en ANDRA Android-OAuth-klient** med
   app-signeringsnyckelns SHA-1 (Play Console → App-integritet) — den befintliga är
   registrerad på debug-keystoren. Annars `[28444] Developer console is not set up
