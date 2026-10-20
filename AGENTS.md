@@ -311,7 +311,7 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   (ingen "Senare"). Domen: `lib/app-release.ts` (testad). Webben/inget native-bygge.
 - **FOILIO.SE-LÄNKAR ÖPPNAR APPEN (2026-10-06)**: AASA + `applinks:foilio.se` (codemagic.yaml) + Android
   `autoVerify`; `AppLinkHandler` navigerar. ⛔ Android kräver `public/.well-known/assetlinks.json` med Play-nyckelns
-  SHA-256 (saknas ännu). ⛔ Slå aldrig på Resends klickspårning — omskrivna länkar öppnar webbläsaren.
+  SHA-256 — finns (två fingeravtryck, verifierat mot Googles Digital Asset Links-API 2026-10-20). ⛔ Slå aldrig på Resends klickspårning — omskrivna länkar öppnar webbläsaren.
 - **LIVE** på https://foilio.se — **Railway** (`divine-reflection/PokeFinds`) + Neon serverless Postgres
   (Frankfurt). Deploy = `git push origin main` (Dockerfile, node:22-slim). Ingen Vercel. Railway blockar
   SMTP-portar → mejl via Resend HTTP API (`src/lib/mailer.ts`).
