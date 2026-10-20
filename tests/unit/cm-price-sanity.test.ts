@@ -7,6 +7,7 @@ import {
   isJunkLowOnLiquidMarket,
   cmSelfConsistent,
   jpSealedGuideEur,
+  sealedPremiumFromOk,
 } from "../../src/jobs/cardmarket-refresh";
 
 describe("jpSealedGuideEur", () => {
@@ -20,6 +21,42 @@ describe("jpSealedGuideEur", () => {
   });
   it("faller på trenden när From är ett utrop", () => {
     expect(jpSealedGuideEur(g(15500, 1306.6, 900))).toBe(1306.6);
+  });
+  it("tar en From över 1,8x trenden när den ryms under 3x trenden (2026-10-21)", () => {
+    // Fairy Rise Booster Box: low 524,99 €, trend 267,39 € (1,96x) → äkta From.
+    expect(jpSealedGuideEur(g(524.99, 267.39, 580))).toBe(524.99);
+    // Collection Moon Booster Box: 11 000 € mot 1 702 € → utrop, trenden står kvar.
+    expect(jpSealedGuideEur(g(11000, 1702.06, 995))).toBe(1702.06);
+  });
+});
+
+// Sealed-taket (2026-10-21): 1,8x trenden fällde äkta engelska From (trenden är alla språk).
+// Taket är nu 3x guidens trend för vårt idProduct.
+describe("sealedPremiumFromOk", () => {
+  const g = (trend: number | null, avg: number | null) => ({ trend, avg });
+  it("godtar en engelsk premie över trenden", () => {
+    // Temporal Forces Booster Bundle: From 82,99 €, trend 54,30 €.
+    expect(sealedPremiumFromOk(82.99, g(54.3, 55.11))).toBe(true);
+    // Shining Legends: Zoroark GX Special Collection: From 650 €, trend 274,37 € (2,4x).
+    expect(sealedPremiumFromOk(650, g(274.37, 219))).toBe(true);
+  });
+  it("fäller utrop långt över allt som säljs", () => {
+    // Garchomp & Giratina GX Tin: 10 000 € mot 284 €; Base Set Booster Box 470 000 € mot 19 950 €.
+    expect(sealedPremiumFromOk(10000, g(283.55, 275))).toBe(false);
+    expect(sealedPremiumFromOk(470000, g(19950, 13595))).toBe(false);
+    // Call of Legends Booster: guidens avg (1 900 €) får inte bära ett 5x-utrop över trenden.
+    expect(sealedPremiumFromOk(2495, g(474.86, 1900))).toBe(false);
+  });
+  it("ankaret är guiden — en fel-länkad rads eget snitt kan inte godkänna sig själv", () => {
+    // Riolu Mini Tin: From 1 150 € (RapidAPI 30d 1 262 € från ett ETB-case), guiden 20,57/21,49 €.
+    expect(sealedPremiumFromOk(1150, g(20.57, 21.49))).toBe(false);
+    // Dollar Tree-repack: From 15 € mot trend 3,78 €.
+    expect(sealedPremiumFromOk(15, g(3.78, null))).toBe(false);
+  });
+  it("rör aldrig golvsidan och kräver en trend", () => {
+    expect(sealedPremiumFromOk(20, g(54.3, 55.11))).toBe(false);
+    expect(sealedPremiumFromOk(80, g(null, null))).toBe(false);
+    expect(sealedPremiumFromOk(null, g(54.3, 55))).toBe(false);
   });
 });
 

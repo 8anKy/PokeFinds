@@ -195,7 +195,7 @@ export function lowIsCredible(
 const MIN_SEALED_EUR = 0.5;
 const usable = (v: number | null | undefined): number | null =>
   v != null && v >= MIN_SEALED_EUR ? v : null;
-export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
+export function cmGuideRefEur(g: Pick<CmGuideEntry, "trend" | "avg"> | undefined): number | null {
   return usable(g?.trend) ?? usable(g?.avg) ?? null;
 }
 
@@ -208,7 +208,34 @@ export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
  * `low` underkändes mot den och trenden blev priset: 0,22 kr.
  */
 export function jpSealedGuideEur(g: CmGuideEntry): number | null {
+  const low = usable(g.low);
+  if (low != null && sealedPremiumFromOk(low, g)) return low;
   return sanePriceEur(g.low, cmGuideRefEur(g));
+}
+
+// ── SEALED-TAKET 1,8x FÄLLDE ÄKTA FROM (2026-10-21, ägaren: "många har uppskattat fast
+// API:t har rätt pris") ────────────────────────────────────────────────────────────
+// Samma fel som utropsvakten på singlar hade (cm-pricing.md punkt 3 + 6): taket vägdes
+// mot TRENDEN, som är alla språk, så den engelska premien fälldes. MÄTT samma dag: 143
+// synliga EN-sealed visade "uppskattat" fast RapidAPI hade en engelsk `lowest`; 115 föll
+// på 1,8x-taket (Temporal Forces Booster Bundle 82,99 € mot trend 54 €, Champion's Path-
+// gymboxarna 90–140 €), JP 58 på samma tak i guiden. Taket är nu SEALED_FROM_ASK_MULT ×
+// guidens TREND för VÅRT idProduct (106 av de 143 godkänns) — sealed har inget skick, så
+// trenden följer samma vara och ett utrop ligger långt över (Base Set Booster Box
+// 470 000 € mot 19 950 €, Garchomp & Giratina-tin 10 000 € mot 284 €). ⛔ Inte guidens
+// `avg`: på tunn vintage spretar den (Call of Legends Booster avg 1 900 € mot trend 475 €)
+// och hade godkänt utrop på 5x trenden. ⛔ Aldrig RapidAPI:s 30d: en fel-länkad rad bär
+// sitt eget snitt (Riolu Mini Tin: From 1 150 € och 30d 1 262 € från ett ETB-case, guiden
+// 21 €) och hade godkänt sig själv. Bara TAKSIDAN släpps: en From under trenden dömas som
+// förut (golv + likvid-vakten).
+export const SEALED_FROM_ASK_MULT = Number(process.env.CM_SEALED_FROM_ASK_MULT) || 3;
+export function sealedPremiumFromOk(
+  low: number | null | undefined,
+  g: Pick<CmGuideEntry, "trend" | "avg"> | undefined,
+): boolean {
+  const trend = cmGuideRefEur(g);
+  if (low == null || trend == null || low <= trend) return false;
+  return low <= SEALED_FROM_ASK_MULT * trend;
 }
 
 // ── ÄGARENS PRISREGEL FÖR SINGLAR: `lowest_near_mint` RAKT AV ────────────────
@@ -1614,7 +1641,8 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
     ops.push({
       productId: p.id, offerId: cmOffer?.id, idProduct,
       priceOre,
-      refOre: priceOreFromEur(refEur, rates),
+      // Godkänd From över trenden ⇒ sitt eget facit för dagvakten (se sealedPremiumFromOk).
+      refOre: stock === "IN_STOCK" && sealedPremiumFromOk(g.low, g) ? priceOre : priceOreFromEur(refEur, rates),
       stock,
     });
   }
@@ -2886,13 +2914,21 @@ export async function runCardmarketRefresh(
       // (7,16 €) ändå bekräftar trenden (6,92 €). Utan referens = ingen dom (behåll From).
       const items = cmp.available_items ?? 0;
       const confirmAvg = avg ?? gEntry?.avg30 ?? gEntry?.avg ?? null;
-      const junkLowOnLiquid = isJunkLowOnLiquidMarket(low, confirmAvg, cmGuideRefEur(gEntry), items);
+      // Ett annat språks golv på samma nivå (≤ FROM_LANG_CORROBORATE × From) BEKRÄFTAR en
+      // låg From — då är den marknaden, inte en skräp-annons (Pitch Black Booster 3 € med
+      // DE/FR/IT 3,45–4,50 €, 6 555 annonser; mätt 2026-10-21).
+      const lowCorroborated =
+        low != null && langLows.length > 0 && Math.min(...langLows) <= FROM_LANG_CORROBORATE * low;
+      const junkLowOnLiquid =
+        !lowCorroborated && isJunkLowOnLiquidMarket(low, confirmAvg, cmGuideRefEur(gEntry), items);
       if (junkLowOnLiquid) {
         liquidFloored++;
         if (liquidFlooredTitles.length < 30)
           liquidFlooredTitles.push(`${p.title} (From ${low?.toFixed(2)}€ → trend ${cmGuideRefEur(gEntry)?.toFixed(2)}€, ${items} annonser)`);
       }
-      const credibleLow = lowIsCredible(low, avg, cmGuideRefEur(gEntry)) && !junkLowOnLiquid;
+      // Taksidan vägs mot guidens HÖGSTA snitt (sealedPremiumFromOk), inte 1,8x trenden.
+      const premiumLow = sealedPremiumFromOk(low, gEntry);
+      const credibleLow = (lowIsCredible(low, avg, cmGuideRefEur(gEntry)) || premiumLow) && !junkLowOnLiquid;
       let eur = credibleLow ? low : ref;
       if (!credibleLow && low != null) guarded++;
 
@@ -2906,7 +2942,15 @@ export async function runCardmarketRefresh(
       // får inte överröstas av en (ev. butiks-förgiftad) historik-median — ratchet-fixen
       // 2026-07-24. Tunn/volatil vintage (avg spretar) BEHÅLLER historik-skyddet, liksom
       // Skyridge-glitchen (där är low ej trovärdig → credibleLow=false).
-      const trustFrom = credibleLow && cmSelfConsistent(low, gEntry?.trend, gEntry?.avg);
+      // ⛔ EN GODKÄND FROM ÖVERRÖSTAS ALDRIG AV HISTORIKEN (2026-10-21). Historiken är vår
+      // EGEN tidigare output, så vakten blev en spärrhake: 23 sealed stod fast på en gammal
+      // uppskattning som "stabil historik" medan RapidAPI hade en godkänd engelsk From
+      // (Temporal Forces Booster Bundle 485 kr mot From 82,99 €, Generic Luxury Ball Tin
+      // 1 097 kr mot 45 €) — och en tin stod på 110 300 kr (ett 10 000 €-utrop som en gång
+      // slank in) eftersom trenden 284 € "avvek" från den. Kvar: en UPPSKATTNING får
+      // historiken bara när guidens trend och snitt är oense (Skyridge-glitchen), samma
+      // regel som guide-fallbacken ovan.
+      const trustFrom = credibleLow || guideRefsAgree(gEntry);
       const histOre = trustFrom ? null : stableHistoryOre(p.priceSnapshots.map((s) => s.avgPrice));
       if (eur != null && histOre != null) {
         const eurOre = eur * rates.eurToOre;
@@ -2983,8 +3027,11 @@ export async function runCardmarketRefresh(
       // refOre = CM:s egen trend → dagvaktens nödutgång: ett stort hopp MOT trenden
       // är en rättelse av ett korrupt värde, inte en glitch. Utan den fastnar
       // skräpvärden för alltid (se saneDayMove).
+      // En From godkänd ÖVER trenden (premiumLow) går per definition bort från trenden —
+      // med trenden som facit hade dagvakten hållit kvar gårdagens uppskattning varje dygn
+      // (samma spärrhake). Den är redan dömd mot guidens snitt, så den är sitt eget facit.
       const refEur = cmGuideRefEur(cmGuide.get(best.cardmarket_id));
-      const refOre = priceOreFromEur(refEur, rates);
+      const refOre = stock === "IN_STOCK" && premiumLow ? priceOre : priceOreFromEur(refEur, rates);
       sealedOps.push({ productId: p.id, offerId: cmOffer?.id, imageUrl, priceOre, refOre, url: cardmarketProductUrl(best.cardmarket_id), stock });
     }
     const sealed = await clampDayMoves(sealedOps);

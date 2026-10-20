@@ -60,6 +60,23 @@ paths:
 >    ⚠️ "Uppskattat" kan flippa mellan nätter: From är den billigaste annonsen JUST DÅ (Mew R/RGB stod i
 >    4 100 € på eftermiddagen men var en uppskattning vid nattkörningen).
 
+> ⛔ **ÄNDRAT 2026-10-21 (ägaren: "många varor och kort har uppskattat fast API:t har rätt pris")**:
+> 7. **SEALED-TAKET = 3x TRENDEN, OCH HISTORIKEN ÖVERRÖSTAR ALDRIG EN GODKÄND FROM**. MÄTT samma dag:
+>    singlarnas uppskattningar var äkta (EN 267 + JP ~960 saknar NM-From hos leverantören, 19 fällda
+>    utrop à 9 001 €, 57 Prize Pack utan engelsk NM-annons, 26 bollvarianter, 396 CM-only). Felet satt
+>    i SEALED: 143 av 475 uppskattade EN-sealed hade en engelsk `lowest` i RapidAPI — 115 föll på
+>    1,8x-taket mot trenden (alla språk ⇒ den engelska premien fälldes), 23 på HISTORIK-VAKTEN, som
+>    var en spärrhake (historiken är vår egen output: Temporal Forces Booster Bundle låst på 485 kr mot
+>    From 82,99 €, en Garchomp & Giratina-tin på 110 300 kr = ett 10 000 €-utrop som en gång slank in),
+>    4 på likvid-vakten fast andra språk låg på samma nivå. JP-sealed: 58 på samma 1,8x-tak i guiden.
+>    Regler: (a) `sealedPremiumFromOk` — en From över trenden godkänns upp till `SEALED_FROM_ASK_MULT`
+>    (3) × guidens TREND för vårt idProduct (EN + JP). ⛔ Inte guidens `avg` (spretar på vintage: Call of
+>    Legends avg 1 900 € mot trend 475 €), aldrig RapidAPI:s 30d (en fel-länkad rad bär sitt eget snitt).
+>    (b) Godkänd From ⇒ ingen historik-överröstning; en UPPSKATTNING får historiken bara när guidens trend
+>    och snitt är oense (Skyridge). (c) Likvid-vakten fäller inte en låg From som ett annat språks golv
+>    bekräftar (≤ 1,5x). (d) En From godkänd över trenden är sitt eget facit i dagvakten (annars hade
+>    3x-klämman hållit gårdagens uppskattning för alltid). Utfall i torrkörning: 104 av 143 EN + ~58 JP.
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **Singelpris**: `Offer.price` på singlar = Cardmarkets engelska **NM-lägsta ("From")** × live-kurs, hämtat från **CardMarket API TCG (RapidAPI Pro)** — `CARDMARKET_RAPIDAPI_*` i .env, fältet `prices.cardmarket.lowest_near_mint` (DECIMAL EUR; bas-fältet är engelska, `_DE`/`_FR`/`_ES`/`_IT` = språk-överstyrningar). Detta ÄR det engelska From-pris som löste det gamla lowPrice-problemet (pokemontcg.io `lowPrice` = all-språk/all-skick-golv som grovt underskattade — använd ALDRIG). Fyll via `scripts/rapidapi-fill-singles.ts` (set-paginering `/pokemon/episodes/{id}/cards`, matcha på `tcgid`=`tcgExternalId`, ~1000 anrop för hela katalogen). Exakt uppslag = `?tcgid={id}` (1 träff). **GOLVET RAKT AV — HELA REGELN (ägarbeslut 2026-07-24, OMBEKRÄFTAT 2026-07-27)**:
