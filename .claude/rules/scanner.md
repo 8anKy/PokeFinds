@@ -229,7 +229,8 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   `scanCountsAgainstQuota` i `src/lib/scan-outcome.ts`, samma `scanOutcome` som skannersidan ritar raden med.
   "Ingen träff" (konfidens < `MIN_MATCH_CONF`) och valsteget (oavgjort mellan olika kort) är gratis; förut
   räknade servern varje svar med minst en kandidat. Gäller konto + enhetens räknare (gäst). Vaktat av
-  `tests/unit/scan-outcome.test.ts`.
+  `tests/unit/scan-outcome.test.ts`. ⛔ En träff som användaren sedan RADERAR återbetalas INTE (ägarbeslut
+  samma dag) — radering betyder inte alltid fel kort.
 - **SKANNERN HAR TRE LÄGEN, OCH DE ÄR ETT `mode`-FÄLT (2026-08-02)**: `"single" | "bulk" | "barcode"` i
   `skanna/page.tsx`. ⛔ Inte tre booleaner: två flaggor har fyra tillstånd varav ett ("båda på") är meningslöst men
   fullt möjligt, och lägena tävlar om SAMMA videoruta, slutare och poll-loop. Live-pollen/låset körs BARA i
