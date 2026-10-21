@@ -27,6 +27,8 @@ export interface PayingCustomerRow {
   proSince: string | null;
   renewal: RenewalStatus;
   rcExpiresAt: string | null;
+  /** Satt bara när kunden är i en gratis provperiod just nu — inget har debiterats än. */
+  trialEndsAt: string | null;
   createdAt: string;
   watchlistCount: number;
   collectionCount: number;
@@ -241,6 +243,18 @@ export function PayingCustomersTable({ rows }: { rows: PayingCustomerRow[] }) {
                   >
                     Sandbox
                   </Badge>
+                )}
+                {u.trialEndsAt && (
+                  <>
+                    <Badge
+                      variant="warning"
+                      className="ml-1"
+                      title="Gratis provperiod — inget har debiterats än. Första betalningen dras när perioden slutar, om kunden inte säger upp."
+                    >
+                      Provperiod
+                    </Badge>
+                    <span className="block text-xs text-ink-faint">t.o.m. {formatDate(u.trialEndsAt)}</span>
+                  </>
                 )}
               </TD>
               <TD className="text-sm text-ink-muted">

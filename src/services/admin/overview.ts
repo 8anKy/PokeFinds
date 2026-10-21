@@ -71,6 +71,8 @@ export interface PayingUserRow {
   /** RevenueCat SANDBOX/PRODUCTION; sandbox = testköp, inte en kund. */
   environment: string | null;
   rcExpiresAt: Date | null;
+  /** Satt bara när kunden är i en gratis provperiod JUST NU (slutdatum). */
+  trialEndsAt: Date | null;
   createdAt: Date;
   watchlistCount: number;
   collectionCount: number;
@@ -251,6 +253,7 @@ export async function getAdminOverview() {
         rcWillRenew: true,
         rcEnvironment: true,
         rcExpiresAt: true,
+        trialEndsAt: true,
         proSince: true,
         createdAt: true,
         lastSeenAt: true,
@@ -467,6 +470,7 @@ export async function getAdminOverview() {
         renewal,
         environment: u.rcEnvironment,
         rcExpiresAt: u.rcExpiresAt,
+        trialEndsAt: u.trialEndsAt && u.trialEndsAt > now ? u.trialEndsAt : null,
         createdAt: u.createdAt,
         watchlistCount: u._count.watchlistItems,
         collectionCount: u._count.collectionItems,

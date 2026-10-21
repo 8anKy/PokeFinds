@@ -178,6 +178,7 @@ export default async function AdminOverviewPage() {
     proSince: u.proSince?.toISOString() ?? null,
     renewal: u.renewal,
     rcExpiresAt: u.rcExpiresAt?.toISOString() ?? null,
+    trialEndsAt: u.trialEndsAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
     watchlistCount: u.watchlistCount,
     collectionCount: u.collectionCount,
