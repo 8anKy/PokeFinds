@@ -54,6 +54,7 @@ import { hapticImpact } from "@/lib/haptics";
 import { pickAlternatives, pickSameArtRail } from "@/lib/scan-alternatives";
 import { useCameraControls } from "@/hooks/use-camera-controls";
 import { openPaywallOrNavigate } from "@/lib/paywall";
+import { scanOutcome } from "@/lib/scan-outcome";
 import { COLLECTION_GRADING_ISSUERS, gradesForCollectionIssuer, gradingPayload } from "@/lib/graded-slab";
 import { previewSlabIfFree } from "@/lib/slab-preview";
 import { PortfolioChips } from "@/components/features/portfolio-chips";
@@ -340,7 +341,6 @@ const CONDITION_LABEL: Record<string, string> = Object.fromEntries(
 
 const CAPTURE_MAX = 1280; // px bredd på fångad ruta — högre = tydligare korttext för OCR
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
-const MIN_MATCH_CONF = 0.2;
 
 /**
  * Under så här många kvarvarande skanningar stannar kvot-badgen kvar även när
@@ -1317,12 +1317,14 @@ function Scanner() {
           if (s.id !== id) return s;
           if ("error" in data) return { ...s, status: "error", errorMessage: data.error };
           const top = data.candidates[0];
+          // ⛔ Domen bor i lib/scan-outcome.ts — servern räknar kvoten på SAMMA regel.
+          const outcome = scanOutcome(data);
           // Oavgjort mellan olika KORT betyder INTE "ingen träff" — förslaget är
           // fortfarande det bästa vi har och mer användbart än ingenting. Det
           // MÄRKS i stället (uncertain), så användaren vet att den ska kollas.
           // (Första versionen gjorde tvärtom och de flesta kort blev "ingen
           // träff", vilket är sämre än en märkt gissning.)
-          if (top && data.confidence >= MIN_MATCH_CONF) {
+          if (outcome !== "nomatch") {
             // ⛔ MEN ETT "?" ÄR INTE ETT VAL. Är de två bästa OLIKA korten i
             // praktiken oavgjorda har vi inget svar att påstå — då frågar vi i
             // stället för att gissa och märka gissningen. Se ScanStatus ovan för
@@ -1337,8 +1339,7 @@ function Scanner() {
             // ⚠️ Kräver ≥2 olika KORT, inte ≥2 kandidater: en lista som bara
             // innehåller tryckningar av samma kort är inget val mellan kort, och
             // variantväljaren i raden hanterar den frågan bättre.
-            const distinctCards = new Set(data.candidates.map((c) => c.cardId)).size;
-            if (data.tied && distinctCards >= 2) {
+            if (outcome === "choose") {
               return {
                 ...s,
                 status: "choose",

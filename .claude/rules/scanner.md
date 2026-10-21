@@ -225,6 +225,11 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   Sidofix samma dag: `Grading.limitPremium` sa "Tillbaka i morgon" fast graderingskvoten är MÅNADSVIS
   (`startOfMonthUtc` i `src/services/grading/index.ts`) — en Pro-kund som slog i taket fick veta att det löste sig
   i morgon, och blockerades igen dagen därpå.
+- ⛔ **EN MISSLYCKAD SKANNING RÄKNAS INTE (ägarbeslut 2026-10-21)**: bara en LEVERERAD träff tar kvot —
+  `scanCountsAgainstQuota` i `src/lib/scan-outcome.ts`, samma `scanOutcome` som skannersidan ritar raden med.
+  "Ingen träff" (konfidens < `MIN_MATCH_CONF`) och valsteget (oavgjort mellan olika kort) är gratis; förut
+  räknade servern varje svar med minst en kandidat. Gäller konto + enhetens räknare (gäst). Vaktat av
+  `tests/unit/scan-outcome.test.ts`.
 - **SKANNERN HAR TRE LÄGEN, OCH DE ÄR ETT `mode`-FÄLT (2026-08-02)**: `"single" | "bulk" | "barcode"` i
   `skanna/page.tsx`. ⛔ Inte tre booleaner: två flaggor har fyra tillstånd varav ett ("båda på") är meningslöst men
   fullt möjligt, och lägena tävlar om SAMMA videoruta, slutare och poll-loop. Live-pollen/låset körs BARA i

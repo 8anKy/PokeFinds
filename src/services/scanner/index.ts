@@ -207,10 +207,10 @@ export interface LocalNumberTelemetry {
   raw?: string;
 }
 
-/** Bokför en skanning mot månadskvoten. VARJE scan som nådde vision-API:t räknas
- *  (träff ELLER no-match) — annars kan no-match-scans dränera API-budgeten gratis
- *  (bara 60/min skyddar). Live-skannern (/api/scanner/identify) skapar inget jobb
- *  själv, så detta är dess kvot-liggare. Endast äkta fel (API kastar) räknas inte. */
+/** Bokför en skanning (ScannerJob-raden). Raden skrivs för varje genomförd skanning,
+ *  men bara `matched = true` räknas mot månadskvoten — sedan 2026-10-21 är det en
+ *  LEVERERAD träff enligt `scanCountsAgainstQuota` (lib/scan-outcome.ts): "Ingen
+ *  träff" och valsteget är gratis, motorn kostar inget per skanning. */
 export async function recordScanUsage(
   userId: string,
   /**

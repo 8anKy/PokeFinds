@@ -14,6 +14,7 @@ import { getGuestQuota, recordDeviceScan } from "@/services/scanner/guest-device
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { getScannerQuota, identifyCard, isIntroScan, recordScanUsage } from "@/services/scanner";
+import { scanCountsAgainstQuota } from "@/lib/scan-outcome";
 import { buildFoilDiagnostics } from "@/services/scanner/foil";
 import { buildScanPhotoKey, putImage, sniffImageType, storageEnabled } from "@/lib/object-storage";
 import { scanPhotoConsent } from "@/lib/scan-photo-consent";
@@ -191,8 +192,8 @@ export async function POST(req: Request) {
       langHint,
     });
 
-    // Bokför mot kvoten: varje genomförd skanning räknas (träff eller no-match),
-    // annars kan no-match-scans dränera API-budgeten gratis.
+    // Bokför skanningen. Bara en LEVERERAD träff räknas mot kvoten (se `matched`
+    // nedan och lib/scan-outcome.ts) — raden skrivs ändå, den bär mätdatan.
     //
     // För ADMIN sparas dessutom vad modellen och bilden faktiskt svarade, så den
     // verkliga träffsäkerheten kan mätas. Allt vi har i dag är TAK-siffror: varje
@@ -212,7 +213,10 @@ export async function POST(req: Request) {
             cardId: result.candidates[0]?.cardId ?? null,
           })
         : null;
-    const matched = result.candidates.length > 0;
+    // ⛔ SAMMA REGEL SOM SIDAN RITAR (2026-10-21): "Ingen träff" och valsteget
+    // räknas inte — förut räknades varje svar med en kandidat, så en misslyckad
+    // skanning åt kvot. Motorn kostar inget per skanning, missen ska vara gratis.
+    const matched = scanCountsAgainstQuota(result);
     // Enheten bokförs för ALLA appskanningar (gäst OCH inloggad) — det är
     // enhetens räknare som gör att ett nytt konto på samma telefon inte får
     // en ny kvot. Bara träffar, samma regel som kontokvoten.
@@ -275,9 +279,9 @@ export async function POST(req: Request) {
             ...(detail && detail.length <= STRIP_DIAG_MAX_CHARS ? { strip: detail } : {}),
           }
         : undefined,
-      // KVOTEN RÄKNAR TRÄFFAR: en skanning utan kandidat har inte gett kunden
+      // KVOTEN RÄKNAR TRÄFFAR: en misslyckad skanning har inte gett kunden
       // något och ska vara gratis.
-      result.candidates.length > 0,
+      matched,
       // KOSTNADEN bokförs för ALLA användare (till skillnad från diagnostiken
       // ovan): adminpanelens "kostnad per användare" summerar de här talen, och
       // utan dem hade varje icke-admin sett gratis ut. `null` när bilden avgjorde
@@ -398,7 +402,7 @@ export async function POST(req: Request) {
     const streak = user && matched ? await recordActivity(user.id, effectivePlanTier(user)) : null;
     return withStreak(jsonOk({
       ...clientResult,
-      remaining: Math.max(0, quota.remaining - 1),
+      remaining: Math.max(0, quota.remaining - (matched ? 1 : 0)),
       // Gör att klienten kan rapportera in användarens val (/api/scanner/feedback).
       // ⛔ SEDAN 2026-08-15 FÖR ALLA, inte bara admin: bekräftelsen är hela
       // mätningen. Med enbart admin mäter vi ägarens egna fångster, och exakt
