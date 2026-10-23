@@ -787,7 +787,8 @@ export function productsConflict(
     cardCountMismatch(na, nb) ||
     yearMismatch(a, nb) ||
     blisterMismatch(a, nb) ||
-    unitCountMismatch(a, nb)
+    unitCountMismatch(a, nb) ||
+    boosterBoxCountMismatch(a, nb)
   );
 }
 
@@ -1906,6 +1907,28 @@ export function blisterMismatch(a: string, b: string): boolean {
  *   "Surging Sparks Booster Small Display" ≠ "Surging Sparks Booster Box"
  */
 const MULTI_UNIT = /\b(display|\d\s*[-\s]?pack box|small display)\b/i;
+/**
+ * HALVDISPLAYEN (18 boosters) ≠ BOOSTER BOXEN (36) — egna CM-produkter sedan 2026-10-23
+ * (import-sealed-from-cardmarket). Identitetsorden är desamma, så utan den här vakten hade en
+ * butiks "Booster Box" kunnat landa på 18-lådan eller tvärtom.
+ * ⛔ INGEN DEFAULT: en box utan antal räknas INTE som 36 — japanska boxar har 30/20/10 paket,
+ *    och ett påhittat 36 hade fällt deras korrekta länkar. Bara 18 är tvåsidigt: säger exakt
+ *    ena sidan 18 är det olika varor; säger båda ett antal och de skiljer är det också olika.
+ */
+function boosterBoxCount(t: string): number | null {
+  if (!/\b(booster\s*box|booster\s*display|display)\b/i.test(t)) return null;
+  const m =
+    /\b(\d{2})\s*(?:er\b|x\b|-?\s*(?:boosters?|booster\s*packs?|packs?|paket|st|stk|pcs)\b)/i.exec(t) ??
+    /\b(?:display|box)\s*(?:of\s*)?(\d{2})\b/i.exec(t);
+  return m ? Number(m[1]) : null;
+}
+export function boosterBoxCountMismatch(a: string, b: string): boolean {
+  const ca = boosterBoxCount(a);
+  const cb = boosterBoxCount(b);
+  if (ca != null && cb != null) return ca !== cb;
+  return (ca === 18) !== (cb === 18);
+}
+
 export function unitCountMismatch(a: string, b: string): boolean {
   const ma = MULTI_UNIT.test(a);
   const mb = MULTI_UNIT.test(b);
@@ -2389,6 +2412,10 @@ export async function matchProduct(
     }
     // Enstaka enhet ≠ display/flerpack av samma enhet (Mini Tin ≠ Mini Tin Display).
     if (unitCountMismatch(raw, c.normalizedTitle)) {
+      continue;
+    }
+    // Halvdisplay (18) ≠ booster box (36).
+    if (boosterBoxCountMismatch(raw, c.normalizedTitle)) {
       continue;
     }
 

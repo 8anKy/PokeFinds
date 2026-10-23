@@ -86,7 +86,8 @@ const FALLBACK_REJECT_RE =
  *    SAMMANSATTA "X Box Display" (en låda med flera lådor) fälls.
  */
 const WHOLESALE_RE =
-  /\bcase\b|(?:box|blister|bundle|collection|deck)\s+display\b|\bdisplay\s+case\b/i;
+  // "Case File" (Detective Pikachu) och "On the Case Collection" är konsumentvaror, inte case.
+  /\bcase\b(?!\s+(?:file|collection))|(?:box|blister|bundle|collection|deck)\s+display\b|\bdisplay\s+case\b/i;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const norm = (s: string) =>
@@ -112,7 +113,32 @@ const FORM_TO_CAT: Record<string, ProductCategory> = {
 const EXTRA_COLLECTION_RE = /\btrainer'?s toolkit\b|\bstarter (?:set|deck)\b|\bbattle academy\b|\bworld championships? deck\b|\bpremium deck set\b|\bspecial deck set\b/i;
 /** Tillbehör som klassificeraren kallar "deck"/"collection" — ägarbeslut: inga tillbehör i katalogen. */
 const ACCESSORY_NAME_RE = /\bdeck holder\b|\bplaymat\b|\bdice\b|\bcoins?\b|\bsleeves?\b|\bportfolio\b|\bbinder\b(?! collection)/i;
+/**
+ * KONSUMENTVAROR SOM FORMREGLERNA INTE KÄNDE IGEN (2026-10-23, ägaren: "lägg till det som saknas"
+ * — TCGGO-gapet efter case/display/tillbehör, som är ägarbeslut och står kvar ute): sampling-
+ * och prerelease-pack, Trick or Trade, Detective Pikachu Case Files, playmat-/deck holder-
+ * KOLLEKTIONER (boosters ingår, till skillnad från en lös playmat), My First Battle, Holiday Calendar.
+ */
+const EXTRA_PACK_RE = /\bsampling pack\b|\bprerelease pack\b|\btrick or trade booster\b(?!\s+bundle)/i;
+const EXTRA_BUNDLE_RE = /\btrick or trade(?: \d{4})? booster bundle\b/i;
+const EXTRA_BOX_RE = /\bcase file\b|\bon the case collection\b|\bplaymat collection\b|\bdeck holder collection\b|\bmy first battle\b|\bholiday calendar\b/i;
+/**
+ * "(18 Boosters)" — halvdisplayen är en ANNAN vara än 36-lådan trots samma identitetsord.
+ * Läser både CM-namnet och vår normaliserade titel (parenteserna är bortskalade där).
+ */
+function boosterCountOf(name: string): number | null {
+  const m = /\b(\d+)\s*boosters\b/i.exec(name);
+  return m ? Number(m[1]) : null;
+}
 function cmCategory(name: string): { form: string | null; cat: ProductCategory | undefined } {
+  if (EXTRA_PACK_RE.test(name)) return { form: "booster", cat: "BOOSTER_PACK" };
+  if (EXTRA_BUNDLE_RE.test(name)) return { form: "bundle", cat: "BUNDLE" };
+  if (EXTRA_BOX_RE.test(name)) return { form: "collection", cat: "COLLECTION_BOX" };
+  // Halvdisplayen "Booster Box (18 Boosters)": classifyForm säger "multipack" (inte en målform).
+  // Formen sätts till "display" så tvillingvakten jämför mot boxar — boosterCountOf håller den
+  // ändå skild från 36-lådan.
+  if (/\bbooster box\b/i.test(name) && boosterCountOf(name) != null && !WHOLESALE_RE.test(name))
+    return { form: "display", cat: "BOOSTER_BOX" };
   // Fun Pack (3 kort) — se WHOLESALE_RE. `classifyForm` (delad med butiksmatchningen) ger
   // ingen form för dem, och den rörs inte här: ett pack är ett pack i katalogen.
   if (/\bfun pack\b/i.test(name)) return { form: "booster", cat: "BOOSTER_PACK" };
@@ -323,6 +349,7 @@ async function main() {
         !c.card &&
         classifyForm(c.normalizedTitle) === form &&
         identicalIdentity(normForMatch, c.normalizedTitle) &&
+        boosterCountOf(p.name) === boosterCountOf(c.normalizedTitle) &&
         !productsConflict(p.name, c.normalizedTitle, c.language)
     );
     if (twin) {
