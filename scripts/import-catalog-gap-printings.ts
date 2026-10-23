@@ -369,11 +369,51 @@ async function importProviderVariants() {
   console.log(`Skapade ${plan.length} variantprodukter.`);
 }
 
+// ── --curated ───────────────────────────────────────────────────────────────
+// Tryckningar som varken leverantören eller CardTrader namnger, där ÄGAREN har bekräftat
+// vilken CM-produkt det är. ⛔ Ingen rad utan ägarbekräftelse — identitet gissas aldrig.
+const CURATED: { tcgid: string; label: string; idProduct: number; why: string }[] = [
+  // Butikspromo (GameStop/EB Games, 2023). CM har fem "Lechonk [Repelling Odor | Stampede]" i
+  // expansion 5223; 721846 (inlagd 2023-07-13, avg 0,90 €, likvid) bekräftad av ägaren 2026-10-23.
+  { tcgid: "sv1-154", label: "Cosmos Holo", idProduct: 721846, why: "ägarbekräftad 2026-10-23 (Lisas önskemål)" },
+];
+async function importCurated() {
+  const [guide, rates, linked] = await Promise.all([
+    json<{ priceGuides: GuideRow[] }>(CM_GUIDE).then((d) => new Map(d.priceGuides.map((g) => [g.idProduct, g]))),
+    getRatesOre(),
+    linkedCmIds(),
+  ]);
+  const cm = await cardmarketRetailerId();
+  for (const c of CURATED) {
+    if (linked.has(c.idProduct)) { console.log(`  ${c.tcgid} · ${c.label}: idProduct ${c.idProduct} redan länkad — hoppar`); continue; }
+    const card = await prisma.card.findFirst({
+      where: { tcgExternalId: c.tcgid },
+      select: { id: true, setId: true, imageUrl: true, products: { select: { title: true, slug: true, variantLabel: true } } },
+    });
+    const base = card?.products.find((p) => p.variantLabel == null);
+    if (!card || !base) { console.log(`  ${c.tcgid}: baskortet saknas — hoppar`); continue; }
+    if (card.products.some((p) => p.variantLabel === c.label)) { console.log(`  ${base.title} · ${c.label}: finns redan`); continue; }
+    const title = `${base.title} · ${c.label}`;
+    const offer = guideOffer(guide.get(c.idProduct), rates);
+    console.log(`  ${title} ← ${c.idProduct} (${c.why}) pris ${offer.price ?? "–"}`);
+    if (!APPLY) continue;
+    const product = await prisma.product.create({
+      data: { title, normalizedTitle: normalizeTitle(title), slug: await uniqueSlug(`${base.slug}-${c.label}`, c.idProduct), category: "SINGLE_CARD", cardId: card.id, setId: card.setId, imageUrl: card.imageUrl, language: "EN", variantLabel: c.label },
+      select: { id: true },
+    });
+    await prisma.offer.create({
+      data: { productId: product.id, retailerId: cm, condition: "NEAR_MINT", language: "EN", currency: "SEK", url: cardmarketProductUrl(c.idProduct, { nearMint: true, firstEd: "exclude" }), ...offer },
+      select: { id: true },
+    });
+  }
+}
+
 async function main() {
+  if (args.includes("--curated")) await importCurated();
   if (args.includes("--energies")) await importUnnumberedEnergies();
   if (args.includes("--sfa-energies")) await importSfaEnergies();
   if (args.includes("--provider-variants")) await importProviderVariants();
-  if (!["--energies", "--sfa-energies", "--provider-variants"].some((a) => args.includes(a)))
+  if (!["--curated", "--energies", "--sfa-energies", "--provider-variants"].some((a) => args.includes(a)))
     console.log("Ange --energies, --sfa-energies och/eller --provider-variants (torrkörning utan --apply).");
   if (APPLY) {
     const { recomputeProductPriceCache } = await import("@/services/products");
