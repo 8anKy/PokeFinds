@@ -94,7 +94,7 @@ jobs:
       # helt nya set; i set vi har länkas bara. Gratis (CardTrader + CM:s filer), ~860 anrop.
       - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         name: Kort som bara finns på Cardmarket (no-op om inget nytt)
-        run: npx tsx scripts/import-cm-only-singles.ts --apply
+        run: npx tsx scripts/import-cm-only-singles.ts --apply --labelled --fill-ct-sets
 
       # NÄMNARNA för set-komplettering: `totalCardsFull` (pokemontcg.io `total`,
       # hela setet inkl. secret rares) och `printingsTotal` (TCGdex, master
@@ -167,6 +167,13 @@ jobs:
       - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         name: Bygg konstavtryck för nya kort (no-op om inga saknas)
         run: npx tsx scripts/build-art-fingerprints.ts
+
+      # UNIKA CARDMARKET-ONLY-KORT IN I SKANNERN (2026-10-23): kort utan vanligt syskon och med egen
+      # konst (Ancient Mew) får `Card.scannerInclude` — omtrycken hålls utanför som förut och visas
+      # som val. Måste köra EFTER avtrycken (konstjämförelsen) och FÖRE engine-sync nedan.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Unika Cardmarket-only-kort till skannern
+        run: npx tsx scripts/build-scanner-unique-cards.ts --apply
 
       # SKANNERMOTORN IKAPP KATALOGEN (2026-09-30): kort med bild som motorn saknar (nya set, promos,
       # dagens JP-singlar) läggs till av motorn själv via /api/cron/engine-sync — ingen ombyggnad.

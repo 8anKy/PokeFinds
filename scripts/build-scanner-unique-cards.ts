@@ -16,20 +16,19 @@
  *      bilden är originalets, och då hade det stulit träffar ändå.
  * Andra cm:-kort räknas inte som krock: fem Ancient Mew delar konst, men de är varandras syskon.
  *
- * Skriver src/data/scanner-unique-cm-cards.json (incheckad, granskas i diffen). Engine-sync och
- * art-indexet läser den nästa natt.
+ * Skriver `Card.scannerInclude` (på för de godkända, av för cm:-kort som inte längre godkänns).
+ * Veckosteg i import-new-sets.yml EFTER konstavtrycken och FÖRE engine-sync, så ett nytt unikt
+ * kort är igenkänningsbart samma natt det importerades.
  *
  *   node scripts/with-prod-db.mjs npx tsx scripts/build-scanner-unique-cards.ts          # torrkörning
- *   node scripts/with-prod-db.mjs npx tsx scripts/build-scanner-unique-cards.ts --write
+ *   node scripts/with-prod-db.mjs npx tsx scripts/build-scanner-unique-cards.ts --apply
  */
-import { writeFileSync } from "node:fs";
 import { prisma } from "@/lib/db";
 import { searchByFingerprint } from "@/services/scanner/art-index";
 import { CM_ONLY_EXTERNAL_PREFIX } from "@/lib/scanner-exclusion";
 import { exitJob } from "@/lib/job-exit";
 
 const SAME_ART_MIN = 0.9;
-const OUT = "src/data/scanner-unique-cm-cards.json";
 /**
  * Namnet som jämförs. CT/CM och vår katalog stavar samma kort olika: "Pokemon Reversal" /
  * "Pokémon Reversal", "Piplup Lv.9" / "Piplup", "Jolteon ☆ Gold Star" / "Jolteon ☆",
@@ -93,10 +92,14 @@ async function main() {
   keep.sort();
   console.log({ cmOnly: cm.length, nameTwin, noFingerprint: noPrint, artTwin, included: keep.length });
   console.log("Konst som liknar ett indexerat kort (hålls utanför):\n  " + artTwinSamples.join("\n  "));
-  if (process.argv.includes("--write")) {
-    writeFileSync(OUT, JSON.stringify(keep, null, 0).replace(/","/g, '",\n"').replace(/^\[/, "[\n").replace(/\]$/, "\n]") + "\n");
-    console.log(`Skrev ${keep.length} id:n till ${OUT}.`);
-  } else console.log("Torrkörning — lägg till --write.");
+  if (process.argv.includes("--apply")) {
+    const on = await prisma.card.updateMany({ where: { tcgExternalId: { in: keep }, scannerInclude: false }, data: { scannerInclude: true } });
+    const off = await prisma.card.updateMany({
+      where: { tcgExternalId: { startsWith: CM_ONLY_EXTERNAL_PREFIX, notIn: keep }, scannerInclude: true },
+      data: { scannerInclude: false },
+    });
+    console.log(`Card.scannerInclude: ${on.count} på, ${off.count} av (${keep.length} totalt).`);
+  } else console.log("Torrkörning — lägg till --apply.");
 }
 
 main().catch((e) => { console.error(e); process.exitCode = 1; }).finally(() => exitJob());

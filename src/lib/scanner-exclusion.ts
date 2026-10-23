@@ -1,5 +1,4 @@
 import type { Prisma } from "@prisma/client";
-import uniqueCmIds from "@/data/scanner-unique-cm-cards.json";
 
 /**
  * KORT SKANNERN INTE SKA KÄNNA IGEN (2026-10-15).
@@ -18,16 +17,14 @@ export const CM_ONLY_EXTERNAL_PREFIX = "cm:";
 
 /**
  * UNDANTAGET (2026-10-23, ägaren: "skannern ska känna alla kort"): Cardmarket-only-kort som
- * INTE är ett omtryck — inget vanligt kort med samma namn och språk, och konsten liknar inget
- * kort i skannerns index (< 0,9). Ancient Mew hade annars inte gått att skanna alls.
- * Listan är INCHECKAD och räknas fram av scripts/build-scanner-unique-cards.ts — en tabell
- * vakterna kan granska, aldrig en dom i en request.
+ * INTE är ett omtryck — inget vanligt kort med samma normaliserade namn, ingen WCD-lek, och
+ * konsten liknar inget kort i skannerns index (< 0,9). Ancient Mew hade annars inte gått att
+ * skanna alls. Domen är `Card.scannerInclude`, satt av scripts/build-scanner-unique-cards.ts
+ * (veckosteg i import-new-sets.yml efter konstavtrycken) — aldrig en dom i en request.
  */
-export const SCANNER_UNIQUE_CM_IDS: readonly string[] = uniqueCmIds as string[];
-
 export const SCANNER_EXCLUDED_CARD: Prisma.CardWhereInput = {
   OR: [
-    { AND: [{ tcgExternalId: { startsWith: CM_ONLY_EXTERNAL_PREFIX } }, { tcgExternalId: { notIn: [...SCANNER_UNIQUE_CM_IDS] } }] },
+    { AND: [{ tcgExternalId: { startsWith: CM_ONLY_EXTERNAL_PREFIX } }, { scannerInclude: false }] },
     { set: { name: { startsWith: PRIZE_PACK_SET_PREFIX } } },
   ],
 };
@@ -44,7 +41,7 @@ export const SCANNER_INCLUDED_CARD: Prisma.CardWhereInput = {
       OR: [
         { tcgExternalId: null },
         { NOT: { tcgExternalId: { startsWith: CM_ONLY_EXTERNAL_PREFIX } } },
-        ...(SCANNER_UNIQUE_CM_IDS.length ? [{ tcgExternalId: { in: [...SCANNER_UNIQUE_CM_IDS] } }] : []),
+        { scannerInclude: true },
       ],
     },
     { NOT: { set: { name: { startsWith: PRIZE_PACK_SET_PREFIX } } } },

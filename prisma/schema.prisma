@@ -585,6 +585,11 @@ model Card {
   // avtrycket mätt fallerar (topp-15 38,5 % → 97,1 % med blandningen, se
   // src/lib/art-fingerprint.ts). Byggs av samma build-art-fingerprints.ts.
   structFingerprint Bytes?
+  // SKANNERNS UNDANTAG (2026-10-23): ett Cardmarket-only-kort (`cm:`) som INTE är ett omtryck —
+  // inget vanligt kort med samma normaliserade namn, ingen WCD-lek, konst < 0,9 mot indexet
+  // (Ancient Mew). Sätts av scripts/build-scanner-unique-cards.ts (veckosteg); lib/scanner-exclusion.ts
+  // läser den. Betyder inget för kort utanför cm: — de är alltid med.
+  scannerInclude    Boolean      @default(false)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 

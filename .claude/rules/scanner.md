@@ -26,7 +26,7 @@ paths:
   namnsyskonen sorteras tvilling → SAMMA SIFFROR i numret som vinnaren → konstlikhet (kopiorna saknar avtryck och
   hamnade annars sist, under taket), och ett kort UTAN avtryck (`artPairSimilarity` null) med samma namn + siffror
   får `sameArt` — annars försvann det ur raden så snart en språktvilling fanns (`pickSameArtRail`).
-  ⛔ Unika cm-kort (Ancient Mew) indexeras via den incheckade listan `src/data/scanner-unique-cm-cards.json`
+  ⛔ Unika cm-kort (Ancient Mew) indexeras via `Card.scannerInclude` (veckosteg, `--apply`)
   (`scripts/build-scanner-unique-cards.ts`: normaliserat namn utan vanligt syskon, aldrig WCD, konst < 0,9 mot
   indexet — namnet ensamt släppte igenom 485 omtryck med annan stavning, "Pokegear"/"Pokégear").
 
