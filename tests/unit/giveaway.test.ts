@@ -38,6 +38,14 @@ describe("giveawayPhase", () => {
     expect(giveawayPhase(cfg, new Date("2026-10-20T12:00:00Z"))).toBe("open");
     expect(giveawayPhase(cfg, new Date("2026-11-16T00:00:00Z"))).toBe("closed");
   });
+  it("dold till 10-26 men aktivitet räknas från 10-23 (då den var öppen)", () => {
+    const d = giveawayConfig({});
+    expect(giveawayPhase(d, new Date("2026-10-24T12:00:00Z"))).toBe("upcoming");
+    expect(giveawayPhase(d, new Date("2026-10-26T08:00:00Z"))).toBe("open");
+    expect(d.countsFrom.toISOString()).toBe("2026-10-22T22:00:00.000Z");
+    // countsFrom kan aldrig ligga efter starten
+    expect(giveawayConfig({ GIVEAWAY_STARTS_AT: "2026-10-20T00:00:00+02:00" }).countsFrom.toISOString()).toBe("2026-10-19T22:00:00.000Z");
+  });
   it("env kan avsluta i förtid, ogiltigt värde faller tillbaka", () => {
     const early = giveawayConfig({ GIVEAWAY_CLOSES_AT: "2026-10-30T20:00:00+01:00" });
     expect(giveawayPhase(early, new Date("2026-11-01T00:00:00Z"))).toBe("closed");

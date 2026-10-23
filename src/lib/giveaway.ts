@@ -19,7 +19,14 @@
  */
 export interface GiveawayConfig {
   key: string;
+  /** När giveawayn blir SYNLIG (före den: 404 + ingen Mer-rad för alla utom admin). */
   startsAt: Date;
+  /**
+   * Från när aktivitet RÄKNAS (skanningar, inbjudningar, graderingar). Skild från
+   * `startsAt` sedan 2026-10-23: giveawayn var öppen 10-23 och doldes sedan igen till 10-26
+   * (ägarbeslut) — det som hann göras från 10-23 ska inte gå förlorat. Aldrig senare än startsAt.
+   */
+  countsFrom: Date;
   closesAt: Date;
 }
 
@@ -30,9 +37,11 @@ export interface GiveawayConfig {
  * nås — sätt den ~24 h framåt och meddela det.
  */
 export const GIVEAWAY_KEY = "30th-etb-2026";
-// Start = dagen ägaren tillkännager (2026-10-23, ägarbeslut — flyttad från 10-15, 10-17 och 10-20). Före starten är
+// Start = dagen ägaren tillkännager (2026-10-26, ägarbeslut — flyttad från 10-15, 10-17, 10-20 och 10-23). Före starten är
 // giveawayn DOLD för alla utom admin (sidan 404:ar, Mer-raden syns inte).
-const DEFAULT_STARTS_AT = "2026-10-23T00:00:00+02:00";
+const DEFAULT_STARTS_AT = "2026-10-26T00:00:00+01:00";
+// Giveawayn var ÖPPEN 2026-10-23 innan den doldes igen ⇒ aktivitet räknas därifrån.
+const DEFAULT_COUNTS_FROM = "2026-10-23T00:00:00+02:00";
 const DEFAULT_CLOSES_AT = "2026-11-15T23:59:59+01:00";
 
 export const TICKETS = {
@@ -61,9 +70,11 @@ function parseDate(raw: string | undefined, fallback: string): Date {
 }
 
 export function giveawayConfig(env: Record<string, string | undefined> = process.env): GiveawayConfig {
+  const startsAt = parseDate(env.GIVEAWAY_STARTS_AT, DEFAULT_STARTS_AT);
   return {
     key: GIVEAWAY_KEY,
-    startsAt: parseDate(env.GIVEAWAY_STARTS_AT, DEFAULT_STARTS_AT),
+    startsAt,
+    countsFrom: new Date(Math.min(parseDate(env.GIVEAWAY_COUNTS_FROM, DEFAULT_COUNTS_FROM).getTime(), startsAt.getTime())),
     closesAt: parseDate(env.GIVEAWAY_CLOSES_AT, DEFAULT_CLOSES_AT),
   };
 }

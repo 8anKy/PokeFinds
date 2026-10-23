@@ -50,7 +50,7 @@ async function countScannedCards(userId: string, cfg: GiveawayConfig, end: Date)
     WHERE j."userId" = ${userId}
       AND j."addedCardId" IS NOT NULL
       AND j."status" <> 'FAILED'
-      AND j."createdAt" >= ${cfg.startsAt}
+      AND j."createdAt" >= ${cfg.countsFrom}
       AND j."createdAt" <= ${end}
       AND EXISTS (
         SELECT 1 FROM "CollectionItem" c
@@ -64,7 +64,7 @@ async function countQualifiedInvites(userId: string, cfg: GiveawayConfig, end: D
   const invites = await prisma.invite.findMany({
     where: {
       inviterId: userId,
-      usedAt: { gte: cfg.startsAt, lte: end },
+      usedAt: { gte: cfg.countsFrom, lte: end },
       verifiedAt: { not: null },
     },
     select: { usedBy: { select: { createdAt: true, lastSeenAt: true } } },
@@ -106,7 +106,7 @@ export async function loadUserTickets(
     prisma.user.findUnique({ where: { id: userId }, select: { discordUserId: true } }),
     // Bara KLARA graderingar under perioden — ett misslyckat anrop är ingen gradering.
     prisma.gradingJob.count({
-      where: { userId, status: "COMPLETED", createdAt: { gte: cfg.startsAt, lte: end } },
+      where: { userId, status: "COMPLETED", createdAt: { gte: cfg.countsFrom, lte: end } },
     }),
   ]);
   const discordUserId = account?.discordUserId ?? null;

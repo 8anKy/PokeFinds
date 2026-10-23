@@ -271,7 +271,7 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   vårt för de nyaste seten ("PBL-116" mot "me5-116") och gav 0 affärer för hela seten (Darkrai 116: ~150 hos dem).
   Profilsidan visar fortfarande ograderat (v1). Memory: `project_graded_slabs_portfolio_2026_10_15`.
 - **GIVEAWAY MED LOTTER (2026-10-13, ägarbeslut)**: `/giveaway` (routegrupp `(mer)`, gäster ser pris + krav), pris
-  30th Celebration ETB — ENDA vinsten (ägarbeslut 2026-10-13, inga Pro-pris). Start 2026-10-23 00:00 (flyttad från 10-15, 10-17 och 10-20, ägarbeslut; DOLD före: 404 + ingen Mer-rad, admin ser den; flytta med `GIVEAWAY_STARTS_AT`), slut 2026-11-15 23:59 svensk tid
+  30th Celebration ETB — ENDA vinsten (ägarbeslut 2026-10-13, inga Pro-pris). Start 2026-10-26 00:00 (flyttad från 10-15, 10-17, 10-20 och 10-23, ägarbeslut; DOLD före: 404 + ingen Mer-rad, admin ser den; flytta med `GIVEAWAY_STARTS_AT`). ⛔ Aktivitet RÄKNAS från 2026-10-23 (`countsFrom`, `GIVEAWAY_COUNTS_FROM`) — den var öppen den dagen innan den doldes, och det som hann göras får inte försvinna, slut 2026-11-15 23:59 svensk tid
   ELLER i förtid vid 1 000 TikTok-följare: sätt `GIVEAWAY_CLOSES_AT` (ISO) i Railway ~24 h framåt och meddela det.
   Lotter (`lib/giveaway.ts`, ren + testad): anmäld 5 · skannat UNIKT kort i samlingen 1 st (max 100) · inbjuden vän
   som verifierat OCH återbesökt 10 st (max 10) · restock-larm 5 · Discord kopplat via "Koppla Discord" (lägger in
