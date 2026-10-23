@@ -376,7 +376,80 @@ const CURATED: { tcgid: string; label: string; idProduct: number; why: string }[
   // Butikspromo (GameStop/EB Games, 2023). CM har fem "Lechonk [Repelling Odor | Stampede]" i
   // expansion 5223; 721846 (inlagd 2023-07-13, avg 0,90 €, likvid) bekräftad av ägaren 2026-10-23.
   { tcgid: "sv1-154", label: "Cosmos Holo", idProduct: 721846, why: "ägarbekräftad 2026-10-23 (Lisas önskemål)" },
+  // Base Set-startarnas 2021-03-04-produkt hos CM — leverantören märker raden "Oversized".
+  { tcgid: "base1-44", label: "Oversized", idProduct: 547236, why: "leverantörens rad 48586 (Oversized) bär id:t" },
+  { tcgid: "base1-46", label: "Oversized", idProduct: 547241, why: "leverantörens rad 48587 (Oversized) bär id:t" },
+  { tcgid: "base1-63", label: "Oversized", idProduct: 547246, why: "leverantörens rad 48589 (Oversized) bär id:t" },
 ];
+
+/**
+ * BEFINTLIGA produkter utan CM-länk där leverantörens EGEN rad (Card.tcgExternalId =
+ * "tcggo:<radens id>") eller ett namn som är unikt i CM-expansionen pekar ut idProduct.
+ * Kontrollerat mot CM:s katalognamn 2026-10-23.
+ */
+const CURATED_LINKS: { where: { tcgExternalId?: string; set?: string; number?: string; titleHas?: string }; idProduct: number; why: string }[] = [
+  { where: { tcgExternalId: "tcggo:76481" }, idProduct: 894245, why: "Prize Pack 9 Basic Fighting Energy · Holo" },
+  { where: { tcgExternalId: "tcggo:76483" }, idProduct: 894250, why: "Prize Pack 9 Basic Metal Energy · Holo" },
+  { where: { tcgExternalId: "tcggo:76500" }, idProduct: 894215, why: "Prize Pack 9 Lillie's Determination · Holo" },
+  { where: { tcgExternalId: "tcggo:76343" }, idProduct: 727077, why: "Prize Pack 3 Psychic Energy · Holo" },
+  { where: { set: "Scarlet & Violet Black Star Promos", number: "224", titleHas: "224/215" }, idProduct: 844367, why: "Paradise Resort SVP 224 (Staff har 845339)" },
+  // Leverantören numrerar 106, vår katalog 108 — enda "Energy Retrieval" i CM-expansionen 6517.
+  { where: { set: "Chaos Rising", number: "108" }, idProduct: 886498, why: "Energy Retrieval, unikt namn i expansionen" },
+  { where: { set: "Scarlet & Violet Black Star Promos", number: "225" }, idProduct: 832224, why: "Pikachu SVP 225 (leverantörens rad 48088)" },
+];
+
+/** Promokort som saknas helt i ett set vi har (CM-only-mönstret: tcgExternalId "cm:<id>"). */
+// (Tom 2026-10-23: SVP 190/225 fanns redan — 190 länkad, 225 länkas ovan.)
+const CURATED_NEW_CARDS: { set: string; number: string; name: string; idProduct: number }[] = [];
+
+async function linkAndCreateCurated(guide: Map<number, GuideRow>, rates: Awaited<ReturnType<typeof getRatesOre>>, linked: Set<number>) {
+  const cm = await cardmarketRetailerId();
+  for (const l of CURATED_LINKS) {
+    if (linked.has(l.idProduct)) { console.log(`  länk ${l.idProduct}: redan länkad — hoppar`); continue; }
+    const prods = await prisma.product.findMany({
+      where: {
+        variantLabel: null,
+        ...(l.where.titleHas ? { title: { contains: l.where.titleHas } } : {}),
+        card: {
+          ...(l.where.tcgExternalId ? { tcgExternalId: l.where.tcgExternalId } : {}),
+          ...(l.where.set ? { set: { name: l.where.set }, number: l.where.number } : {}),
+        },
+        offers: { none: { retailer: { name: "Cardmarket" } } },
+      },
+      select: { id: true, title: true },
+    });
+    if (prods.length !== 1) { console.log(`  länk ${l.idProduct} (${l.why}): ${prods.length} kandidater — hoppar`); continue; }
+    const offer = guideOffer(guide.get(l.idProduct), rates);
+    console.log(`  länk ${prods[0].title} ← ${l.idProduct} (${l.why}) pris ${offer.price ?? "–"}`);
+    if (!APPLY) continue;
+    await prisma.offer.create({
+      data: { productId: prods[0].id, retailerId: cm, condition: "NEAR_MINT", language: "EN", currency: "SEK", url: cardmarketProductUrl(l.idProduct, { nearMint: true, firstEd: "exclude" }), ...offer },
+      select: { id: true },
+    });
+  }
+  for (const n of CURATED_NEW_CARDS) {
+    if (linked.has(n.idProduct)) { console.log(`  nytt kort ${n.name} ${n.number}: id redan länkat — hoppar`); continue; }
+    const set = await prisma.cardSet.findFirst({ where: { name: n.set, language: "EN" }, select: { id: true, name: true } });
+    if (!set) continue;
+    if (await prisma.card.findFirst({ where: { setId: set.id, number: n.number }, select: { id: true } })) { console.log(`  ${n.name} ${n.number}: finns redan`); continue; }
+    const title = `${n.name} · ${set.name} ${n.number}`;
+    const offer = guideOffer(guide.get(n.idProduct), rates);
+    console.log(`  nytt kort ${title} ← ${n.idProduct} pris ${offer.price ?? "–"}`);
+    if (!APPLY) continue;
+    const card = await prisma.card.create({
+      data: { setId: set.id, number: n.number, name: n.name, rarity: "Promo", language: "EN", supertype: "Pokémon", tcgExternalId: `${CM_ONLY_PREFIX}${n.idProduct}`, cardmarketId: n.idProduct },
+      select: { id: true },
+    });
+    const product = await prisma.product.create({
+      data: { title, normalizedTitle: normalizeTitle(title), slug: await uniqueSlug(`${n.name}-svp-${n.number}`, n.idProduct), category: "SINGLE_CARD", cardId: card.id, setId: set.id, language: "EN" },
+      select: { id: true },
+    });
+    await prisma.offer.create({
+      data: { productId: product.id, retailerId: cm, condition: "NEAR_MINT", language: "EN", currency: "SEK", url: cardmarketProductUrl(n.idProduct, { nearMint: true, firstEd: "exclude" }), ...offer },
+      select: { id: true },
+    });
+  }
+}
 async function importCurated() {
   const [guide, rates, linked] = await Promise.all([
     json<{ priceGuides: GuideRow[] }>(CM_GUIDE).then((d) => new Map(d.priceGuides.map((g) => [g.idProduct, g]))),
@@ -390,15 +463,17 @@ async function importCurated() {
       where: { tcgExternalId: c.tcgid },
       select: { id: true, setId: true, imageUrl: true, products: { select: { title: true, slug: true, variantLabel: true } } },
     });
-    const base = card?.products.find((p) => p.variantLabel == null);
+    // Uppdelade Base-kort har ingen omärkt produkt — Unlimited är det ordinarie kortet.
+    const base = card?.products.find((p) => p.variantLabel == null) ?? card?.products.find((p) => p.variantLabel === "Unlimited");
     if (!card || !base) { console.log(`  ${c.tcgid}: baskortet saknas — hoppar`); continue; }
     if (card.products.some((p) => p.variantLabel === c.label)) { console.log(`  ${base.title} · ${c.label}: finns redan`); continue; }
-    const title = `${base.title} · ${c.label}`;
+    const baseTitle = base.title.replace(/ · Unlimited$/, "");
+    const title = `${baseTitle} · ${c.label}`;
     const offer = guideOffer(guide.get(c.idProduct), rates);
     console.log(`  ${title} ← ${c.idProduct} (${c.why}) pris ${offer.price ?? "–"}`);
     if (!APPLY) continue;
     const product = await prisma.product.create({
-      data: { title, normalizedTitle: normalizeTitle(title), slug: await uniqueSlug(`${base.slug}-${c.label}`, c.idProduct), category: "SINGLE_CARD", cardId: card.id, setId: card.setId, imageUrl: card.imageUrl, language: "EN", variantLabel: c.label },
+      data: { title, normalizedTitle: normalizeTitle(title), slug: await uniqueSlug(`${base.slug.replace(/-unlimited$/, "")}-${c.label}`, c.idProduct), category: "SINGLE_CARD", cardId: card.id, setId: card.setId, imageUrl: card.imageUrl, language: "EN", variantLabel: c.label },
       select: { id: true },
     });
     await prisma.offer.create({
@@ -406,6 +481,7 @@ async function importCurated() {
       select: { id: true },
     });
   }
+  await linkAndCreateCurated(guide, rates, linked);
 }
 
 async function main() {
