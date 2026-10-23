@@ -21,6 +21,15 @@ paths:
   = max(konto, enhet) per månad (`mergedMonthUsed`). ⛔ Alla skanner-anrop i sidan går via `scanFetch`
   (bär `x-foilio-device`); ett bart `fetch("/api/scanner/…")` bryter gästvägen tyst — testet vaktar.
 
+- **OMTRYCKEN UTANFÖR INDEXET ÄR VAL, INTE TRÄFFAR (ägarbeslut 2026-10-23)**: Cardmarket-only-kort och Prize Pack
+  hålls utanför bildindexet (de hade stulit träffar från originalet), men de ska gå att VÄLJA. I `matchCards`:
+  namnsyskonen sorteras tvilling → SAMMA SIFFROR i numret som vinnaren → konstlikhet (kopiorna saknar avtryck och
+  hamnade annars sist, under taket), och ett kort UTAN avtryck (`artPairSimilarity` null) med samma namn + siffror
+  får `sameArt` — annars försvann det ur raden så snart en språktvilling fanns (`pickSameArtRail`).
+  ⛔ Unika cm-kort (Ancient Mew) indexeras via den incheckade listan `src/data/scanner-unique-cm-cards.json`
+  (`scripts/build-scanner-unique-cards.ts`: normaliserat namn utan vanligt syskon, aldrig WCD, konst < 0,9 mot
+  indexet — namnet ensamt släppte igenom 485 omtryck med annan stavning, "Pokegear"/"Pokégear").
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **SKANNERN IDENTIFIERAR PÅ UTSEENDE, INTE PÅ TEXT (2026-07-29)**: samlarnumret trycks ~2 mm högt. På en fysisk

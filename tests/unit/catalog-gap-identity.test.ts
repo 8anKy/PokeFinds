@@ -12,7 +12,7 @@ import {
   cmOnlyGuidePrice,
 } from "@/lib/catalog-gap-identity";
 import { episodeSetFromVotes } from "@/jobs/cardmarket-refresh";
-import { SCANNER_INCLUDED_CARD } from "@/lib/scanner-exclusion";
+import { SCANNER_INCLUDED_CARD, SCANNER_UNIQUE_CM_IDS } from "@/lib/scanner-exclusion";
 
 /**
  * Kataloglucorna 2026-10-15: Prize Pack-seten (prisleverantören), stämplade tryckningar
@@ -91,7 +91,13 @@ describe("röster väljer set", () => {
 describe("skannerns index", () => {
   it("släpper igenom kort UTAN tcgExternalId (NOT över en nullbar kolumn hade fällt dem)", () => {
     const and = (SCANNER_INCLUDED_CARD as { AND: unknown[] }).AND;
-    expect(and[0]).toEqual({ OR: [{ tcgExternalId: null }, { NOT: { tcgExternalId: { startsWith: "cm:" } } }] });
+    const or = (and[0] as { OR: unknown[] }).OR;
+    expect(or.slice(0, 2)).toEqual([{ tcgExternalId: null }, { NOT: { tcgExternalId: { startsWith: "cm:" } } }]);
+    // Undantaget: unika Cardmarket-only-kort (inget vanligt kort med namnet, egen konst) — Ancient Mew.
+    expect(SCANNER_UNIQUE_CM_IDS).toContain("cm:275577");
+    expect(or[2]).toEqual({ tcgExternalId: { in: [...SCANNER_UNIQUE_CM_IDS] } });
+    // och listan får aldrig bära ett vanligt kort
+    expect(SCANNER_UNIQUE_CM_IDS.every((id) => id.startsWith("cm:"))).toBe(true);
     expect(and[1]).toEqual({ NOT: { set: { name: { startsWith: "Play! Pokémon Prize Pack" } } } });
   });
 });

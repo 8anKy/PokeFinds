@@ -1574,10 +1574,22 @@ export async function matchCards(
   // med identisk konst överst), inte id-ordning — med 178 Pikachu var urvalet
   // annars en slumpdragning. Poolen är redan hämtad: ingen extra fråga.
   const topIds = new Set(ranked.slice(0, MAX_CANDIDATES).map((r) => r.candidate.cardId));
+  // Ordning (2026-10-23, ägaren: "man ska kunna välja vilken kopia man har"): språktvillingen
+  // först, sedan kort med SAMMA SIFFROR i numret — vinnarens egna omtryck (WCD-lekar, stämplade
+  // promos, Cardmarket-only-tryck), som saknar konstavtryck och annars alltid hamnade sist och
+  // trängdes ut av taket — sedan konstlikhet. ⛔ Tvillingen får aldrig falla ur listan.
+  const digitsOf = (n: string | null | undefined) =>
+    String(n ?? "").replace(/\/.*$/, "").replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  const winnerDigits = digitsOf(winner.number);
+  const siblingRank = (c: { id: string; number: string | null }) =>
+    c.id === twinIdOfWinner ? 0 : winnerDigits && digitsOf(c.number) === winnerDigits ? 1 : 2;
   const sameNameCards = namePool
     .filter((c) => !topIds.has(c.id) && c.id !== winner.cardId)
     .sort(
-      (a, b) => (artToWinner.get(b.id) ?? -1) - (artToWinner.get(a.id) ?? -1) || a.id.localeCompare(b.id)
+      (a, b) =>
+        siblingRank(a) - siblingRank(b) ||
+        (artToWinner.get(b.id) ?? -1) - (artToWinner.get(a.id) ?? -1) ||
+        a.id.localeCompare(b.id)
     )
     .slice(0, SIBLING_LIMIT);
 
@@ -1711,8 +1723,18 @@ export async function matchCards(
           : artPairSimilarity(winner.cardId, c.cardId)
       )
     );
+    // Omtryck som hålls UTANFÖR indexet (Prize Pack, WCD-lekar, stämplade Cardmarket-only-tryck —
+    // lib/scanner-exclusion.ts) har inget avtryck att jämföra ⇒ null. Samma namn + samma siffror i
+    // numret som vinnaren är då hela beviset för samma konst (ägaren 2026-10-23: "man ska kunna välja
+    // vilken kopia man har") — annars föll de ur raden så snart en språktvilling fanns.
+    const winDigits = String(winner.number ?? "").replace(/\/.*$/, "").replace(/\D/g, "").replace(/^0+(?=\d)/, "");
     top.forEach((c, i) => {
-      c.sameArt = (sims[i] ?? 0) >= SAME_ART_MIN;
+      const unindexedReprint =
+        sims[i] === null &&
+        !!winDigits &&
+        cardBaseName(c.name) === cardBaseName(winner.name) &&
+        String(c.number ?? "").replace(/\/.*$/, "").replace(/\D/g, "").replace(/^0+(?=\d)/, "") === winDigits;
+      c.sameArt = (sims[i] ?? 0) >= SAME_ART_MIN || unindexedReprint;
     });
 
     /**
