@@ -114,11 +114,14 @@ export function winningSet(votes: Map<string, number> | undefined): string | nul
  * startdäck, engelska stämplar, bollmönster), så språkfelet finns inte; kvar är skicket.
  * Därför en rimlighetsvakt, men BARA för kort värda något: under `CM_ONLY_GUARD_FROM_EUR` (2 €)
  * är low verklighetens From (0,02 € för en common), och mätt 2026-10-15 gick 81 % av de
- * fällda till just sådana kort. Från 2 € måste low vara minst `CM_ONLY_LOW_MIN_SHARE` (25 %)
- * av det LÄGSTA av försäljningssnitten (trend/avg30/avg7) — ett ensamt brusigt snitt i en
- * tunn marknad får inte fälla den. Fälld ⇒ uppskattning (median av trend/avg/avg30).
+ * fällda till just sådana kort. Från 2 € måste low vara minst `CM_ONLY_LOW_MIN_SHARE` (50 %)
+ * av det LÄGSTA av försäljningssnitten (trend/avg30/avg7). Fälld ⇒ uppskattning (median av
+ * trend/avg/avg30).
+ * ⛔ `low` är lägsta annons i ALLA SKICK — guiden har inget NM-golv. 25 % släppte igenom ett
+ * Poor-exemplar som pris (Ancient Mew 19,95 € mot försäljningar 78–110 €, visad 221 kr; ägaren
+ * 2026-10-23: "221 kr är Poor, Near Mint är ~1 182 kr"). 50 % ⇒ uppskattningen 108,98 €.
  */
-export const CM_ONLY_LOW_MIN_SHARE = 0.25;
+export const CM_ONLY_LOW_MIN_SHARE = 0.5;
 export const CM_ONLY_GUARD_FROM_EUR = 2;
 export function cmOnlyGuidePrice(g: {
   low?: number | null; trend?: number | null; avg?: number | null; avg30?: number | null; avg7?: number | null;

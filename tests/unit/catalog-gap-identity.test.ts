@@ -103,10 +103,12 @@ describe("pris för kort som bara finns på Cardmarket", () => {
   it("billiga kort: low ÄR From (0,03 € för en common) — ingen vakt under 2 €", () => {
     expect(cmOnlyGuidePrice({ low: 0.03, trend: 0.42, avg: 0.34, avg30: 0.33 })).toEqual({ eur: 0.03, live: true });
   });
-  it("värdefulla kort: ett exemplar under 25 % av lägsta snittet är skadat ⇒ uppskattning", () => {
+  it("värdefulla kort: ett exemplar under 50 % av lägsta snittet är inget NM-pris ⇒ uppskattning", () => {
     expect(cmOnlyGuidePrice({ low: 3, trend: 43.5, avg: 50, avg30: 15.5, avg7: 15.5 })).toEqual({ eur: 43.5, live: false });
-    // men ett brusigt högt trendtal fäller inte en rimlig From (Charizard ex JP: 4,95 mot avg30 15,02)
-    expect(cmOnlyGuidePrice({ low: 4.95, trend: 32.72, avg: 68, avg30: 15.02, avg7: 23.08 })).toEqual({ eur: 4.95, live: true });
+    // Ancient Mew (275577): low 19,95 € är ett Poor-exemplar — försäljningarna ligger på 78–110 €.
+    expect(cmOnlyGuidePrice({ low: 19.95, trend: 78.29, avg: 108.98, avg30: 110.04, avg7: 84.23 })).toEqual({ eur: 108.98, live: false });
+    // en From nära försäljningarna står kvar
+    expect(cmOnlyGuidePrice({ low: 9, trend: 32.72, avg: 68, avg30: 15.02, avg7: 23.08 })).toEqual({ eur: 9, live: true });
   });
   it("utan low ⇒ uppskattning, utan något ⇒ null", () => {
     expect(cmOnlyGuidePrice({ trend: 96.98, avg: 106.98, avg30: 99.69 })).toEqual({ eur: 99.69, live: false });

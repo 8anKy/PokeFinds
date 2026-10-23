@@ -33,7 +33,7 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   språkbekräftelse, JP utan) — **10x + glapp > 25 € sedan 2026-10-16** (ägaren, frågat: 4x fällde en äkta NM-From på 446 kort). (3) Graderade rutor utan affärer visar begärt märkt "Till salu", aldrig omärkt.
   (4) Rubriken: en Tradera-annons slår ALDRIG ett CM-pris (`headlineCandidates`, ersätter 09-22-regeln för rubriken).
   **CM-only-korten**: pris = prisguidens `low` (= CM:s From; enspråksutgåvor ⇒ inget språkfel), levande; vakt från 2 €
-  (`cmOnlyGuidePrice`). Bild = CardTraders blueprintbild via `/api/ct-image` (CM:s singelbilder kräver expansionskod
+  (`cmOnlyGuidePrice`); ⛔ **`low` är lägsta annons i ALLA skick** — sedan 2026-10-23 måste den vara ≥ 50 % av lägsta försäljningssnittet, annars uppskattning (Ancient Mew: Poor-exemplaret 19,95 € visades som pris, NM ≈ 109 €). Bild = CardTraders blueprintbild via `/api/ct-image` (CM:s singelbilder kräver expansionskod
   vi saknar), reserv = originalkortets bild. **Setbrickor**: set utan (eller med död) logotyp får en ritad bricka av
   tre kort (`scripts/generate-set-tiles.ts`, `public/set-logos/generated/`, 184 set 2026-10-15).
 - **PRO = 59 KR/MÅN ELLER 12 MÅN À 39 KR MED 14 DAGAR GRATIS (ägarbeslut 2026-10-19)**: befintliga prenumeranter

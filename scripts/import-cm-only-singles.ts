@@ -177,9 +177,9 @@ async function importMissing(apply: boolean) {
         const img = ctImageProxyUrl(bp.id, bp.image?.url);
         if (img && !imageByCm.has(id)) imageByCm.set(id, img);
       }
-      // Utan språkfält (Miscellaneous Promos m.fl.): bara CardTraders egen text "International
-      // Print" räknas som engelska (Ancient Mew 2026-10-23) — inget annat gissas.
-      const lang = blueprintLanguage(bp) ?? (/\bInternational Print\b/.test(bp.version ?? "") ? "EN" : null);
+      // Utan språkfält (Miscellaneous/Unnumbered Promos): bara CardTraders egen versionstext avgör
+      // (Ancient Mew 2026-10-23) — inget annat gissas.
+      const lang = blueprintLanguage(bp) ?? versionTextLanguage(bp.version);
       if (lang) blueprints.push({ bp, exp, lang });
     }
     if (++done % 100 === 0) console.log(`  … ${done}/${expansions.length} expansioner`);
@@ -188,48 +188,7 @@ async function importMissing(apply: boolean) {
 
   if (failedExpansions.length) console.warn(`CardTrader: ${failedExpansions.length} expansioner gick inte att läsa — körningen är OFULLSTÄNDIG.`);
 
-  // BILDLAGNING för redan skapade kort: allt som fortfarande pekar på /api/cm-image.
-  {
-    const broken = await prisma.card.findMany({
-      where: { tcgExternalId: { startsWith: CM_ONLY_PREFIX }, OR: [{ imageUrl: null }, { imageUrl: { startsWith: "/api/cm-image/" } }] },
-      select: { id: true, cardmarketId: true },
-    });
-    let fixed = 0;
-    await mapPool(broken, 8, async (c) => {
-      const img = c.cardmarketId != null ? imageByCm.get(c.cardmarketId) : undefined;
-      if (!img) return;
-      fixed++;
-      if (!apply) return;
-      await prisma.card.update({ where: { id: c.id }, data: { imageUrl: img } });
-      await prisma.product.updateMany({ where: { cardId: c.id }, data: { imageUrl: img } });
-    });
-    console.log(`Bilder: ${fixed} av ${broken.length} bildlösa Cardmarket-only-kort får CardTraders bild.`);
-    // RESERV: omtrycket utan egen bild får ORIGINALETS bild (samma konst) — samma språk,
-    // samma namn, samma siffror i numret. WCD 2023 + JP-startdäcken saknar bild både hos
-    // CardTrader och Cardmarket (159 kort 2026-10-15). Bättre originalets konst än en tom ruta.
-    const still = await prisma.card.findMany({
-      where: { tcgExternalId: { startsWith: CM_ONLY_PREFIX }, OR: [{ imageUrl: null }, { imageUrl: { startsWith: "/api/cm-image/" } }] },
-      select: { id: true, name: true, number: true, language: true, cardmarketId: true },
-    });
-    let borrowed = 0;
-    for (const c of still) {
-      if (c.cardmarketId != null && imageByCm.has(c.cardmarketId)) continue;
-      const base = c.name.replace(/ \(JP\)$/, "");
-      const twins = await prisma.card.findMany({
-        where: { language: c.language, name: { startsWith: base.split(" ")[0] }, imageUrl: { not: null }, NOT: [{ imageUrl: { startsWith: "/api/cm-image/" } }, { id: c.id }] },
-        select: { name: true, number: true, imageUrl: true },
-        take: 200,
-      });
-      const twin = twins.find((t) => digitsKey(t.number) === digitsKey(c.number) && cmCardNameAgrees(t.name.replace(/ \(JP\)$/, ""), base))
-        ?? twins.find((t) => cmCardNameAgrees(t.name.replace(/ \(JP\)$/, ""), base) && cmCardNameAgrees(base, t.name.replace(/ \(JP\)$/, "")));
-      if (!twin?.imageUrl) continue;
-      borrowed++;
-      if (!apply) continue;
-      await prisma.card.update({ where: { id: c.id }, data: { imageUrl: twin.imageUrl } });
-      await prisma.product.updateMany({ where: { cardId: c.id }, data: { imageUrl: twin.imageUrl } });
-    }
-    console.log(`Bilder: ${borrowed} omtryck utan egen bild fick originalets bild.`);
-  }
+  await healImages(apply, imageByCm);
 
   imageByCmGlobal = imageByCm;
   const sets = await prisma.cardSet.findMany({ select: { id: true, name: true, language: true, externalId: true } });
@@ -292,7 +251,7 @@ async function importMissing(apply: boolean) {
   const byExp = new Map<string, number>();
   const skipped: Record<string, unknown>[] = [];
   const planned: Record<string, unknown>[] = [];
-  const newSetFor = new Map<number, string>();
+  const newSetFor = new Map<string, string>();
   const usedCmIds = new Set(linked.keys());
   for (const { bp, exp, lang } of blueprints) {
     const ids = (bp.card_market_ids ?? []).filter((id) => !linked.has(id) && cmById.has(id));
@@ -311,7 +270,7 @@ async function importMissing(apply: boolean) {
       const priced = guideOffer(guide.get(idProduct), rates);
       if (priced == null) { stats.unpriced++; continue; }
       const { priceOre, stock } = priced;
-      const label = versionLabel(bp.version);
+      const label = cleanLabel(versionLabel(bp.version));
 
       // BOLLMÖNSTER → vår befintliga variantprodukt får Cardmarket-priset.
       const ball = ballExpansion(exp.name);
@@ -339,10 +298,10 @@ async function importMissing(apply: boolean) {
 
       // Setet: röster → exakt namn i samma språk → nytt.
       const existingSet = winningSet(votes.get(exp.id)) ?? setsByKey.get(`${lang}|${cmSetNameKey(exp.name)}`) ?? null;
-      let setId = existingSet ?? newSetFor.get(exp.id) ?? null;
+      let setId = existingSet ?? newSetFor.get(`${exp.id}|${lang}`) ?? null;
 
       // Onumrerade kort föds bara i set vi själva byggt ur CT/CM (eller i ett helt nytt set).
-      if (unnumbered && !(existingSet && ctSetIds.has(existingSet))) {
+      if (unnumbered && existingSet && !ctSetIds.has(existingSet)) {
         stats.noNumber++;
         skipped.push({ exp: exp.name, name: bp.name, version: bp.version ?? null, idProduct, why: "no-number" });
         continue;
@@ -440,6 +399,9 @@ async function importMissing(apply: boolean) {
       if (!apply) continue;
 
       if (!setId) {
+        // Samma CT-expansion kan bära både engelska och japanska tryck (Unnumbered Promos:
+        // Ancient Mew) — det andra språkets set får eget id i stället för att krocka.
+        const taken = await prisma.cardSet.findUnique({ where: { externalId: `ct:${exp.id}` }, select: { language: true } });
         const created = await prisma.cardSet.create({
           data: {
             name: exp.name,
@@ -451,13 +413,13 @@ async function importMissing(apply: boolean) {
             releaseDate: null,
             totalCards: 0,
             totalCardsFull: 0,
-            externalId: `ct:${exp.id}`,
+            externalId: taken && taken.language !== lang ? `ct:${exp.id}:${lang}` : `ct:${exp.id}`,
           },
           select: { id: true, name: true, language: true, externalId: true },
         });
         sets.push(created);
         setId = created.id;
-        newSetFor.set(exp.id, setId);
+        newSetFor.set(`${exp.id}|${lang}`, setId);
         stats.setsCreated++;
       }
 
@@ -465,6 +427,7 @@ async function importMissing(apply: boolean) {
     }
   }
 
+  if (apply) await healImages(apply, imageByCm);
   console.log(stats);
   if (process.env.CM_ONLY_REPORT) {
     const fs = await import("fs");
@@ -481,6 +444,20 @@ async function importMissing(apply: boolean) {
 
 
 const LABELLED = process.argv.includes("--labelled");
+
+/** "International Print" ⇒ EN, "Japanese …" ⇒ JP; koreanska/kinesiska och allt annat ⇒ null (avstå). */
+function versionTextLanguage(version: string | null | undefined): Lang | null {
+  const v = version ?? "";
+  if (/\b(Korean|Chinese|Thai|Indonesian)\b/i.test(v)) return null;
+  if (/\bInternational Print\b/.test(v)) return "EN";
+  if (/\bJapanese\b/.test(v)) return "JP";
+  return null;
+}
+
+/** Copyrightrader ("© 1999-2000 Wizards") är tryckets finstil, ingen etikett att visa. */
+function cleanLabel(label: string): string {
+  return label.split(" · ").map((p) => p.replace(/\s*©.*$/, "").trim()).filter(Boolean).join(" · ");
+}
 const FILL_CT = process.argv.includes("--fill-ct-sets");
 const CT_MIRROR_SET = /^(Radiant Collection |Pokémon TCG: Pokémon GO$)/;
 
@@ -556,6 +533,61 @@ async function createCard(a: { bp: RawBlueprint; exp: CtExpansion; lang: Lang; i
     },
   });
   return true;
+}
+
+/**
+ * BILDLAGNING för Cardmarket-only-kort utan bild. Körs FÖRE och EFTER skapandet — kort som föds i
+ * körningen utan CardTrader-bild fick annars sin reserv först vid nästa körning (12 kort 2026-10-23).
+ */
+async function healImages(apply: boolean, imageByCm: Map<number, string>) {
+  {
+    const broken = await prisma.card.findMany({
+      where: { tcgExternalId: { startsWith: CM_ONLY_PREFIX }, OR: [{ imageUrl: null }, { imageUrl: { startsWith: "/api/cm-image/" } }] },
+      select: { id: true, cardmarketId: true },
+    });
+    let fixed = 0;
+    await mapPool(broken, 8, async (c) => {
+      const img = c.cardmarketId != null ? imageByCm.get(c.cardmarketId) : undefined;
+      if (!img) return;
+      fixed++;
+      if (!apply) return;
+      await prisma.card.update({ where: { id: c.id }, data: { imageUrl: img } });
+      await prisma.product.updateMany({ where: { cardId: c.id }, data: { imageUrl: img } });
+    });
+    console.log(`Bilder: ${fixed} av ${broken.length} bildlösa Cardmarket-only-kort får CardTraders bild.`);
+    // RESERV: omtrycket utan egen bild får ORIGINALETS bild (samma konst) — samma språk,
+    // samma namn, samma siffror i numret. WCD 2023 + JP-startdäcken saknar bild både hos
+    // CardTrader och Cardmarket (159 kort 2026-10-15). Bättre originalets konst än en tom ruta.
+    const still = await prisma.card.findMany({
+      where: { tcgExternalId: { startsWith: CM_ONLY_PREFIX }, OR: [{ imageUrl: null }, { imageUrl: { startsWith: "/api/cm-image/" } }] },
+      select: { id: true, name: true, number: true, language: true, cardmarketId: true },
+    });
+    let borrowed = 0;
+    for (const c of still) {
+      if (c.cardmarketId != null && imageByCm.has(c.cardmarketId)) continue;
+      const base = c.name.replace(/ \(JP\)$/, "");
+      // Exakt namn först — prefixet "Poké" gav 200 andra kort och missade Poké Ball (JP) (2026-10-23).
+      const notSelf = { imageUrl: { not: null }, NOT: [{ imageUrl: { startsWith: "/api/cm-image/" } }, { id: c.id }] };
+      const exact = await prisma.card.findMany({
+        where: { language: c.language, name: { in: [c.name, base, `${base} (JP)`] }, ...notSelf },
+        select: { name: true, number: true, imageUrl: true },
+        take: 200,
+      });
+      const twins = exact.length ? exact : await prisma.card.findMany({
+        where: { language: c.language, name: { startsWith: base.split(" ")[0] }, ...notSelf },
+        select: { name: true, number: true, imageUrl: true },
+        take: 200,
+      });
+      const twin = twins.find((t) => digitsKey(t.number) === digitsKey(c.number) && cmCardNameAgrees(t.name.replace(/ \(JP\)$/, ""), base))
+        ?? twins.find((t) => cmCardNameAgrees(t.name.replace(/ \(JP\)$/, ""), base) && cmCardNameAgrees(base, t.name.replace(/ \(JP\)$/, "")));
+      if (!twin?.imageUrl) continue;
+      borrowed++;
+      if (!apply) continue;
+      await prisma.card.update({ where: { id: c.id }, data: { imageUrl: twin.imageUrl } });
+      await prisma.product.updateMany({ where: { cardId: c.id }, data: { imageUrl: twin.imageUrl } });
+    }
+    console.log(`Bilder: ${borrowed} omtryck utan egen bild fick originalets bild.`);
+  }
 }
 
 /** Satt av importMissing (bilderna hämtas med blueprintsen) — läses av createCard. */
