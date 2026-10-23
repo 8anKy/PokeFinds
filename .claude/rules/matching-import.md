@@ -16,6 +16,7 @@ paths:
 ---
 # Matchning, auto-import och kategorivakter
 
+- **HALVDISPLAYEN (18 boosters) ÄR EN EGEN VARA (2026-10-23)**: 62 "Booster Box (18 Boosters)" + 46 sampling-/prerelease-pack + 13 kollektioner (Case Files, playmat-/deck holder-KOLLEKTIONER, My First Battle, Holiday Calendar) importerade ur CM (`import-sealed-from-cardmarket.ts`, `EXTRA_*_RE`). `boosterBoxCountMismatch` (matching.ts) håller 18 skild från 36 i butiksmatchningen; ⛔ ingen default-36 — japanska boxar har 30/20/10 paket. Case/display (grossist) och lösa tillbehör (playmat, portfolio, sleeves) är fortfarande ägarbeslut och står UTE.
 - **⛔ ADJEKTIVET KRÄVER SITT SUBSTANTIV — "PROTECTIVE CASE" ÄR PLAST, "PROTECTIVE ORB" ÄR ETT KORT
   (2026-08-16)**: `PROTECTOR_SIGNS` kände `protector(s)` men inte adjektivet, så Hobbykorts fem
   "Pokémon **Protective** Case – Booster Box / Elite Trainer Box / Mini Tin Display" passerade HELA
