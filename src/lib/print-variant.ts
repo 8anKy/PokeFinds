@@ -89,6 +89,13 @@ export const VARIANT_REVERSE_HOLO = "Reverse Holo";
 /** Specialmönstrade reverse holos — egna expansioner hos CardTrader. */
 export const VARIANT_MASTER_BALL = "Master Ball Reverse Holo";
 export const VARIANT_POKE_BALL = "Poké Ball Reverse Holo";
+/**
+ * Varianter som BARA finns hos CardTrader (ingen Cardmarket-produkt) och prissätts av
+ * src/jobs/cardtrader-ct-only-variants.ts. ⛔ runVariantRefresh hoppar över dem — den
+ * läser baskortets trend och hade skrivit över CardTraders golv varje natt.
+ */
+export const VARIANT_PEELABLE_DITTO = "Peelable Ditto";
+export const CT_ONLY_VARIANT_LABELS = [VARIANT_PEELABLE_DITTO] as const;
 
 /**
  * Alla reverse-artade etiketter, dvs de varianter CardTrader prissätter.

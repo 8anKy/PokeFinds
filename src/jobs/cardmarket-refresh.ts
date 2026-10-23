@@ -44,6 +44,7 @@ import {
   printLabelFromVersion,
   printRank,
   VARIANT_REVERSE_HOLO,
+  CT_ONLY_VARIANT_LABELS,
 } from "../lib/print-variant";
 import { mayCreateReverseProduct, reverseHoloCmUrl, tcggoReverseEur } from "../lib/tcggo-reverse";
 import { syncEuRrp } from "../services/eu-rrp";
@@ -1357,7 +1358,7 @@ export async function runVariantRefresh(): Promise<number> {
     // Reverse-priset ägs av src/jobs/cardtrader-reverse.ts.
     where: {
       category: "SINGLE_CARD",
-      variantLabel: { not: null, notIn: [...PRINT_VARIANT_LABELS, ...REVERSE_VARIANT_LABELS] },
+      variantLabel: { not: null, notIn: [...PRINT_VARIANT_LABELS, ...REVERSE_VARIANT_LABELS, ...CT_ONLY_VARIANT_LABELS] },
       card: { tcgExternalId: { not: null } },
       // ⛔ VARIANTER MED EGEN CM-PRODUKT (stämplade promos, jumbo, metal — 2026-10-23,
       // import-catalog-gap-printings.ts) prissätts ur sin EGEN idProduct av
