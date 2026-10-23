@@ -18,6 +18,15 @@ describe("sealedContents — era-tabellen", () => {
     expect(sealedContents(sealed("ETB", "30th Celebration Elite Trainer Box"))?.[0]).toEqual({ qty: 9, key: "boosters" });
     expect(sealedContents(sealed("ETB", "Pokémon Center Elite Trainer Box", "Scarlet & Violet"))?.[0]).toEqual({ qty: 11, key: "boosters" });
   });
+  it("specialsetens ETB bär 10 paket; deras Pokémon Center-utgåvor är overifierade ⇒ null", () => {
+    expect(sealedContents(sealed("ETB", "Crown Zenith Elite Trainer Box", "Sword & Shield"))?.[0]).toEqual({ qty: 10, key: "boosters" });
+    expect(sealedContents(sealed("ETB", "Hidden Fates Elite Trainer Box", "Sun & Moon"))?.[0]).toEqual({ qty: 10, key: "boosters" });
+    expect(sealedContents(sealed("ETB", "Generations Elite Trainer Box", "XY"))?.[0]).toEqual({ qty: 10, key: "boosters" });
+    expect(sealedContents(sealed("ETB", "Pokémon Center Crown Zenith Elite Trainer Box", "Sword & Shield"))).toBeNull();
+  });
+  it("Chilling Reign Pokémon Center-ETB innehåller 8 (fabriksfelet)", () => {
+    expect(sealedContents(sealed("ETB", "Pokémon Center Chilling Reign Elite Trainer Box", "Sword & Shield"))?.[0]).toEqual({ qty: 8, key: "boosters" });
+  });
   it("ETB i SWSH-eran bär 8 paket, Pokémon Center 10", () => {
     expect(sealedContents(sealed("ETB", "Evolving Skies Elite Trainer Box", "Sword & Shield"))?.[0]).toEqual({ qty: 8, key: "boosters" });
     expect(sealedContents(sealed("ETB", "Pokémon Center Evolving Skies ETB", "Sword & Shield"))?.[0]).toEqual({ qty: 10, key: "boosters" });

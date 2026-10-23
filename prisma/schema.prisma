@@ -661,6 +661,19 @@ model Product {
   // rad hade någonsin ett värde). Ligger kvar tills en separat migration droppar den:
   // en drop i samma deploy hade slagit ut den gamla instansen under bytet.
   msrpOre            Int?
+  // TILLVERKARENS REKOMMENDERADE PRIS I EU (2026-10-23), EUR-CENT ur leverantörens `msrp.eu`
+  // på vår exakta idProduct (lib/eu-rrp.ts). Visas som "Rek. pris (EU)" på sealed — aldrig i
+  // rubrikpris, "Lägst", statistik, larm eller samlingsvärde. EUR, inte öre: talet är ett fast
+  // europris, kronbeloppet räknas med dagens kurs vid visning. null = okänt.
+  euRrpCents         Int?
+  euRrpAt            DateTime?
+  // PRIS PER SKICK (2026-10-23): lägsta ENGELSKA CardTrader-annons per skick för just den
+  // här tryckningen, { "<CardCondition>": { ore, n } } (lib/condition-prices.ts). Skrivs av
+  // reverse-passet i cardtrader-refresh ur marknadsdatan det redan hämtat (inga extra anrop).
+  // ⛔ Ett ANNAT marknadsplats-tal: aldrig rubrikpris, "Lägst", statistik, larm eller
+  // samlingsvärde. NM visas fortfarande ur Cardmarket. null = aldrig skrivet.
+  conditionPrices    Json?
+  conditionPricesAt  DateTime?
   // Senast namn-sökt på Tradera (roterande full-katalog-svep). null = aldrig sökt
   // → prioriteras först. Se src/jobs/tradera-sweep.ts (Fas 0).
   traderaCheckedAt   DateTime?

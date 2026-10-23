@@ -40,6 +40,7 @@ import {
   webhallenIdFromUrl,
 } from "./gtin-source";
 import { webhallenStockStatus } from "./adapters/webhallen-adapter";
+import { priceFromJsonLd, priceFromShopifyJs } from "./store-price-audit";
 
 type StockStrategy = "shopify-js" | "json-ld" | "webhallen-api" | "none";
 
@@ -357,13 +358,35 @@ function pageIsGone(requested: string, res: Response): boolean {
  * kastar efter backoff ⇒ catch ⇒ null). Ett strypt svar får aldrig bli en lagerstatus.
  */
 export async function verifyStockForUrl(sourceName: string, url: string): Promise<StockStatus | null> {
+  return (await verifyListingForUrl(sourceName, url)).status;
+}
+
+/** Butikens egen sida: lagerstatus + (när sidan säger det entydigt) priset. */
+export interface ListingTruth {
+  status: StockStatus | null;
+  /**
+   * Butikens pris i öre (SEK) ur SAMMA svar som lagerdomen — aldrig en extra hämtning.
+   * null = vet inte (sidan borta, flera olika priser, annan valuta, inget pris).
+   */
+  priceOre: number | null;
+}
+
+const NO_TRUTH: ListingTruth = { status: null, priceOre: null };
+
+/**
+ * Som verifyStockForUrl men med PRISET ur samma svar (2026-10-23). En offer som fallit ur
+ * feeden fick förr bara sin lagerstatus rättad av verify-passet — priset stod kvar från
+ * dagen den sågs sist (Pokexclusives 30th ETB: 2 499 kr i 29 dygn mot butikens 2 099).
+ * Sidan vi ändå hämtar bär priset; vi läser det i stället för att kasta det.
+ */
+export async function verifyListingForUrl(sourceName: string, url: string): Promise<ListingTruth> {
   const strategy = resolveStockStrategy(sourceName, url);
-  if (strategy === "none") return null;
+  if (strategy === "none") return NO_TRUTH;
 
   try {
     if (strategy === "shopify-js") {
       const handle = shopifyHandleFromUrl(url);
-      if (!handle) return null;
+      if (!handle) return NO_TRUTH;
       const origin = new URL(url).origin;
       // Svenska marknaden pinnad — håll requesten identisk med ShopifyAdapterns.
       const res = await politeFetch(`${origin}/products/${handle}.js`, {
@@ -375,42 +398,54 @@ export async function verifyStockForUrl(sourceName: string, url: string): Promis
       // "vet inte" — annars hade formgissningen gjort verifieringen SÄMRE för dem.
       // Är även SIDAN borta (404, eller Shopifys 302 till startsidan) är varan borta
       // ur butiken — se pageIsGone.
-      if (!res.ok) return await stockFromPageJsonLd(url);
-      const fromJs = stockFromShopifyJs((await res.json()) as ShopifyJsProduct, variantIdFromUrl(url));
+      if (!res.ok) return await truthFromPageJsonLd(url);
+      const data = (await res.json()) as ShopifyJsProduct & Parameters<typeof priceFromShopifyJs>[0];
+      const p = priceFromShopifyJs(data, variantIdFromUrl(url));
+      const priceOre = typeof p === "number" && p > 0 ? p : null;
+      const fromJs = stockFromShopifyJs(data, variantIdFromUrl(url));
       // `available: false` är definitivt — Shopify ljuger aldrig ÅT DET HÅLLET.
-      if (fromJs !== StockStatus.IN_STOCK) return fromJs;
+      if (fromJs !== StockStatus.IN_STOCK) return { status: fromJs, priceOre };
       // `available: true` är däremot inte samma sak som köpbar (se
       // purchasableFromShopifyPage). Bekräfta mot storefronten innan vi påstår "i
       // lager" om en vara vars URL försvunnit ur feeden — det är just den sortens
       // påstående UNKNOWN en gång infördes för att slippa.
       const purchasable = await fetchShopifyPurchasable(url);
-      return purchasable === false ? StockStatus.OUT_OF_STOCK : StockStatus.IN_STOCK;
+      return { status: purchasable === false ? StockStatus.OUT_OF_STOCK : StockStatus.IN_STOCK, priceOre };
     }
 
     if (strategy === "webhallen-api") {
       const id = webhallenIdFromUrl(url);
-      if (!id) return null;
+      if (!id) return NO_TRUTH;
       const res = await politeFetch(`https://www.webhallen.com/api/product/${id}`, { delayMs: 800 });
-      if (GONE_STATUSES.has(res.status)) return StockStatus.OUT_OF_STOCK;
-      if (!res.ok) return null;
-      const data = (await res.json()) as { product?: Parameters<typeof webhallenStockStatus>[0] };
-      return data.product ? webhallenStockStatus(data.product) : null;
+      if (GONE_STATUSES.has(res.status)) return { status: StockStatus.OUT_OF_STOCK, priceOre: null };
+      if (!res.ok) return NO_TRUTH;
+      const data = (await res.json()) as {
+        product?: Parameters<typeof webhallenStockStatus>[0] & { price?: { price?: string; currency?: string } | null };
+      };
+      if (!data.product) return NO_TRUTH;
+      const sek = parseFloat(data.product.price?.price ?? "");
+      const priceOre =
+        Number.isFinite(sek) && sek > 0 && (data.product.price?.currency ?? "SEK") === "SEK" ? Math.round(sek * 100) : null;
+      return { status: webhallenStockStatus(data.product), priceOre };
     }
 
-    return await stockFromPageJsonLd(url);
+    return await truthFromPageJsonLd(url);
   } catch {
     // Butiken svarade inte (429 efter backoff, timeout, trasig JSON) → vet inte.
-    return null;
+    return NO_TRUTH;
   }
 }
 
 /**
- * Hämtar produktsidan och läser lagerstatus ur dess JSON-LD. Null = vet inte.
+ * Hämtar produktsidan och läser lagerstatus + pris ur dess JSON-LD. Null = vet inte.
  * 404/410 eller omdirigerad bort från produkten = borta = går inte att köpa (pageIsGone).
  */
-async function stockFromPageJsonLd(url: string): Promise<StockStatus | null> {
+async function truthFromPageJsonLd(url: string): Promise<ListingTruth> {
   const res = await politeFetch(url, { delayMs: 800 });
-  if (pageIsGone(url, res)) return StockStatus.OUT_OF_STOCK;
-  if (!res.ok) return null;
-  return stockFromJsonLd(await res.text());
+  if (pageIsGone(url, res)) return { status: StockStatus.OUT_OF_STOCK, priceOre: null };
+  if (!res.ok) return NO_TRUTH;
+  const html = await res.text();
+  const p = priceFromJsonLd(html);
+  const priceOre = p !== "ambiguous" && p.priceOre != null && p.currency.toUpperCase() === "SEK" ? p.priceOre : null;
+  return { status: stockFromJsonLd(html), priceOre };
 }

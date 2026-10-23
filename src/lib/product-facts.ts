@@ -151,6 +151,7 @@ const EIGHT_PACK_ERAS = new Set(["Sword & Shield", "Sun & Moon", "XY"]);
 const MODERN_ERAS = NINE_PACK_ERAS;
 
 const isPokemonCenter = (title: string) => /pok[eé]mon center/i.test(title);
+const SPECIAL_SET_ETB = /crown zenith|hidden fates|shining fates|champion'?s path|celebrations|pok[eé]mon go|generations|shining legends|dragon majesty/i;
 const L = (qty: number, key: ContentsKey): ContentsLine => ({ qty, key });
 
 /**
@@ -198,8 +199,17 @@ function etbContents(series: string, title: string): ContentsLine[] | null {
     ];
   }
   if (EIGHT_PACK_ERAS.has(series)) {
+    // SPECIALSETEN BÄR 10 PAKET, INTE 8 (2026-10-23): leverantörens "contained items" sa 10
+    // för alla nio, och återförsäljarnas produktsidor bekräftar det (Crown Zenith, Hidden
+    // Fates, Generations, Shining Legends, Dragon Majesty kontrollerade). Deras Pokémon
+    // Center-utgåvor är inte verifierade ⇒ inget innehåll alls (aldrig ett gissat antal).
+    // Chilling Reign PC skickades med 8 (fabriksfel, ersatt med en blister) — 8 är vad lådan
+    // faktiskt innehåller.
+    const special = SPECIAL_SET_ETB.test(title);
+    if (special && pc) return null;
+    const packs = special ? 10 : pc ? (/chilling reign/i.test(title) ? 8 : 10) : 8;
     const lines = [
-      L(pc ? 10 : 8, "boosters"),
+      L(packs, "boosters"),
       L(65, "sleeves"),
       L(45, "energyCards"),
       L(6, "damageDice"),

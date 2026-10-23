@@ -2095,7 +2095,12 @@
     "holdForOptions": "Håll in för antal och inköpspris (Skift+Enter)",
     "addedToCollectionN": "{count, plural, =1 {Tillagd i samlingen} other {# ex tillagda i samlingen}}",
     "addUndone": "Ångrat",
-    "addUndoFailed": "Kunde inte ångra"
+    "addUndoFailed": "Kunde inte ångra",
+    "quickAddVariant": "Tryckning",
+    "quickAddCondition": "Skick",
+    "quickAddConditionMarket": "Marknadspris",
+    "quickAddConditionCt": "Lägsta engelska annons på CardTrader · {count} st",
+    "quickAddConditionNone": "Inget pris i det här skicket ännu"
   },
   "Language": {
     "SV": "Svenska",
@@ -2591,7 +2596,9 @@
       "Dragon": "Drake",
       "Fairy": "Fe",
       "Colorless": "Färglös"
-    }
+    },
+    "euRrp": "Rek. pris (EU) {eur} ≈ {sek}",
+    "euRrpHint": "Tillverkarens rekommenderade pris i EU, inget pris du kan köpa till. Marknadspriset står ovanför."
   },
   "Upgrade": {
     "currentPlan": "Din nuvarande plan ✓",

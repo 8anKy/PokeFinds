@@ -12,6 +12,27 @@ paths:
 ---
 # Skrapning, lagersignaler och restock-detektion
 
+- **⛔ FEL BUTIKSPRISER = FRUSNA OFFERS, INTE FEL FÄLT (2026-10-23, ägaren: "Webhallen 30th UPC har fel pris,
+  det finns fler, laga alla")**. Revision (`scripts/audit-store-prices.ts`, rapport only, 8/butik) + loggar visade
+  fyra orsaker, ingen av dem en felläst prisfält:
+  (1) **`runScrapeJob` matchade varje annons om på TITELN** och hoppade över den vid "Ingen produktmatchning" /
+  "URL ägs redan av annan produkt" — offern på URL:en (auto-import, GTIN, bevakad länk) fick ALDRIG nytt pris,
+  medan restock-skanningen bumpade `lastSeenAt` ⇒ fruset pris som såg färskt ut. Spelexperten 161 av 368
+  annonser hoppade en natt; 30th UPC Night 2 899 kr mot butikens 3 499. ⛔ **En bunden URL är identiteten** —
+  `runScrapeJob` uppdaterar URL:ens ägare först och titelmatchar bara okända URL:er (prisvakterna gäller som förut).
+  (2) **Verify-passet rättade bara lagret** på offers som fallit ur feeden — priset stod kvar (Pokexclusive 30th
+  ETB 2 499 kr i 29 dygn mot 2 099). `verifyListingForUrl` läser priset ur SAMMA svar (Shopify `.js`, Webhallens
+  API, JSON-LD; tvetydigt/annan valuta ⇒ null) och både nattens verify-pass och `verify-stale-offers.ts` skriver det.
+  (3) **Tysta tomma feedar**: Sweet Nerds tog bort `id="product-price"` ur korten ⇒ 0 annonser utan ett fel
+  (parsern kräver nu bara `<ins>` och felar när kort finns men inget läses). TCG Picks byggde om butiken (headless,
+  `/produkt/`, `/kollektion/` — `/products.json` 404) ⇒ ny adapter krävs. NordicTCG är bakom Cloudflare-utmaning
+  (403 även lokalt) ⇒ ägarbeslut, ingen bypass. En butik med tom feed verifieras ALDRIG (`feedRetailers`) ⇒ allt fryser.
+  (4) **Pris ändrat efter nattkörningen** (Webhallen sänkte 5 999 → 3 299 kl 10:43 svensk tid, 1,5 h efter
+  skrapningen) — rättas nästa natt; dagtid skriver bara IN_STOCK-prisfall (lanens hits). Ingen ändring, med flit
+  (en hit per prisändring = en Neon-väckning).
+  Ikapp-reparation: `scripts/repair-stale-store-prices.ts` (torrkörning / `--apply` / `--store=`; bara pris, aldrig
+  lager ⇒ inga larm). Vaktat av `store-price-audit.test.ts`, `stock-verify-price.test.ts`, `nyehandel-adapter.test.ts`.
+
 - **⛔ SHOPIFYS `available` ÄR INTE SAMMA SAK SOM "GÅR ATT KÖPA" (2026-08-15)**: ägaren hittade
   "Ascended Heroes Booster Bundle (ME2.5)" som i lager hos Kortarkivet medan butikens egen sida sa
   "Slut i lager". Alla tre källor vi litat på — `products.json`, `/products/{handle}.js` och sidans

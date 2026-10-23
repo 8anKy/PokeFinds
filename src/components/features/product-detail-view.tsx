@@ -421,11 +421,33 @@ export function ProductDetailView({
               pending={pricePending}
               trailing={<ReportProblem slug={data.slug} compact />}
             />
+            {/* "Rek. pris (EU)" — tillverkarens riktpris, bara sealed och bara när
+                leverantören har ett trovärdigt europris (lib/eu-rrp.ts). En upplysning
+                bredvid marknadspriset, aldrig en del av det. */}
+            {!isSingle && !pricePending && data.euRrp && (
+              <p className="mt-1.5 text-xs text-ink-muted" title={t("euRrpHint")}>
+                {t("euRrp", {
+                  eur: formatPrice(data.euRrp.eurCents, "EUR"),
+                  sek: data.euRrp.ore != null ? formatPrice(Math.round(data.euRrp.ore / 100) * 100) : "–",
+                })}
+              </p>
+            )}
 
             {/* Bevakarantalet ("4 samlare bevakar") är BORTTAGET ur arket (2026-09-05):
                 en rad till mellan pris och knappar, och fyra är inget socialt bevis. */}
             <div className="mt-5">
-              <ProductActions productId={data.id} title={data.title} gradeable={isSingle} imageUrl={data.imageUrl} />
+              <ProductActions
+                productId={data.id}
+                title={data.title}
+                gradeable={isSingle}
+                imageUrl={data.imageUrl}
+                // Tryckning + skick väljs redan i tilläggsarket (2026-10-23). Fälten är
+                // valfria i payloaden: skal-läget och äldre cachade svar saknar dem.
+                variantLabel={data.variantLabel ?? null}
+                headlinePrice={pending ? null : data.stats.lowestPrice}
+                conditionPrices={data.conditionPrices ?? null}
+                variants={pending ? [] : data.variants}
+              />
             </div>
 
             {/* Prishistorik — utan kortram och utan rubrik inne i arket (kurvan

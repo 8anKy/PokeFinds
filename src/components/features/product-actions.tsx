@@ -22,7 +22,9 @@ import { DiscordRestockTip } from "@/components/features/discord-restock-tip";
 import {
   CollectionQuickAddPopover,
   type QuickAddDraft,
+  type QuickAddVariantOption,
 } from "@/components/features/collection-quick-add-popover";
+import type { ConditionPriceTable } from "@/lib/condition-prices";
 import {
   ProductWatchSheet,
   type ProductWatchInput,
@@ -35,6 +37,20 @@ export interface ProductActionsProps {
   /** Kort (inte förseglat) ⇒ tilläggsarket erbjuder gradering. */
   gradeable?: boolean;
   imageUrl?: string | null;
+  /** Produktens tryckning (`null` = vanlig) — förval i tilläggsarkets tryckningsval. */
+  variantLabel?: string | null;
+  /** Rubrikpriset (öre) — NM-raden i arket när skickpriser saknas. */
+  headlinePrice?: number | null;
+  /** Pris per skick för produkten (lib/condition-prices.ts). */
+  conditionPrices?: ConditionPriceTable | null;
+  /** Andra tryckningar av samma kort (detail-payloadens `variants`). */
+  variants?: {
+    id?: string;
+    slug: string;
+    label: string | null;
+    lowestPrice: number | null;
+    conditionPrices?: ConditionPriceTable | null;
+  }[];
 }
 
 type ActionKey = "watch" | "collection";
@@ -49,6 +65,30 @@ interface WatchlistRow {
   restockAlert: boolean;
   targetPrice: number | null;
   product?: { id?: string };
+}
+
+/**
+ * Tryckningarna arket låter användaren välja mellan: produkten själv FÖRST (förvald),
+ * sedan syskonen som har ett id (äldre cachade payloads saknar det ⇒ de hoppas över).
+ */
+function variantOptionsOf(
+  productId: string,
+  variantLabel: string | null,
+  headlinePrice: number | null,
+  conditionPrices: ConditionPriceTable | null,
+  variants: NonNullable<ProductActionsProps["variants"]>
+): QuickAddVariantOption[] {
+  const siblings = variants.filter((v): v is typeof v & { id: string } => typeof v.id === "string");
+  if (siblings.length === 0 && !conditionPrices && headlinePrice == null) return [];
+  return [
+    { productId, label: variantLabel, headlinePrice, conditionPrices },
+    ...siblings.map((v) => ({
+      productId: v.id,
+      label: v.label,
+      headlinePrice: v.lowestPrice,
+      conditionPrices: v.conditionPrices ?? null,
+    })),
+  ];
 }
 
 function toState(row: WatchlistRow): ProductWatchState {
@@ -66,7 +106,16 @@ function toState(row: WatchlistRow): ProductWatchState {
  * väljs ihop och kan ändras/tas bort senare från samma knapp ("Bevakas").
  * Varför ett ark och inte två knappar: se product-watch-sheet.tsx.
  */
-export function ProductActions({ productId, title, gradeable = false, imageUrl }: ProductActionsProps) {
+export function ProductActions({
+  productId,
+  title,
+  gradeable = false,
+  imageUrl,
+  variantLabel = null,
+  headlinePrice = null,
+  conditionPrices = null,
+  variants = [],
+}: ProductActionsProps) {
   const t = useTranslations("Detail");
   const tw = useTranslations("Watch");
   const [loading, setLoading] = useState<ActionKey | null>(null);
@@ -347,6 +396,7 @@ export function ProductActions({ productId, title, gradeable = false, imageUrl }
         onConfirm={(draft) => void saveCollection(draft)}
         productTitle={title}
         gradeable={gradeable}
+        variantOptions={gradeable ? variantOptionsOf(productId, variantLabel, headlinePrice, conditionPrices, variants) : []}
         saving={loading === "collection"}
         panelClassName="sm:mx-auto sm:max-w-md"
       />

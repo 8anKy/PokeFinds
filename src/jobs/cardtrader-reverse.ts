@@ -54,6 +54,7 @@ import {
 } from "@/lib/cardtrader";
 import { getRatesOre } from "@/lib/exchange-rate";
 import { createObservationWriter } from "./cardtrader-observation";
+import { writeConditionPrices } from "./cardtrader-condition-prices";
 import { normalizeTitle } from "@/lib/utils";
 import { TCGDEX_BASE, tcgdexJson } from "@/lib/tcgdex";
 
@@ -94,6 +95,8 @@ export interface ReverseImportResult {
   offersUpserted: number;
   /** Set där TCGdex-datat bedömdes ofyllt och CardTraders taxonomi fick gälla. */
   dexDistrustedSets: number;
+  /** Produkter vars pris per skick skrevs (jobs/cardtrader-condition-prices.ts). */
+  conditionPriced: number;
   /** Grafpunkter skrivna för ORDINARIE kort (ingen offer, bara historik). */
   baseObservations: number;
   /** CardTrader-offers på ordinarie kort (raden + länken i pristabellen). */
@@ -104,6 +107,8 @@ export interface ReverseImportResult {
   setsProcessed: number;
   /** Sant när tidsbudgeten tog slut och svansen sparades till nästa körning. */
   stoppedOnBudget: boolean;
+  /** Reverse-produkter som Cardmarket redan prissätter (leverantörens variants) — CT är bara reserv. */
+  cmPriced: number;
 }
 
 interface DexCard {
@@ -223,12 +228,17 @@ export async function runCardTraderReverseImport(opts: {
     productsCreated: 0,
     offersUpserted: 0,
     dexDistrustedSets: 0,
+    conditionPriced: 0,
     baseObservations: 0,
     baseOffers: 0,
     baseImplausible: 0,
     setsProcessed: 0,
     stoppedOnBudget: false,
+    cmPriced: 0,
   };
+  const cmRetailer = await prisma.retailer.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
+  // En CM-offer räknas som levande om nattens cardmarket-refresh rört den nyligen.
+  const cmFreshSince = new Date(Date.now() - 3 * 86_400_000);
 
   const retailer = apply
     ? await prisma.retailer.upsert({
@@ -368,6 +378,11 @@ export async function runCardTraderReverseImport(opts: {
         language: true,
         lowestPriceOre: true,
         card: { select: { id: true, number: true, tcgExternalId: true } },
+        offers: {
+          where: { retailerId: cmRetailer?.id ?? "-", price: { gt: 0 }, stockStatus: "IN_STOCK", lastSeenAt: { gte: cmFreshSince } },
+          select: { id: true },
+          take: 1,
+        },
       },
     });
 
@@ -399,7 +414,7 @@ export async function runCardTraderReverseImport(opts: {
       setsDone++;
       if (setsDone % PROGRESS_EVERY === 0) {
         console.log(
-          `[ct-reverse] — MELLANSUMMA efter ${setsDone} set: nya ${res.productsCreated} · offers ${res.offersUpserted} · tunt ${res.rejectedThin} · orimligt ${res.rejectedImplausible} · ingen reverse-marknad ${res.noReverseMarket} · TCGdex nej ${res.gateRejected} · TCGdex okänt ${res.gateUnknown}`
+          `[ct-reverse] — MELLANSUMMA efter ${setsDone} set: nya ${res.productsCreated} · offers ${res.offersUpserted} · tunt ${res.rejectedThin} · orimligt ${res.rejectedImplausible} · ingen reverse-marknad ${res.noReverseMarket} · TCGdex nej ${res.gateRejected} · TCGdex okänt ${res.gateUnknown} · CM prissätter redan ${res.cmPriced}`
         );
       }
     };
@@ -411,6 +426,10 @@ export async function runCardTraderReverseImport(opts: {
       if (p.variantLabel === CT_REVERSE_LABEL) reverseByCard.set(p.cardId, p);
       else if (!baseByCard.has(p.cardId)) baseByCard.set(p.cardId, p);
     }
+
+    // PRIS PER SKICK (2026-10-23) ur samma marknadsdata — inga extra anrop. FÖRE pass A,
+    // som kan `continue`:a setet när inga reverse-kandidater finns.
+    res.conditionPriced += await writeConditionPrices(prisma, { bpByNum, products, market, eurToOre, apply });
 
     // ---- PASS A: vilka kort har ett publicerbart golv? (ingen nättrafik) ----
     interface Candidate {
@@ -527,6 +546,14 @@ export async function runCardTraderReverseImport(opts: {
     for (const c of candidates) {
       const { base, cardId, priceOre, url } = c;
       let product = reverseByCard.get(cardId);
+      // ⛔ CARDTRADER ÄR RESERVEN (ägarbeslut 2026-10-22): har leverantören ett reverse
+      // holo-golv från Cardmarket (`include_variants`, skrivet av cardmarket-refresh) äger
+      // det rubriken, och en CT-offer bredvid hade vunnit billigast-vinner på en annan
+      // marknadsplats. Samma regel som det ordinarie kortet (cm-pricing.md punkt 4).
+      if (product && product.offers.length > 0) {
+        res.cmPriced++;
+        continue;
+      }
 
       if (!product) {
         const dex = gateVerdicts.get(cardId) ?? null;

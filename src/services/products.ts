@@ -18,6 +18,8 @@ import { getTrendingLift } from "@/services/market";
 import { getGradedSummary, type GradedSummary } from "@/services/graded";
 import { buildGradedCards, defaultGrade } from "@/lib/graded-merge";
 import { buildProductFacts, type ProductFacts } from "@/lib/product-facts";
+import { getRatesOre, priceOreFromEur } from "@/lib/exchange-rate";
+import { conditionPriceTable, type ConditionPriceTable } from "@/lib/condition-prices";
 import {
   bestMatchScore,
   EMPTY_PERSONAL,
@@ -1416,7 +1418,18 @@ export interface ProductDetailData {
     /** `null` = den etikettlösa (vanliga) versionen; klienten översätter ordet. */
     label: string | null;
     lowestPrice: number | null;
+    /** Syskonets id (2026-10-23) — tilläggsarkets tryckningsval sparar på det. Valfritt: äldre payloads. */
+    id?: string;
+    /** Syskonets pris per skick (lib/condition-prices.ts). Valfritt: äldre payloads. */
+    conditionPrices?: ConditionPriceTable | null;
   }[];
+  /** Produktens egen tryckning (`null` = vanlig). Valfritt: äldre payloads saknar fältet. */
+  variantLabel?: string | null;
+  /**
+   * PRIS PER SKICK (2026-10-23): NM = rubrikpriset, övriga skick = lägsta engelska
+   * CardTrader-annons (≥ 2 st). null = inga skickpriser. Rör aldrig rubrik/statistik/värde.
+   */
+  conditionPrices?: ConditionPriceTable | null;
   /**
    * Levande Tradera-annonser för SAMMA produkt ("Fler annonser på Tradera",
    * #19) — fylls av tradera-sweep Fas 0, billigast först. Bara rader färska nog
@@ -1442,6 +1455,12 @@ export interface ProductDetailData {
    */
   gradedSales: GradedSummary;
   gradedTeaser: { issuer: string; gradeTenths: number }[];
+  /**
+   * "Rek. pris (EU)" (2026-10-23): tillverkarens europeiska riktpris för SEALED, i EUR-cent +
+   * kronor med dagens kurs. Bara en upplysning — rör aldrig rubrikpris/statistik/larm/värde.
+   * Valfritt: äldre cachade payloads saknar fältet (`?? null` hos läsaren). Se lib/eu-rrp.ts.
+   */
+  euRrp?: { eurCents: number; ore: number | null } | null;
 }
 
 export interface LiveOfferStats {
@@ -1607,23 +1626,35 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     product.cardId
       ? prisma.product.findMany({
           where: { cardId: product.cardId, id: { not: product.id } },
-          select: { slug: true, variantLabel: true, offers: { select: { price: true, stockStatus: true, url: true } } },
+          select: {
+            id: true,
+            slug: true,
+            variantLabel: true,
+            conditionPrices: true,
+            conditionPricesAt: true,
+            offers: { select: { price: true, stockStatus: true, url: true } },
+          },
         })
       : Promise.resolve([]),
     // Graderade affärer (egen tabell, egen serie). Rider med i den cachade
     // loadern → ingen extra Neon-väckning per visning.
     getGradedSummary(product.id),
   ]);
-  const variants = variantSiblings.map((v) => ({
-    slug: v.slug,
-    // RÅ etikett, ALDRIG en färdig mening. `variantLabel` är produktdata
-    // ("Reverse Holo", "1st Edition") och är samma i båda språken, men den
-    // ETIKETTLÖSA versionen behöver ett ord — och det ordet är ÖVERSATT och hör
-    // därför hemma i klienten. Stod som "Vanlig version" här, vilket gav svensk
-    // text mitt i det engelska gränssnittet (rapporterat 2026-08-03).
-    label: v.variantLabel,
-    lowestPrice: computeLowestPrice(v.offers.filter((o) => isDirectOfferUrl(o.url))).price,
-  }));
+  const variants = variantSiblings.map((v) => {
+    const lowestPrice = computeLowestPrice(v.offers.filter((o) => isDirectOfferUrl(o.url))).price;
+    return {
+      slug: v.slug,
+      // RÅ etikett, ALDRIG en färdig mening. `variantLabel` är produktdata
+      // ("Reverse Holo", "1st Edition") och är samma i båda språken, men den
+      // ETIKETTLÖSA versionen behöver ett ord — och det ordet är ÖVERSATT och hör
+      // därför hemma i klienten. Stod som "Vanlig version" här, vilket gav svensk
+      // text mitt i det engelska gränssnittet (rapporterat 2026-08-03).
+      label: v.variantLabel,
+      lowestPrice,
+      id: v.id,
+      conditionPrices: conditionPriceTable(v.conditionPrices, v.conditionPricesAt, lowestPrice),
+    };
+  });
   const affiliateIds = new Set(affiliateRetailers.map((r) => r.id));
   // ⚠️ Detaljen är cachad (PERSONAL_TTL/1 h) → flaggan kan släpa lika länge som allt
   // annat i payloaden. Det är rätt avvägning: en Neon-väckning per visning för att
@@ -1725,10 +1756,16 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     affiliateRetailerIds: affiliateRetailers.map((r) => r.id),
     similar,
     variants,
+    variantLabel: product.variantLabel,
+    conditionPrices: conditionPriceTable(product.conditionPrices, product.conditionPricesAt, stats.lowestPrice),
     traderaListings,
     // Pro-grinden: inga graderade tal i den delade payloaden (se typen).
     gradedSales: EMPTY_GRADED,
     gradedTeaser: gradedTeaserOf(gradedSales),
+    euRrp:
+      product.euRrpCents != null && product.category !== "SINGLE_CARD"
+        ? { eurCents: product.euRrpCents, ore: priceOreFromEur(product.euRrpCents / 100, await getRatesOre()) }
+        : null,
   };
 }
 

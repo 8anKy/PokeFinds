@@ -53,6 +53,7 @@ import { ctImageProxyUrl } from "@/lib/ct-image";
 import { normalizeTitle, slugify, utcToday } from "@/lib/utils";
 import { mapPool } from "@/lib/concurrency";
 import { exitJob } from "@/lib/job-exit";
+import { PRINT_VARIANT_LABELS, REVERSE_VARIANT_LABELS } from "@/lib/print-variant";
 import {
   NON_EN_JP_EXPANSION,
   ballExpansion,
@@ -459,6 +460,13 @@ async function refreshPrices() {
       OR: [
         { product: { card: { tcgExternalId: { startsWith: CM_ONLY_PREFIX } } } },
         { product: { variantLabel: { in: ["Poké Ball Reverse Holo", "Master Ball Reverse Holo"] } } },
+        // STÄMPLADE/JUMBO/METALL-TRYCKNINGAR (scripts/import-catalog-gap-printings.ts, 2026-10-23):
+        // en variant med EGEN idProduct-länk prissätts på den produkten. Länkar utan idProduct
+        // ("Specialversion" bär CM-slug) faller ur av sig själva — id:t går inte att läsa.
+        {
+          url: { contains: "idProduct=" },
+          product: { variantLabel: { not: null, notIn: [...PRINT_VARIANT_LABELS, ...REVERSE_VARIANT_LABELS] } },
+        },
       ],
     },
     select: { id: true, productId: true, url: true, price: true },

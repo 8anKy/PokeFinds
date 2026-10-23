@@ -101,7 +101,7 @@ export function CollectionQuickAdd({
     setOpen(true);
   }, [requireLogin, state]);
 
-  async function addToCollection(body: { quantity: number; purchasePrice?: number; gradingCompany?: string; grade?: string }) {
+  async function addToCollection(body: Omit<QuickAddDraft, "productId">) {
     setState("saving");
     try {
       const res = await fetch("/api/collection", {

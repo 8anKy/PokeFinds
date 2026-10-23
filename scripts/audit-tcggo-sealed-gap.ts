@@ -115,8 +115,11 @@ async function main() {
   for (const [k, v] of [...bySeries].sort((a, b) => b[1] - a[1]).slice(0, 15)) {
     console.log(`  ${String(v).padStart(4)}  ${k}`);
   }
-  console.log(`\nEXEMPEL (30 st):`);
-  for (const p of missing.slice(0, 30)) {
+  // --list: HELA listan (inte bara 30 exempel), en rad per produkt — det som behövs för
+  // att avgöra VARFÖR importen hoppade över var och en.
+  const listAll = process.argv.includes("--list");
+  console.log(listAll ? `\nALLA (${missing.length} st):` : `\nEXEMPEL (30 st):`);
+  for (const p of listAll ? missing : missing.slice(0, 30)) {
     console.log(`  ${String(euPrice(p)).padStart(8)} €  cm_id=${String(p.cardmarket_id ?? "–").padStart(7)}  ${p.name.slice(0, 58)}`);
   }
 }

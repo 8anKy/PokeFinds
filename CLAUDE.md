@@ -27,8 +27,9 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   `tcgExternalId "cm:<idProduct>"`. ⛔ Nya kort föds bara i HELT nya set; i set vi har länkas bara (underset
   med annat nummerformat gav annars dubbletter). ⛔ Skannern indexerar inte omtrycken (`lib/scanner-exclusion.ts`
   — samma konst + nummer som originalet hade stulit träffar). Kinesiska/koreanska CM-set ingår aldrig.
-  **Ägarbeslut samma kväll (frågat, besvarat)**: (1) CardTrader BEHÅLLS på Reverse Holo + 1st Edition utanför Base
-  (riktiga NM-engelska annonser; CM har bara ett allspråks-trendtal där). (2) Utropsvakten behålls (EN med
+  **Ägarbeslut samma kväll (frågat, besvarat)**: (1) CardTrader BEHÅLLS på 1st Edition utanför Base; **Reverse Holo
+  prissätts sedan 2026-10-23 av leverantörens `include_variants` (CM:s engelska NM-golv för reverse, verifierat mot
+  CM:s filtrerade sidor) med CardTrader som RESERV** där leverantören saknar värde — `cm-pricing.md` punkt 8. (2) Utropsvakten behålls (EN med
   språkbekräftelse, JP utan) — **10x + glapp > 25 € sedan 2026-10-16** (ägaren, frågat: 4x fällde en äkta NM-From på 446 kort). (3) Graderade rutor utan affärer visar begärt märkt "Till salu", aldrig omärkt.
   (4) Rubriken: en Tradera-annons slår ALDRIG ett CM-pris (`headlineCandidates`, ersätter 09-22-regeln för rubriken).
   **CM-only-korten**: pris = prisguidens `low` (= CM:s From; enspråksutgåvor ⇒ inget språkfel), levande; vakt från 2 €

@@ -79,6 +79,25 @@ describe("nyehandelStockFromText", () => {
 });
 
 describe("parseNyehandelListing", () => {
+  it("⛔ läser priset även utan id=\"product-price\" (butikens markup 2026-10-22 — tom feed annars)", () => {
+    const [sale, plain] = parseNyehandelListing(
+      card({
+        slug: "pokemon-30th-celebration-complete-set-of-30th-pikachu-jp",
+        name: "Pokémon 30th Celebration - Complete Set of 30th Pikachu (JP)",
+        priceHtml: `<del aria-label="Tidigare pris" class="comparison">899 kr</del>\n<ins aria-label="Nuvarande pris">799 kr</ins>`,
+        status: "Finns i lager",
+      }) +
+        card({
+          slug: "pokemon-etb",
+          name: "Pokémon ETB",
+          priceHtml: `<ins aria-label="Nuvarande pris">1&nbsp;299 kr</ins>`,
+          status: "Finns i lager",
+        })
+    );
+    expect(sale.priceOre).toBe(79_900);
+    expect(plain.priceOre).toBe(129_900);
+  });
+
   it("läser titel, pris, lager och stabilt id ur ett kort", () => {
     const [item] = parseNyehandelListing(
       card({

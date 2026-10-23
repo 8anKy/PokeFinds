@@ -46,6 +46,7 @@ async function main() {
       `::warning::Tidsbudgeten tog slut efter ${r.setsProcessed} set — resten körs först nästa natt. Sjunker talet natt för natt är passet på väg att bli för långsamt för fönstret.`
     );
   }
+  console.log(`Pris per skick skrivet:     ${r.conditionPriced} produkter`);
   console.log(`Kort granskade:             ${r.cardsConsidered}`);
   console.log(`  utan blueprint:           ${r.noBlueprint}`);
   console.log(`  avvisade — för tunt:      ${r.rejectedThin}`);

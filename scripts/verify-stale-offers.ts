@@ -30,7 +30,8 @@
 import "./load-env";
 import { StockStatus } from "@prisma/client";
 import { prisma, ensureDbAwake } from "../src/lib/db";
-import { statusAfterVerify, verifyStockForUrl } from "../src/scrapers/stock-verify";
+import { statusAfterVerify, verifyListingForUrl } from "../src/scrapers/stock-verify";
+import { isPlaceholderListingPrice } from "../src/lib/listing-plausibility";
 import { netStockEvent } from "../src/scrapers/restock";
 import { isStoreRetailer } from "../src/lib/offer-source";
 import { recomputeProductPriceCache } from "../src/services/products";
@@ -65,20 +66,33 @@ async function main() {
       ...(ALL ? {} : { stockStatus: { in: CLAIMS } }),
     },
     select: {
-      id: true, url: true, productId: true, retailerId: true, stockStatus: true, lastSeenAt: true,
-      product: { select: { title: true, hiddenAt: true } },
+      id: true, url: true, productId: true, retailerId: true, stockStatus: true, lastSeenAt: true, price: true,
+      product: { select: { title: true, hiddenAt: true, category: true } },
     },
     orderBy: { lastSeenAt: "asc" },
     take: MAX,
   });
   console.log(`${offers.length} försvunna offers (${ALL ? "alla statusar" : "bara påståenden"}) hos ${retailers.length} ${UNWATCHED ? "obevakade" : "bevakade"} butiker, ${APPLY ? "SKRIVER" : "torrkörning"}.`);
 
-  let changed = 0, unknown = 0, same = 0;
+  let changed = 0, unknown = 0, same = 0, repriced = 0;
   const now = new Date();
   for (const o of offers) {
     const store = nameById.get(o.retailerId) ?? "?";
-    const truth = await verifyStockForUrl(store, o.url);
+    const listing = await verifyListingForUrl(store, o.url);
+    const truth = listing.status;
     const next = statusAfterVerify(o.stockStatus, truth);
+    // Priset ur samma svar (2026-10-23): en offer som fallit ur feeden frös annars på sitt
+    // sista feedpris. Platshållarpris = "okänt", skrivs inte.
+    const livePrice =
+      listing.priceOre != null && listing.priceOre !== o.price && !isPlaceholderListingPrice(listing.priceOre, o.product.category)
+        ? listing.priceOre
+        : null;
+    if (livePrice != null) {
+      repriced++;
+      console.log(
+        `  ${APPLY ? "✎" : "→"} ${store.padEnd(18)} pris ${o.price != null ? (o.price / 100).toFixed(0) : "–"} → ${(livePrice / 100).toFixed(0)} kr  ${o.product.title.slice(0, 48)}`
+      );
+    }
     const tag = truth === null ? "utan svar" : `butiken: ${truth}`;
     if (next === o.stockStatus) {
       same++;
@@ -96,12 +110,15 @@ async function main() {
         });
       }
     }
-    await prisma.offer.update({ where: { id: o.id }, data: { stockStatus: next, lastSeenAt: now } });
+    await prisma.offer.update({
+      where: { id: o.id },
+      data: { stockStatus: next, lastSeenAt: now, ...(livePrice != null ? { price: livePrice } : {}) },
+    });
   }
-  console.log(`\nKlart: ${changed} rättade av butikens svar, ${unknown} → UNKNOWN (utan svar), ${same} oförändrade.`);
+  console.log(`\nKlart: ${changed} rättade av butikens svar, ${unknown} → UNKNOWN (utan svar), ${same} oförändrade, ${repriced} nya priser.`);
   // Priscachen föredrar I LAGER — en flippad offer kan ändra rubrikpriset. Nattstegets
   // omräkning har redan kört när det här steget kör, så räkna om här.
-  if (APPLY && changed + unknown > 0) {
+  if (APPLY && changed + unknown + repriced > 0) {
     await recomputeProductPriceCache();
     console.log("Priscachen omräknad.");
   }

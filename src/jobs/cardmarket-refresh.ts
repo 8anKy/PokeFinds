@@ -28,7 +28,7 @@ import { backfillCardmarketIds, buildCmIdByName, cmCatalogNameKey } from "../lib
 import { adoptCmName } from "./adopt-cm-name";
 import { createSetLabeler } from "./sealed-set-label";
 import { runJapaneseSetLabels } from "./jp-set-label";
-import { utcToday } from "../lib/utils";
+import { normalizeTitle, utcToday } from "../lib/utils";
 import { cardCountMismatch, classifyForm, packVsBoxMismatch, scoreSimilarity, unitCountMismatch } from "../scrapers/matching";
 import { recomputeProductPriceCache, snapshotStorePricedProducts } from "../services/products";
 import { rearmPriceAlerts } from "../services/alerts";
@@ -43,7 +43,10 @@ import {
   isPrintVariantLabel,
   printLabelFromVersion,
   printRank,
+  VARIANT_REVERSE_HOLO,
 } from "../lib/print-variant";
+import { mayCreateReverseProduct, reverseHoloCmUrl, tcggoReverseEur } from "../lib/tcggo-reverse";
+import { syncEuRrp } from "../services/eu-rrp";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Samtidiga DB-skrivningar (≤ DB_POOL i db.ts). Kortar 18k sekventiella
@@ -79,6 +82,8 @@ interface CmCard {
       lowest_near_mint_IT?: number | null;
     } | null;
   } | null;
+  /** `include_variants=1`: reverse holo/Poké Ball/Master Ball — se src/lib/tcggo-reverse.ts. */
+  variants?: { type?: string | null; prices?: { cardmarket?: { lowest_near_mint?: number | null } | null } | null }[] | null;
 }
 /** Andra språks NM-From ur feed-raden (utropsvaktens bekräftelse). */
 export function cmLangFroms(cmp: NonNullable<NonNullable<CmCard["prices"]>["cardmarket"]>): (number | null | undefined)[] {
@@ -1354,6 +1359,11 @@ export async function runVariantRefresh(): Promise<number> {
       category: "SINGLE_CARD",
       variantLabel: { not: null, notIn: [...PRINT_VARIANT_LABELS, ...REVERSE_VARIANT_LABELS] },
       card: { tcgExternalId: { not: null } },
+      // ⛔ VARIANTER MED EGEN CM-PRODUKT (stämplade promos, jumbo, metal — 2026-10-23,
+      // import-catalog-gap-printings.ts) prissätts ur sin EGEN idProduct av
+      // import-cm-only-singles --refresh. Det här jobbet läser BASKORTETS trend och hade
+      // skrivit över dem med det ordinarie kortets pris varje natt.
+      offers: { none: { retailer: { name: "Cardmarket" }, url: { contains: "idProduct=" } } },
     },
     select: { id: true, card: { select: { tcgExternalId: true } }, offers: { where: { retailerId: cm?.id }, select: { id: true }, take: 1 } },
   });
@@ -2003,6 +2013,8 @@ export async function runCardmarketRefresh(
       via?: string;
       /** Den vinnande feed-radens leverantörs-id (Card.tcggoId). */
       providerId?: number | null;
+      /** Radens reverse holo-golv (EUR) — bara för ORDINARIE produkter, se tcggo-reverse.ts. */
+      rhEur?: number | null;
     };
     const claimed = new Map<string, SingleCandidate>();
     let rowsRejectedAsDuplicate = 0, printVariantSwaps = 0, printVariantRouted = 0;
@@ -2300,6 +2312,7 @@ export async function runCardmarketRefresh(
           via: priced.via,
           op: { productId: entry.productId, offerId: entry.offerId, priceOre, from: priced.from, url },
           providerId: card.id ?? null,
+          rhEur: printEntry ? null : tcggoReverseEur(card),
         });
       }
     };
@@ -2322,7 +2335,7 @@ export async function runCardmarketRefresh(
     let metaMismatch = 0;
     await mapPool(wanted, API_CONCURRENCY, async (ep) => {
       const d = await api<{ data: CmCard[]; paging?: { total?: number } }>(
-        `https://${HOST}/pokemon/episodes/${ep.id}/cards?page=1`
+        `https://${HOST}/pokemon/episodes/${ep.id}/cards?page=1&include_variants=1`
       );
       await sleep(throttle * API_CONCURRENCY);
       if (!d?.data?.length) return;
@@ -2339,7 +2352,7 @@ export async function runCardmarketRefresh(
       for (let pg = 2; pg <= pages; pg++) restPages.push({ epId: ep.id, pg });
     });
     await mapPool(restPages, API_CONCURRENCY, async ({ epId, pg }) => {
-      const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${epId}/cards?page=${pg}`);
+      const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${epId}/cards?page=${pg}&include_variants=1`);
       await sleep(throttle * API_CONCURRENCY);
       if (d?.data?.length) processCards(d.data);
     });
@@ -2585,6 +2598,110 @@ export async function runCardmarketRefresh(
       await upsertTodaySnapshots(singleOps, today);
       res.historyPoints = singleOps.length;
     }
+
+    // ── REVERSE HOLO UR LEVERANTÖREN (2026-10-23) ─────────────────────────────
+    // `include_variants=1` ger CM:s engelska NM-golv för reverse holo på samma rader
+    // (verifierat mot CM:s filtrerade sidor, se src/lib/tcggo-reverse.ts). Ägarbeslut:
+    // det talet prissätter reverse holo-produkten; CardTrader är reserven där
+    // leverantören saknar värde. ⛔ Skrivs EFTER haveribrytaren och utanför den: första
+    // natten byter tusentals produkter källa (CT → CM, moderna golv 0,02 € mot CT:s
+    // 2–4 kr) och hade fällt hela körningen som "korrupt feed".
+    // ⛔ Bara den ORDINARIE produktens vinnande rad bär talet (tryckningsrader aldrig) —
+    // identiteten är alltså redan dömd av vakterna ovan.
+    if (cmSource) {
+      try {
+        const ct = await prisma.retailer.findUnique({ where: { name: "CardTrader" }, select: { id: true } });
+        const rhByBase = new Map<string, { eur: number; url: string }>();
+        for (const [productId, c] of claimed) {
+          if (c.rhEur == null || !ordinaryCard.has(productId)) continue;
+          if (!isEnglishCardmarketUrl(c.op.url)) continue;
+          rhByBase.set(productId, { eur: c.rhEur, url: reverseHoloCmUrl(c.op.url) });
+        }
+        const bases = await prisma.product.findMany({
+          where: { id: { in: [...rhByBase.keys()] } },
+          select: {
+            id: true, title: true, slug: true, cardId: true, setId: true, imageUrl: true, description: true,
+            releaseDate: true, language: true, card: { select: { rarity: true } },
+          },
+        });
+        const rhProducts = await prisma.product.findMany({
+          where: { category: "SINGLE_CARD", language: "EN", variantLabel: VARIANT_REVERSE_HOLO },
+          select: { id: true, cardId: true, setId: true, offers: { where: { retailerId: cm.id }, select: { id: true } } },
+        });
+        const rhByCard = new Map(rhProducts.filter((p) => p.cardId).map((p) => [p.cardId!, p]));
+        const setsWithReverse = new Set(rhProducts.map((p) => p.setId).filter((x): x is string => !!x));
+        const rhOps: { productId: string; priceOre: number; url: string }[] = [];
+        let created = 0, gated = 0;
+        for (const b of bases) {
+          const v = rhByBase.get(b.id)!;
+          const priceOre = priceOreFromEur(v.eur, rates);
+          if (priceOre == null || !b.cardId) continue;
+          let rh = rhByCard.get(b.cardId);
+          if (!rh) {
+            if (!mayCreateReverseProduct({ rarity: b.card?.rarity, setHasReverse: !!b.setId && setsWithReverse.has(b.setId) })) {
+              gated++;
+              continue;
+            }
+            const slug = `${b.slug}-reverse-holo`;
+            const title = `${b.title} · ${VARIANT_REVERSE_HOLO}`;
+            const made = await prisma.product.upsert({
+              where: { slug },
+              update: {},
+              create: {
+                title, normalizedTitle: normalizeTitle(title), slug, category: "SINGLE_CARD",
+                variantLabel: VARIANT_REVERSE_HOLO, cardId: b.cardId, setId: b.setId, imageUrl: b.imageUrl,
+                description: b.description, releaseDate: b.releaseDate, language: b.language,
+              },
+              select: { id: true, cardId: true, setId: true },
+            });
+            rh = { ...made, offers: [] };
+            rhByCard.set(b.cardId, rh);
+            created++;
+          }
+          rhOps.push({ productId: rh.id, priceOre, url: v.url });
+        }
+        await mapPool(rhOps, DB_CONCURRENCY, async (op) => {
+          await prisma.offer.upsert({
+            where: { productId_retailerId_condition_language: { productId: op.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN" } },
+            update: { price: op.priceOre, url: op.url, stockStatus: "IN_STOCK", lastSeenAt: new Date() },
+            create: { productId: op.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN", price: op.priceOre, currency: "SEK", stockStatus: "IN_STOCK", url: op.url },
+          });
+        });
+        // CardTrader är RESERVEN: där CM har ett pris tar dess offer inte rubriken
+        // (samma regel som för det ordinarie kortet sedan 2026-10-15, cm-pricing.md p. 4).
+        let ctRemoved = 0;
+        if (ct && rhOps.length) {
+          const r = await prisma.offer.deleteMany({ where: { retailerId: ct.id, productId: { in: rhOps.map((o) => o.productId) } } });
+          ctRemoved = r.count;
+        }
+        // Leverantören tappade värdet ⇒ CM-offern bort, så CardTrader kan ta över vid
+        // sin nästa körning (cardtrader-reverse hoppar bara över produkter med en
+        // levande CM-offer). ⛔ Aldrig på en delkörning — där saknas nästan allt.
+        let cmDropped = 0;
+        if (!partialSinglesRun) {
+          const keep = new Set(rhOps.map((o) => o.productId));
+          const stale = rhProducts.filter((p) => p.offers.length > 0 && !keep.has(p.id)).map((p) => p.offers[0].id);
+          for (let i = 0; i < stale.length; i += 500) {
+            const r = await prisma.offer.deleteMany({ where: { id: { in: stale.slice(i, i + 500) } } });
+            cmDropped += r.count;
+          }
+        }
+        if (rhOps.length) {
+          await prisma.priceObservation.createMany({
+            data: rhOps.map((op) => ({ productId: op.productId, sourceId: cmSource.id, price: op.priceOre, currency: "SEK" })),
+          });
+          await upsertTodaySnapshots(rhOps, utcToday());
+        }
+        console.log(
+          `[cm-refresh] Reverse holo ur leverantören: ${rhOps.length} prissatta (${created} nya produkter, ` +
+          `${gated} utan produkt fällda av skapargrinden), ${ctRemoved} CardTrader-offers ersatta, ` +
+          `${cmDropped} CM-offers borttagna (leverantören saknar värde ⇒ CardTrader tar över).`
+        );
+      } catch (e) {
+        // ⛔ Reverse holo får aldrig fälla prisjobbet — de ordinarie priserna är redan skrivna.
+        console.error(`[cm-refresh] Reverse holo-steget misslyckades (jobbet fortsätter): ${e instanceof Error ? e.message : e}`);
+      }
+    }
     console.log(
       `[cm-refresh] Prisets källa: ${Object.entries(viaCounts).map(([k, v]) => `${k}=${v}`).join(" ") || "–"}` +
       ` (from = CM:s NM-engelska lägsta rakt av; estimate = fältet saknades → OUT_OF_STOCK)`
@@ -2658,6 +2775,14 @@ export async function runCardmarketRefresh(
         `[cm-refresh] cardmarket_id återfunnet ur CM-katalogen på exakt namn: ${backfilled.filled}` +
           (backfilled.skippedTaken ? ` (${backfilled.skippedTaken} hoppade — id:t ägs redan av en annan rad)` : "")
       );
+
+    // Tillverkarens EU-pris ("Rek. pris (EU)") ur samma rader — ingen extra kvot. Visas
+    // bara som egen rad på produktsidan; rör aldrig rubrik/statistik/larm/värde.
+    try {
+      await syncEuRrp(prisma, apiProducts);
+    } catch (e) {
+      console.warn(`[cm-refresh] EU-RRP kunde inte skrivas (prisjobbet fortsätter): ${e instanceof Error ? e.message : e}`);
+    }
 
     const byEpisode = new Map<string, ApiProduct[]>();
     const apiByCmId = new Map<number, ApiProduct>();

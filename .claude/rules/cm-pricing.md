@@ -77,6 +77,21 @@ paths:
 >    bekräftar (≤ 1,5x). (d) En From godkänd över trenden är sitt eget facit i dagvakten (annars hade
 >    3x-klämman hållit gårdagens uppskattning för alltid). Utfall i torrkörning: 104 av 143 EN + ~58 JP.
 
+> ⛔ **ÄNDRAT 2026-10-23 (ägarens plan 10-22, verifierat samma dag)**:
+> 8. **REVERSE HOLO = LEVERANTÖRENS `include_variants`, CARDTRADER ÄR RESERVEN** (ersätter "CT kvar
+>    för Reverse Holo" i punkt 4). Episodsidorna hämtas med `&include_variants=1` (ingen extra kvot) och
+>    `variants[type=reverse_holo].prices.cardmarket.lowest_near_mint` är CM:s ENGELSKA NM-golv för reverse
+>    — verifierat mot CM:s egna sidor filtrerade engelska+NM+reverse: Charizard SW 3 200,00 € (feed 200),
+>    Eevee UF 55 174,90 € (feed 174,90). ⛔ Inte guidens `-holo` (alla språk/skick: 8,99 resp. 5,79 €).
+>    Talet skrivs som CM-offer på reverse-produkten (`src/lib/tcggo-reverse.ts`, block "REVERSE HOLO UR
+>    LEVERANTÖREN" i cardmarket-refresh), länk = samma idProduct + `isReverseHolo=Y` (filtret är INTE
+>    klistrigt i sessionen, kontrollerat). CT-offern på samma produkt raderas, och `cardtrader-reverse`
+>    hoppar över produkter med en levande CM-offer (≤ 3 d). Saknar leverantören värdet (mätt 10-21: null
+>    på 4 av 7 vintagekort) raderas CM-offern på en HEL körning och CT tar över vid sin nästa körning.
+>    Ny reverse-produkt skapas bara för Common/Uncommon/Rare/Rare Holo i set som redan har reverse holos
+>    (`mayCreateReverseProduct` — en felmärkt annons får inte föda en fantomvara). Blocket ligger UTANFÖR
+>    haveribrytaren: första natten byter tusentals produkter källa. 1st Edition utanför Base: CT oförändrat.
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **Singelpris**: `Offer.price` på singlar = Cardmarkets engelska **NM-lägsta ("From")** × live-kurs, hämtat från **CardMarket API TCG (RapidAPI Pro)** — `CARDMARKET_RAPIDAPI_*` i .env, fältet `prices.cardmarket.lowest_near_mint` (DECIMAL EUR; bas-fältet är engelska, `_DE`/`_FR`/`_ES`/`_IT` = språk-överstyrningar). Detta ÄR det engelska From-pris som löste det gamla lowPrice-problemet (pokemontcg.io `lowPrice` = all-språk/all-skick-golv som grovt underskattade — använd ALDRIG). Fyll via `scripts/rapidapi-fill-singles.ts` (set-paginering `/pokemon/episodes/{id}/cards`, matcha på `tcgid`=`tcgExternalId`, ~1000 anrop för hela katalogen). Exakt uppslag = `?tcgid={id}` (1 träff). **GOLVET RAKT AV — HELA REGELN (ägarbeslut 2026-07-24, OMBEKRÄFTAT 2026-07-27)**:

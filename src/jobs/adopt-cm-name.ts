@@ -43,6 +43,7 @@ export async function adoptCmName(productId: string, cmName: string): Promise<bo
   await prisma.product.update({
     where: { id: productId },
     data: { title, normalizedTitle: normalized },
+    select: { id: true },
   });
   console.log(`[cm-name] "${product.title}" → "${title}"`);
   return true;

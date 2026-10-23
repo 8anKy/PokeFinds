@@ -97,7 +97,7 @@ import {
 } from "@/scrapers/matching";
 import { judgeSameProduct } from "@/lib/same-product";
 import { fetchListingFacts, fetchListingGtin } from "@/scrapers/gtin-source";
-import { fetchShopifyPurchasable, statusAfterVerify, verifyStockForUrl } from "@/scrapers/stock-verify";
+import { fetchShopifyPurchasable, statusAfterVerify, verifyListingForUrl } from "@/scrapers/stock-verify";
 import { fetchWatchedListing } from "@/scrapers/watched-listing";
 import { gtinConflict, isPokemonManufacturerGtin } from "@/lib/gtin";
 import { isDeniedListingUrl, setDynamicDenylist, dynamicDenylistSize } from "@/scrapers/import-denylist";
@@ -1161,7 +1161,7 @@ export async function runRestockScan(opts?: {
   const offers = await prisma.offer.findMany({
     where: { retailerId: { in: retailerIds } },
     select: {
-      id: true, url: true, productId: true, retailerId: true, stockStatus: true, lastSeenAt: true,
+      id: true, url: true, productId: true, retailerId: true, stockStatus: true, lastSeenAt: true, price: true,
       product: { select: { category: true, hiddenAt: true } },
     },
   });
@@ -1495,14 +1495,26 @@ export async function runRestockScan(opts?: {
     // olika saker i olika butiker (Speltrollet listar inte slutsålt i sina Pokémon-
     // kollektioner, Swepoke roterar sortimentet) — men produktsidan vet alltid.
     const sourceName = retailerNameById.get(o.retailerId);
-    const truth = sourceName ? await verifyStockForUrl(sourceName, o.url) : null;
+    const listing = sourceName ? await verifyListingForUrl(sourceName, o.url) : null;
+    const truth = listing?.status ?? null;
+    // Butikens pris ur samma svar (2026-10-23) — förr rättades bara lagret och priset
+    // frös på dagen offern föll ur feeden. Platshållarpris = "okänt", skrivs inte.
+    const livePrice =
+      listing?.priceOre != null &&
+      listing.priceOre !== o.price &&
+      !isPlaceholderListingPrice(listing.priceOre, o.product.category)
+        ? listing.priceOre
+        : null;
     // Inget svar → statusAfterVerify behåller det vi redan visste (ett 429 är ingen
     // upplysning); bara ett obackat "i lager" faller till UNKNOWN, precis som förut.
     const newStatus = statusAfterVerify(o.stockStatus, truth);
     if (newStatus === o.stockStatus && truth === null) {
       // Ingen ny kunskap och ingen ändring — bumpa bara ankaret så vi inte frågar
       // samma tysta butik igen inom karensfönstret.
-      await prisma.offer.update({ where: { id: o.id }, data: { lastSeenAt: now } });
+      await prisma.offer.update({
+        where: { id: o.id },
+        data: { lastSeenAt: now, ...(livePrice != null ? { price: livePrice } : {}) },
+      });
       soldOutReconciled++;
       continue;
     }
@@ -1529,7 +1541,7 @@ export async function runRestockScan(opts?: {
     // per karensfönster, oavsett hur ofta lanen kör.
     await prisma.offer.update({
       where: { id: o.id },
-      data: { stockStatus: newStatus, lastSeenAt: now },
+      data: { stockStatus: newStatus, lastSeenAt: now, ...(livePrice != null ? { price: livePrice } : {}) },
     });
     if (truth) verified++;
     else soldOutReconciled++;
@@ -1668,6 +1680,7 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
     // utan orderBy = godtycklig rad; första i listan bevarar den semantiken.
     const offerByProduct = new Map<string, (typeof retailerOffers)[number]>();
     for (const o of retailerOffers) if (!offerByProduct.has(o.productId)) offerByProduct.set(o.productId, o);
+    const offerByUrl = new Map(retailerOffers.map((o) => [o.url, o] as const));
 
     // categoryByProduct + cmPriceByProduct är förladdade (delade för hela passet) —
     // de ersätter product.findUnique och CM-referensprisfrågan som låg per annons.
@@ -1742,21 +1755,27 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
           continue;
         }
 
-        // matchIndex = hela katalogen i minnet → ingen seq-scan per annons (se loadMatchIndex).
-        const match = await matchProduct(normalized.normalizedTitle, matchIndex, rawProduct.title);
-        if (!match) {
-          logs.push(`Ingen produktmatchning: "${rawProduct.title}"`);
-          continue;
-        }
-        const { productId } = match;
-
-        // URL:en ägs redan av en ANNAN produkt → länka inte om (matchare i olika
-        // körvägar får inte tävla om samma butikssida). Hoppa hela posten så inte
-        // heller pris-/lagerdata bokförs på fel produkt.
-        const existingOwner = urlOwner.get(normalized.url);
-        if (existingOwner && existingOwner !== productId) {
-          logs.push(`URL ägs redan av annan produkt — hoppar: "${rawProduct.title}" (${normalized.url})`);
-          continue;
+        // ⛔ EN BUNDEN URL ÄR IDENTITETEN, TITELN ÄR BARA EN GISSNING (2026-10-23).
+        // Ägs URL:en redan av en produkt (auto-importen, GTIN-uppslaget, adminens
+        // bevakade länk eller en tidigare natt) uppdateras DEN offern — titelmatchningen
+        // körs bara för URL:er vi inte känner. Förr matchades varje annons om på titeln
+        // varje natt och HOPPADES när titeln inte gav någon produkt eller gav en annan
+        // än URL:ens ägare. Offern fick då aldrig sitt pris uppdaterat, medan
+        // restock-skanningen bumpade `lastSeenAt` (URL:en stod ju i feeden) — ett
+        // fruset pris som såg färskt ut. Webhallens 30th UPC stod på 5 999 kr medan
+        // butiken sa 3 299 kr. Prisvakterna nedan gäller fortfarande.
+        const boundOwner = urlOwner.get(normalized.url) ?? null;
+        let productId: string;
+        if (boundOwner) {
+          productId = boundOwner;
+        } else {
+          // matchIndex = hela katalogen i minnet → ingen seq-scan per annons (se loadMatchIndex).
+          const match = await matchProduct(normalized.normalizedTitle, matchIndex, rawProduct.title);
+          if (!match) {
+            logs.push(`Ingen produktmatchning: "${rawProduct.title}"`);
+            continue;
+          }
+          productId = match.productId;
         }
 
         // Tradera-annons + produkt som en LLM-dom redan fällt → rör den aldrig.
@@ -1811,8 +1830,11 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
           continue;
         }
 
-        // Tidigare erbjudande (för pris-/lagerjämförelse) — ur förladdad karta.
-        const previousOffer = offerByProduct.get(productId) ?? null;
+        // Tidigare erbjudande (för pris-/lagerjämförelse) — ur förladdad karta. En bunden
+        // URL har SIN egen rad (skick/språk avgör upsert-nyckeln); produktens första rad
+        // hos butiken kan vara en annan språkutgåva.
+        const previousOffer =
+          (boundOwner ? offerByUrl.get(normalized.url) : undefined) ?? offerByProduct.get(productId) ?? null;
 
         // Skick utifrån produktkategori: singlar är NEAR_MINT, övrigt SEALED
         const matchedProduct = matchedCategory ? { category: matchedCategory } : null;

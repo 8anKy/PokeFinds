@@ -5,7 +5,14 @@ import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { cn } from "@/lib/utils";
+import { formatPrice } from "@/lib/format";
 import { parseKronorToOre } from "@/lib/purchase-price";
+import {
+  PRICED_CONDITIONS,
+  priceForCondition,
+  type ConditionPriceTable,
+  type PricedCondition,
+} from "@/lib/condition-prices";
 import { PortfolioChips } from "@/components/features/portfolio-chips";
 import { PortfolioCreateSheet } from "@/components/features/portfolio-sheets";
 import { GradingPicker, gradingPayload, type GradingValue } from "@/components/features/grading-picker";
@@ -25,6 +32,20 @@ export interface QuickAddDraft {
   /** Gradering — bara när BÅDE bolag och betyg valts (2026-10-15). */
   gradingCompany?: string;
   grade?: string;
+  /** Skick (2026-10-23, väljs redan vid tillägg). Bara för kort; utelämnat = NM (schemats default). */
+  condition?: PricedCondition;
+  /** Vald tryckning när den skiljer sig från produkten arket öppnades för. */
+  productId?: string;
+}
+
+/** En tryckning arket kan spara som (produkten själv först). */
+export interface QuickAddVariantOption {
+  productId: string;
+  /** `null` = vanlig version. */
+  label: string | null;
+  /** Rubrikpriset i öre — NM-raden. */
+  headlinePrice: number | null;
+  conditionPrices: ConditionPriceTable | null;
 }
 
 interface CollectionQuickAddSheetProps {
@@ -42,6 +63,11 @@ interface CollectionQuickAddSheetProps {
    * i stället för att läggas till rå och graderas i efterhand (ägaren 2026-10-15).
    */
   gradeable?: boolean;
+  /**
+   * Tryckningar att välja mellan (produktsidan, 2026-10-23). Första posten = produkten
+   * själv. Tom ⇒ inget tryckningsval och inga skickpriser (rutnätets "+").
+   */
+  variantOptions?: QuickAddVariantOption[];
 }
 
 /** API:t (`/api/collection`) tar quantity 1..10000 — samma tak här, annars 400. */
@@ -69,8 +95,15 @@ export function CollectionQuickAddPopover({
   saving = false,
   panelClassName,
   gradeable = false,
+  variantOptions = [],
 }: CollectionQuickAddSheetProps) {
   const t = useTranslations("Product");
+  const tCond = useTranslations("Condition");
+  const tDetail = useTranslations("Detail");
+  // Skick + tryckning väljs FRÅN BÖRJAN (användarfeedback 2026-10-23) i stället för att
+  // läggas in som NM och rättas i exemplararket efteråt.
+  const [condition, setCondition] = useState<PricedCondition>("NEAR_MINT");
+  const [variantId, setVariantId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [priceText, setPriceText] = useState("");
   const [showError, setShowError] = useState(false);
@@ -90,6 +123,8 @@ export function CollectionQuickAddPopover({
     setPriceText("");
     setShowError(false);
     setGrading({ gradingCompany: "", grade: "" });
+    setCondition("NEAR_MINT");
+    setVariantId(null);
     let active = true;
     loadPortfolios()
       .then((p) => {
@@ -105,6 +140,12 @@ export function CollectionQuickAddPopover({
 
   const parsed = parseKronorToOre(priceText);
   const priceInvalid = parsed.kind === "invalid";
+
+  const selectedOption = variantOptions.find((o) => o.productId === variantId) ?? variantOptions[0] ?? null;
+  const conditionPrice = selectedOption
+    ? priceForCondition(selectedOption.conditionPrices, condition, selectedOption.headlinePrice)
+    : null;
+  const showConditionPrices = !!selectedOption && (selectedOption.conditionPrices != null || selectedOption.headlinePrice != null);
 
   const step = (delta: number) =>
     setQuantity((q) => Math.min(MAX_QTY, Math.max(1, (q || 1) + delta)));
@@ -123,8 +164,20 @@ export function CollectionQuickAddPopover({
       // Skickas bara när det finns något att välja mellan — annars standardpärmen.
       ...(portfolios.length > 1 && portfolioId ? { portfolioId } : {}),
       ...(gradeable ? gradingPayload(grading) : {}),
+      // NM är schemats default — skickas ändå, så servern aldrig behöver gissa.
+      ...(gradeable ? { condition } : {}),
+      // Bara när användaren bytt tryckning; annars sparas produkten arket öppnades för.
+      ...(selectedOption && selectedOption.productId !== variantOptions[0]?.productId
+        ? { productId: selectedOption.productId }
+        : {}),
     });
   }
+
+  const ctaSummary = [
+    t("quickAddConfirm"),
+    ...(gradeable && conditionPrice?.ore != null ? [formatPrice(conditionPrice.ore)] : []),
+    ...(gradeable ? [tCond(condition)] : []),
+  ].join(" · ");
 
   return (
     <BottomSheet
@@ -135,11 +188,61 @@ export function CollectionQuickAddPopover({
       panelClassName={panelClassName}
       footer={
         <BottomSheetCta onClick={confirm} disabled={saving}>
-          {t("quickAddConfirm")}
+          {ctaSummary}
         </BottomSheetCta>
       }
     >
       {productTitle && <p className="mb-3 line-clamp-2 text-xs text-ink-faint">{productTitle}</p>}
+
+      {/* TRYCKNING + SKICK FÖRST (2026-10-23): det är vad posten ÄR, antal och pris kommer sen. */}
+      {gradeable && variantOptions.length > 1 && (
+        <div className="mb-4">
+          <p className="mb-1.5 text-sm text-ink">{t("quickAddVariant")}</p>
+          <div className="flex flex-wrap gap-2">
+            {variantOptions.map((o) => (
+              <SheetChip
+                key={o.productId}
+                active={(selectedOption?.productId ?? null) === o.productId}
+                onClick={() => setVariantId(o.productId)}
+              >
+                {o.label ?? tDetail("baseVersion")}
+              </SheetChip>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {gradeable && (
+        <div className="mb-4">
+          <p className="mb-1.5 text-sm text-ink">{t("quickAddCondition")}</p>
+          <div className="grid grid-cols-3 gap-2">
+            {PRICED_CONDITIONS.map((c) => {
+              const row = showConditionPrices
+                ? priceForCondition(selectedOption!.conditionPrices, c, selectedOption!.headlinePrice)
+                : null;
+              return (
+                <SheetChip key={c} active={condition === c} onClick={() => setCondition(c)} stacked>
+                  <span>{tCond(c)}</span>
+                  {showConditionPrices && (
+                    <span className={cn("text-[11px] font-normal tabular-nums", condition === c ? "text-surface/80" : "text-ink-faint")}>
+                      {row?.ore != null ? formatPrice(row.ore) : "–"}
+                    </span>
+                  )}
+                </SheetChip>
+              );
+            })}
+          </div>
+          {showConditionPrices && conditionPrice && (
+            <p className="mt-1.5 text-xs text-ink-faint">
+              {conditionPrice.source === "headline"
+                ? t("quickAddConditionMarket")
+                : conditionPrice.source === "cardtrader"
+                  ? t("quickAddConditionCt", { count: conditionPrice.n })
+                  : t("quickAddConditionNone")}
+            </p>
+          )}
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3 py-1">
         <span className="text-sm text-ink">{t("quantity")}</span>
         <div className="flex items-center gap-2">
@@ -242,6 +345,37 @@ export function CollectionQuickAddPopover({
         }}
       />
     </BottomSheet>
+  );
+}
+
+/** Valchip i arket — samma form som graderingens chips (44 px tumyta). */
+function SheetChip({
+  active,
+  onClick,
+  stacked = false,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  /** Två rader (skick + pris) i stället för en. */
+  stacked?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-holo-cyan",
+        stacked
+          ? "flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 py-2 leading-tight"
+          : "rounded-full px-3 py-1.5",
+        active ? "bg-holo-cyan text-surface" : "bg-surface-overlay text-ink-muted hover:text-ink"
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

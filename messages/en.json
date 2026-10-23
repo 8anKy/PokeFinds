@@ -2095,7 +2095,12 @@
     "holdForOptions": "Hold for quantity and purchase price (Shift+Enter)",
     "addedToCollectionN": "{count, plural, =1 {Added to your collection} other {# added to your collection}}",
     "addUndone": "Undone",
-    "addUndoFailed": "Couldn't undo"
+    "addUndoFailed": "Couldn't undo",
+    "quickAddVariant": "Printing",
+    "quickAddCondition": "Condition",
+    "quickAddConditionMarket": "Market price",
+    "quickAddConditionCt": "Lowest English listing on CardTrader · {count} listings",
+    "quickAddConditionNone": "No price in this condition yet"
   },
   "Language": {
     "SV": "Swedish",
@@ -2591,7 +2596,9 @@
       "Dragon": "Dragon",
       "Fairy": "Fairy",
       "Colorless": "Colorless"
-    }
+    },
+    "euRrp": "EU RRP {eur} ≈ {sek}",
+    "euRrpHint": "The manufacturer’s recommended retail price in the EU, not a price you can buy at. The market price is shown above."
   },
   "Upgrade": {
     "currentPlan": "Your current plan ✓",

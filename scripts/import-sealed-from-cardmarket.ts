@@ -74,8 +74,11 @@ const FALLBACK_REJECT_RE =
  * "24 Sleeved Booster Case" och "Build & Battle Box Display" är distributionsenheter,
  * inte konsumentvaror: ingen svensk butik listar dem, så produkten hade legat kvar utan
  * en enda butikslänk och bara visat en Cardmarket-siffra ingen kan handla på.
- * "Fun Pack (3 Cards)" (0,60 €) är kassalinjeskräp.
  * MÄTT i TCGGO-gapet: 93 case + 23 display + 27 fun pack = 143 av 486 nya.
+ * ⛔ FUN PACK ÄR TILLBAKA SEDAN 2026-10-23 (ägaren vidarebefordrade en användares "saknar Fun
+ *    pack – Perfect Order/Astral Radiance/Journey Together/Phantasmal Flames"): samlare köper
+ *    och bevakar dem, de har engelska CM-priser, och Tradera-reglerna skiljer redan ett Fun Pack
+ *    från ett vanligt pack (`PACK_VARIANTS` i lib/tradera-listing-rules.ts). Case/display är kvar ute.
  *
  * ⛔ `\bcase\b` KRÄVER ordgräns — "Showcase" och "Suitcase" är riktiga produktnamn.
  * ⛔ "Display" ensamt är FÖRBJUDET som avvisningsord: `FORM_TO_CAT` mappar display →
@@ -83,7 +86,7 @@ const FALLBACK_REJECT_RE =
  *    SAMMANSATTA "X Box Display" (en låda med flera lådor) fälls.
  */
 const WHOLESALE_RE =
-  /\bcase\b|\bfun pack\b|(?:box|blister|bundle|collection|deck)\s+display\b|\bdisplay\s+case\b/i;
+  /\bcase\b|(?:box|blister|bundle|collection|deck)\s+display\b|\bdisplay\s+case\b/i;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const norm = (s: string) =>
@@ -110,6 +113,9 @@ const EXTRA_COLLECTION_RE = /\btrainer'?s toolkit\b|\bstarter (?:set|deck)\b|\bb
 /** Tillbehör som klassificeraren kallar "deck"/"collection" — ägarbeslut: inga tillbehör i katalogen. */
 const ACCESSORY_NAME_RE = /\bdeck holder\b|\bplaymat\b|\bdice\b|\bcoins?\b|\bsleeves?\b|\bportfolio\b|\bbinder\b(?! collection)/i;
 function cmCategory(name: string): { form: string | null; cat: ProductCategory | undefined } {
+  // Fun Pack (3 kort) — se WHOLESALE_RE. `classifyForm` (delad med butiksmatchningen) ger
+  // ingen form för dem, och den rörs inte här: ett pack är ett pack i katalogen.
+  if (/\bfun pack\b/i.test(name)) return { form: "booster", cat: "BOOSTER_PACK" };
   const form = classifyForm(name);
   if (ACCESSORY_NAME_RE.test(name)) return { form, cat: undefined };
   const cat = form ? FORM_TO_CAT[form] : undefined;
@@ -402,6 +408,8 @@ async function main() {
             },
           } : undefined,
         },
+        // Bara id tillbaka: en kolumn i schemat som ännu inte migrerats fäller annars hela importen.
+        select: { id: true },
       });
     }
   }
@@ -423,7 +431,7 @@ async function main() {
     relabeled++;
     console.log(`  [set-etikett] "${p.name}" → ${p.episode?.name}`);
     if (APPLY) {
-      await prisma.product.update({ where: { id: owned.id }, data: { setId } });
+      await prisma.product.update({ where: { id: owned.id }, data: { setId }, select: { id: true } });
     }
   }
   if (relabeled) console.log(`Set-etiketter satta: ${relabeled}\n`);
@@ -502,6 +510,7 @@ async function main() {
               },
             },
           },
+          select: { id: true },
         });
       }
     }

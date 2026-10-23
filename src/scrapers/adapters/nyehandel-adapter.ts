@@ -142,7 +142,11 @@ export function parseNyehandelListing(html: string): NyehandelItem[] {
     if (!title) continue;
 
     // ⛔ Gällande pris = <ins>. <del class="comparison"> är det ÖVERSTRUKNA priset.
-    const priceM = seg.match(/<ins[^>]*id="product-price"[^>]*>([^<]+)<\/ins>/);
+    // ⛔ Kräv INTE `id="product-price"` (2026-10-23): butiken tog bort id:t ur kortet
+    //    (`<ins aria-label="Nuvarande pris">799 kr</ins>`) och regexen hittade då inget
+    //    pris på något kort — feeden blev TOM utan ett enda fel, och alla Sweet Nerds-
+    //    priser frös. `<ins>` är kortets enda nuvarande-pris-element; `<del>` matchas aldrig.
+    const priceM = seg.match(/<ins\b[^>]*>([^<]+)<\/ins>/);
     if (!priceM) continue;
     // Avkoda FÖRE parsning — butiken separerar tusental med `&nbsp;` ("1&nbsp;299 kr").
     const priceText = decodeEntities(priceM[1]).trim();
@@ -223,7 +227,14 @@ export abstract class NyehandelAdapter implements SourceAdapter {
         }
 
         const found = parseNyehandelListing(html);
-        if (found.length === 0) break;
+        if (found.length === 0) {
+          // Kort på sidan men inget gick att läsa = markupen har ändrats. Säg det — en
+          // tyst tom feed fryser butikens alla priser och lager (hände 2026-10-22).
+          if (/class="product-card"/.test(html)) {
+            errors.push(`${this.name}: ${url} har produktkort men parsern läste inget — markupen har ändrats`);
+          }
+          break;
+        }
 
         let added = 0;
         for (const item of found) {
