@@ -2627,7 +2627,10 @@ export async function runCardmarketRefresh(
         });
         const rhProducts = await prisma.product.findMany({
           where: { category: "SINGLE_CARD", language: "EN", variantLabel: VARIANT_REVERSE_HOLO },
-          select: { id: true, cardId: true, setId: true, offers: { where: { retailerId: cm.id }, select: { id: true } } },
+          // ⛔ Bara leverantörens EGNA reverse-länkar (`isReverseHolo=` på baskortets id) räknas som
+          //    "våra" att ta bort — Energy-mönstret i specialseten (Ascended Heroes) är en egen
+          //    CM-produkt som import-cm-only-singles äger, och den hade raderats varje natt.
+          select: { id: true, cardId: true, setId: true, offers: { where: { retailerId: cm.id, url: { contains: "isReverseHolo=" } }, select: { id: true } } },
         });
         const rhByCard = new Map(rhProducts.filter((p) => p.cardId).map((p) => [p.cardId!, p]));
         const setsWithReverse = new Set(rhProducts.map((p) => p.setId).filter((x): x is string => !!x));

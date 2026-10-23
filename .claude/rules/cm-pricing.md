@@ -92,6 +92,15 @@ paths:
 >    (`mayCreateReverseProduct` — en felmärkt annons får inte föda en fantomvara). Blocket ligger UTANFÖR
 >    haveribrytaren: första natten byter tusentals produkter källa. 1st Edition utanför Base: CT oförändrat.
 
+> 9. **MÖNSTER-REVERSE I SPECIALSETEN (2026-10-23)**: Ascended Heroes (EN) och MEGA Dream ex (JP) har per kort
+>    ett Energy-mönster (= vår "Reverse Holo") och ETT boll-/Rocket-mönster (Poké/Quick/Love/Friend/Dusk Ball,
+>    Rocket — etiketterna i `REVERSE_VARIANT_LABELS`), var och en en EGEN CM-produkt. CT:s expansion bär bara
+>    familjen; mönstret står i blueprintens version (`patternExpansion`). `import-cm-only-singles.ts` skapar
+>    variantprodukten på vårt kort (eller länkar en befintlig) med CM-offer ur prisguiden; nattligt `--refresh`
+>    prissätter dem. ⛔ Reverse-blockets städning tar bara bort CM-länkar med `isReverseHolo=` (leverantörens
+>    egna) — Energy-mönstrets egen produkt hade annars raderats varje natt. ⛔ Variantvakten i matcharen gäller
+>    bara SINGLAR (`card === null` ⇒ hoppa): "Poké Ball Tin"/"Love Ball Tin" är förseglade namn.
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **Singelpris**: `Offer.price` på singlar = Cardmarkets engelska **NM-lägsta ("From")** × live-kurs, hämtat från **CardMarket API TCG (RapidAPI Pro)** — `CARDMARKET_RAPIDAPI_*` i .env, fältet `prices.cardmarket.lowest_near_mint` (DECIMAL EUR; bas-fältet är engelska, `_DE`/`_FR`/`_ES`/`_IT` = språk-överstyrningar). Detta ÄR det engelska From-pris som löste det gamla lowPrice-problemet (pokemontcg.io `lowPrice` = all-språk/all-skick-golv som grovt underskattade — använd ALDRIG). Fyll via `scripts/rapidapi-fill-singles.ts` (set-paginering `/pokemon/episodes/{id}/cards`, matcha på `tcgid`=`tcgExternalId`, ~1000 anrop för hela katalogen). Exakt uppslag = `?tcgid={id}` (1 träff). **GOLVET RAKT AV — HELA REGELN (ägarbeslut 2026-07-24, OMBEKRÄFTAT 2026-07-27)**:

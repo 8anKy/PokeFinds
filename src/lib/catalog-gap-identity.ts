@@ -6,6 +6,10 @@
  * Inga DB-anrop här — testas i tests/unit/catalog-gap-identity.test.ts.
  */
 import { cmNumberKey } from "@/jobs/cardmarket-refresh";
+import {
+  VARIANT_DUSK_BALL, VARIANT_FRIEND_BALL, VARIANT_LOVE_BALL, VARIANT_MASTER_BALL, VARIANT_POKE_BALL,
+  VARIANT_QUICK_BALL, VARIANT_REVERSE_HOLO, VARIANT_ROCKET,
+} from "@/lib/print-variant";
 
 export type GapLanguage = "EN" | "JP";
 
@@ -62,7 +66,32 @@ export function ballExpansion(name: string): { set: string; label: string } | nu
   return m ? { set: m[1].trim(), label: `${m[2]} Reverse Holo` } : null;
 }
 
-const SET_STOPWORDS = new Set(["pokemon", "tcg", "the", "and", "ex", "set", "collection", "card", "game", "of", "sub"]);
+/**
+ * MÖNSTER-EXPANSIONER i specialset (2026-10-23): "Ascended Heroes - Ball & Rocket Reverse Holo" och
+ * "… - Energy Reverse Holo" (MEGA Dream ex likadant). Här bär expansionen bara FAMILJEN — VILKET
+ * mönster kortet har står i blueprintens version ("Love Ball Reverse Holo", CT:s stavfel "PoKé Ball",
+ * "Reverse Friend Ball Holo"). Energy-mönstret är setets vanliga reverse holo. Okänt mönster ⇒ null.
+ */
+export function patternExpansion(name: string, version: string | null | undefined): { set: string; label: string } | null {
+  const ball = ballExpansion(name);
+  if (ball) return ball;
+  const m = /^(.*?) - (Ball & Rocket|Energy) Reverse Holo$/i.exec(name.trim());
+  if (!m) return null;
+  const v = String(version ?? "").toLowerCase();
+  const label =
+    /master\s*ball/.test(v) ? VARIANT_MASTER_BALL
+    : /quick\s*ball/.test(v) ? VARIANT_QUICK_BALL
+    : /love\s*ball/.test(v) ? VARIANT_LOVE_BALL
+    : /friend\s*ball/.test(v) ? VARIANT_FRIEND_BALL
+    : /dusk\s*ball/.test(v) ? VARIANT_DUSK_BALL
+    : /pok[eé]\s*ball/.test(v) ? VARIANT_POKE_BALL
+    : /rocket/.test(v) ? VARIANT_ROCKET
+    : /energy/.test(v) && /^energy$/i.test(m[2]) ? VARIANT_REVERSE_HOLO
+    : null;
+  return label ? { set: m[1].trim(), label } : null;
+}
+
+const SET_STOPWORDS =new Set(["pokemon", "tcg", "the", "and", "ex", "set", "collection", "card", "game", "of", "sub"]);
 
 /** Setnamnets innehållsord, singular: "Holon Phantoms" → {holon, phantom}. */
 export function setTokens(name: string): Set<string> {

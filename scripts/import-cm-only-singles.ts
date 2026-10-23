@@ -63,10 +63,10 @@ import { ctImageProxyUrl } from "@/lib/ct-image";
 import { normalizeTitle, slugify, utcToday } from "@/lib/utils";
 import { mapPool } from "@/lib/concurrency";
 import { exitJob } from "@/lib/job-exit";
-import { PRINT_VARIANT_LABELS, REVERSE_VARIANT_LABELS } from "@/lib/print-variant";
+import { PRINT_VARIANT_LABELS, REVERSE_VARIANT_LABELS, VARIANT_REVERSE_HOLO } from "@/lib/print-variant";
 import {
   NON_EN_JP_EXPANSION,
-  ballExpansion,
+  patternExpansion,
   cmOnlyGuidePrice,
   blueprintLanguage,
   numberKey,
@@ -235,12 +235,12 @@ async function importMissing(apply: boolean) {
 
   const stats = {
     candidates: 0, ambiguous: 0, nameMismatch: 0, noNumber: 0, unpriced: 0, linkedExisting: 0,
-    existingSetSkipped: 0, variantCreated: 0, createdInExistingSet: 0, sameCardElsewhere: 0, ballLinked: 0, ballUnmatched: 0, unmodelledVariant: 0, created: 0, setsCreated: 0,
+    existingSetSkipped: 0, variantCreated: 0, createdInExistingSet: 0, sameCardElsewhere: 0, ballLinked: 0, ballCreated: 0, ballUnmatched: 0, unmodelledVariant: 0, created: 0, setsCreated: 0,
   };
   // Bollvarianterna vi redan har: (språk|set utan kod|etikett|nummer) → produkt.
   const ballProducts = new Map<string, string | null>();
   for (const p of await prisma.product.findMany({
-    where: { category: "SINGLE_CARD", variantLabel: { in: ["Poké Ball Reverse Holo", "Master Ball Reverse Holo"] } },
+    where: { category: "SINGLE_CARD", variantLabel: { in: [...REVERSE_VARIANT_LABELS] } },
     select: { id: true, variantLabel: true, language: true, set: { select: { name: true } }, card: { select: { number: true } } },
   })) {
     if (!p.set || !p.card) continue;
@@ -272,11 +272,35 @@ async function importMissing(apply: boolean) {
       const { priceOre, stock } = priced;
       const label = cleanLabel(versionLabel(bp.version));
 
-      // BOLLMÖNSTER → vår befintliga variantprodukt får Cardmarket-priset.
-      const ball = ballExpansion(exp.name);
+      // BOLL-/ROCKET-/ENERGY-MÖNSTER → variantprodukten på vårt kort får Cardmarket-priset.
+      const ball = patternExpansion(exp.name, bp.version);
       if (ball) {
-        const productId = ballProducts.get(`${lang}|${setKeyNoCode(ball.set)}|${ball.label}|${numberKey(number)}`);
-        if (!productId) { stats.ballUnmatched++; continue; }
+        let productId = ballProducts.get(`${lang}|${setKeyNoCode(ball.set)}|${ball.label}|${numberKey(number)}`);
+        if (!productId) {
+          // Ingen variantprodukt ännu (2026-10-23): skapa den på VÅRT kort när setet och exakt ETT
+          // kort med samma siffror + namn finns. Annars avstå — gissa aldrig kortet.
+          const setId = setsByKey.get(`${lang}|${setKeyNoCode(ball.set)}`) ?? null;
+          const bases = setId
+            ? (await cardsOf(setId)).filter((c) => digitsKey(c.number) === digitsKey(number) && cmCardNameAgrees(c.name.replace(/ \(JP\)$/, ""), bp.name))
+            : [];
+          if (!setId || bases.length !== 1 || usedCmIds.has(idProduct)) {
+            stats.ballUnmatched++;
+            skipped.push({ exp: exp.name, name: bp.name, number, label: ball.label, idProduct, why: setId ? `ball-base-${bases.length}` : "ball-no-set" });
+            continue;
+          }
+          // Finns varianten redan på kortet (CT:s bollimport, setnamn med annan stavning — "Black Bolt
+          // (SV11B)" mot CT:s "Black Bolt | sv11B") ⇒ länka den i stället för att skapa.
+          const existing = await prisma.product.findFirst({ where: { cardId: bases[0].id, variantLabel: ball.label }, select: { id: true } });
+          if (!existing) {
+            stats.ballCreated++;
+            usedCmIds.add(idProduct);
+            planned.push({ kind: "pattern", set: ball.set, name: bp.name, number, label: ball.label, idProduct, priceOre });
+            byExp.set(`${lang} · mönster · ${ball.label}`, (byExp.get(`${lang} · mönster · ${ball.label}`) ?? 0) + 1);
+            if (apply) await createVariant({ cardId: bases[0].id, setId, label: ball.label, idProduct, lang, priceOre, stock });
+            continue;
+          }
+          productId = existing.id;
+        }
         stats.ballLinked++;
         usedCmIds.add(idProduct);
         if (!apply) continue;
@@ -616,7 +640,11 @@ async function refreshPrices() {
       ...(process.argv.includes("--all") || clearOnly ? {} : { lastSeenAt: { lt: today } }),
       OR: [
         { product: { card: { tcgExternalId: { startsWith: CM_ONLY_PREFIX } } } },
-        { product: { variantLabel: { in: ["Poké Ball Reverse Holo", "Master Ball Reverse Holo"] } } },
+        // Boll-/Rocket-mönstren har var sin CM-produkt. Den vanliga "Reverse Holo" bara när länken är
+        // en EGEN produkt (Energy-mönstret i specialseten) — leverantörens reverse-länkar bär
+        // `isReverseHolo=Y` på baskortets id och prissätts av cardmarket-refresh.
+        { product: { variantLabel: { in: REVERSE_VARIANT_LABELS.filter((l) => l !== VARIANT_REVERSE_HOLO) } } },
+        { url: { contains: "idProduct=" }, NOT: { url: { contains: "isReverseHolo=" } }, product: { variantLabel: VARIANT_REVERSE_HOLO } },
         // STÄMPLADE/JUMBO/METALL-TRYCKNINGAR (scripts/import-catalog-gap-printings.ts, 2026-10-23):
         // en variant med EGEN idProduct-länk prissätts på den produkten. Länkar utan idProduct
         // ("Specialversion" bär CM-slug) faller ur av sig själva — id:t går inte att läsa.

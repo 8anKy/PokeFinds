@@ -33,9 +33,14 @@ import {
   PRINT_FIRST_EDITION,
   PRINT_SHADOWLESS,
   PRINT_UNLIMITED,
+  VARIANT_DUSK_BALL,
+  VARIANT_FRIEND_BALL,
+  VARIANT_LOVE_BALL,
   VARIANT_MASTER_BALL,
   VARIANT_POKE_BALL,
+  VARIANT_QUICK_BALL,
   VARIANT_REVERSE_HOLO,
+  VARIANT_ROCKET,
 } from "@/lib/print-variant";
 
 /** Gemener, diakriter kvar, skiljetecken → mellanslag. */
@@ -151,7 +156,12 @@ export function normalizeLanguage(raw: string): CardLanguage | null {
 
 const PRINTING_MAP: [RegExp, string][] = [
   [/master ?ball/, VARIANT_MASTER_BALL],
+  [/quick ?ball/, VARIANT_QUICK_BALL],
+  [/love ?ball/, VARIANT_LOVE_BALL],
+  [/friend ?ball/, VARIANT_FRIEND_BALL],
+  [/dusk ?ball/, VARIANT_DUSK_BALL],
   [/(poke|poké) ?ball/, VARIANT_POKE_BALL],
+  [/rocket ?reverse|reverse ?rocket/, VARIANT_ROCKET],
   [/\b(reverse|rev)\b|\brh\b/, VARIANT_REVERSE_HOLO],
   [/(1st|first) ?ed/, PRINT_FIRST_EDITION],
   [/shadowless/, PRINT_SHADOWLESS],

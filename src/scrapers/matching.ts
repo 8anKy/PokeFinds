@@ -2247,8 +2247,11 @@ export async function matchProduct(
   // Sedan 2026-08-03 gäller samma fråga ALLA varianter, inte bara Base-trion:
   // reverse holo blev egna produkter och föll rakt igenom den gamla
   // `isPrintVariantLabel`-grinden. Se `listingFitsVariant`.
+  // ⛔ Bara SINGLAR har varianter: "Generic Love Ball Tin" / "Poké Ball Tin" är förseglat och
+  //    ordet "ball" i titeln är produktens namn, inget mönster. `card === null` (strikt) — ett
+  //    fält som inte valts ut (undefined) behåller vakten, så den failar aldrig öppet.
   const candidates = [...candidateMap.values()].filter(
-    (c) => c.id !== excludeProductId && listingFitsVariant(c.variantLabel, raw, c.card?.name)
+    (c) => c.id !== excludeProductId && ((c.card === null && c.variantLabel == null) || listingFitsVariant(c.variantLabel, raw, c.card?.name))
   );
   const trace: MatchTrace | null = matchTracer
     ? { poolSize: candidates.length, survivors: [], best: null, runnerUp: null, outcome: "ingen-kandidat" }
@@ -2672,7 +2675,7 @@ export function matchListingToProduct(
   // Samma variantvakt som matchProduct: en annons som inte nämner varianten är
   // den ordinarie. Utan den blev varje Base-annons en träff på ALLA TRE
   // produkterna (samma namn, samma nummer) och skena-raderna tredubblades.
-  if (!listingFitsVariant(product.variantLabel, listingTitle, product.card?.name)) return null;
+  if (!(product.card === null && product.variantLabel == null) && !listingFitsVariant(product.variantLabel, listingTitle, product.card?.name)) return null;
   if (printMentionMismatch(listingTitle, product.normalizedTitle, product.variantLabel)) return null;
 
   const incomingForm = classifyForm(normalized);

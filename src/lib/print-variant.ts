@@ -90,6 +90,16 @@ export const VARIANT_REVERSE_HOLO = "Reverse Holo";
 export const VARIANT_MASTER_BALL = "Master Ball Reverse Holo";
 export const VARIANT_POKE_BALL = "Poké Ball Reverse Holo";
 /**
+ * Fler mönster i specialset (Ascended Heroes, MEGA Dream ex — 2026-10-23): varje kort har ett
+ * Energy-mönster (= vår vanliga "Reverse Holo") och ETT boll- eller Rocket-mönster, var och en
+ * en egen Cardmarket-produkt.
+ */
+export const VARIANT_QUICK_BALL = "Quick Ball Reverse Holo";
+export const VARIANT_LOVE_BALL = "Love Ball Reverse Holo";
+export const VARIANT_FRIEND_BALL = "Friend Ball Reverse Holo";
+export const VARIANT_DUSK_BALL = "Dusk Ball Reverse Holo";
+export const VARIANT_ROCKET = "Rocket Reverse Holo";
+/**
  * Varianter som BARA finns hos CardTrader (ingen Cardmarket-produkt) och prissätts av
  * src/jobs/cardtrader-ct-only-variants.ts. ⛔ runVariantRefresh hoppar över dem — den
  * läser baskortets trend och hade skrivit över CardTraders golv varje natt.
@@ -108,6 +118,11 @@ export const CT_ONLY_VARIANT_LABELS = [VARIANT_PEELABLE_DITTO] as const;
 export const REVERSE_VARIANT_LABELS = [
   VARIANT_MASTER_BALL,
   VARIANT_POKE_BALL,
+  VARIANT_QUICK_BALL,
+  VARIANT_LOVE_BALL,
+  VARIANT_FRIEND_BALL,
+  VARIANT_DUSK_BALL,
+  VARIANT_ROCKET,
   VARIANT_REVERSE_HOLO,
 ] as const;
 
@@ -141,6 +156,11 @@ const VARIANT_DISPLAY_ORDER: readonly (string | null)[] = [
   PRINT_FIRST_EDITION,
   VARIANT_REVERSE_HOLO,
   VARIANT_POKE_BALL,
+  VARIANT_QUICK_BALL,
+  VARIANT_LOVE_BALL,
+  VARIANT_FRIEND_BALL,
+  VARIANT_DUSK_BALL,
+  VARIANT_ROCKET,
   VARIANT_MASTER_BALL,
 ];
 
@@ -171,7 +191,13 @@ export function variantInTitle(
   const name = (cardName ?? "").trim().toLowerCase();
   if (name && /\b(reverse|ball)\b/.test(name)) t = t.split(name).join(" ");
   if (/\bmaster\s*ball\b/.test(t)) return VARIANT_MASTER_BALL;
+  if (/\bquick\s*ball\b/.test(t)) return VARIANT_QUICK_BALL;
+  if (/\blove\s*ball\b/.test(t)) return VARIANT_LOVE_BALL;
+  if (/\bfriend\s*ball\b/.test(t)) return VARIANT_FRIEND_BALL;
+  if (/\bdusk\s*ball\b/.test(t)) return VARIANT_DUSK_BALL;
   if (/\bpok[eé]\s*ball\b/.test(t)) return VARIANT_POKE_BALL;
+  // Bara mönstret ("Rocket Reverse Holo"), aldrig "Team Rocket's …" i ett kortnamn.
+  if (/\brocket\s+reverse\b|\breverse\s+rocket\b/.test(t)) return VARIANT_ROCKET;
   if (/\breverse\b/.test(t) || /\brev\.?\s*holo\b/.test(t)) return VARIANT_REVERSE_HOLO;
   return null;
 }
