@@ -121,8 +121,8 @@ export interface ScannerQuota {
  * ⛔ Taket är inte en produktgräns utan ett SKYDD. Träffas det ska det synas i
  * loggen, inte tolkas som att en kund skannar för mycket.
  *
- * ⛔⛔ SIFFRAN (2000 sedan 2026-10-14) ÄR PUBLICERAD I ANVÄNDARVILLKOREN (ägarbeslut 2026-08-02).
- * `Terms.s6FairUse` i messages/{sv,en}.json säger uttryckligen "upp till 1 000
+ * ⛔⛔ SIFFRAN (3000 sedan 2026-10-24) ÄR PUBLICERAD I ANVÄNDARVILLKOREN (ägarbeslut 2026-08-02).
+ * `Terms.s6FairUse` i messages/{sv,en}.json säger uttryckligen "upp till 3 000
  * skanningar per kalendermånad" (talet följer konstanten). Prissidan säger "obegränsad kortskanning
  * (skäligt bruk)" och skannerns Pro-badge visar `∞` — allt tre hänger ihop och
  * vilar på DEN HÄR konstanten. Ändras taket (här ELLER via
@@ -132,7 +132,8 @@ export interface ScannerQuota {
  */
 // 1000 → 2000 2026-10-14 (ägarbeslut): skannern kör på egen motor utan AI-anrop — en skanning kostar
 // ingenting per styck längre. Villkoren (s11FairUse, "Senast uppdaterad 14 oktober 2026") ändrade samtidigt.
-const PREMIUM_FAIR_USE = 2000;
+// 2000 → 3000 2026-10-24 (ägarbeslut). Villkoren (s11FairUse, "Senast uppdaterad 24 oktober 2026") ändrade samtidigt.
+const PREMIUM_FAIR_USE = 3000;
 
 /** Månadens skanningskvot (misslyckade/no-match-jobb räknas inte). */
 export async function getScannerQuota(

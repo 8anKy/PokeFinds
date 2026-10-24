@@ -222,10 +222,10 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   objektet alls. Memoiseringen ensam räcker INTE — identiteten byts ändå när `zoomPresets` fylls i efter första
   spåret, vilket hade rivit strömmen en gång till. Regeln generellt: en callback som en avmonterings-effekt
   beror på måste ha stabila beroenden, annars är dess cleanup en tyst rivning vid varje rendering.
-- **SKANNING = OBEGRÄNSAD FÖR PRO, MED 2 000/MÅNAD SOM PUBLICERAT SKÄLIGT BRUK (ägarbeslut 2026-08-02, 1 000 → 2 000 2026-10-14 när motorn utan AI tog över)**:
+- **SKANNING = OBEGRÄNSAD FÖR PRO, MED 3 000/MÅNAD SOM PUBLICERAT SKÄLIGT BRUK (ägarbeslut 2026-08-02, 1 000 → 2 000 2026-10-14 när motorn utan AI tog över, → 3 000 2026-10-24)**:
   fyra ytor måste säga SAMMA sak och de gör det nu: prissidan ("Obegränsad kortskanning (skäligt bruk)"),
-  skannerns Pro-badge (`∞`), villkoren `Terms.s6FairUse` ("upp till 2 000 skanningar per kalendermånad, nollställs
-  den 1:a") och koden `PREMIUM_FAIR_USE = 2000` i `src/services/scanner/index.ts`. Gratis = 30/månad, oförändrat.
+  skannerns Pro-badge (`∞`), villkoren `Terms.s6FairUse` ("upp till 3 000 skanningar per kalendermånad, nollställs
+  den 1:a") och koden `PREMIUM_FAIR_USE = 3000` i `src/services/scanner/index.ts`. Gratis = 30/månad, oförändrat.
   Kvoten räknar IDENTIFIERADE KORT och nollställs på UTC-månadsskiftet (`startOfMonthUtc`), inte på
   prenumerationens årsdag. ⛔ **Taket är nu ett AVTALSVILLKOR, inte bara en skyddsspärr.** Sänks det — i koden
   eller via `SCANNER_PREMIUM_MONTHLY_LIMIT` — blir villkorstexten falsk, och ett dolt tak under det publicerade är
