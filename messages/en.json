@@ -2291,8 +2291,7 @@
     "instantEmpty": "No instant matches — show all to search the whole catalogue.",
     "chipAll": "All",
     "chipSingles": "Singles",
-    "resultCountShort": "{count, number} items",
-    "allShort": "All"
+    "resultCountShort": "{count, number} items"
   },
   "Sets": {
     "metaTitle": "All Pokémon TCG sets",

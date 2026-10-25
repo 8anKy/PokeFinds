@@ -2291,8 +2291,7 @@
     "instantEmpty": "Inga direktträffar — visa alla för att söka i hela katalogen.",
     "chipAll": "Allt",
     "chipSingles": "Singlar",
-    "resultCountShort": "{count, number} st",
-    "allShort": "Alla"
+    "resultCountShort": "{count, number} st"
   },
   "Sets": {
     "metaTitle": "Alla Pokémon TCG-set",

@@ -340,7 +340,7 @@ export function ExploreFilterBar({
             aria-pressed={tab.menu ? undefined : tab.active}
             aria-haspopup={tab.menu ? "dialog" : undefined}
             className={cn(
-              "relative flex h-9 max-w-[9rem] shrink-0 items-center gap-1 text-[13.5px] transition-colors",
+              "relative flex h-9 max-w-[9rem] shrink-0 items-center gap-1 text-[13.5px] outline-none transition-colors focus-visible:text-holo-cyan",
               tab.active ? "font-bold text-ink" : "font-medium text-ink-faint"
             )}
           >
@@ -556,45 +556,25 @@ export function ExploreFilterBar({
         </Link>
       </Sheet>
 
-      <BottomSheet
-        open={sheet === "lang"}
-        title={t("language")}
-        onClose={() => setSheet(null)}
-        closeLabel={t("closeSheet")}
-        centerTitle
-      >
-        <div className="pb-8">
-          {[
-            { value: null as string | null, label: t("allLanguages"), short: t("allShort") },
-            ...languages.map((l) => ({ value: l.value as string | null, label: l.label, short: l.value })),
-          ].map((l, i) => {
-            const on = shownLang === l.value;
+      {/* Samma rader som sorteringen i filterarket — ett tryck väljer och stänger. */}
+      <BottomSheet open={sheet === "lang"} title={t("language")} onClose={() => setSheet(null)} closeLabel={t("closeSheet")}>
+        <div className="flex flex-col gap-0.5 pb-6">
+          {[{ value: null as string | null, label: t("allLanguages") }, ...languages].map((l) => {
+            const selected = shownLang === l.value;
             return (
               <button
                 key={l.value ?? "all"}
                 type="button"
                 role="menuitemradio"
-                aria-checked={on}
+                aria-checked={selected}
                 onClick={() => chooseLang(l.value)}
-                className={cn("flex h-16 w-full items-center gap-3.5 px-1 text-left", i > 0 && "border-t border-white/[0.07]")}
+                className={cn(
+                  "flex items-center justify-between gap-3 rounded-lg px-3 py-3 text-left text-sm transition-colors",
+                  selected ? "bg-holo-cyan/10 text-holo-cyan" : "text-ink"
+                )}
               >
-                <span
-                  className={cn(
-                    "grid h-8 w-11 shrink-0 place-items-center rounded-lg text-[12px] font-extrabold tracking-[0.04em]",
-                    on ? "bg-holo-cyan text-surface" : "bg-surface-overlay text-ink"
-                  )}
-                >
-                  {l.short}
-                </span>
-                <span className={cn("flex-1 text-[17px] text-ink", on ? "font-bold" : "font-semibold")}>{l.label}</span>
-                <span
-                  className={cn(
-                    "grid h-6 w-6 shrink-0 place-items-center rounded-full",
-                    on ? "bg-holo-cyan text-surface" : "ring-[1.5px] ring-inset ring-surface-border"
-                  )}
-                >
-                  {on && <IconCheck size={13} strokeWidth={3.4} />}
-                </span>
+                {l.label}
+                {selected && <IconCheck size={17} className="shrink-0 text-holo-cyan" />}
               </button>
             );
           })}
