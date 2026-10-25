@@ -2288,7 +2288,11 @@
     "recentlyViewed": "Senast visade",
     "removeRecentAria": "Ta bort ”{query}” ur historiken",
     "searchHint": "Sök på ett kort, ett set eller en produkt.",
-    "instantEmpty": "Inga direktträffar — visa alla för att söka i hela katalogen."
+    "instantEmpty": "Inga direktträffar — visa alla för att söka i hela katalogen.",
+    "chipAll": "Allt",
+    "chipSingles": "Singlar",
+    "resultCountShort": "{count, number} st",
+    "allShort": "Alla"
   },
   "Sets": {
     "metaTitle": "Alla Pokémon TCG-set",

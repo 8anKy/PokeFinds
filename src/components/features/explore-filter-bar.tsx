@@ -16,7 +16,7 @@ import { isSetListed } from "@/lib/set-listing";
 import { eraRank, setEra, type Era } from "@/lib/set-era";
 import { useOwnedSets } from "@/lib/owned-sets";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
-import { IconCards, IconCheck, IconChevronRight, IconFilter, IconSearch, IconX } from "@/components/ui/icons";
+import { IconCards, IconCheck, IconChevronDown, IconChevronRight, IconFilter, IconSearch, IconX } from "@/components/ui/icons";
 
 export interface FilterSet {
   id: string;
@@ -83,7 +83,7 @@ const PRICE_SHORTCUTS: [number, MaxKr][] = [
   [1000, null],
 ];
 
-type SheetKind = "sort" | "set" | "price" | "more";
+type SheetKind = "sort" | "set" | "price" | "more" | "lang";
 
 /** Urval som ska räknas — URL-statet med de val man håller på att göra inbakade. */
 type PendingSelection = ExploreSearchParams & CountSelection;
@@ -197,6 +197,7 @@ export function ExploreFilterBar({
   const [query, setQuery] = useState(searchParams.q ?? "");
   const [localKind, setLocalKind] = useState<InstantKind>(() => kindOf(searchParams.kategori));
   const [localSets, setLocalSets] = useState<string[]>(() => csvList(searchParams.set));
+  const [localLang, setLocalLang] = useState<string | null>(() => langOf(searchParams.sprak));
   const inputRef = useRef<HTMLInputElement>(null);
 
   const urlKind = kindOf(searchParams.kategori);
@@ -204,6 +205,8 @@ export function ExploreFilterBar({
   // Sökläget ritar det lokala urvalet; annars är URL:en sanningen.
   const shownKind = searching ? localKind : urlKind;
   const activeSetIds = searching ? localSets : csvList(searchParams.set);
+  const urlLang = langOf(searchParams.sprak);
+  const shownLang = searching ? localLang : urlLang;
 
   // Logotypen i chipet bara vid ETT set — flera logotyper får inte plats.
   const soleActiveSet = activeSetIds.length === 1 ? (sets.find((s) => s.id === activeSetIds[0]) ?? null) : null;
@@ -223,7 +226,8 @@ export function ExploreFilterBar({
 
   // Kategorier som inte är exakt Kort/Förseglat räknas som "Mer"-filter.
   const otherKategori = urlKind === null ? csvList(urlKategori).length : 0;
-  const moreCount = otherKategori + csvList(searchParams.butik).length + csvList(searchParams.sprak).length;
+  // Språket har en egen flik i raden sedan 2026-10-25; bara butik + övriga kategorier räknas här.
+  const moreCount = otherKategori + csvList(searchParams.butik).length + (urlLang === null ? csvList(searchParams.sprak).length : 0);
   const filterActive = sortActive || priceActive || inStock || moreCount > 0;
 
   /** Bygger nästa URL. `sida` nollställs alltid — sida 3 av ett annat filter är inte sida 3. */
@@ -237,21 +241,24 @@ export function ExploreFilterBar({
     router.push(qs ? `/produkter?${qs}` : "/produkter");
   }
 
-  function toggleKind(kind: Exclude<InstantKind, null>) {
-    const next = shownKind === kind ? null : kind;
-    if (searching) {
-      setLocalKind(next);
-      return;
-    }
-    pushParams({ kategori: kindParam(next) });
+  function chooseKind(kind: InstantKind) {
+    if (searching) setLocalKind(kind);
+    else pushParams({ kategori: kindParam(kind) });
   }
 
-  /** Lokalt urval i sökläget → kategori-/set-parametrarna (övriga filter följer med som de är). */
+  function chooseLang(lang: string | null) {
+    setSheet(null);
+    if (searching) setLocalLang(lang);
+    else pushParams({ sprak: lang ?? undefined });
+  }
+
+  /** Lokalt urval i sökläget → kategori-/set-/språkparametrarna (övriga filter följer med som de är). */
   function searchPatch(q: string) {
     return {
       q: q.trim() || undefined,
       kategori: localKind !== urlKind ? kindParam(localKind) : urlKategori,
       set: localSets.length > 0 ? localSets.join(",") : undefined,
+      sprak: localLang !== urlLang ? (localLang ?? undefined) : searchParams.sprak,
     };
   }
 
@@ -265,6 +272,7 @@ export function ExploreFilterBar({
     if (searching) return;
     setLocalKind(urlKind);
     setLocalSets(csvList(searchParams.set));
+    setLocalLang(urlLang);
     setSearching(true);
   }
 
@@ -306,71 +314,51 @@ export function ExploreFilterBar({
         ? `${minKr.toLocaleString("sv-SE")}–${maxKr.toLocaleString("sv-SE")} kr`
         : `≤ ${krLabel(maxKr)}`;
 
+  /**
+   * FILTERRADEN, STIL 2 (ägarbeslut 2026-10-25): ord med en tunn turkos linje under det
+   * valda — Allt · Förseglat · Singlar · Språk · Set — och antalet på samma rad. Språk
+   * glider upp som ett ark (samma BottomSheet som resten av appen), Set öppnar setarket.
+   */
+  const tabItems: { key: string; label: string; active: boolean; menu?: boolean; onClick: () => void }[] = [
+    { key: "all", label: t("chipAll"), active: shownKind === null && otherKategori === 0, onClick: () => chooseKind(null) },
+    { key: "sealed", label: t("chipSealed"), active: shownKind === "sealed", onClick: () => chooseKind("sealed") },
+    { key: "cards", label: t("chipSingles"), active: shownKind === "cards", onClick: () => chooseKind("cards") },
+    { key: "lang", label: shownLang ?? t("language"), active: shownLang !== null, menu: true, onClick: () => setSheet("lang") },
+    { key: "set", label: activeSetLabel ?? t("set"), active: activeSetLabel !== null, menu: true, onClick: () => setSheet("set") },
+  ];
   const chips = (
-    <div
-      className="-mx-2.5 flex items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain px-2.5 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      style={{ touchAction: "pan-x pan-y" }}
-    >
-      <Chip
-        active={activeSetLabel !== null}
-        label={activeSetLabel ?? t("set")}
-        onOpen={() => setSheet("set")}
-        onClear={
-          activeSetLabel !== null
-            ? () => (searching ? setLocalSets([]) : pushParams({ set: undefined }))
-            : undefined
-        }
-        clearAriaLabel={t("clearSet")}
-        leading={
-          soleActiveSet?.logoUrl ? (
-            <SafeImage
-              src={soleActiveSet.logoUrl}
-              alt=""
-              className="h-3.5 w-[26px] shrink-0 object-contain"
-              fallback={<></>}
+    <div className="-mx-2.5 flex items-center border-b border-surface-overlay px-2.5">
+      <div
+        className="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ touchAction: "pan-x pan-y" }}
+      >
+        {tabItems.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={tab.onClick}
+            aria-pressed={tab.menu ? undefined : tab.active}
+            aria-haspopup={tab.menu ? "dialog" : undefined}
+            className={cn(
+              "relative flex h-9 max-w-[9rem] shrink-0 items-center gap-1 text-[13.5px] transition-colors",
+              tab.active ? "font-bold text-ink" : "font-medium text-ink-faint"
+            )}
+          >
+            {tab.key === "set" && soleActiveSet?.logoUrl && (
+              <SafeImage src={soleActiveSet.logoUrl} alt="" className="h-3.5 w-[24px] shrink-0 object-contain" fallback={<></>} />
+            )}
+            <span className="truncate">{tab.label}</span>
+            {tab.menu && <IconChevronDown size={11} strokeWidth={3} className="shrink-0" />}
+            <span
+              aria-hidden
+              className={cn("absolute inset-x-0 -bottom-px h-0.5 rounded-full", tab.active ? "bg-holo-cyan" : "bg-transparent")}
             />
-          ) : undefined
-        }
-      />
-      {/* På/av — ett tryck slår om, därför inget kryss (samma som gamla lagerchipet). */}
-      <Chip
-        active={shownKind === "cards"}
-        label={t("chipCards")}
-        onOpen={() => toggleKind("cards")}
-        clearAriaLabel={t("chipCards")}
-        caret={false}
-        pressed={shownKind === "cards"}
-      />
-      <Chip
-        active={shownKind === "sealed"}
-        label={t("chipSealed")}
-        onOpen={() => toggleKind("sealed")}
-        clearAriaLabel={t("chipSealed")}
-        caret={false}
-        pressed={shownKind === "sealed"}
-      />
-      {/* "Mer" tillbaka i raden (ägaren 2026-10-25): språk, butik och kategori. */}
+          </button>
+        ))}
+      </div>
       {!searching && (
-        <Chip
-          active={moreCount > 0}
-          label={moreCount > 0 ? `${t("moreFilters")} · ${moreCount}` : t("moreFilters")}
-          onOpen={() => setSheet("more")}
-          onClear={
-            moreCount > 0
-              ? () =>
-                  pushParams({
-                    kategori: urlKind !== null ? urlKategori : undefined,
-                    butik: undefined,
-                    sprak: undefined,
-                  })
-              : undefined
-          }
-          clearAriaLabel={t("clearMoreFilters")}
-        />
-      )}
-      {!searching && (
-        <span aria-live="polite" className="ml-auto shrink-0 whitespace-nowrap pl-2 text-[11.5px] font-medium tabular-nums text-ink-faint">
-          {t("resultCount", { count: total })}
+        <span aria-live="polite" className="shrink-0 whitespace-nowrap pl-3 text-xs tabular-nums text-ink-faint">
+          {t("resultCountShort", { count: total })}
         </span>
       )}
     </div>
@@ -389,7 +377,7 @@ export function ExploreFilterBar({
       <HiddenFilters
         searchParams={
           searching
-            ? { ...searchParams, kategori: searchPatch(query).kategori, set: searchPatch(query).set }
+            ? { ...searchParams, ...searchPatch(query), q: undefined }
             : searchParams
         }
       />
@@ -471,6 +459,7 @@ export function ExploreFilterBar({
               query={query}
               kind={localKind}
               setIds={localSets}
+              lang={localLang}
               onShowAll={() => submitSearch(query)}
             />
           ) : (
@@ -567,6 +556,51 @@ export function ExploreFilterBar({
         </Link>
       </Sheet>
 
+      <BottomSheet
+        open={sheet === "lang"}
+        title={t("language")}
+        onClose={() => setSheet(null)}
+        closeLabel={t("closeSheet")}
+        centerTitle
+      >
+        <div className="pb-8">
+          {[
+            { value: null as string | null, label: t("allLanguages"), short: t("allShort") },
+            ...languages.map((l) => ({ value: l.value as string | null, label: l.label, short: l.value })),
+          ].map((l, i) => {
+            const on = shownLang === l.value;
+            return (
+              <button
+                key={l.value ?? "all"}
+                type="button"
+                role="menuitemradio"
+                aria-checked={on}
+                onClick={() => chooseLang(l.value)}
+                className={cn("flex h-16 w-full items-center gap-3.5 px-1 text-left", i > 0 && "border-t border-white/[0.07]")}
+              >
+                <span
+                  className={cn(
+                    "grid h-8 w-11 shrink-0 place-items-center rounded-lg text-[12px] font-extrabold tracking-[0.04em]",
+                    on ? "bg-holo-cyan text-surface" : "bg-surface-overlay text-ink"
+                  )}
+                >
+                  {l.short}
+                </span>
+                <span className={cn("flex-1 text-[17px] text-ink", on ? "font-bold" : "font-semibold")}>{l.label}</span>
+                <span
+                  className={cn(
+                    "grid h-6 w-6 shrink-0 place-items-center rounded-full",
+                    on ? "bg-holo-cyan text-surface" : "ring-[1.5px] ring-inset ring-surface-border"
+                  )}
+                >
+                  {on && <IconCheck size={13} strokeWidth={3.4} />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </BottomSheet>
+
       <SetSheet
         open={sheet === "set"}
         sets={sets}
@@ -644,67 +678,6 @@ function FilterRow({
         {clear ? <IconX size={15} /> : <IconChevronRight size={16} />}
       </span>
     </button>
-  );
-}
-
-/* ───────────────────────────── Chip ───────────────────────────── */
-
-function Chip({
-  active,
-  label,
-  onOpen,
-  onClear,
-  clearAriaLabel,
-  leading,
-  caret = true,
-  pressed,
-}: {
-  active: boolean;
-  label: string;
-  onOpen: () => void;
-  onClear?: () => void;
-  clearAriaLabel: string;
-  leading?: ReactNode;
-  caret?: boolean;
-  /** Sätt för av/på-chips — då exponeras chipet som en toggle för skärmläsare. */
-  pressed?: boolean;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-full border transition-colors",
-        active
-          ? "border-holo-cyan/45 bg-holo-cyan/[0.14] text-holo-cyan"
-          : "border-surface-border bg-surface text-ink",
-        onClear ? "pr-2" : "pr-0"
-      )}
-    >
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-pressed={pressed}
-        className="inline-flex max-w-[11rem] items-center gap-1.5 px-3 py-2 text-[12.5px] font-semibold leading-none"
-      >
-        {leading}
-        <span className="truncate">{label}</span>
-        {caret && !active && <span className="opacity-60">▾</span>}
-      </button>
-      {onClear && (
-        <button
-          type="button"
-          onClick={onClear}
-          aria-label={clearAriaLabel}
-          // Träffytan får INTE vara högre än radens padding tål: en 44px-knapp i ett
-          // ~30px chip gjorde scrollern lodrätt överfylld, och då gick chip-raden att
-          // dra upp och ner. 36px ryms innanför py-1.5 → ingen lodrät overflow alls.
-          className="-ml-3 -mr-1 box-border flex h-9 w-9 shrink-0 items-center justify-center p-2.5"
-        >
-          <span className="grid h-4 w-4 place-items-center rounded-full bg-holo-cyan/20 text-holo-cyan">
-            <IconX size={10} strokeWidth={3} />
-          </span>
-        </button>
-      )}
-    </span>
   );
 }
 
@@ -1311,6 +1284,12 @@ function HiddenFilters({ searchParams }: { searchParams: ExploreSearchParams }) 
       )}
     </>
   );
+}
+
+/** Ett enda språk i URL:en ("EN"/"JP") — annars null (= alla). */
+function langOf(value: string | undefined): string | null {
+  const list = csvList(value);
+  return list.length === 1 ? list[0] : null;
 }
 
 /** "a,b" → ["a","b"]. Tom/saknad → []. */

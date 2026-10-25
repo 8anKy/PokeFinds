@@ -2288,7 +2288,11 @@
     "recentlyViewed": "Recently viewed",
     "removeRecentAria": "Remove “{query}” from history",
     "searchHint": "Search for a card, a set or a product.",
-    "instantEmpty": "No instant matches — show all to search the whole catalogue."
+    "instantEmpty": "No instant matches — show all to search the whole catalogue.",
+    "chipAll": "All",
+    "chipSingles": "Singles",
+    "resultCountShort": "{count, number} items",
+    "allShort": "All"
   },
   "Sets": {
     "metaTitle": "All Pokémon TCG sets",

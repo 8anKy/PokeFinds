@@ -32,6 +32,7 @@ interface IndexEntry {
   setName: string | null;
   category: ProductCategory;
   viewCount: number;
+  language: string;
   // Rutnätets kortfält (mobilens direktsök, 2026-10-25). Priset är indexets
   // ögonblicksbild (≤ 24 h gammal) — produktsidan visar alltid det levande.
   id: string;
@@ -69,6 +70,7 @@ async function loadIndex(): Promise<IndexEntry[]> {
         imageUrl: true,
         category: true,
         viewCount: true,
+        language: true,
         variantLabel: true,
         lowestPriceOre: true,
         setId: true,
@@ -90,6 +92,7 @@ async function loadIndex(): Promise<IndexEntry[]> {
         setName: p.set?.name ?? p.card?.set?.name ?? null,
         category: p.category,
         viewCount: p.viewCount,
+        language: p.language,
         id: p.id,
         setId: p.setId ?? p.card?.set?.id ?? null,
         setTotalCards: p.set?.totalCards ?? p.card?.set?.totalCards ?? null,
@@ -136,6 +139,7 @@ export async function GET(req: NextRequest) {
     const grid = Number.isFinite(limitParam) && limitParam > 0;
     const limit = grid ? Math.min(MAX_LIMIT, Math.floor(limitParam)) : MAX_SUGGESTIONS;
     const kind = sp.get("kind");
+    const lang = sp.get("lang");
     const setIds = new Set((sp.get("sets") ?? "").split(",").map((v) => v.trim()).filter(Boolean));
     const qNorm = normalizeTitle(raw);
     const words = qNorm
@@ -151,6 +155,7 @@ export async function GET(req: NextRequest) {
       if (kind === "cards" && e.category !== "SINGLE_CARD") continue;
       if (kind === "sealed" && !isSealedCategory(e.category)) continue;
       if (setIds.size > 0 && (!e.setId || !setIds.has(e.setId))) continue;
+      if (lang && e.language !== lang) continue;
       const s = score(e, qNorm, qCompact, words);
       if (s !== null) matches.push({ e, s });
     }

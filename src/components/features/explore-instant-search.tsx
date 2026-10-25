@@ -152,18 +152,21 @@ export function InstantResults({
   query,
   kind,
   setIds,
+  lang = null,
   onShowAll,
 }: {
   query: string;
   kind: InstantKind;
   setIds: string[];
+  /** "EN"/"JP" eller null = alla språk. */
+  lang?: string | null;
   onShowAll: () => void;
 }) {
   const t = useTranslations("Products");
   const cacheRef = useRef(new Map<string, InstantItem[]>());
   const [items, setItems] = useState<InstantItem[] | null>(null);
   const q = query.trim();
-  const key = [q.toLowerCase(), kind ?? "", setIds.join(",")].join("|");
+  const key = [q.toLowerCase(), kind ?? "", setIds.join(","), lang ?? ""].join("|");
 
   useEffect(() => {
     if (q.length < MIN_QUERY) {
@@ -181,6 +184,7 @@ export function InstantResults({
         const usp = new URLSearchParams({ q, limit: String(LIMIT) });
         if (kind) usp.set("kind", kind);
         if (setIds.length > 0) usp.set("sets", setIds.join(","));
+        if (lang) usp.set("lang", lang);
         const res = await fetch(`/api/search/suggest?${usp}`, { signal: ctrl.signal });
         if (!res.ok) return;
         const data = (await res.json()) as { items: InstantItem[] };
