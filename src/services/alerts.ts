@@ -330,7 +330,8 @@ async function restockWatchersFor(productId: string): Promise<{ pro: string[]; f
   }
   if (freeCandidates.length === 0) return { pro, free: [] };
   const freeRows = await prisma.watchlistItem.findMany({
-    where: { userId: { in: freeCandidates }, restockAlert: true },
+    // isPaused: false — en pausad bevakning ska inte hålla gratiskontots enda larm.
+    where: { userId: { in: freeCandidates }, restockAlert: true, isPaused: false },
     select: { userId: true, productId: true, createdAt: true },
   });
   const picked = pickFreeRestockAlertItems(freeRows);

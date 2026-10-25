@@ -1967,8 +1967,8 @@
     "itemWatched": "Bevakning tillagd",
     "itemWatchedFree": "Bevakad — vi larmar vid restock",
     "itemWatchedFreeDesc": "Ditt gratislarm: {minutes} min efter Pro, via mejl och push.",
-    "freeAlertLimit": "Sparad utan larm",
-    "freeAlertLimitDesc": "Gratiskontot har ett restock-larm. Pro larmar på allt du bevakar — direkt.",
+    "freeAlertLimit": "Larmet startar med Pro",
+    "freeAlertLimitDesc": "Gratiskontot har ett restock-larm. Med Pro larmar allt du bevakar — direkt.",
     "emailOffTitle": "Mejl är avstängt",
     "emailOffDesc": "Larmet kommer bara som push. Slå på mejl under Inställningar → Aviseringar.",
     "intro": {
@@ -2046,6 +2046,7 @@
     "priceOn": "Prislarm på",
     "priceOff": "Prislarm av",
     "restockLabel": "Restock-larm",
+    "restockStartsWithPro": "Startar med Pro",
     "priceLabel": "Prislarm",
     "restockAria": "Restock-larm för {title}",
     "priceAria": "Prislarm för {title}",

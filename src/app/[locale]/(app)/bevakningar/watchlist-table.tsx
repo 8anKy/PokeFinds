@@ -18,7 +18,7 @@ import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { Input, Label, Checkbox } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { SafeImage } from "@/components/ui/safe-image";
-import { IconCards, IconPackage } from "@/components/ui/icons";
+import { IconCards, IconPackage } from "@/components/ui/icons";
 import { ProTextLink } from "@/components/features/pro-cta";
 
 export interface WatchlistRow {
@@ -27,6 +27,8 @@ export interface WatchlistRow {
   restockAlert: boolean;
   priceAlert: boolean;
   isPaused: boolean;
+  /** ISO. Gratiskontots ena larm = det äldsta med restock på (free-restock-alert.ts). */
+  createdAt: string;
   product: {
     id: string;
     title: string;
@@ -126,10 +128,9 @@ export function WatchlistTable({
   async function patchItem(id: string, body: Record<string, unknown>, successTitle: string) {
     setBusyId(id);
     try {
-      const updated = await apiFetch<WatchlistRow & { product: { offers?: unknown } }>(
-        `/api/watchlist/${id}`,
-        { method: "PATCH", body }
-      );
+      const updated = await apiFetch<
+        WatchlistRow & { product: { offers?: unknown }; restockAlertDenied?: boolean }
+      >(`/api/watchlist/${id}`, { method: "PATCH", body });
       setItems((prev) =>
         prev.map((it) =>
           it.id === id
@@ -143,6 +144,12 @@ export function WatchlistTable({
             : it
         )
       );
+      // Sparat, men gratiskontots enda larm sitter på en annan bevakning — larmet
+      // startar med Pro. Paywall-arket, inte ett fel.
+      if (updated.restockAlertDenied) {
+        openPaywallOrNavigate(router, { source: "free-restock-limit" });
+        return;
+      }
       toast({ title: successTitle, variant: "success" });
     } catch (e) {
       // Gratiskontots ENDA restock-larm är upptaget → paywall-arket, inte ett fel.
@@ -248,6 +255,21 @@ export function WatchlistTable({
       });
     }
   }
+
+  // Gratiskontot: restock står PÅ på flera rader (valet sparas), men bara den
+  // äldsta larmar — samma dom som restockWatchersFor. Övriga märks "startar med Pro".
+  const freeActiveId = isPro
+    ? null
+    : items
+        .filter((it) => it.restockAlert && !it.isPaused)
+        .reduce<WatchlistRow | null>((a, b) => (!a || b.createdAt < a.createdAt ? b : a), null)?.id ?? null;
+  const waitsForPro = (item: WatchlistRow) =>
+    !isPro && !restockPaused && item.restockAlert && !item.isPaused && item.id !== freeActiveId;
+  const proTag = (
+    <ProTextLink source="free-restock-limit" className="text-xs text-holo-cyan hover:underline">
+      {t("restockStartsWithPro")}
+    </ProTextLink>
+  );
 
   const actionButtons = (item: WatchlistRow) => (
     <>
@@ -361,6 +383,7 @@ export function WatchlistTable({
                 {restockPaused && (
                   <span className="text-xs text-holo-gold">{tPause("tag")}</span>
                 )}
+                {waitsForPro(item) && proTag}
               </label>
               <label className="flex items-center gap-2 text-sm text-ink">
                 <Checkbox
@@ -434,18 +457,21 @@ export function WatchlistTable({
               </TD>
               <TD data-price>{item.targetPrice != null ? formatPrice(item.targetPrice) : "–"}</TD>
               <TD>
-                <Checkbox
-                  checked={!restockPaused && item.restockAlert}
-                  disabled={busyId === item.id || restockPaused}
-                  aria-label={t("restockAria", { title: item.product.title })}
-                  onChange={(e) =>
-                    void patchItem(
-                      item.id,
-                      { restockAlert: e.target.checked },
-                      e.target.checked ? t("restockOn") : t("restockOff")
-                    )
-                  }
-                />
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={!restockPaused && item.restockAlert}
+                    disabled={busyId === item.id || restockPaused}
+                    aria-label={t("restockAria", { title: item.product.title })}
+                    onChange={(e) =>
+                      void patchItem(
+                        item.id,
+                        { restockAlert: e.target.checked },
+                        e.target.checked ? t("restockOn") : t("restockOff")
+                      )
+                    }
+                  />
+                  {waitsForPro(item) && proTag}
+                </div>
               </TD>
               <TD>
                 <Checkbox

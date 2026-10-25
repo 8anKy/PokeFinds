@@ -64,6 +64,7 @@ export default async function WatchlistPage() {
     restockAlert: item.restockAlert,
     priceAlert: item.priceAlert,
     isPaused: item.isPaused,
+    createdAt: item.createdAt.toISOString(),
     product: {
       id: item.product.id,
       title: item.product.title,
