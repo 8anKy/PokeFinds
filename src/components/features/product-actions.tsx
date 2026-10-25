@@ -7,7 +7,6 @@ import { useRouter } from "@/i18n/navigation";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { setProductWatched } from "@/lib/watched-products";
 import { openPaywallOrNavigate } from "@/lib/paywall";
-import { previewSlabIfFree } from "@/lib/slab-preview";
 import { FREE_RESTOCK_ALERT_LIMIT_CODE, promptChannelsAfterWatch } from "@/lib/watch-alert-followup";
 import {
   FreeWatchIntroSheet,
@@ -21,9 +20,11 @@ import { IconBell, IconBellFilled, IconPlus } from "@/components/ui/icons";
 import { DiscordRestockTip } from "@/components/features/discord-restock-tip";
 import {
   CollectionQuickAddPopover,
+  variantOptionsOf,
   type QuickAddDraft,
-  type QuickAddVariantOption,
+  type QuickAddMeta,
 } from "@/components/features/collection-quick-add-popover";
+import { useAddToCollection } from "@/components/features/use-add-to-collection";
 import type { ConditionPriceTable } from "@/lib/condition-prices";
 import {
   ProductWatchSheet,
@@ -33,6 +34,8 @@ import {
 
 export interface ProductActionsProps {
   productId: string;
+  /** Tilläggsarket hämtar släppdatum + graderade affärer på slugen. */
+  slug?: string;
   title: string;
   /** Kort (inte förseglat) ⇒ tilläggsarket erbjuder gradering. */
   gradeable?: boolean;
@@ -67,30 +70,6 @@ interface WatchlistRow {
   product?: { id?: string };
 }
 
-/**
- * Tryckningarna arket låter användaren välja mellan: produkten själv FÖRST (förvald),
- * sedan syskonen som har ett id (äldre cachade payloads saknar det ⇒ de hoppas över).
- */
-function variantOptionsOf(
-  productId: string,
-  variantLabel: string | null,
-  headlinePrice: number | null,
-  conditionPrices: ConditionPriceTable | null,
-  variants: NonNullable<ProductActionsProps["variants"]>
-): QuickAddVariantOption[] {
-  const siblings = variants.filter((v): v is typeof v & { id: string } => typeof v.id === "string");
-  if (siblings.length === 0 && !conditionPrices && headlinePrice == null) return [];
-  return [
-    { productId, label: variantLabel, headlinePrice, conditionPrices },
-    ...siblings.map((v) => ({
-      productId: v.id,
-      label: v.label,
-      headlinePrice: v.lowestPrice,
-      conditionPrices: v.conditionPrices ?? null,
-    })),
-  ];
-}
-
 function toState(row: WatchlistRow): ProductWatchState {
   return {
     id: row.id,
@@ -108,6 +87,7 @@ function toState(row: WatchlistRow): ProductWatchState {
  */
 export function ProductActions({
   productId,
+  slug,
   title,
   gradeable = false,
   imageUrl,
@@ -132,6 +112,7 @@ export function ProductActions({
   const [isPro, setIsPro] = useState<boolean | null>(null);
   const { toast } = useToast();
   const router = useRouter();
+  const add = useAddToCollection();
 
   // Läs plan klient-sida (produktsidan ISR-cachas → ingen server-auth). Bara om
   // fo_auth-cookien finns, så utloggade aldrig träffar /api/auth/session.
@@ -298,35 +279,11 @@ export function ProductActions({
   }
 
   /** Samma ark som långtrycket på "+" i rutnätet: antal + valfritt inköpspris. */
-  async function saveCollection(draft: QuickAddDraft) {
+  async function saveCollection(draft: QuickAddDraft, meta: QuickAddMeta) {
     setCollectionOpen(false);
     setLoading("collection");
-    try {
-      const res = await fetch("/api/collection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, ...draft }),
-      });
-      if (res.status === 401) {
-        router.push("/logga-in");
-        return;
-      }
-      if (!res.ok) {
-        toast({ title: t("actionFailed"), description: t("tryAgain"), variant: "error" });
-        return;
-      }
-      toast({ title: t("addedToCollection"), variant: "success" });
-      void previewSlabIfFree(router, {
-        name: title,
-        imageUrl: imageUrl ?? null,
-        gradingCompany: draft.gradingCompany,
-        grade: draft.grade,
-      });
-    } catch {
-      toast({ title: t("tryAgain"), variant: "error" });
-    } finally {
-      setLoading(null);
-    }
+    await add({ productId, draft, meta, title, imageUrl });
+    setLoading(null);
   }
 
   return (
@@ -393,10 +350,17 @@ export function ProductActions({
       <CollectionQuickAddPopover
         open={collectionOpen}
         onClose={() => setCollectionOpen(false)}
-        onConfirm={(draft) => void saveCollection(draft)}
-        productTitle={title}
+        onConfirm={(draft, meta) => void saveCollection(draft, meta)}
+        product={{ id: productId, slug, title, imageUrl }}
         gradeable={gradeable}
-        variantOptions={gradeable ? variantOptionsOf(productId, variantLabel, headlinePrice, conditionPrices, variants) : []}
+        variantOptions={variantOptionsOf(
+          productId,
+          variantLabel,
+          headlinePrice,
+          gradeable ? conditionPrices : null,
+          gradeable ? variants : [],
+          slug
+        )}
         saving={loading === "collection"}
         panelClassName="sm:mx-auto sm:max-w-md"
       />

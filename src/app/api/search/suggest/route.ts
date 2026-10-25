@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { normalizeTitle } from "@/lib/utils";
 import { HIDDEN_CATEGORIES } from "@/services/products";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
+import { isSealedCategory } from "@/lib/product-category";
 
 /**
  * Sökförslag (autocomplete). KVOT-KRITISKT: får ALDRIG göra en Neon-fråga per
@@ -16,6 +17,8 @@ import { NOT_HIDDEN } from "@/lib/product-visibility";
  */
 
 const MAX_SUGGESTIONS = 8;
+/** Mobilens direktsök (`limit`) visar ett rutnät, inte en lista — men aldrig hela katalogen. */
+const MAX_LIMIT = 48;
 const INDEX_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface IndexEntry {
@@ -29,6 +32,16 @@ interface IndexEntry {
   setName: string | null;
   category: ProductCategory;
   viewCount: number;
+  // Rutnätets kortfält (mobilens direktsök, 2026-10-25). Priset är indexets
+  // ögonblicksbild (≤ 24 h gammal) — produktsidan visar alltid det levande.
+  id: string;
+  setId: string | null;
+  setTotalCards: number | null;
+  cardName: string | null;
+  cardNumber: string | null;
+  cardRarity: string | null;
+  variantLabel: string | null;
+  lowestPrice: number | null;
 }
 
 let indexCache: { at: number; promise: Promise<IndexEntry[]> } | null = null;
@@ -56,9 +69,12 @@ async function loadIndex(): Promise<IndexEntry[]> {
         imageUrl: true,
         category: true,
         viewCount: true,
-        set: { select: { name: true } },
+        variantLabel: true,
+        lowestPriceOre: true,
+        setId: true,
+        set: { select: { name: true, totalCards: true } },
         // Singlar hänger på setet via kortet (Product.setId är ofta null där).
-        card: { select: { set: { select: { name: true } } } },
+        card: { select: { name: true, number: true, rarity: true, set: { select: { id: true, name: true, totalCards: true } } } },
       },
       orderBy: { id: "asc" },
       take: INDEX_PAGE,
@@ -74,6 +90,14 @@ async function loadIndex(): Promise<IndexEntry[]> {
         setName: p.set?.name ?? p.card?.set?.name ?? null,
         category: p.category,
         viewCount: p.viewCount,
+        id: p.id,
+        setId: p.setId ?? p.card?.set?.id ?? null,
+        setTotalCards: p.set?.totalCards ?? p.card?.set?.totalCards ?? null,
+        cardName: p.card?.name ?? null,
+        cardNumber: p.card?.number ?? null,
+        cardRarity: p.card?.rarity ?? null,
+        variantLabel: p.variantLabel,
+        lowestPrice: p.lowestPriceOre,
       });
     }
     if (rows.length < INDEX_PAGE) break;
@@ -105,7 +129,14 @@ function score(e: IndexEntry, qNorm: string, qCompact: string, words: string[]):
 
 export async function GET(req: NextRequest) {
   try {
-    const raw = (req.nextUrl.searchParams.get("q") ?? "").slice(0, 100);
+    const sp = req.nextUrl.searchParams;
+    const raw = (sp.get("q") ?? "").slice(0, 100);
+    // `limit` + `kind` = mobilens direktsök (rutnät med kortfält). Utan dem: rubrikförslagen som förut.
+    const limitParam = Number(sp.get("limit"));
+    const grid = Number.isFinite(limitParam) && limitParam > 0;
+    const limit = grid ? Math.min(MAX_LIMIT, Math.floor(limitParam)) : MAX_SUGGESTIONS;
+    const kind = sp.get("kind");
+    const setIds = new Set((sp.get("sets") ?? "").split(",").map((v) => v.trim()).filter(Boolean));
     const qNorm = normalizeTitle(raw);
     const words = qNorm
       .split(/\s+/)
@@ -117,6 +148,9 @@ export async function GET(req: NextRequest) {
     const index = await getIndex();
     const matches: { e: IndexEntry; s: number }[] = [];
     for (const e of index) {
+      if (kind === "cards" && e.category !== "SINGLE_CARD") continue;
+      if (kind === "sealed" && !isSealedCategory(e.category)) continue;
+      if (setIds.size > 0 && (!e.setId || !setIds.has(e.setId))) continue;
       const s = score(e, qNorm, qCompact, words);
       if (s !== null) matches.push({ e, s });
     }
@@ -127,14 +161,31 @@ export async function GET(req: NextRequest) {
         a.e.title.length - b.e.title.length
     );
 
-    const items = matches.slice(0, MAX_SUGGESTIONS).map(({ e }) => ({
-      title: e.title,
-      slug: e.slug,
-      imageUrl: e.imageUrl,
-      setName: e.setName,
-      category: e.category,
-    }));
-    return jsonCached({ items }, 300);
+    const top = matches.slice(0, limit);
+    const items = grid
+      ? top.map(({ e }) => ({
+          id: e.id,
+          title: e.title,
+          slug: e.slug,
+          imageUrl: e.imageUrl,
+          setName: e.setName,
+          category: e.category,
+          setId: e.setId,
+          setTotalCards: e.setTotalCards,
+          cardName: e.cardName,
+          cardNumber: e.cardNumber,
+          cardRarity: e.cardRarity,
+          variantLabel: e.variantLabel,
+          lowestPrice: e.lowestPrice,
+        }))
+      : top.map(({ e }) => ({
+          title: e.title,
+          slug: e.slug,
+          imageUrl: e.imageUrl,
+          setName: e.setName,
+          category: e.category,
+        }));
+    return jsonCached({ items, total: matches.length }, 300);
   } catch (e) {
     return apiError(e);
   }

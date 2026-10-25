@@ -4,19 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { useAuthHint } from "@/lib/auth-hint";
-import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { hapticTick } from "@/lib/haptics";
-import { clearSetCompletionCache } from "@/lib/set-completion";
-import { previewSlabIfFree } from "@/lib/slab-preview";
+import { useAddToCollection } from "@/components/features/use-add-to-collection";
 import { IconCheck, IconPlus } from "@/components/ui/icons";
 import {
   CollectionQuickAddPopover,
   type QuickAddDraft,
+  type QuickAddMeta,
 } from "@/components/features/collection-quick-add-popover";
 
 interface CollectionQuickAddProps {
   productId: string;
+  /** Arket hämtar tryckningar, skickpriser och släppdatum ur produktens payload. */
+  slug?: string;
   /** Kort (inte förseglat) ⇒ arket erbjuder gradering. Namn + bild för slab-förhandsvisningen. */
   gradeable?: boolean;
   title?: string;
@@ -52,16 +53,16 @@ const MOVE_TOLERANCE = 10;
  */
 export function CollectionQuickAdd({
   productId,
+  slug,
   estimatedValue,
   gradeable = false,
   title,
   imageUrl,
 }: CollectionQuickAddProps) {
   const t = useTranslations("Product");
-  const tc = useTranslations("Common");
   const loggedIn = useAuthHint();
   const router = useRouter();
-  const { toast } = useToast();
+  const add = useAddToCollection();
   const [state, setState] = useState<"idle" | "saving" | "added">("idle");
   const [open, setOpen] = useState(false);
 
@@ -101,79 +102,19 @@ export function CollectionQuickAdd({
     setOpen(true);
   }, [requireLogin, state]);
 
-  async function addToCollection(body: Omit<QuickAddDraft, "productId">) {
+  async function addToCollection(draft: QuickAddDraft, meta?: QuickAddMeta) {
     setState("saving");
-    try {
-      const res = await fetch("/api/collection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId,
-          ...body,
-          ...(estimatedValue != null ? { estimatedValue } : {}),
-        }),
-      });
-      if (res.status === 401) {
-        setState("idle");
-        router.push("/logga-in");
-        return;
-      }
-      if (!res.ok) throw new Error("add");
-      // Svaret är posten som skapades ELLER den befintliga lot som stackades (samma
-      // pris ⇒ +antal, se collection-lots.ts). Ångra måste därför antingen radera
-      // raden eller dra av det vi just lade till — aldrig radera någon annans ex.
-      const saved = (await res.json().catch(() => null)) as { id?: string; quantity?: number } | null;
-      setState("added");
-      // Set-kompletteringen cachas 60 s i klienten. Utan den här nollställningen
-      // står stapeln och "visa bara saknade" kvar på gamla siffror i upp till en
-      // minut efter att man just lagt till kortet — på exakt den sida där man
-      // tänkte se dem ändras. (Funktionen hade noll anropare innan.)
-      clearSetCompletionCache();
-      void previewSlabIfFree(router, {
-        name: title ?? "",
-        imageUrl: imageUrl ?? null,
-        gradingCompany: body.gradingCompany,
-        grade: body.grade,
-      });
-      toast({
-        title:
-          body.quantity > 1
-            ? t("addedToCollectionN", { count: body.quantity })
-            : t("addedToCollection"),
-        variant: "success",
-        // ⛔ Ett tryck på "+" är ett tillägg utan bekräftelse (ägarbeslut 2026-09-05:
-        // ingen bekräftelsedialog) — ångra-knappen är säkerhetsnätet i stället.
-        action: saved?.id
-          ? {
-              label: tc("undo"),
-              onClick: () => void undoAdd(saved.id!, saved.quantity ?? body.quantity, body.quantity),
-            }
-          : undefined,
-      });
-    } catch {
-      setState("idle");
-      toast({ title: t("addFailed"), variant: "error" });
-    }
-  }
-
-  async function undoAdd(itemId: string, savedQuantity: number, addedQuantity: number) {
-    try {
-      const remaining = savedQuantity - addedQuantity;
-      const res =
-        remaining > 0
-          ? await fetch(`/api/collection/${itemId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ quantity: remaining }),
-            })
-          : await fetch(`/api/collection/${itemId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("undo");
-      clearSetCompletionCache();
-      setState("idle");
-      toast({ title: t("addUndone"), variant: "default" });
-    } catch {
-      toast({ title: t("addUndoFailed"), variant: "error" });
-    }
+    const result = await add({
+      productId,
+      draft,
+      meta,
+      title: title ?? "",
+      imageUrl,
+      estimatedValue,
+      flyFrom: buttonRef.current,
+      onUndone: () => setState("idle"),
+    });
+    setState(result.status === "added" ? "added" : "idle");
   }
 
   function onClick(e: React.MouseEvent) {
@@ -295,9 +236,10 @@ export function CollectionQuickAdd({
         open={open}
         onClose={() => setOpen(false)}
         gradeable={gradeable}
-        onConfirm={(draft: QuickAddDraft) => {
+        product={{ id: productId, slug, title: title ?? "", imageUrl }}
+        onConfirm={(draft, meta) => {
           setOpen(false);
-          void addToCollection(draft);
+          void addToCollection(draft, meta);
         }}
       />
     </>

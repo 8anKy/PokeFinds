@@ -25,6 +25,7 @@ import { ReportProblem } from "@/components/features/report-problem";
 import { traderaSearchUrlSpecific } from "@/lib/marketplace-urls";
 import { getSharedSession } from "@/lib/client-session";
 import { hasAuthHint } from "@/lib/auth-hint";
+import { rememberViewed } from "@/lib/search-history";
 import {
   LivePricingProvider,
   LivePricePanel,
@@ -188,6 +189,14 @@ export function ProductDetailView({
   useEffect(() => {
     if (slug) track("product_view", slug);
   }, [slug]);
+
+  // "Senast visade" i sökfältet (2026-10-25) — bara på enheten, se lib/search-history.ts.
+  // Väntar på `live` så priset är produktsidans, inte skalets "–".
+  useEffect(() => {
+    if (!live || live.slug !== slug) return;
+    rememberViewed({ slug: live.slug, title: live.title, imageUrl: live.imageUrl, price: live.stats.lowestPrice });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live?.slug]);
 
   // Den smala raden tar över när SCENEN (bilden) lämnat bild. IntersectionObserver
   // mot viewporten fungerar i båda kontexterna: overlay-panelen är fixed inset-0,
@@ -438,6 +447,7 @@ export function ProductDetailView({
             <div className="mt-5">
               <ProductActions
                 productId={data.id}
+                slug={data.slug}
                 title={data.title}
                 gradeable={isSingle}
                 imageUrl={data.imageUrl}

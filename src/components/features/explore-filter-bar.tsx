@@ -6,7 +6,9 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { countQuery, type CountSelection } from "@/lib/explore-count-query";
 import { isSealedCategory } from "@/lib/product-category";
-import { SearchAutocomplete } from "@/components/features/search-autocomplete";
+import { InstantResults, SearchRecents, type InstantKind } from "@/components/features/explore-instant-search";
+import { rememberSearch } from "@/lib/search-history";
+import { onProductOverlayOpen, registerFullscreenHost } from "@/lib/product-overlay-open";
 import { SafeImage } from "@/components/ui/safe-image";
 import { SetNameTile } from "@/components/features/set-name-tile";
 import { isRealSetLogo } from "@/lib/set-logo";
@@ -14,7 +16,7 @@ import { isSetListed } from "@/lib/set-listing";
 import { eraRank, setEra, type Era } from "@/lib/set-era";
 import { useOwnedSets } from "@/lib/owned-sets";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
-import { IconCards, IconCheck, IconFilter, IconSearch, IconX } from "@/components/ui/icons";
+import { IconCards, IconCheck, IconChevronRight, IconFilter, IconSearch, IconX } from "@/components/ui/icons";
 
 export interface FilterSet {
   id: string;
@@ -81,16 +83,6 @@ const PRICE_SHORTCUTS: [number, MaxKr][] = [
   [1000, null],
 ];
 
-/**
- * Typografin för träffantalet — delad mellan den synliga plattan och den osynliga
- * spacern sist i chip-raden. DE MÅSTE VARA IDENTISKA: spacern är det enda som ger
- * raden räckvidd nog att dra fram sista chipet under plattan, och mäter den fel
- * (annan fontstorlek, annan padding) är felet exakt lika osynligt som spacern.
- */
-const COUNT_TEXT_CLASS = "shrink-0 whitespace-nowrap pl-1 pr-2.5 text-[11.5px] font-medium tabular-nums";
-/** Uttoningens bredd — chipet ska vara HELT fritt, inte halvt under gradienten. */
-const COUNT_FADE_CLASS = "w-8 shrink-0";
-
 type SheetKind = "sort" | "set" | "price" | "more";
 
 /** Urval som ska räknas — URL-statet med de val man håller på att göra inbakade. */
@@ -143,13 +135,13 @@ function krLabel(kr: number): string {
 }
 
 /**
- * Utforska-filtren på mobil: en chip-rad under sökfältet där varje chip öppnar en
- * bottensheet, och sorteringen bor i sökfältets högerkant.
+ * Utforska-filtren på mobil: sökfältet med "Sortera och filtrera" i högerkanten och
+ * en chip-rad Set · Kort · Förseglat under (designpasset 2026-10-25 — färre val,
+ * resten bakom ikonen). Ett tryck i fältet öppnar sökläget (senaste sökningar →
+ * direktträffar, se explore-instant-search.tsx).
  *
  * Filtren lever i URL:en (samma parametrar som desktop-sidofältet skickar), så en
  * delad länk bär hela vyn och serverns `total` alltid stämmer med det som visas.
- * Chip-klick navigerar; sökfältet är kvar i ett vanligt GET-<form> så Enter
- * fungerar utan JS — de dolda fälten nedan bär då med aktiva filter.
  */
 export function ExploreFilterBar({
   searchParams,
@@ -170,8 +162,49 @@ export function ExploreFilterBar({
     : defaultSort;
   const sortActive = sort !== defaultSort;
 
-  // Set är flerval (?set=a,b). Chipet heter setets namn vid ETT, "3 set" vid fler.
-  const activeSetIds = csvList(searchParams.set);
+  /**
+   * KORT · FÖRSEGLAT (designpasset 2026-10-25): två ömsesidigt uteslutande chips som
+   * skriver samma `kategori`-parameter som "Mer"-arket — inga nya URL-parametrar, så
+   * delade länkar och bakåtknappen fungerar som förut. Förseglat = hela sealed-knippet
+   * (samma expansion som "Alla sealed"). En annan kategorilista (t.ex. bara ETB) är
+   * ett filter bakom ikonen och tänder ingen av dem.
+   */
+  const sealedValues = useMemo(
+    () => categories.map((c) => c.value).filter(isSealedCategory),
+    [categories]
+  );
+  const kindOf = (kategori: string | undefined): InstantKind => {
+    const list = csvList(kategori);
+    if (list.length === 1 && list[0] === "SINGLE_CARD") return "cards";
+    if (
+      sealedValues.length > 0 &&
+      list.length === sealedValues.length &&
+      sealedValues.every((v) => list.includes(v))
+    )
+      return "sealed";
+    return null;
+  };
+  const kindParam = (kind: InstantKind): string | undefined =>
+    kind === "cards" ? "SINGLE_CARD" : kind === "sealed" ? sealedValues.join(",") : undefined;
+
+  /**
+   * SÖKLÄGET: ett tryck i fältet gör raden till en helskärmsvy (senaste sökningar →
+   * direktträffar). Chipsen ändrar då ett LOKALT urval som gäller träffarna och följer
+   * med när man visar alla — en navigering per tryck hade monterat om formuläret
+   * (key={filterKey}) och tagit fokus och tangentbord med sig.
+   */
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState(searchParams.q ?? "");
+  const [localKind, setLocalKind] = useState<InstantKind>(() => kindOf(searchParams.kategori));
+  const [localSets, setLocalSets] = useState<string[]>(() => csvList(searchParams.set));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const urlKind = kindOf(searchParams.kategori);
+  const urlKategori = searchParams.kategori;
+  // Sökläget ritar det lokala urvalet; annars är URL:en sanningen.
+  const shownKind = searching ? localKind : urlKind;
+  const activeSetIds = searching ? localSets : csvList(searchParams.set);
+
   // Logotypen i chipet bara vid ETT set — flera logotyper får inte plats.
   const soleActiveSet = activeSetIds.length === 1 ? (sets.find((s) => s.id === activeSetIds[0]) ?? null) : null;
   const activeSetLabel =
@@ -180,17 +213,18 @@ export function ExploreFilterBar({
       : activeSetIds.length === 1
         ? (sets.find((s) => s.id === activeSetIds[0])?.name ?? t("set"))
         : t("setsSelected", { count: activeSetIds.length });
-  const inStock = searchParams.lager === "1";
 
   const minKr = parseKr(searchParams.minPris) ?? 0;
   const maxKr: MaxKr = parseKr(searchParams.maxPris);
   const priceActive = minKr > 0 || maxKr !== null;
+  // "I lager"-chipet är borttaget (ägarbeslut 2026-10-25); en gammal länk med
+  // ?lager=1 gäller fortfarande och syns som ett aktivt filter bakom ikonen.
+  const inStock = searchParams.lager === "1";
 
-  // Flerval → chipet räknar VALDA VÄRDEN, inte hur många grupper som är i bruk.
-  const moreCount =
-    csvList(searchParams.kategori).length +
-    csvList(searchParams.butik).length +
-    csvList(searchParams.sprak).length;
+  // Kategorier som inte är exakt Kort/Förseglat räknas som "Mer"-filter.
+  const otherKategori = urlKind === null ? csvList(urlKategori).length : 0;
+  const moreCount = otherKategori + csvList(searchParams.butik).length + csvList(searchParams.sprak).length;
+  const filterActive = sortActive || priceActive || inStock || moreCount > 0;
 
   /** Bygger nästa URL. `sida` nollställs alltid — sida 3 av ett annat filter är inte sida 3. */
   function pushParams(patch: Partial<Record<keyof ExploreSearchParams, string | undefined>>) {
@@ -203,14 +237,66 @@ export function ExploreFilterBar({
     router.push(qs ? `/produkter?${qs}` : "/produkter");
   }
 
-  /**
-   * Träffantalet skrivs på TVÅ ställen med SAMMA text och SAMMA typografi: en
-   * synlig platta ovanpå högerkanten, och en osynlig kopia sist i scroll-flödet.
-   * Kopian är hela poängen — se kommentaren vid raden nedan — och därför bor
-   * strängen och klasserna i var sin konstant: går de isär mäter spacern fel och
-   * buggen är tillbaka utan att något syns i koden.
-   */
-  const countLabel = t("resultCount", { count: total });
+  function toggleKind(kind: Exclude<InstantKind, null>) {
+    const next = shownKind === kind ? null : kind;
+    if (searching) {
+      setLocalKind(next);
+      return;
+    }
+    pushParams({ kategori: kindParam(next) });
+  }
+
+  /** Lokalt urval i sökläget → kategori-/set-parametrarna (övriga filter följer med som de är). */
+  function searchPatch(q: string) {
+    return {
+      q: q.trim() || undefined,
+      kategori: localKind !== urlKind ? kindParam(localKind) : urlKategori,
+      set: localSets.length > 0 ? localSets.join(",") : undefined,
+    };
+  }
+
+  function submitSearch(q: string) {
+    if (q.trim().length >= 2) rememberSearch(q);
+    inputRef.current?.blur();
+    pushParams(searchPatch(q));
+  }
+
+  function enterSearch() {
+    if (searching) return;
+    setLocalKind(urlKind);
+    setLocalSets(csvList(searchParams.set));
+    setSearching(true);
+  }
+
+  function cancelSearch() {
+    setQuery(searchParams.q ?? "");
+    setSearching(false);
+    inputRef.current?.blur();
+  }
+
+  // Medan sökläget är uppe: produkt-overlayn lyfts över det (samma mekanism som
+  // skannern), sidan bakom står still, och en öppnad träff räknas som en sökning.
+  useEffect(() => {
+    if (!searching) return;
+    const release = registerFullscreenHost();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const off = onProductOverlayOpen(() => {
+      const q = inputRef.current?.value ?? "";
+      if (q.trim().length >= 2) rememberSearch(q);
+    });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cancelSearch();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      release();
+      off();
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searching]);
 
   const priceLabel = !priceActive
     ? t("priceShort")
@@ -220,150 +306,214 @@ export function ExploreFilterBar({
         ? `${minKr.toLocaleString("sv-SE")}–${maxKr.toLocaleString("sv-SE")} kr`
         : `≤ ${krLabel(maxKr)}`;
 
-  return (
-    <div className="space-y-3">
-      {/* Dolda fält: Enter i sökfältet skickar formuläret — utan dem tappas
-          aktiva filter vid varje sökning. */}
-      <HiddenFilters searchParams={searchParams} />
+  const chips = (
+    <div
+      className="-mx-2.5 flex items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain px-2.5 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      style={{ touchAction: "pan-x pan-y" }}
+    >
+      <Chip
+        active={activeSetLabel !== null}
+        label={activeSetLabel ?? t("set")}
+        onOpen={() => setSheet("set")}
+        onClear={
+          activeSetLabel !== null
+            ? () => (searching ? setLocalSets([]) : pushParams({ set: undefined }))
+            : undefined
+        }
+        clearAriaLabel={t("clearSet")}
+        leading={
+          soleActiveSet?.logoUrl ? (
+            <SafeImage
+              src={soleActiveSet.logoUrl}
+              alt=""
+              className="h-3.5 w-[26px] shrink-0 object-contain"
+              fallback={<></>}
+            />
+          ) : undefined
+        }
+      />
+      {/* På/av — ett tryck slår om, därför inget kryss (samma som gamla lagerchipet). */}
+      <Chip
+        active={shownKind === "cards"}
+        label={t("chipCards")}
+        onOpen={() => toggleKind("cards")}
+        clearAriaLabel={t("chipCards")}
+        caret={false}
+        pressed={shownKind === "cards"}
+      />
+      <Chip
+        active={shownKind === "sealed"}
+        label={t("chipSealed")}
+        onOpen={() => toggleKind("sealed")}
+        clearAriaLabel={t("chipSealed")}
+        caret={false}
+        pressed={shownKind === "sealed"}
+      />
+      {!searching && (
+        <span aria-live="polite" className="ml-auto shrink-0 whitespace-nowrap pl-2 text-[11.5px] font-medium tabular-nums text-ink-faint">
+          {t("resultCount", { count: total })}
+        </span>
+      )}
+    </div>
+  );
 
-      <SearchAutocomplete
-        name="q"
-        defaultValue={searchParams.q ?? ""}
-        placeholder={t("mobileSearchPlaceholder")}
-        className="gap-2 rounded-xl border border-surface-border bg-surface px-3 transition-colors focus-within:border-holo-cyan/60"
-        inputClassName="py-3 placeholder:text-ink-faint"
-        leading={<IconSearch size={18} className="shrink-0 text-ink-muted" />}
-        trailing={
-          <button
-            type="button"
-            onClick={() => setSheet("sort")}
-            aria-label={t("sortBy")}
-            className="-mr-1.5 flex h-11 shrink-0 items-center justify-center px-1.5"
-          >
-            {/* Bara ikonen — ingen platta bakom. Den grå fyllningen läste som en
-                egen knapp inuti sökfältet och konkurrerade med förstoringsglaset
-                till vänster, som också står naket. Aktivt läge (en annan sortering
-                än standard) syns på FÄRGEN, som chipen i raden under. */}
-            <span
-              className={cn(
-                "grid h-[30px] w-[30px] place-items-center transition-colors",
-                sortActive ? "text-holo-cyan" : "text-ink"
-              )}
-            >
-              <IconFilter size={18} />
-            </span>
-          </button>
+  return (
+    <div
+      className={cn(
+        searching
+          ? // Helskärm OVANPÅ sidhuvudet (z-40) och flikarna; overlayn lyfts till z-70.
+            "fixed inset-0 z-[45] flex flex-col bg-surface px-2.5 pt-[calc(env(safe-area-inset-top)+0.5rem)]"
+          : "space-y-3"
+      )}
+    >
+      {/* Dolda fält: Enter utan JS skickar formuläret — utan dem tappas aktiva filter. */}
+      <HiddenFilters
+        searchParams={
+          searching
+            ? { ...searchParams, kategori: searchPatch(query).kategori, set: searchPatch(query).set }
+            : searchParams
         }
       />
 
-      {/* Raden går KANT TILL KANT (-mx-2.5 mot sidans px-2.5): förut delade den
-          bredden med träffantalet och det gick bara att greppa ~250px mitt på
-          skärmen. Antalet ligger nu ovanpå högerkanten på en uttonad svart platta,
-          så chipen glider in under det i stället för att trängas med det.
-          `touch-action: pan-x pan-y` — raden tar det VÅGRÄTA draget, sidan får det
-          LODRÄTA. Enbart `pan-x` gjorde raden till en död zon för sidscroll.
-          (Den egentliga orsaken till att svepen inte kändes igen låg utanför den
-          här komponenten: studsvakten i pwa-register.tsx avbröt varje gest som
-          drev nedåt högst upp på sidan. Se kommentaren där.)
-
-          PLATSEN UNDER PLATTAN MÅSTE FINNAS I FLÖDET, INTE SOM PADDING: raden
-          går bara att dra så långt som innehållet sticker ut, och med ett kort
-          setnamn ("Pitch Black") är hela chip-raden nätt och jämnt bredare än
-          skärmen. Räckvidden blev då mindre än plattan är bred → sista chipet
-          ("Fler") gick ALDRIG att dra fram under siffran, men gick att trycka på
-          eftersom plattan är pointer-events-none. Ett gissat `pr-[7.5rem]`
-          räckte inte, och WebKit räknar dessutom inte alltid med slut-padding i
-          en scroll-containers bredd. Spacern nedan är i stället en OSYNLIG KOPIA
-          av plattan (`invisible` = tar plats, syns inte): den mäter alltid exakt
-          lika mycket som det som täcker, oavsett om det står "8 produkter" eller
-          "22 457 products". Räckvidden räcker då per konstruktion — och ryms allt
-          utan scroll hamnar sista chipet till vänster om spacern, alltså heller
-          aldrig under siffran. */}
-      <div className="relative -mx-2.5">
-        <div
-          className="flex items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1.5 pl-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          style={{ touchAction: "pan-x pan-y" }}
-        >
-          <Chip
-            active={activeSetLabel !== null}
-            label={activeSetLabel ?? t("set")}
-            onOpen={() => setSheet("set")}
-            onClear={activeSetLabel !== null ? () => pushParams({ set: undefined }) : undefined}
-            clearAriaLabel={t("clearSet")}
-            leading={
-              soleActiveSet?.logoUrl ? (
-                <SafeImage
-                  src={soleActiveSet.logoUrl}
-                  alt=""
-                  className="h-3.5 w-[26px] shrink-0 object-contain"
-                  fallback={<></>}
-                />
-              ) : undefined
-            }
+      {/* ⛔ Samma fält-nod i båda lägena — bara klasserna byts. Byts noden tappar
+          iOS fokus och tangentbordet stängs mitt i trycket. */}
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-surface-border bg-surface px-3 transition-colors focus-within:border-holo-cyan/60">
+          <IconSearch size={18} className="shrink-0 text-ink-muted" />
+          <input
+            ref={inputRef}
+            name="q"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={enterSearch}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submitSearch(query);
+              }
+            }}
+            placeholder={t("mobileSearchPlaceholder")}
+            aria-label={t("mobileSearchPlaceholder")}
+            autoComplete="off"
+            enterKeyHint="search"
+            className="w-full min-w-0 flex-1 bg-transparent py-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           />
-          <Chip
-            active={priceActive}
-            label={priceLabel}
-            onOpen={() => setSheet("price")}
-            onClear={
-              priceActive
-                ? () => pushParams({ minPris: undefined, maxPris: undefined })
-                : undefined
-            }
-            clearAriaLabel={t("clearPrice")}
-          />
-          {/* Lagerfiltret är PÅ eller AV — inget val att plocka bort ur. Därför
-              inget kryss: ett tryck slår om det, precis som det tändes. */}
-          <Chip
-            active={inStock}
-            label={t("inStockShort")}
-            onOpen={() => pushParams({ lager: inStock ? undefined : "1" })}
-            clearAriaLabel={t("clearInStock")}
-            caret={false}
-            pressed={inStock}
-          />
-          {/* Kategori/butik/språk finns kvar — de ryms bara inte som egna chips. */}
-          <Chip
-            active={moreCount > 0}
-            label={moreCount > 0 ? `${t("moreFilters")} · ${moreCount}` : t("moreFilters")}
-            onOpen={() => setSheet("more")}
-            onClear={
-              moreCount > 0
-                ? () => pushParams({ kategori: undefined, butik: undefined, sprak: undefined })
-                : undefined
-            }
-            clearAriaLabel={t("clearMoreFilters")}
-          />
-          {/* Spacern (aria-hidden: skärmläsare hör siffran en gång, från plattan). */}
-          <span aria-hidden className="invisible flex shrink-0 items-center">
-            <span className={COUNT_FADE_CLASS} />
-            <span className={COUNT_TEXT_CLASS}>{countLabel}</span>
-          </span>
+          {searching && query.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                inputRef.current?.focus();
+              }}
+              aria-label={t("clearSearch")}
+              className="-mr-1.5 grid h-11 w-9 shrink-0 place-items-center"
+            >
+              <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-ink-faint/40 text-surface">
+                <IconX size={11} strokeWidth={3} />
+              </span>
+            </button>
+          ) : !searching ? (
+            <button
+              type="button"
+              onClick={() => setSheet("sort")}
+              aria-label={t("sortAndFilter")}
+              className="-mr-1.5 flex h-11 shrink-0 items-center justify-center px-1.5"
+            >
+              {/* Bara ikonen — ingen platta bakom. Aktiva filter/sortering syns på FÄRGEN. */}
+              <span
+                className={cn(
+                  "grid h-[30px] w-[30px] place-items-center transition-colors",
+                  filterActive ? "text-holo-cyan" : "text-ink"
+                )}
+              >
+                <IconFilter size={18} />
+              </span>
+            </button>
+          ) : null}
         </div>
-        {/* Uttoning + solid platta som två egna ytor i stället för en gradient med
-            färgstopp: siffran måste ligga på HELT svart, annars läste chipet under
-            rakt igenom den och de två texterna gick i varandra. */}
-        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center">
-          <span
-            aria-hidden
-            className={cn(COUNT_FADE_CLASS, "h-full bg-gradient-to-r from-transparent to-surface")}
-          />
-          <span
-            aria-live="polite"
-            className={cn(COUNT_TEXT_CLASS, "flex h-full items-center bg-surface text-ink-faint")}
+        {searching && (
+          <button
+            type="button"
+            onClick={cancelSearch}
+            className="shrink-0 px-1 py-2 text-[15px] font-medium text-holo-cyan"
           >
-            {countLabel}
-          </span>
-        </span>
+            {t("cancelSearch")}
+          </button>
+        )}
       </div>
 
+      {chips}
+
+      {searching && (
+        <div className="-mx-2.5 min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5">
+          {query.trim().length >= 2 ? (
+            <InstantResults
+              query={query}
+              kind={localKind}
+              setIds={localSets}
+              onShowAll={() => submitSearch(query)}
+            />
+          ) : (
+            <SearchRecents
+              onPick={(q) => {
+                setQuery(q);
+                rememberSearch(q);
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* SORTERA OCH FILTRERA: ikonen i fältet. Pris och "Mer" (språk, butik,
+          kategori) bor här sedan chip-raden krympte till Set · Kort · Förseglat. */}
       <Sheet
         open={sheet === "sort"}
-        title={t("sortBy")}
+        title={t("sortAndFilter")}
         onClose={() => setSheet(null)}
-        onClear={sortActive ? () => pushParams({ sortera: undefined }) : undefined}
+        onClear={
+          filterActive
+            ? () => {
+                pushParams({
+                  sortera: undefined,
+                  minPris: undefined,
+                  maxPris: undefined,
+                  lager: undefined,
+                  butik: undefined,
+                  sprak: undefined,
+                  kategori: urlKind !== null ? urlKategori : undefined,
+                });
+                setSheet(null);
+              }
+            : undefined
+        }
         cta={t("resultCount", { count: total })}
       >
+        <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
+          {t("filterSection")}
+        </p>
+        <div className="flex flex-col gap-0.5">
+          <FilterRow label={t("priceShort")} value={priceActive ? priceLabel : null} onClick={() => setSheet("price")} />
+          <FilterRow
+            label={t("moreFiltersLong")}
+            value={moreCount > 0 ? String(moreCount) : null}
+            onClick={() => setSheet("more")}
+          />
+          {inStock && (
+            <FilterRow
+              label={t("inStockShort")}
+              value={t("on")}
+              onClick={() => {
+                pushParams({ lager: undefined });
+                setSheet(null);
+              }}
+              clear
+            />
+          )}
+        </div>
+        <p className="mb-1 mt-4 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
+          {t("sortBy")}
+        </p>
         <div className="flex flex-col gap-0.5">
           {sortOptions.map((o) => {
             const selected = o.value === sort;
@@ -406,7 +556,8 @@ export function ExploreFilterBar({
         total={total}
         onClose={() => setSheet(null)}
         onApply={(ids) => {
-          pushParams({ set: ids.length > 0 ? ids.join(",") : undefined });
+          if (searching) setLocalSets(ids);
+          else pushParams({ set: ids.length > 0 ? ids.join(",") : undefined });
           setSheet(null);
         }}
         initialLang={searchParams.sprak === "JP" ? "JP" : searchParams.sprak === "EN" ? "EN" : undefined}
@@ -446,6 +597,34 @@ export function ExploreFilterBar({
         }}
       />
     </div>
+  );
+}
+
+/** En rad i "Sortera och filtrera" som öppnar ett eget ark. */
+function FilterRow({
+  label,
+  value,
+  onClick,
+  clear,
+}: {
+  label: string;
+  value: string | null;
+  onClick: () => void;
+  /** Raden STÄNGER AV filtret i stället för att öppna ett ark (gamla ?lager=1). */
+  clear?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center justify-between gap-3 rounded-lg px-3 py-3 text-left text-sm text-ink"
+    >
+      <span>{label}</span>
+      <span className="flex items-center gap-1.5 text-ink-muted">
+        {value && <span className="font-medium text-holo-cyan">{value}</span>}
+        {clear ? <IconX size={15} /> : <IconChevronRight size={16} />}
+      </span>
+    </button>
   );
 }
 

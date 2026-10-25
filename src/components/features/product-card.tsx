@@ -254,6 +254,7 @@ export function ProductCard({ product, className, priority = false }: ProductCar
             {product.id && (
               <CollectionQuickAdd
                 productId={product.id}
+                slug={product.slug}
                 estimatedValue={product.lowestPrice}
                 gradeable={product.category === "SINGLE_CARD"}
                 title={product.title}

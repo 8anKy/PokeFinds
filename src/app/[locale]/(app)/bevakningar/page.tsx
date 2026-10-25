@@ -11,13 +11,15 @@ import { alertCopyKey } from "@/lib/alert-copy";
 import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { formatDateTime, formatRelative } from "@/lib/format";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LinkButton } from "@/components/ui/button";
-import { IconBell, IconPlus } from "@/components/ui/icons";
+import { IconBell, IconChevronDown, IconPlus } from "@/components/ui/icons";
+import { lowestBuyableByProduct } from "@/services/alerts";
+import { prisma } from "@/lib/db";
+import { utcDaysAgo } from "@/lib/utils";
 import { WatchlistTable, type WatchlistRow } from "./watchlist-table";
-import { WatchedSets } from "./watched-sets";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { CircleButton } from "@/components/ui/back-circle";
 import { RestockPausedBanner } from "@/components/features/restock-paused-banner";
@@ -53,10 +55,21 @@ export default async function WatchlistPage() {
   // "Det du missade": gratiskontots påfyllningar senaste veckan — det ärligaste
   // Pro-argumentet (services/missed-restocks.ts). En fråga, bara för Free, bara
   // när larmen är igång (under pausen hade raden sålt något vi stängt av).
-  const missed =
-    !session.user.isPro && !restockPaused && items.length > 0
-      ? await countMissedRestocks(items.map((i) => i.product.id))
-      : 0;
+  const productIds = items.map((i) => i.product.id);
+  // "Köp hos …" + prislarmets ledtext (2026-10-25): två frågor över hela listan,
+  // aldrig en per kort. Köpbarheten är rubrikprisets (lowestBuyableByProduct).
+  const [missed, buyable, lows] = await Promise.all([
+    !session.user.isPro && !restockPaused && items.length > 0 ? countMissedRestocks(productIds) : Promise.resolve(0),
+    lowestBuyableByProduct(productIds),
+    productIds.length > 0
+      ? prisma.priceSnapshot.groupBy({
+          by: ["productId"],
+          where: { productId: { in: productIds }, date: { gte: utcDaysAgo(30) }, minPrice: { gt: 0 } },
+          _min: { minPrice: true },
+        })
+      : Promise.resolve([] as { productId: string; _min: { minPrice: number | null } }[]),
+  ]);
+  const low30 = new Map(lows.map((l) => [l.productId, l._min.minPrice ?? null]));
 
   const rows: WatchlistRow[] = items.map((item) => ({
     id: item.id,
@@ -76,7 +89,13 @@ export default async function WatchlistPage() {
       category: item.product.category,
       lowestPrice: item.product.lowestPrice,
       setName: item.product.set?.name ?? null,
+      inStockCount: item.product.inStockCount,
     },
+    buy: (() => {
+      const b = buyable.get(item.product.id);
+      return b ? { offerId: b.id, retailerName: b.retailer.name, price: b.price, url: b.url } : null;
+    })(),
+    low30: low30.get(item.product.id) ?? null,
   }));
 
   return (
@@ -109,32 +128,16 @@ export default async function WatchlistPage() {
           och renderar ingenting när ingendera är pausad — se restock-paused-banner.tsx. */}
       <RestockPausedBanner />
 
-      {/* Set-bevakningar ovanför produktlistan: de täcker flest produkter och är
-          det enda stället de går att se och ta bort. Kortet döljer sig självt när
-          listan är tom. */}
-      <WatchedSets
-        initialSets={setWatches.map((s) => ({
-          setId: s.setId,
-          name: s.name,
-          series: s.series,
-          logoUrl: s.logoUrl,
-          sealedCount: s.sealedCount,
-        }))}
-      />
-
-      {rows.length === 0 ? (
-        // Tomläget gäller bara när INGENTING bevakas — har man ett set bevakat är
-        // listan inte tom, den är bara utan enskilda produkter.
-        setWatches.length === 0 && (
-          <EmptyState
-            icon={<IconBell size={32} />}
-            title={t("emptyTitle")}
-            description={t("emptyDesc")}
-            action={<LinkButton href="/produkter">{t("exploreProducts")}</LinkButton>}
-          />
-        )
+      {rows.length === 0 && setWatches.length === 0 ? (
+        // Tomläget gäller bara när INGENTING bevakas.
+        <EmptyState
+          icon={<IconBell size={32} />}
+          title={t("emptyTitle")}
+          description={t("emptyDesc")}
+          action={<LinkButton href="/produkter">{t("exploreProducts")}</LinkButton>}
+        />
       ) : (
-        <>
+        <div>
           {missed > 0 && (
             <div className="mb-4 rounded-lg border border-holo-cyan/40 bg-holo-cyan/10 px-4 py-3 text-sm text-ink">
               {t.rich("missedRestocks", {
@@ -147,16 +150,31 @@ export default async function WatchlistPage() {
               })}
             </div>
           )}
-          <WatchlistTable initialItems={rows} isPro={session.user.isPro} restockPaused={restockPaused} />
-        </>
+          <WatchlistTable
+            initialItems={rows}
+            initialSets={setWatches.map((s) => ({
+              setId: s.setId,
+              name: s.name,
+              series: s.series,
+              logoUrl: s.logoUrl,
+              sealedCount: s.sealedCount,
+              inStockCount: s.inStockCount,
+              isPaused: s.isPaused,
+            }))}
+            isPro={session.user.isPro}
+            restockPaused={restockPaused}
+          />
+        </div>
       )}
 
-      {/* Alerthistorik */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("alertHistory")}</CardTitle>
-          <p className="text-sm text-ink-muted">{t("alertHistorySub")}</p>
-        </CardHeader>
+      {/* Larmhistoriken — hopfälld längst ned (designpasset 2026-10-25: sidan är
+          Produkter · Set, historiken är en uppslagning, inte en egen flik). */}
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl px-1 py-2 text-sm font-semibold text-ink-muted [&::-webkit-details-marker]:hidden">
+          {t("alertHistory")}
+          <IconChevronDown size={16} className="transition-transform group-open:rotate-180" />
+        </summary>
+      <Card className="mt-2">
         <CardContent className="p-0">
           {alerts.items.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-ink-muted">
@@ -185,6 +203,7 @@ export default async function WatchlistPage() {
           )}
         </CardContent>
       </Card>
+      </details>
     </div>
   );
 }

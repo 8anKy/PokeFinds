@@ -10,6 +10,8 @@
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { SEALED_CATEGORY_EXCLUSIONS } from "@/lib/product-category";
+import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { NOT_HIDDEN } from "@/lib/product-visibility";
 
 export async function listSetWatches(userId: string) {
   const watches = await prisma.setWatch.findMany({
@@ -17,6 +19,7 @@ export async function listSetWatches(userId: string) {
     select: {
       id: true,
       setId: true,
+      isPaused: true,
       createdAt: true,
       // logoUrl = setets egen logotyp (samma bild som katalogens set-ark visar).
       // symbolUrl som reserv: en del äldre set saknar logotyp men har symbolen.
@@ -42,6 +45,28 @@ export async function listSetWatches(userId: string) {
   });
   const bySet = new Map(counts.map((c) => [c.setId, c._count._all]));
 
+  // "N produkter i lager" på Set-fliken (2026-10-25): samma köpbarhet som rubrikpriset —
+  // i lager, direktlänk, > 0 kr. Ett set har ~10–50 sealed, så urvalet är litet.
+  const stocked = await prisma.offer.findMany({
+    where: {
+      stockStatus: "IN_STOCK",
+      price: { gt: 0 },
+      product: {
+        setId: { in: watches.map((w) => w.setId) },
+        category: { notIn: [...SEALED_CATEGORY_EXCLUSIONS] },
+        ...NOT_HIDDEN,
+      },
+    },
+    select: { url: true, productId: true, product: { select: { setId: true } } },
+  });
+  const inStockBySet = new Map<string, Set<string>>();
+  for (const o of stocked) {
+    if (!o.product.setId || !isDirectOfferUrl(o.url)) continue;
+    const ids = inStockBySet.get(o.product.setId) ?? new Set<string>();
+    ids.add(o.productId);
+    inStockBySet.set(o.product.setId, ids);
+  }
+
   return watches.map((w) => ({
     id: w.id,
     setId: w.setId,
@@ -50,6 +75,8 @@ export async function listSetWatches(userId: string) {
     series: w.set.series,
     logoUrl: w.set.logoUrl ?? w.set.symbolUrl,
     sealedCount: bySet.get(w.setId) ?? 0,
+    inStockCount: inStockBySet.get(w.setId)?.size ?? 0,
+    isPaused: w.isPaused,
   }));
 }
 
@@ -100,4 +127,11 @@ export async function removeSetWatch(userId: string, setId: string) {
   const { count } = await prisma.setWatch.deleteMany({ where: { userId, setId } });
   if (count === 0) throw new ServiceError(404, "Bevakningen hittades inte.");
   return { deleted: true };
+}
+
+/** Pausad set-bevakning ligger kvar men larmar inte (`isPaused: false` i båda larmvägarna). */
+export async function setSetWatchPaused(userId: string, setId: string, isPaused: boolean) {
+  const { count } = await prisma.setWatch.updateMany({ where: { userId, setId }, data: { isPaused } });
+  if (count === 0) throw new ServiceError(404, "Bevakningen hittades inte.");
+  return { setId, isPaused };
 }

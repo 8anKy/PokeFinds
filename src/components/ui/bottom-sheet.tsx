@@ -41,7 +41,16 @@ export interface BottomSheetProps {
    * `tone: "danger"` för en åtgärd som tar bort något — då är den röd, inte
    * diskret grå, för en knapp som raderar får aldrig se ut som en bisak.
    */
-  headerAction?: { label: string; onClick: () => void; tone?: "default" | "danger" };
+  headerAction?: { label: string; onClick: () => void; tone?: "default" | "danger" | "accent" };
+  /** Rubriken centrerad (väljar-ark: "Version" mitt i, "Klar" till höger). */
+  centerTitle?: boolean;
+  /**
+   * Utan rubrikrad — bara handtaget (tilläggsarket ritar sin egen överdel). `title`
+   * används då bara som skärmläsaretikett.
+   */
+  bare?: boolean;
+  /** Ritas bakom innehållet, klippt mot panelens runda hörn (t.ex. kortets suddiga konst). */
+  background?: ReactNode;
   children: ReactNode;
   /** Fast fot. Utelämnas den får arket ingen fot alls. */
   footer?: ReactNode;
@@ -64,6 +73,9 @@ export function BottomSheet({
   onClose: onCloseProp,
   closeLabel,
   headerAction,
+  centerTitle = false,
+  bare = false,
+  background,
   children,
   footer,
   elevated = false,
@@ -343,38 +355,57 @@ export function BottomSheet({
         data-drag-surface=""
         className={cn(
           "relative flex max-h-[84%] flex-col rounded-t-[20px] bg-surface pt-2 shadow-[0_-1px_0_0_rgba(255,255,255,0.06)] animate-slide-up",
+          background != null && "overflow-hidden",
           panelClassName
         )}
       >
+        {background != null && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+            {background}
+          </div>
+        )}
         {/* Handtag + rubrikrad = alltid en dragyta, oavsett hur kroppen står. */}
-        <div data-sheet-handle="" className="cursor-grab touch-none select-none">
+        <div data-sheet-handle="" className="relative cursor-grab touch-none select-none">
           <span
             aria-hidden="true"
-            className="mx-auto mb-3 mt-1.5 block h-1 w-9 rounded-full bg-surface-border"
-          />
-          <div className="flex items-center justify-between px-[18px] pb-3">
-            <p className="text-base font-bold tracking-[-0.01em] text-ink">{title}</p>
-            {headerAction && (
-              <button
-                type="button"
-                onClick={headerAction.onClick}
-                className={cn(
-                  "text-xs font-semibold transition-colors",
-                  headerAction.tone === "danger"
-                    ? "text-fall hover:text-fall/80"
-                    : "font-medium text-ink-faint hover:text-ink"
-                )}
-              >
-                {headerAction.label}
-              </button>
+            className={cn(
+              "mx-auto mt-1.5 block h-1 w-9 rounded-full",
+              bare ? "mb-1 bg-ink/35" : "mb-3 bg-surface-border"
             )}
-          </div>
+          />
+          {!bare && (
+            <div
+              className={cn(
+                "flex items-center px-[18px] pb-3",
+                centerTitle ? "relative min-h-[28px] justify-center" : "justify-between"
+              )}
+            >
+              <p className="text-base font-bold tracking-[-0.01em] text-ink">{title}</p>
+              {headerAction && (
+                <button
+                  type="button"
+                  onClick={headerAction.onClick}
+                  className={cn(
+                    "transition-colors",
+                    centerTitle && "absolute right-[18px] top-1/2 -translate-y-1/2",
+                    headerAction.tone === "danger"
+                      ? "text-xs font-semibold text-fall hover:text-fall/80"
+                      : headerAction.tone === "accent"
+                        ? "py-2 text-[15px] font-bold text-holo-cyan"
+                        : "text-xs font-medium text-ink-faint hover:text-ink"
+                  )}
+                >
+                  {headerAction.label}
+                </button>
+              )}
+            </div>
+          )}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-[18px]">{children}</div>
+        <div className="relative min-h-0 flex-1 overflow-y-auto px-[18px]">{children}</div>
         {footer && (
           <div
             className={cn(
-              "px-[18px] pt-3.5",
+              "relative px-[18px] pt-3.5",
               // Tangentbord uppe: överlagringen slutar redan ovanför det → ingen
               // extra säkerhetsmarginal (den hade lyft knappen 30px för högt).
               kbHeight > 0 ? "pb-3.5" : "pb-[max(1.875rem,env(safe-area-inset-bottom))]"

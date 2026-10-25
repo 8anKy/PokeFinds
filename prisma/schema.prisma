@@ -510,6 +510,8 @@ model SetWatch {
   id        String   @id @default(cuid())
   userId    String
   setId     String
+  /// Pausad = ligger kvar på bevakningssidan men larmar inte (2026-10-25).
+  isPaused  Boolean  @default(false)
   createdAt DateTime @default(now())
 
   user User    @relation(fields: [userId], references: [id], onDelete: Cascade)

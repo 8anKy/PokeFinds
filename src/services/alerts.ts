@@ -437,7 +437,7 @@ export async function checkRestockAlerts(
           // Pro-grinden finns redan i addSetWatch, men mottagarfrågan får inte
           // LITA på det: en användare kan ha varit Pro när raden skapades och
           // fallit till FREE sedan dess (RevenueCat EXPIRATION).
-          where: { setId: product.setId!, user: proUserWhere() },
+          where: { setId: product.setId!, isPaused: false, user: proUserWhere() },
           select: { userId: true },
         })
       : Promise.resolve([] as { userId: string }[]),
@@ -561,7 +561,7 @@ export async function checkListingAlerts(
       : Promise.resolve({ pro: [] as string[], free: [] as string[] }),
     setId
       ? prisma.setWatch.findMany({
-          where: { setId, user: proUserWhere() },
+          where: { setId, isPaused: false, user: proUserWhere() },
           select: { userId: true },
         })
       : Promise.resolve([] as { userId: string }[]),

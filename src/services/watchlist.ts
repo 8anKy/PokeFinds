@@ -2,6 +2,7 @@
 import { FREE_RESTOCK_ALERT_LIMIT } from "@/lib/free-restock-alert";
 import { prisma } from "@/lib/db";
 import { headlineCandidates } from "@/lib/offer-source";
+import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { ServiceError } from "@/lib/errors";
 import type { PlanTier } from "@prisma/client";
 
@@ -42,13 +43,15 @@ const WATCHLIST_INCLUDE = {
       imageUrl: true,
       category: true,
       set: { select: { id: true, name: true } },
-      offers: { select: { price: true, stockStatus: true, url: true } },
+      offers: { select: { price: true, stockStatus: true, url: true, retailerId: true } },
     },
   },
 } as const;
 
 function withLowestPrice<
-  T extends { product: { offers: { price: number | null; stockStatus: string; url?: string | null }[] } }
+  T extends {
+    product: { offers: { price: number | null; stockStatus: string; url?: string | null; retailerId?: string }[] };
+  }
 >(item: T) {
   const offers = headlineCandidates(item.product.offers).filter(
     (o): o is { price: number; stockStatus: string } => o.price !== null
@@ -57,8 +60,15 @@ function withLowestPrice<
   const pool = inStock.length > 0 ? inStock : offers;
   const lowestPrice =
     pool.length > 0 ? Math.min(...pool.map((o) => o.price)) : null;
+  // "I lager hos N" på bevakningskortet (2026-10-25): butiker med en KÖPBAR offer —
+  // i lager, direktlänk, > 0 kr. Samma köpbarhet som rubrikpriset.
+  const inStockCount = new Set(
+    item.product.offers
+      .filter((o) => o.stockStatus === "IN_STOCK" && o.price != null && o.price > 0 && isDirectOfferUrl(o.url))
+      .map((o) => o.retailerId ?? o.url)
+  ).size;
   const { offers: _offers, ...product } = item.product;
-  return { ...item, product: { ...product, lowestPrice } };
+  return { ...item, product: { ...product, lowestPrice, inStockCount } };
 }
 
 export async function listWatchlist(userId: string) {

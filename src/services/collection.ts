@@ -197,6 +197,9 @@ export async function addCollectionItem(userId: string, input: CollectionItemInp
       purchasePrice: input.purchasePrice ?? null,
       // Samma PÄRM: samma kort i två pärmar är två poster med flit.
       portfolioId: portfolioId ?? null,
+      // Ett UTTRYCKLIGT köpdatum (tilläggsarket, 2026-10-25) är en egen lot — ett köp
+      // i juni stackat på ett i oktober hade tappat datumet tyst. Utan datum: som förut.
+      ...(input.purchaseDate ? { purchaseDate: input.purchaseDate } : {}),
     },
   });
   if (stackable) {
