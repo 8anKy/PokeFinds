@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { hasRole } from "@/lib/auth";
 import { readSessionLite } from "@/lib/session-lite";
 import { giveawayConfig, giveawayPhase } from "@/lib/giveaway";
+import { HIDDEN_FEATURES } from "@/lib/hidden-features";
 
 /**
  * Bara för titeln — sidan är `"use client"` och kan inte exportera metadata
@@ -25,7 +26,7 @@ export async function generateMetadata({
  * Sessionen ur cookien — ingen DB, ingen auth() i layouten.
  */
 export default async function GiveawayLayout({ children }: { children: React.ReactNode }) {
-  if (giveawayPhase(giveawayConfig(), new Date()) === "upcoming") {
+  if (HIDDEN_FEATURES.giveaway || giveawayPhase(giveawayConfig(), new Date()) === "upcoming") {
     const session = await readSessionLite();
     if (!session || !hasRole(session.role as Role, "MODERATOR")) notFound();
   }

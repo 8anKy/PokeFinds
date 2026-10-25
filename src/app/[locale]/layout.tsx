@@ -19,6 +19,7 @@ import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { ProductOverlayHost } from "@/components/features/product-overlay";
 import { PaywallSheetHost } from "@/components/features/paywall-sheet";
 import { StreakCelebrationHost } from "@/components/features/streak/streak-celebration";
+import { HIDDEN_FEATURES } from "@/lib/hidden-features";
 import { UnseenRouteMarker } from "@/components/ui/unseen-dot";
 import { AppTour } from "@/components/features/app-tour";
 import { stripeCheckoutAdvertised } from "@/lib/stripe";
@@ -179,7 +180,7 @@ export default async function LocaleLayout({
               webYearPlan={!!process.env.STRIPE_PRICE_ID_PRO_COMMIT}
             />
             {/* Veckoserien: firar dagens första handling (svarshuvud från servern). */}
-            <StreakCelebrationHost />
+            {!HIDDEN_FEATURES.streak && <StreakCelebrationHost />}
             <UnseenRouteMarker />
             {/* Push-tap-navigering: mountad i ROT-layouten (ej (app)-gruppen) så
                 notis-tap landar rätt även när appen står på en marketing-route som

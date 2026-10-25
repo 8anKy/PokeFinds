@@ -3,6 +3,7 @@ import { LinkButton } from "@/components/ui/button";
 import { previewAllowedFor } from "@/lib/feature-preview";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { giveawayConfig, giveawayPhase } from "@/lib/giveaway";
+import { HIDDEN_FEATURES } from "@/lib/hidden-features";
 import { FoilPanel, FollowTiles, MenuRow, Section, type MenuLink } from "./more-ui";
 
 /**
@@ -24,7 +25,7 @@ export async function GuestMore() {
   // Dokumentrader utan ikon med flit — sex olika glyfer för sex texter hade
   // blivit samma dekorbrus som färgerna på den gamla sidan.
   const info: MenuLink[] = [
-    ...(giveawayPhase(giveawayConfig(), new Date()) === "open"
+    ...(!HIDDEN_FEATURES.giveaway && giveawayPhase(giveawayConfig(), new Date()) === "open"
       ? [{ href: "/giveaway", label: t("giveawayRow") }]
       : []),
     { href: "/om", label: t("guestAbout") },

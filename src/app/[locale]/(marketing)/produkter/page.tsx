@@ -33,6 +33,7 @@ import { getSetSummary, progressTotal } from "@/services/sets-gallery";
 import { loadSetDenominators } from "@/services/set-portfolio";
 import { Link } from "@/i18n/navigation";
 import { StreakCard } from "@/components/features/streak/streak-card";
+import { HIDDEN_FEATURES } from "@/lib/hidden-features";
 
 export const dynamic = "force-dynamic";
 
@@ -305,7 +306,7 @@ export default async function ProductsPage({
     />
   ) : null;
   // Veckoserien visas på Utforskas startläge (inga filter/sök) för inloggade.
-  const showStreak = Boolean(session?.user) && !Object.values(searchParams).some(Boolean);
+  const showStreak = !HIDDEN_FEATURES.streak && Boolean(session?.user) && !Object.values(searchParams).some(Boolean);
   const feedQuery = buildFeedQuery(params);
   const filterKey = filterStateKey(searchParams);
 

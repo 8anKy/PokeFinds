@@ -4,6 +4,7 @@ import { HeaderAuthActions } from "@/components/layout/header-auth-actions";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { AppStoreBadge } from "@/components/layout/app-store-badge";
 import { DiscordLink } from "@/components/layout/discord-link";
+import { HIDDEN_FEATURES } from "@/lib/hidden-features";
 import { NewsLink } from "@/components/layout/news-link";
 import { SiteHeaderGate } from "@/components/layout/site-header-gate";
 
@@ -29,7 +30,7 @@ export function SiteHeader() {
           {/* Discord till VÄNSTER om nyhetsknappen, i ALLA storlekar och i appen
               (ägarbeslut 2026-10-06 — satt bredvid loggan 10-05). Liten med
               flit — se discord-link.tsx. */}
-          <DiscordLink />
+          {!HIDDEN_FEATURES.headerDiscord && <DiscordLink />}
           <NewsLink />
           {/* App Store-brickan: desktop-headern är sticky → alltid i bild.
               Mobilen har sin egen bricka ovanför sökfältet (headern scrollar

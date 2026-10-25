@@ -14,6 +14,10 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 > hand nedanför sin markör.
 
 ## Nuläge
+- ⛔ **DOLT TILLS ÄGAREN SÄGER TILL (2026-10-26)**: giveawayn, Discord-knappen i SIDHUVUDET och veckoserien —
+  en spak per funktion i `src/lib/hidden-features.ts`. Veckoserien dold = inget kort, inget firande och ingen
+  ny dag bokförs (`recordActivity` → null); redan intjänad påfyllning gäller månaden ut. Giveawayns lotter räknas
+  fortsatt ur aktiviteten. Veckoserie-raden är struken ur `app-release.json` (1.6) — lägg tillbaka den vid påslag.
 - **PRISER = CARDMARKET + KATALOGLUCKOR STÄNGDA (ägaren 2026-10-15: "fel priser, kort saknas, ta bort
   CardTrader, visa sålt")**. Revision mot leverantörens hela feed (EN 23 426 + JP 21 651 rader): JP komplett,
   EN-felen hade tre orsaker — utropsvakten fällde äkta engelska premier, CardTrader tog rubriken (1 251 kort),

@@ -10,6 +10,7 @@
  * lyckades men vars serie-bokföring misslyckades ska fortfarande vara en lyckad skanning.
  */
 import { NextResponse } from "next/server";
+import { HIDDEN_FEATURES } from "@/lib/hidden-features";
 import type { PlanTier } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
@@ -76,6 +77,7 @@ export async function recordActivity(
   userId: string,
   planTier: PlanTier
 ): Promise<StreakEvent | null> {
+  if (HIDDEN_FEATURES.streak) return null; // dold (lib/hidden-features.ts): inget bokförs, inget firas
   const today = stockholmDayKey();
   if (recordedToday.get(userId) === today) return null;
   try {

@@ -8,13 +8,10 @@
       "icon": "bell",
       "title": "Notiser på Android",
       "text": "Restock-larm, prislarm och meddelanden kommer nu som notiser direkt i telefonen, även när appen är stängd.",
-      "en": { "title": "Notifications on Android", "text": "Restock alerts, price alerts and messages now arrive as notifications on your phone, even when the app is closed." }
-    },
-    {
-      "icon": "spark",
-      "title": "Veckoserie",
-      "text": "Gör något i appen varje dag – skanna, bevaka eller lägg till ett kort. En hel vecka i rad fyller på dina skanningar och AI-graderingar.",
-      "en": { "title": "Weekly streak", "text": "Do something in the app every day – scan, watch or add a card. A full week in a row tops up your scans and AI grades." }
+      "en": {
+        "title": "Notifications on Android",
+        "text": "Restock alerts, price alerts and messages now arrive as notifications on your phone, even when the app is closed."
+      }
     }
   ]
 }

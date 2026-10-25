@@ -20,6 +20,7 @@ import {
   IconGift,
 } from "@/components/ui/icons";
 import { giveawayConfig, giveawayPhase } from "@/lib/giveaway";
+import { HIDDEN_FEATURES } from "@/lib/hidden-features";
 import { LogoutButton } from "./logout-button";
 import { GuestMore } from "./guest-more";
 import { FoilPanel, FollowTiles, MenuRow, Section, type MenuLink } from "./more-ui";
@@ -158,7 +159,7 @@ export default async function MerPage() {
     { href: "/bevakningar", label: t("watches"), icon: IconBell, tour: "watches-row" },
     { href: "/mer/utmarkelser", label: tA("title"), icon: IconMedal },
     // Giveawayn (lib/giveaway.ts) — raden finns bara medan den PÅGÅR (dold före starten).
-    ...(giveawayPhase(giveawayConfig(), new Date()) === "open"
+    ...(!HIDDEN_FEATURES.giveaway && giveawayPhase(giveawayConfig(), new Date()) === "open"
       ? [{ href: "/giveaway", label: t("giveawayRow"), icon: IconGift }]
       : []),
   ];
