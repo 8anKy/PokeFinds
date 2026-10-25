@@ -349,6 +349,25 @@ export function ExploreFilterBar({
         caret={false}
         pressed={shownKind === "sealed"}
       />
+      {/* "Mer" tillbaka i raden (ägaren 2026-10-25): språk, butik och kategori. */}
+      {!searching && (
+        <Chip
+          active={moreCount > 0}
+          label={moreCount > 0 ? `${t("moreFilters")} · ${moreCount}` : t("moreFilters")}
+          onOpen={() => setSheet("more")}
+          onClear={
+            moreCount > 0
+              ? () =>
+                  pushParams({
+                    kategori: urlKind !== null ? urlKategori : undefined,
+                    butik: undefined,
+                    sprak: undefined,
+                  })
+              : undefined
+          }
+          clearAriaLabel={t("clearMoreFilters")}
+        />
+      )}
       {!searching && (
         <span aria-live="polite" className="ml-auto shrink-0 whitespace-nowrap pl-2 text-[11.5px] font-medium tabular-nums text-ink-faint">
           {t("resultCount", { count: total })}

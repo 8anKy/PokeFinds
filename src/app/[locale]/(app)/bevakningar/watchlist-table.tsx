@@ -92,7 +92,7 @@ export function WatchlistTable({
             aria-selected={tab === k}
             onClick={() => setTab(k)}
             className={cn(
-              "h-[34px] rounded-lg text-[15px] font-semibold text-ink transition-colors",
+              "h-8 rounded-lg text-sm font-semibold text-ink transition-colors",
               tab === k ? "bg-surface-border" : "bg-transparent"
             )}
           >
@@ -231,14 +231,14 @@ function ProductCards({
   if (items.length === 0) return <p className="py-10 text-center text-sm text-ink-muted">{t("emptyProducts")}</p>;
 
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
       {items.map((item) => {
         const gone = removed[item.id];
         if (gone) {
           return (
             <div
               key={item.id}
-              className="flex h-16 items-center justify-between rounded-[22px] border border-dashed border-surface-border px-[18px]"
+              className="flex h-14 min-w-0 items-center justify-between rounded-[20px] border border-dashed border-surface-border px-[18px]"
             >
               <span className="min-w-0 truncate text-[15px] text-ink-faint">{t("removedInline", { name: item.product.title })}</span>
               <button type="button" onClick={() => void undoRemove(gone)} className="h-11 shrink-0 pl-3 text-base font-bold text-holo-cyan">
@@ -261,30 +261,30 @@ function ProductCards({
             : { text: t("statusSoldOut"), on: false };
 
         return (
-          <article key={item.id} className="flex flex-col gap-3.5 rounded-[22px] border border-surface-overlay bg-[#0e0e11] p-4">
+          <article key={item.id} className="flex min-w-0 flex-col gap-3 overflow-hidden rounded-[20px] border border-surface-overlay bg-[#0e0e11] p-3.5">
             <Link
               href={`/produkter/${item.product.slug}`}
               prefetch={false}
               className={cn("flex items-center gap-4 text-ink transition-opacity", paused && "opacity-45")}
             >
-              <span className="flex h-[92px] w-[68px] shrink-0 items-center justify-center">
+              <span className="flex h-[76px] w-14 shrink-0 items-center justify-center">
                 <SafeImage
                   src={item.product.imageUrl}
                   alt=""
-                  className="max-h-[92px] max-w-[68px] rounded-md object-contain shadow-[0_8px_20px_rgba(0,0,0,0.5)]"
+                  className="max-h-[76px] max-w-14 rounded-md object-contain shadow-[0_8px_20px_rgba(0,0,0,0.5)]"
                   fallback={
-                    <span className="grid h-[92px] w-[68px] place-items-center rounded-md bg-surface-overlay text-ink-faint">
+                    <span className="grid h-[76px] w-14 place-items-center rounded-md bg-surface-overlay text-ink-faint">
                       {item.product.category === "SINGLE_CARD" ? <IconCards size={20} /> : <IconPackage size={20} />}
                     </span>
                   }
                 />
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="line-clamp-2 text-lg font-bold leading-[22px]">{item.product.title}</span>
-                <span data-price className="text-2xl font-extrabold tracking-[-0.02em] tabular-nums">
+                <span className="line-clamp-2 break-words text-base font-bold leading-5">{item.product.title}</span>
+                <span data-price className="text-xl font-extrabold tracking-[-0.02em] tabular-nums">
                   {formatPrice(item.product.lowestPrice)}
                 </span>
-                <span className={cn("flex items-center gap-1.5 text-sm", status.on ? "text-holo-cyan" : "text-ink-faint")}>
+                <span className={cn("flex min-w-0 items-center gap-1.5 text-[13px]", status.on ? "text-holo-cyan" : "text-ink-faint")}>
                   <span className={cn("h-[7px] w-[7px] shrink-0 rounded-full", status.on ? "bg-holo-cyan" : "bg-ink-faint")} />
                   <span className="truncate">{status.text}</span>
                 </span>
@@ -357,10 +357,10 @@ function ProductCards({
               <button
                 type="button"
                 onClick={() => openPaywallOrNavigate(router, { source: "free-restock-limit" })}
-                className="flex items-center gap-2.5 rounded-2xl bg-white/[0.05] px-3.5 py-3 text-left"
+                className="flex min-w-0 items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2.5 text-left"
               >
                 <span className="rounded bg-holo-cyan px-[5px] py-0.5 text-[10px] font-extrabold tracking-[0.04em] text-surface">PRO</span>
-                <span className="flex-1 text-[13px] leading-[18px] text-ink-muted">{t("lockNote")}</span>
+                <span className="min-w-0 flex-1 text-xs leading-4 text-ink-muted">{t("lockNote")}</span>
                 <IconChevronRight size={14} className="shrink-0 text-holo-cyan" />
               </button>
             )}
@@ -368,7 +368,7 @@ function ProductCards({
             <button
               type="button"
               onClick={() => void removeWatch(item)}
-              className="flex h-9 items-center gap-1.5 self-center text-sm font-semibold text-ink-faint transition-colors hover:text-ink"
+              className="flex h-8 items-center gap-1.5 self-center text-[13px] font-semibold text-ink-faint transition-colors hover:text-ink"
             >
               <IconTrash size={14} />
               {t("stopWatching")}
@@ -414,9 +414,9 @@ function BuyButton({
     <button
       type="button"
       onClick={() => void open()}
-      className="flex h-[52px] items-center justify-between rounded-2xl bg-holo-cyan px-4 text-base font-extrabold text-surface active:opacity-90"
+      className="flex h-11 min-w-0 items-center justify-between gap-2 rounded-xl bg-holo-cyan px-3.5 text-[15px] font-extrabold text-surface active:opacity-90"
     >
-      <span className="truncate">{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
       <span className="flex shrink-0 items-center gap-2 tabular-nums">
         {formatPrice(offer.price)}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -440,14 +440,14 @@ function TargetField({ item, onSave }: { item: WatchlistRow; onSave: (ore: numbe
     else setText(initial);
   };
   return (
-    <label className="flex h-[58px] items-center justify-between gap-3 rounded-2xl bg-white/[0.05] px-4">
+    <label className="flex h-12 min-w-0 items-center justify-between gap-3 rounded-xl bg-white/[0.05] px-3.5">
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-[15px] font-semibold text-ink">{t("alertBelow")}</span>
+        <span className="text-sm font-semibold text-ink">{t("alertBelow")}</span>
         <span className="truncate text-xs text-ink-faint">
           {item.low30 != null ? t("low30", { price: formatPrice(item.low30) }) : t("targetEmptyHint")}
         </span>
       </span>
-      <span className="flex items-baseline gap-1.5">
+      <span className="flex shrink-0 items-baseline gap-1.5">
         <input
           type="text"
           inputMode="numeric"
@@ -460,9 +460,9 @@ function TargetField({ item, onSave }: { item: WatchlistRow; onSave: (ore: numbe
           onKeyDown={(e) => {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           }}
-          className="w-[110px] bg-transparent text-right text-[22px] font-extrabold tabular-nums text-ink outline-none placeholder:text-ink-faint"
+          className="w-[84px] bg-transparent text-right text-lg font-extrabold tabular-nums text-ink outline-none placeholder:text-ink-faint"
         />
-        <span className="text-base font-semibold text-ink-muted">kr</span>
+        <span className="text-sm font-semibold text-ink-muted">kr</span>
       </span>
     </label>
   );
@@ -533,13 +533,13 @@ function SetCards({ initialSets, restockPaused }: { initialSets: WatchedSetRow[]
   if (sets.length === 0) return <p className="py-10 text-center text-sm text-ink-muted">{t("setsEmpty")}</p>;
 
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
       {sets.map((s) => {
         if (removed[s.setId]) {
           return (
             <div
               key={s.setId}
-              className="flex h-16 items-center justify-between rounded-[22px] border border-dashed border-surface-border px-[18px]"
+              className="flex h-14 min-w-0 items-center justify-between rounded-[20px] border border-dashed border-surface-border px-[18px]"
             >
               <span className="min-w-0 truncate text-[15px] text-ink-faint">{t("removedInline", { name: s.name })}</span>
               <button type="button" onClick={() => void undo(s)} className="h-11 shrink-0 pl-3 text-base font-bold text-holo-cyan">
@@ -555,23 +555,23 @@ function SetCards({ initialSets, restockPaused }: { initialSets: WatchedSetRow[]
             ? t("setStatus", { count: s.sealedCount })
             : `${t("setStatus", { count: s.sealedCount })}${s.inStockCount > 0 ? t("setInStock", { count: s.inStockCount }) : ""}`;
         return (
-          <article key={s.setId} className="flex flex-col gap-3.5 rounded-[22px] border border-surface-overlay bg-[#0e0e11] p-4">
+          <article key={s.setId} className="flex min-w-0 flex-col gap-3 overflow-hidden rounded-[20px] border border-surface-overlay bg-[#0e0e11] p-3.5">
             <Link
               href={`/sets/${s.setId}`}
               className={cn("flex items-center gap-4 text-ink transition-opacity", s.isPaused && "opacity-45")}
             >
-              <span className="flex h-[68px] w-[92px] shrink-0 items-center justify-center">
+              <span className="flex h-14 w-[76px] shrink-0 items-center justify-center">
                 <SafeImage
                   src={s.logoUrl}
                   alt=""
-                  className="max-h-[68px] max-w-[92px] object-contain"
+                  className="max-h-14 max-w-[76px] object-contain"
                   fallback={<IconCards size={22} className="text-ink-faint" />}
                 />
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="line-clamp-2 text-lg font-bold leading-[22px]">{s.name}</span>
+                <span className="line-clamp-2 break-words text-base font-bold leading-5">{s.name}</span>
                 <span className="truncate text-xs text-ink-faint">{s.series}</span>
-                <span className={cn("flex items-center gap-1.5 text-sm", inStock ? "text-holo-cyan" : "text-ink-faint")}>
+                <span className={cn("flex min-w-0 items-center gap-1.5 text-[13px]", inStock ? "text-holo-cyan" : "text-ink-faint")}>
                   <span className={cn("h-[7px] w-[7px] shrink-0 rounded-full", inStock ? "bg-holo-cyan" : "bg-ink-faint")} />
                   <span className="truncate">{status}</span>
                 </span>
@@ -581,11 +581,11 @@ function SetCards({ initialSets, restockPaused }: { initialSets: WatchedSetRow[]
               <Link
                 href={`/sets/${s.setId}`}
                 className={cn(
-                  "flex h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-white/[0.05] text-[13px] font-bold text-ink-muted",
+                  "flex h-14 flex-col items-center justify-center gap-0.5 rounded-xl bg-white/[0.05] text-xs font-bold text-ink-muted",
                   s.isPaused && "opacity-45"
                 )}
               >
-                <IconCards size={19} />
+                <IconCards size={17} />
                 {t("viewSet")}
               </Link>
               <ToggleButton
@@ -600,7 +600,7 @@ function SetCards({ initialSets, restockPaused }: { initialSets: WatchedSetRow[]
             <button
               type="button"
               onClick={() => void remove(s)}
-              className="flex h-9 items-center gap-1.5 self-center text-sm font-semibold text-ink-faint transition-colors hover:text-ink"
+              className="flex h-8 items-center gap-1.5 self-center text-[13px] font-semibold text-ink-faint transition-colors hover:text-ink"
             >
               <IconTrash size={14} />
               {t("stopWatchingSet")}
@@ -644,7 +644,7 @@ function ToggleButton({
       disabled={disabled && !locked}
       onClick={onClick}
       className={cn(
-        "flex h-16 flex-col items-center justify-center gap-1 rounded-2xl border text-[13px] font-bold transition-colors disabled:cursor-default",
+        "flex h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-xs font-bold transition-colors disabled:cursor-default",
         on
           ? tone === "white"
             ? "border-white/30 bg-white/[0.14] text-ink"
@@ -656,7 +656,7 @@ function ToggleButton({
       )}
     >
       {icon}
-      <span className="leading-[1.1]">{label}</span>
+      <span className="max-w-full truncate leading-[1.1]">{label}</span>
       {sub && <span className="text-[10px] font-semibold leading-none opacity-80">{sub}</span>}
     </button>
   );
@@ -664,7 +664,7 @@ function ToggleButton({
 
 function BellGlyph() {
   return (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
       <path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15z" />
       <path d="M10 20.5a2 2 0 004 0" />
     </svg>
@@ -672,7 +672,7 @@ function BellGlyph() {
 }
 function TagGlyph() {
   return (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
       <path d="M3 12V4h8l10 10-8 8z" />
       <circle cx="7.5" cy="8.5" r="1.4" />
     </svg>
@@ -680,18 +680,18 @@ function TagGlyph() {
 }
 function PauseGlyph() {
   return (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true">
       <path d="M9 6v12M15 6v12" />
     </svg>
   );
 }
 function PlayGlyph() {
   return (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M8 5.5v13l11-6.5z" />
     </svg>
   );
 }
 function LockGlyph() {
-  return <IconLock size={19} />;
+  return <IconLock size={17} />;
 }

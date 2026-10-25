@@ -890,7 +890,7 @@ function shortDate(v: Ymd, today: Ymd, locale: string): string {
 
 /**
  * Kamerans lägesrad: valet står i mitten, grannarna tonar ut mot kanterna (en MASK,
- * inga svarta band — ägaren 2026-10-25). Tryck på ett värde eller svep i sidled.
+ * inga svarta band — ägaren 2026-10-25). Tryck på ett värde eller dra raden i sidled.
  */
 function ModeScroller({
   label,
@@ -911,7 +911,17 @@ function ModeScroller({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
-  const start = useRef<number | null>(null);
+  /** Fingrets förskjutning i px medan raden dras (null = inget drag). */
+  const [drag, setDrag] = useState<number | null>(null);
+  const gesture = useRef<{
+    x0: number;
+    y0: number;
+    lastX: number;
+    lastT: number;
+    vx: number;
+    axis: "x" | "y" | null;
+    shown: number;
+  } | null>(null);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -923,13 +933,70 @@ function ModeScroller({
     return () => ro.disconnect();
   }, []);
 
+  const clamp = (i: number) => Math.min(items.length - 1, Math.max(0, i));
+  const baseShift = width / 2 - (index * itemWidth + itemWidth / 2);
+  /** Vilket värde som står i mitten vid en given förskjutning. */
+  const indexAt = (offset: number) => clamp(Math.round((width / 2 - itemWidth / 2 - (baseShift + offset)) / itemWidth));
+  const shownIndex = drag == null ? index : indexAt(drag);
+
   const pick = (i: number) => {
-    const next = Math.min(items.length - 1, Math.max(0, i));
+    const next = clamp(i);
     if (next === index) return;
     hapticGlide();
     onChange(next);
   };
-  const shift = width / 2 - (index * itemWidth + itemWidth / 2);
+
+  /**
+   * KONTINUERLIGT SVEP (ägaren 2026-10-25: "inte ett i taget"): raden följer fingret,
+   * varje värde som passerar mitten ger ett tick, och släppet glider vidare med fingrets
+   * fart innan den snäpper till närmaste värde. Lodräta drag lämnas åt arket/sidan.
+   */
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    if (!t) return;
+    gesture.current = { x0: t.clientX, y0: t.clientY, lastX: t.clientX, lastT: e.timeStamp, vx: 0, axis: null, shown: index };
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    const g = gesture.current;
+    const t = e.touches[0];
+    if (!g || !t) return;
+    const dx = t.clientX - g.x0;
+    const dy = t.clientY - g.y0;
+    if (g.axis == null) {
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+      g.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    }
+    if (g.axis !== "x") return;
+    if (e.timeStamp > g.lastT) {
+      g.vx = (t.clientX - g.lastX) / (e.timeStamp - g.lastT);
+      g.lastX = t.clientX;
+      g.lastT = e.timeStamp;
+    }
+    // Gummiband förbi ändarna, så raden inte kan dras ut i tomma intet.
+    const min = width / 2 - ((items.length - 1) * itemWidth + itemWidth / 2) - baseShift;
+    const max = width / 2 - itemWidth / 2 - baseShift;
+    const off = dx < min ? min + (dx - min) / 3 : dx > max ? max + (dx - max) / 3 : dx;
+    const now = indexAt(off);
+    if (now !== g.shown) {
+      g.shown = now;
+      hapticGlide();
+    }
+    setDrag(off);
+  };
+  const onTouchEnd = () => {
+    const g = gesture.current;
+    gesture.current = null;
+    if (!g || g.axis !== "x" || drag == null) {
+      setDrag(null);
+      return;
+    }
+    // Fart (px/ms) × 180 ms ≈ hur långt raden glider efter släppet.
+    const target = indexAt(drag + g.vx * 180);
+    setDrag(null);
+    if (target !== index) onChange(target);
+  };
+
+  const shift = baseShift + (drag ?? 0);
   const mask = "linear-gradient(90deg, transparent 0%, #000 24%, #000 76%, transparent 100%)";
 
   return (
@@ -939,32 +1006,24 @@ function ModeScroller({
       aria-label={label}
       className="relative h-11 overflow-hidden"
       style={{ WebkitMaskImage: mask, maskImage: mask, touchAction: "pan-y" }}
-      onTouchStart={(e) => {
-        start.current = e.touches[0]?.clientX ?? null;
-      }}
-      onTouchEnd={(e) => {
-        const x0 = start.current;
-        start.current = null;
-        const x1 = e.changedTouches[0]?.clientX;
-        if (x0 == null || x1 == null) return;
-        const dx = x1 - x0;
-        if (Math.abs(dx) < 18) return;
-        pick(index - Math.round(dx / itemWidth) || index - Math.sign(dx));
-      }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
     >
       <div
-        className="absolute left-0 top-0 flex transition-transform duration-300"
+        className={cn("absolute left-0 top-0 flex", drag == null && "transition-transform duration-300")}
         style={{ transform: `translateX(${shift}px)`, transitionTimingFunction: "cubic-bezier(.2,.8,.2,1)" }}
       >
         {items.map((it, i) => {
-          const on = i === index;
-          const dist = Math.abs(i - index);
+          const on = i === shownIndex;
+          const dist = Math.abs(i - shownIndex);
           return (
             <button
               key={`${it}-${i}`}
               type="button"
               role="option"
-              aria-selected={on}
+              aria-selected={i === index}
               onClick={() => pick(i)}
               className="flex h-11 flex-col items-center justify-center gap-1 whitespace-nowrap tabular-nums"
               style={{
