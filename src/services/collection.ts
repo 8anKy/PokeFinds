@@ -19,6 +19,7 @@ import {
   type ItemGradedValue,
 } from "@/lib/graded-value";
 import { PRO_USER_SELECT, isPro } from "@/lib/plan";
+import { priceForCondition } from "@/lib/condition-prices";
 import type { CardCondition, CardLanguage } from "@prisma/client";
 
 /**
@@ -261,6 +262,8 @@ type ValuableItem = {
   estimatedValue: number | null;
   gradingCompany?: string | null;
   grade?: string | null;
+  /** Skicket — ett löst kort värderas på sitt skick (lib/condition-prices.ts). */
+  condition?: string | null;
 };
 
 
@@ -369,7 +372,15 @@ async function valueRawCollectionItems(items: ValuableItem[]): Promise<Map<strin
     const live =
       (item.productId != null ? productValues.get(item.productId) : undefined) ??
       (item.cardId != null ? cardValues.get(item.cardId) : undefined);
-    const value = live ?? item.estimatedValue ?? null;
+    // SKICKET (ägarbeslut 2026-10-26): ett löst kort värderas till sitt skicks pris, samma
+    // procent av NM som tilläggsarket visar. Bara kortposter (förseglat bär inget skick)
+    // och bara marknadsvärdet — ett eget `estimatedValue` är redan postens eget tal.
+    const value =
+      live != null
+        ? item.cardId != null && item.condition
+          ? (priceForCondition(null, item.condition, live).ore ?? live)
+          : live
+        : (item.estimatedValue ?? null);
     if (value != null) result.set(item.id, value);
   }
   return result;
