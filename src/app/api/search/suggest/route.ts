@@ -3,7 +3,9 @@ import type { ProductCategory } from "@prisma/client";
 import { apiError, jsonCached } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { normalizeTitle } from "@/lib/utils";
-import { HIDDEN_CATEGORIES } from "@/services/products";
+import { HIDDEN_CATEGORIES, computeLowestPrice, computePriceChange7d } from "@/services/products";
+import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { utcDaysAgo } from "@/lib/utils";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { isSealedCategory } from "@/lib/product-category";
 
@@ -120,6 +122,69 @@ function getIndex(): Promise<IndexEntry[]> {
   return promise;
 }
 
+/**
+ * LAGER + 7-DAGARSRÖRELSE (2026-10-26, ägaren: rutnätet ska visa samma "I lager" och
+ * procent som katalogen). Egen karta med 1 h livslängd — lagret får inte stå ett dygn
+ * gammalt som resten av indexet. Laddas om i BAKGRUNDEN: en sökning väntar aldrig på
+ * den (gamla kartan, eller ingen, serveras under tiden), och omladdningen sker bara när
+ * någon faktiskt söker — då är Neon redan vaken av appens övriga trafik.
+ * Samma räkning som katalogens toListItem (direkta offers, lägsta köpbara).
+ */
+const LIVE_TTL_MS = 60 * 60 * 1000;
+interface LiveEntry {
+  price: number | null;
+  stockStatus: string | null;
+  change7d: number | null;
+}
+let liveCache: { at: number; map: Map<string, LiveEntry> } | null = null;
+let liveLoading: Promise<void> | null = null;
+
+async function loadLive(): Promise<Map<string, LiveEntry>> {
+  const map = new Map<string, LiveEntry>();
+  const since = utcDaysAgo(7);
+  let cursor: string | undefined;
+  for (;;) {
+    const rows = await prisma.product.findMany({
+      where: { lowestPriceOre: { not: null }, category: { notIn: HIDDEN_CATEGORIES }, ...NOT_HIDDEN },
+      select: {
+        id: true,
+        offers: { select: { price: true, stockStatus: true, url: true } },
+        priceSnapshots: { where: { date: { gte: since } }, select: { date: true, avgPrice: true } },
+      },
+      orderBy: { id: "asc" },
+      take: INDEX_PAGE,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    });
+    for (const p of rows) {
+      const lowest = computeLowestPrice(p.offers.filter((o) => isDirectOfferUrl(o.url)));
+      map.set(p.id, {
+        price: lowest.price,
+        stockStatus: lowest.stockStatus,
+        change7d: computePriceChange7d(p.priceSnapshots).percent,
+      });
+    }
+    if (rows.length < INDEX_PAGE) break;
+    cursor = rows[rows.length - 1].id;
+  }
+  return map;
+}
+
+/** Nuvarande karta (kan vara null första gången); startar en omladdning när den är gammal. */
+function getLive(): Map<string, LiveEntry> | null {
+  const stale = !liveCache || Date.now() - liveCache.at >= LIVE_TTL_MS;
+  if (stale && !liveLoading) {
+    liveLoading = loadLive()
+      .then((map) => {
+        liveCache = { at: Date.now(), map };
+      })
+      .catch((e) => console.error("[suggest] lagerkartan kunde inte laddas:", e instanceof Error ? e.message : e))
+      .finally(() => {
+        liveLoading = null;
+      });
+  }
+  return liveCache?.map ?? null;
+}
+
 /** Lägre = bättre. null = ingen träff. */
 function score(e: IndexEntry, qNorm: string, qCompact: string, words: string[]): number | null {
   const wordHit = words.every((w) => e.normalized.includes(w));
@@ -167,6 +232,7 @@ export async function GET(req: NextRequest) {
     );
 
     const top = matches.slice(0, limit);
+    const live = grid ? getLive() : null;
     const items = grid
       ? top.map(({ e }) => ({
           id: e.id,
@@ -181,7 +247,9 @@ export async function GET(req: NextRequest) {
           cardNumber: e.cardNumber,
           cardRarity: e.cardRarity,
           variantLabel: e.variantLabel,
-          lowestPrice: e.lowestPrice,
+          lowestPrice: live?.get(e.id)?.price ?? e.lowestPrice,
+          stockStatus: live?.get(e.id)?.stockStatus ?? null,
+          priceChange7d: live?.get(e.id)?.change7d ?? null,
         }))
       : top.map(({ e }) => ({
           title: e.title,

@@ -198,6 +198,8 @@ export function ExploreFilterBar({
   const [localKind, setLocalKind] = useState<InstantKind>(() => kindOf(searchParams.kategori));
   const [localSets, setLocalSets] = useState<string[]>(() => csvList(searchParams.set));
   const [localLang, setLocalLang] = useState<string | null>(() => langOf(searchParams.sprak));
+  // Antalet träffar i direktsöket — visas på flikraden medan man skriver.
+  const [instantTotal, setInstantTotal] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const urlKind = kindOf(searchParams.kategori);
@@ -356,11 +358,14 @@ export function ExploreFilterBar({
           </button>
         ))}
       </div>
-      {!searching && (
-        <span aria-live="polite" className="shrink-0 whitespace-nowrap pl-3 text-xs tabular-nums text-ink-faint">
-          {t("resultCountShort", { count: total })}
-        </span>
-      )}
+      {(() => {
+        const shown = !searching ? total : query.trim().length >= 2 ? instantTotal : null;
+        return shown == null ? null : (
+          <span aria-live="polite" className="shrink-0 whitespace-nowrap pl-3 text-xs tabular-nums text-ink-faint">
+            {t("resultCountShort", { count: shown })}
+          </span>
+        );
+      })()}
     </div>
   );
 
@@ -453,13 +458,21 @@ export function ExploreFilterBar({
       {chips}
 
       {searching && (
-        <div className="-mx-2.5 min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5">
+        // Ett svep i träffarna fäller tangentbordet (ägaren 2026-10-26); sökläget står kvar
+        // och ett tryck i fältet tar fram det igen.
+        <div
+          className="-mx-2.5 min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5"
+          onTouchMove={() => {
+            if (document.activeElement === inputRef.current) inputRef.current?.blur();
+          }}
+        >
           {query.trim().length >= 2 ? (
             <InstantResults
               query={query}
               kind={localKind}
               setIds={localSets}
               lang={localLang}
+              onTotal={setInstantTotal}
               onShowAll={() => submitSearch(query)}
             />
           ) : (

@@ -43,11 +43,13 @@ interface InstantItem {
   cardRarity: string | null;
   variantLabel: string | null;
   lowestPrice: number | null;
+  stockStatus?: string | null;
+  priceChange7d?: number | null;
 }
 
 const MIN_QUERY = 2;
 /** Kort: indexet svarar på ~1 ms, väntan är bara för att inte skicka varje halvskrivet ord. */
-const DEBOUNCE_MS = 120;
+const DEBOUNCE_MS = 60;
 const LIMIT = 24;
 const CACHE_MAX = 60;
 
@@ -153,6 +155,7 @@ export function InstantResults({
   kind,
   setIds,
   lang = null,
+  onTotal,
   onShowAll,
 }: {
   query: string;
@@ -160,24 +163,35 @@ export function InstantResults({
   setIds: string[];
   /** "EN"/"JP" eller null = alla språk. */
   lang?: string | null;
+  /** Antal träffar totalt (inte bara de som visas). */
+  onTotal?: (total: number | null) => void;
   onShowAll: () => void;
 }) {
   const t = useTranslations("Products");
-  const cacheRef = useRef(new Map<string, InstantItem[]>());
+  const cacheRef = useRef(new Map<string, { items: InstantItem[]; total: number }>());
   const [items, setItems] = useState<InstantItem[] | null>(null);
+  const onTotalRef = useRef(onTotal);
+  onTotalRef.current = onTotal;
   const q = query.trim();
   const key = [q.toLowerCase(), kind ?? "", setIds.join(","), lang ?? ""].join("|");
 
   useEffect(() => {
     if (q.length < MIN_QUERY) {
       setItems(null);
+      onTotalRef.current?.(null);
       return;
     }
     const cached = cacheRef.current.get(key);
     if (cached) {
-      setItems(cached);
+      setItems(cached.items);
+      onTotalRef.current?.(cached.total);
       return;
     }
+    // Direkt i klienten medan nätet svarar: en längre fråga är en DELMÄNGD av den
+    // kortare, så de rutor som redan visas och fortfarande matchar ligger kvar —
+    // rutnätet krymper för varje bokstav i stället för att vänta.
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    setItems((prev) => (prev ? prev.filter((p) => words.every((w) => p.title.toLowerCase().includes(w))) : prev));
     const ctrl = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -187,10 +201,12 @@ export function InstantResults({
         if (lang) usp.set("lang", lang);
         const res = await fetch(`/api/search/suggest?${usp}`, { signal: ctrl.signal });
         if (!res.ok) return;
-        const data = (await res.json()) as { items: InstantItem[] };
+        const data = (await res.json()) as { items: InstantItem[]; total?: number };
+        const total = data.total ?? data.items.length;
         if (cacheRef.current.size >= CACHE_MAX) cacheRef.current.clear();
-        cacheRef.current.set(key, data.items);
+        cacheRef.current.set(key, { items: data.items, total });
         setItems(data.items);
+        onTotalRef.current?.(total);
       } catch {
         // avbruten/nätverksfel — behåll det som visas
       }
@@ -210,9 +226,10 @@ export function InstantResults({
         <p className="px-1 pt-6 text-center text-sm text-ink-muted">{t("instantEmpty")}</p>
       ) : (
         <div className={cn("grid grid-cols-2 gap-2.5 transition-opacity", items === null && "opacity-50")}>
-          {(items ?? []).map((p) => (
+          {(items ?? []).map((p, i) => (
             <ProductCard
               key={p.id}
+              priority={i < 4}
               product={{
                 id: p.id,
                 slug: p.slug,
@@ -227,6 +244,8 @@ export function InstantResults({
                 cardRarity: p.cardRarity,
                 variantLabel: p.variantLabel,
                 lowestPrice: p.lowestPrice,
+                priceChange7d: p.priceChange7d ?? null,
+                stockStatus: p.stockStatus ?? null,
               }}
             />
           ))}
