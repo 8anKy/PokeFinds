@@ -151,7 +151,7 @@ type Translators = {
 const MARKET_GROUP_SLUG = "kop-salj-byt";
 
 /** Forumets skick-lista saknar POOR med flit — då skickar vi inget skick alls. */
-const FORUM_CONDITIONS = new Set(["MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "PLAYED", "SEALED"]);
+const FORUM_CONDITIONS = new Set(["MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "LIGHT_PLAYED", "PLAYED", "SEALED"]);
 
 type ShippingOption = import("@/lib/tradera-shipping").ShippingOption;
 interface ShippingSpan {

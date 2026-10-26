@@ -105,6 +105,7 @@ export const SINGLE_CONDITIONS = [
   "NEAR_MINT",
   "EXCELLENT",
   "GOOD",
+  "LIGHT_PLAYED",
   "PLAYED",
   "POOR",
 ] as const;
@@ -128,6 +129,7 @@ const SINGLE_LABELS: Record<string, string> = {
   NEAR_MINT: "Near Mint",
   EXCELLENT: "Excellent",
   GOOD: "Good",
+  LIGHT_PLAYED: "Light Played",
   PLAYED: "Played",
   POOR: "Poor",
   SEALED: "Förseglad",
@@ -156,7 +158,8 @@ export function gradeToCondition(overall: number): string {
   if (overall >= 9.5) return "MINT";
   if (overall >= 8.5) return "NEAR_MINT";
   if (overall >= 7) return "EXCELLENT";
-  if (overall >= 5) return "GOOD";
+  if (overall >= 6) return "GOOD";
+  if (overall >= 4.5) return "LIGHT_PLAYED";
   if (overall >= 3) return "PLAYED";
   return "POOR";
 }

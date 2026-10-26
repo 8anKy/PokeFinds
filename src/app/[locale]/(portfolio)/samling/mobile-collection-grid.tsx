@@ -78,6 +78,7 @@ const COLLECTION_CONDITIONS = [
   "NEAR_MINT",
   "EXCELLENT",
   "GOOD",
+  "LIGHT_PLAYED",
   "PLAYED",
   "POOR",
   "SEALED",

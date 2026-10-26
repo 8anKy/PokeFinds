@@ -1,31 +1,29 @@
 /**
- * PRIS PER SKICK (2026-10-23, ägaren: "konkurrenten visar priser per skick — gör det").
+ * PRIS PER SKICK — PROCENT AV CARDMARKETS NEAR MINT (ägarbeslut 2026-10-26).
  *
- * KÄLLAN ÄR CARDTRADERS ANNONSER, ALDRIG EN MULTIPLIKATOR. Cardmarket-leverantören ger
- * bara NM-golvet (`lowest_near_mint`), och en tabell "Played = 60 % av NM" vore ett
- * påhittat pris (CLAUDE.md: inga fabricerade priser). CardTraders marknadsplats bär
- * skicket PÅ ANNONSEN, så lägsta engelska annons per skick är ett verkligt tal.
+ * Inget skick utom NM har ett eget Cardmarket-pris hos leverantören, och det finns ingen
+ * officiell branschstandard (varken Cardmarket eller TCGplayer publicerar procent). Talen
+ * nedan är MÄTTA: median av lägsta CardTrader-annons per skick / samma korts NM-golv över
+ * ~10 000 engelska kort (2026-10-26, `scripts/condition-ratio-report.ts`), i två värdeband — dyra kort
+ * tappar mer i sämre skick. Good saknar motsvarighet hos CardTrader och ligger mitt
+ * emellan Excellent och Light Played. Visas alltid märkt som en UPPSKATTNING.
  *
- * MÄTT 2026-10-23 (Paldea Evolved / Secret Wonders / Unseen Forces): CT:s Pokémon-
- * annonser bär exakt fem skick — Near Mint, Slightly Played, Moderately Played, Played,
- * Poor (+ "Mint" i teorin). De går 1:1 på vår `CardCondition`:
- *   Slightly Played → EXCELLENT · Moderately Played → GOOD · Played → PLAYED · Poor → POOR.
- * Talen är TUNNA och INTE monotona (Charizard SW 3: SP 150,64 € över NM 40,52 € med EN
- * NM-annons) — därför samma djupkrav som varje annat publicerat CT-golv (`CT_MIN_DEPTH`):
- * minst två annonser, annars "–". Vi jämnar aldrig ut och interpolerar aldrig.
+ * ⛔ En tabell för ALLA kort: CardTraders egna skickpriser visas inte längre — deras
+ *    annonser ligger ~3–4x över Cardmarket, och två metoder sida vid sida gav hopp.
+ *    Golven skrivs fortfarande nattligen (de är underlaget när procenten mäts om).
+ * ⛔ Mät om kvartalsvis och visa ägaren nya tal FÖRE ändring.
+ * ⛔ Talen rör ALDRIG rubrikpris, "Lägst", statistik eller larm.
  *
- * ⛔ NM-RADEN ÄGS AV RUBRIKEN (Cardmarket, eller den källa produktens rubrik har) —
- *    CardTraders NM-golv lagras men visas inte som NM-pris.
- * ⛔ Talen rör ALDRIG rubrikpris, "Lägst", statistik, larm eller samlingsvärde: det är en
- *    annan marknadsplats (median ~3,7x dyrare än CM, mätt i cardtrader-reverse).
+ * CARDTRADER-GOLVEN (underlaget): CT:s Pokémon-annonser bär Near Mint, Slightly Played,
+ * Moderately Played, Played, Poor. Slightly → EXCELLENT, Moderately → LIGHT_PLAYED.
+ * Talen är tunna och inte monotona ⇒ minst två annonser per golv.
  *
- * REN MODUL — ingen Prisma, inget nätverk. Skrivs nattligen av reverse-passet
- * (`jobs/cardtrader-condition-prices.ts`), läses ur detail-payloaden.
+ * REN MODUL — ingen Prisma, inget nätverk.
  */
 import type { CtListing } from "./cardtrader";
 
 /** Skicken som kan ha ett pris, bäst först (samma nycklar som `CardCondition`). */
-export const PRICED_CONDITIONS = ["MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "PLAYED", "POOR"] as const;
+export const PRICED_CONDITIONS = ["MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "LIGHT_PLAYED", "PLAYED", "POOR"] as const;
 export type PricedCondition = (typeof PRICED_CONDITIONS)[number];
 
 /** CardTraders skicknamn → vårt. Ett namn utanför tabellen räknas inte alls. */
@@ -33,7 +31,7 @@ export const CT_CONDITION_MAP: Readonly<Record<string, PricedCondition>> = {
   Mint: "MINT",
   "Near Mint": "NEAR_MINT",
   "Slightly Played": "EXCELLENT",
-  "Moderately Played": "GOOD",
+  "Moderately Played": "LIGHT_PLAYED",
   Played: "PLAYED",
   Poor: "POOR",
 };
@@ -122,64 +120,63 @@ export function parseConditionPrices(raw: unknown): ConditionPrices {
   return out;
 }
 
+/**
+ * Andel av NM per skick, i procent. Gränsen går vid NM-priset 100 kr: under den är
+ * annonserna billiga och avdragen mindre, över den tappar ett slitet kort mer.
+ */
+export const CONDITION_PERCENT_BAND_ORE = 10_000;
+export const CONDITION_PERCENT: Readonly<Record<"low" | "high", Readonly<Record<PricedCondition, number>>>> = {
+  low: { MINT: 100, NEAR_MINT: 100, EXCELLENT: 95, GOOD: 80, LIGHT_PLAYED: 63, PLAYED: 44, POOR: 33 },
+  high: { MINT: 100, NEAR_MINT: 100, EXCELLENT: 92, GOOD: 75, LIGHT_PLAYED: 57, PLAYED: 38, POOR: 25 },
+};
+
+export function conditionPercent(condition: PricedCondition, nmOre: number): number {
+  return CONDITION_PERCENT[nmOre >= CONDITION_PERCENT_BAND_ORE ? "high" : "low"][condition];
+}
+
 export interface ConditionPriceRow {
   condition: PricedCondition;
-  /** Öre, eller null = "–". */
+  /** Öre, eller null = "–" (inget NM-pris att räkna från). */
   ore: number | null;
-  /** Antal CardTrader-annonser bakom talet (0 för rubrikraden). */
-  n: number;
-  /** "headline" = produktens rubrikpris (NM), "cardtrader" = lägsta CT-annons. */
-  source: "headline" | "cardtrader" | null;
+  /** Procent av NM bakom talet (100 för NM). */
+  percent: number;
+  /** "headline" = produktens rubrikpris (NM), "estimate" = procent av NM. */
+  source: "headline" | "estimate" | null;
 }
 
 export interface ConditionPriceTable {
   rows: ConditionPriceRow[];
-  /** När CT-talen skrevs (ISO), null om inga CT-tal visas. */
-  at: string | null;
+}
+
+function isPricedCondition(c: string): c is PricedCondition {
+  return (PRICED_CONDITIONS as readonly string[]).includes(c);
+}
+
+function rowFor(condition: PricedCondition, nmOre: number | null): ConditionPriceRow {
+  if (nmOre == null || !(nmOre > 0)) return { condition, ore: null, percent: 0, source: null };
+  if (condition === "NEAR_MINT") return { condition, ore: nmOre, percent: 100, source: "headline" };
+  const percent = conditionPercent(condition, nmOre);
+  return { condition, ore: Math.round((nmOre * percent) / 100), percent, source: "estimate" };
+}
+
+/** Tabellen för ett kort med NM-pris (rubriken). Inget NM-pris ⇒ null. */
+export function conditionPriceTable(nmHeadlineOre: number | null): ConditionPriceTable | null {
+  if (nmHeadlineOre == null || !(nmHeadlineOre > 0)) return null;
+  return { rows: PRICED_CONDITIONS.map((c) => rowFor(c, nmHeadlineOre)) };
 }
 
 /**
- * Tabellen arket visar. NM = rubrikpriset (aldrig CardTraders NM-golv); övriga skick ur
- * CardTrader om färska nog. Inga CT-tal alls ⇒ null (arket visar då bara skickvalet).
- */
-export function conditionPriceTable(
-  raw: unknown,
-  at: string | Date | null | undefined,
-  nmHeadlineOre: number | null,
-  now: Date = new Date()
-): ConditionPriceTable | null {
-  const atMs = at ? new Date(at).getTime() : NaN;
-  const fresh = Number.isFinite(atMs) && now.getTime() - atMs <= CONDITION_MAX_AGE_DAYS * 86_400_000;
-  const ct = fresh ? parseConditionPrices(raw) : {};
-  const hasCt = PRICED_CONDITIONS.some((c) => c !== "NEAR_MINT" && ct[c]);
-  if (!hasCt) return null;
-  return {
-    at: new Date(atMs).toISOString(),
-    rows: PRICED_CONDITIONS.map((condition): ConditionPriceRow => {
-      if (condition === "NEAR_MINT") {
-        return nmHeadlineOre != null && nmHeadlineOre > 0
-          ? { condition, ore: nmHeadlineOre, n: 0, source: "headline" }
-          : { condition, ore: null, n: 0, source: null };
-      }
-      const f = ct[condition];
-      return f ? { condition, ore: f.ore, n: f.n, source: "cardtrader" } : { condition, ore: null, n: 0, source: null };
-    }),
-  };
-}
-
-/**
- * Priset för ett valt skick. Utan tabell (inga CT-tal) är bara NM känt — ur rubriken.
- * Ett skick utan pris ger `ore: null`, aldrig rubrikpriset i dess ställe.
+ * Priset för ett valt skick. Tabellen om den finns, annars räknat ur rubriken (äldre
+ * cachade payloads bär fortfarande CardTrader-formen eller ingen tabell alls).
  */
 export function priceForCondition(
   table: ConditionPriceTable | null,
   condition: string,
   headlineOre: number | null = null
 ): ConditionPriceRow {
-  const row = table?.rows.find((r) => r.condition === condition);
-  if (row) return row;
-  if (condition === "NEAR_MINT" && headlineOre != null && headlineOre > 0) {
-    return { condition: "NEAR_MINT", ore: headlineOre, n: 0, source: "headline" };
-  }
-  return { condition: (condition as PricedCondition) ?? "NEAR_MINT", ore: null, n: 0, source: null };
+  const c: PricedCondition = isPricedCondition(condition) ? condition : "NEAR_MINT";
+  const row = table?.rows.find((r) => r.condition === c);
+  if (row && (row.source === "headline" || row.source === "estimate")) return row;
+  const nm = table?.rows.find((r) => r.condition === "NEAR_MINT" && r.source === "headline")?.ore ?? headlineOre;
+  return rowFor(c, nm);
 }

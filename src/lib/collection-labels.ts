@@ -12,6 +12,7 @@ export const CONDITION_LABELS: Record<string, string> = {
   NEAR_MINT: "Near Mint",
   EXCELLENT: "Excellent",
   GOOD: "Good",
+  LIGHT_PLAYED: "Light Played",
   PLAYED: "Played",
   POOR: "Poor",
   SEALED: "Sealed",

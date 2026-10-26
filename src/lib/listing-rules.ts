@@ -25,6 +25,7 @@ export const LISTING_CONDITIONS = [
   "NEAR_MINT",
   "EXCELLENT",
   "GOOD",
+  "LIGHT_PLAYED",
   "PLAYED",
   "SEALED",
 ] as const;

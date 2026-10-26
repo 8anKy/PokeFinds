@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CtListing } from "@/lib/cardtrader";
 import {
-  CONDITION_MAX_AGE_DAYS,
+  CONDITION_PERCENT,
   conditionFloors,
   conditionPriceTable,
   isConditionListing,
@@ -66,7 +66,7 @@ describe("conditionFloors", () => {
     expect(floors).toEqual({
       NEAR_MINT: { ore: 3531, n: 2 },
       EXCELLENT: { ore: 2310, n: 2 },
-      GOOD: { ore: 660, n: 2 },
+      LIGHT_PLAYED: { ore: 660, n: 2 },
       PLAYED: { ore: 2244, n: 2 },
       POOR: { ore: 2233, n: 2 },
     });
@@ -110,44 +110,62 @@ describe("parseConditionPrices", () => {
 });
 
 describe("conditionPriceTable", () => {
-  const now = new Date("2026-10-23T12:00:00Z");
-  const at = "2026-10-22T05:00:00Z";
-  const raw = { NEAR_MINT: { ore: 9999, n: 5 }, PLAYED: { ore: 2244, n: 3 } };
-
-  it("NM tas ur rubriken, aldrig ur CardTraders NM-golv; saknade skick är null", () => {
-    const table = conditionPriceTable(raw, at, 6105, now)!;
-    expect(table.at).toBe(new Date(at).toISOString());
+  it("NM = rubriken, övriga skick = procent av NM (kort under 100 kr)", () => {
+    const table = conditionPriceTable(5000)!;
     const byCond = Object.fromEntries(table.rows.map((r) => [r.condition, r]));
-    expect(byCond.NEAR_MINT).toEqual({ condition: "NEAR_MINT", ore: 6105, n: 0, source: "headline" });
-    expect(byCond.PLAYED).toEqual({ condition: "PLAYED", ore: 2244, n: 3, source: "cardtrader" });
-    expect(byCond.GOOD).toEqual({ condition: "GOOD", ore: null, n: 0, source: null });
-    expect(table.rows.map((r) => r.condition)).toEqual(["MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "PLAYED", "POOR"]);
+    expect(byCond.NEAR_MINT).toEqual({ condition: "NEAR_MINT", ore: 5000, percent: 100, source: "headline" });
+    expect(byCond.MINT).toMatchObject({ ore: 5000, percent: 100, source: "estimate" });
+    expect(byCond.EXCELLENT).toMatchObject({ ore: 4750, percent: 95 });
+    expect(byCond.GOOD).toMatchObject({ ore: 4000, percent: 80 });
+    expect(byCond.LIGHT_PLAYED).toMatchObject({ ore: 3150, percent: 63 });
+    expect(byCond.PLAYED).toMatchObject({ ore: 2200, percent: 44 });
+    expect(byCond.POOR).toMatchObject({ ore: 1650, percent: 33 });
+    expect(table.rows.map((r) => r.condition)).toEqual([
+      "MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "LIGHT_PLAYED", "PLAYED", "POOR",
+    ]);
   });
 
-  it("utan rubrikpris blir NM '–', inte CardTraders tal", () => {
-    const table = conditionPriceTable(raw, at, null, now)!;
-    expect(table.rows.find((r) => r.condition === "NEAR_MINT")?.ore).toBeNull();
+  it("från 100 kr gäller den brantare tabellen", () => {
+    const table = conditionPriceTable(10_000)!;
+    const ex = table.rows.find((r) => r.condition === "EXCELLENT")!;
+    const poor = table.rows.find((r) => r.condition === "POOR")!;
+    expect(ex).toMatchObject({ ore: 9200, percent: CONDITION_PERCENT.high.EXCELLENT });
+    expect(poor).toMatchObject({ ore: 2500, percent: 25 });
   });
 
-  it("bara ett NM-golv från CardTrader ⇒ ingen tabell", () => {
-    expect(conditionPriceTable({ NEAR_MINT: { ore: 100, n: 4 } }, at, 6105, now)).toBeNull();
+  it("inget NM-pris ⇒ ingen tabell (aldrig ett påhittat tal)", () => {
+    expect(conditionPriceTable(null)).toBeNull();
+    expect(conditionPriceTable(0)).toBeNull();
   });
 
-  it(`äldre än ${CONDITION_MAX_AGE_DAYS} dygn ⇒ ingen tabell`, () => {
-    expect(conditionPriceTable(raw, "2026-10-01T00:00:00Z", 6105, now)).toBeNull();
-    expect(conditionPriceTable(raw, null, 6105, now)).toBeNull();
+  it("tabellerna sjunker med skicket och NM/Mint är alltid 100", () => {
+    for (const band of ["low", "high"] as const) {
+      const t = CONDITION_PERCENT[band];
+      expect(t.MINT).toBe(100);
+      expect(t.NEAR_MINT).toBe(100);
+      const ladder = [t.EXCELLENT, t.GOOD, t.LIGHT_PLAYED, t.PLAYED, t.POOR];
+      expect([...ladder].sort((a, b) => b - a)).toEqual(ladder);
+    }
   });
 });
 
 describe("priceForCondition", () => {
-  it("utan tabell är bara NM känt, ur rubriken", () => {
-    expect(priceForCondition(null, "NEAR_MINT", 801).ore).toBe(801);
-    expect(priceForCondition(null, "POOR", 801)).toEqual({ condition: "POOR", ore: null, n: 0, source: null });
+  it("utan tabell räknas skicket ur rubriken", () => {
+    expect(priceForCondition(null, "NEAR_MINT", 801)).toMatchObject({ ore: 801, source: "headline" });
+    expect(priceForCondition(null, "POOR", 801)).toMatchObject({ ore: 264, percent: 33, source: "estimate" });
   });
 
-  it("ett skick utan pris får aldrig rubrikpriset i sitt ställe", () => {
-    const table = conditionPriceTable({ PLAYED: { ore: 500, n: 2 } }, "2026-10-22T00:00:00Z", 801, new Date("2026-10-23T00:00:00Z"));
-    expect(priceForCondition(table, "POOR", 801).ore).toBeNull();
-    expect(priceForCondition(table, "PLAYED", 801)).toMatchObject({ ore: 500, source: "cardtrader" });
+  it("utan rubrikpris är alla skick '–'", () => {
+    expect(priceForCondition(null, "PLAYED", null)).toEqual({ condition: "PLAYED", ore: null, percent: 0, source: null });
+  });
+
+  it("en äldre cachad CardTrader-tabell ignoreras och räknas om ur NM", () => {
+    const old = {
+      rows: [
+        { condition: "NEAR_MINT", ore: 1000, percent: 100, source: "headline" },
+        { condition: "PLAYED", ore: 9999, percent: 0, source: "cardtrader" },
+      ],
+    } as unknown as Parameters<typeof priceForCondition>[0];
+    expect(priceForCondition(old, "PLAYED", null)).toMatchObject({ ore: 440, source: "estimate" });
   });
 });

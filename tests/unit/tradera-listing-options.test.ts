@@ -47,7 +47,8 @@ describe("AI-graderingens förslag", () => {
     expect(gradeToCondition(10)).toBe("MINT");
     expect(gradeToCondition(8.7)).toBe("NEAR_MINT");
     expect(gradeToCondition(7.2)).toBe("EXCELLENT");
-    expect(gradeToCondition(5)).toBe("GOOD");
+    expect(gradeToCondition(6.2)).toBe("GOOD");
+    expect(gradeToCondition(5)).toBe("LIGHT_PLAYED");
     expect(gradeToCondition(3.5)).toBe("PLAYED");
     expect(gradeToCondition(1)).toBe("POOR");
   });

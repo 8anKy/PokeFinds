@@ -209,6 +209,11 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 > hand nedanför sin markör.
 
 ## Nuläge
+- **PRIS PER SKICK = PROCENT AV CARDMARKETS NM (ägarbeslut 2026-10-26)**: Cardmarkets sju skick (nytt enum-värde
+  `LIGHT_PLAYED`), två tabeller efter NM-pris (< 100 kr: 100/100/95/80/63/44/33, ≥ 100 kr: 100/100/92/75/57/38/25),
+  alltid märkt "Uppskattat". Ingen officiell branschstandard finns — talen är MÄTTA på ~10 000 kort ur CardTraders
+  golv (`lib/condition-prices.ts`). CardTraders egna skickpriser visas inte längre. ⛔ Mät om kvartalsvis
+  (`scripts/condition-ratio-report.ts`-metoden) och visa ägaren nya tal FÖRE ändring. Samlingsvärdet använder ännu INTE procenten.
 - ⛔ **DOLT TILLS ÄGAREN SÄGER TILL (2026-10-26)**: giveawayn, Discord-knappen i SIDHUVUDET och veckoserien —
   en spak per funktion i `src/lib/hidden-features.ts`. Veckoserien dold = inget kort, inget firande och ingen
   ny dag bokförs (`recordActivity` → null); redan intjänad påfyllning gäller månaden ut. Giveawayns lotter räknas

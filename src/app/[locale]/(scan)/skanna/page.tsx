@@ -331,6 +331,7 @@ const CONDITIONS = [
   { value: "NEAR_MINT", label: "Near Mint" },
   { value: "EXCELLENT", label: "Excellent" },
   { value: "GOOD", label: "Good" },
+  { value: "LIGHT_PLAYED", label: "Light Played" },
   { value: "PLAYED", label: "Played" },
   { value: "POOR", label: "Poor" },
 ] as const;

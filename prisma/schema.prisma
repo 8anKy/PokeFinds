@@ -56,6 +56,7 @@ enum CardCondition {
   NEAR_MINT
   EXCELLENT
   GOOD
+  LIGHT_PLAYED
   PLAYED
   POOR
   SEALED

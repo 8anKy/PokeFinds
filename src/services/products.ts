@@ -1426,8 +1426,8 @@ export interface ProductDetailData {
   /** Produktens egen tryckning (`null` = vanlig). Valfritt: äldre payloads saknar fältet. */
   variantLabel?: string | null;
   /**
-   * PRIS PER SKICK (2026-10-23): NM = rubrikpriset, övriga skick = lägsta engelska
-   * CardTrader-annons (≥ 2 st). null = inga skickpriser. Rör aldrig rubrik/statistik/värde.
+   * PRIS PER SKICK (2026-10-26): NM = rubrikpriset, övriga skick = mätt procent av NM
+   * (lib/condition-prices.ts), alltid en uppskattning. null = inget NM-pris.
    */
   conditionPrices?: ConditionPriceTable | null;
   /**
@@ -1630,8 +1630,6 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
             id: true,
             slug: true,
             variantLabel: true,
-            conditionPrices: true,
-            conditionPricesAt: true,
             offers: { select: { price: true, stockStatus: true, url: true } },
           },
         })
@@ -1652,7 +1650,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
       label: v.variantLabel,
       lowestPrice,
       id: v.id,
-      conditionPrices: conditionPriceTable(v.conditionPrices, v.conditionPricesAt, lowestPrice),
+      conditionPrices: conditionPriceTable(lowestPrice),
     };
   });
   const affiliateIds = new Set(affiliateRetailers.map((r) => r.id));
@@ -1757,7 +1755,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     similar,
     variants,
     variantLabel: product.variantLabel,
-    conditionPrices: conditionPriceTable(product.conditionPrices, product.conditionPricesAt, stats.lowestPrice),
+    conditionPrices: conditionPriceTable(stats.lowestPrice),
     traderaListings,
     // Pro-grinden: inga graderade tal i den delade payloaden (se typen).
     gradedSales: EMPTY_GRADED,

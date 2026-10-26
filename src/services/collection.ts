@@ -790,7 +790,7 @@ const importRowSchema = z.object({
   slug: z.string().max(200).optional(),
   quantity: z.coerce.number().int().min(1).default(1),
   condition: z
-    .enum(["MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "PLAYED", "POOR", "SEALED"])
+    .enum(["MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "LIGHT_PLAYED", "PLAYED", "POOR", "SEALED"])
     .default("NEAR_MINT"),
   language: z.enum(["SV", "EN", "JP", "DE", "FR", "OTHER"]).default("EN"),
   purchasePrice: z.coerce.number().int().min(0).optional(),

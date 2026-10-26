@@ -398,6 +398,7 @@
     "NEAR_MINT": "Near Mint",
     "EXCELLENT": "Excellent",
     "GOOD": "Good",
+    "LIGHT_PLAYED": "Light Played",
     "PLAYED": "Played",
     "POOR": "Poor",
     "SEALED": "Sealed"
@@ -2139,7 +2140,6 @@
     "addGradeAria": "Grade",
     "addCaptionSealed": "Lowest price right now",
     "addCaptionMarket": "{condition} · Cardmarket",
-    "addCaptionCt": "{condition} · lowest of {count} listings",
     "addCaptionNone": "No {condition} price yet",
     "addCaptionSold": "Median of {count} sold {grading}",
     "addCaptionNoSales": "No sold {grading} yet · valued as raw",
@@ -2171,7 +2171,8 @@
     "ownedDetail": "You already have {count}{hasWhat, select, yes { · {what}} other {}}{hasWhere, select, yes { in {where}} other {}}",
     "ownedShow": "View",
     "addedTo": "Added to {portfolio}",
-    "addedToDesc": "{name}{hasDetail, select, yes { · {detail}} other {}}{hasCount, select, yes { · now {count}} other {}}"
+    "addedToDesc": "{name}{hasDetail, select, yes { · {detail}} other {}}{hasCount, select, yes { · now {count}} other {}}",
+    "addCaptionEstimate": "Estimate · {condition} ≈ {percent}% of Near Mint"
   },
   "Language": {
     "SV": "Swedish",

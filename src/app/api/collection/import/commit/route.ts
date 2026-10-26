@@ -27,7 +27,7 @@ const itemSchema = z.object({
   productId: z.string().max(40).nullable().default(null),
   quantity: z.number().int().min(1).max(9999).default(1),
   condition: z
-    .enum(["MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "PLAYED", "POOR", "SEALED"])
+    .enum(["MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "LIGHT_PLAYED", "PLAYED", "POOR", "SEALED"])
     .nullable()
     .default(null),
   language: z.enum(["SV", "EN", "JP", "DE", "FR", "OTHER"]).nullable().default(null),

@@ -342,8 +342,8 @@ export function CollectionQuickAddPopover({
           : { text: t("addCaptionNoSales", { grading: gradingLabel }), warn: true }
       : rawRow.source === "headline"
         ? { text: t("addCaptionMarket", { condition: tCond(condition) }) }
-        : rawRow.source === "cardtrader"
-          ? { text: t("addCaptionCt", { condition: tCond(condition), count: rawRow.n }) }
+        : rawRow.source === "estimate"
+          ? { text: t("addCaptionEstimate", { condition: tCond(condition), percent: rawRow.percent }) }
           : { text: t("addCaptionNone", { condition: tCond(condition) }) };
 
   const parsed = parseKronorToOre(priceText);
