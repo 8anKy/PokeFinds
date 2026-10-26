@@ -2172,7 +2172,7 @@
     "ownedShow": "View",
     "addedTo": "Added to {portfolio}",
     "addedToDesc": "{name}{hasDetail, select, yes { · {detail}} other {}}{hasCount, select, yes { · now {count}} other {}}",
-    "addCaptionEstimate": "Estimate · {condition} ≈ {percent}% of Near Mint"
+    "addCaptionEstimate": "Estimate · {condition}"
   },
   "Language": {
     "SV": "Swedish",

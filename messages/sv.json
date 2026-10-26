@@ -2172,7 +2172,7 @@
     "ownedShow": "Visa",
     "addedTo": "Tillagd i {portfolio}",
     "addedToDesc": "{name}{hasDetail, select, yes { · {detail}} other {}}{hasCount, select, yes { · nu {count} st} other {}}",
-    "addCaptionEstimate": "Uppskattat · {condition} ≈ {percent} % av Near Mint"
+    "addCaptionEstimate": "Uppskattat · {condition}"
   },
   "Language": {
     "SV": "Svenska",

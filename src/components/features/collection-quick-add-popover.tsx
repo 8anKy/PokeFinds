@@ -343,7 +343,7 @@ export function CollectionQuickAddPopover({
       : rawRow.source === "headline"
         ? { text: t("addCaptionMarket", { condition: tCond(condition) }) }
         : rawRow.source === "estimate"
-          ? { text: t("addCaptionEstimate", { condition: tCond(condition), percent: rawRow.percent }) }
+          ? { text: t("addCaptionEstimate", { condition: tCond(condition) }) }
           : { text: t("addCaptionNone", { condition: tCond(condition) }) };
 
   const parsed = parseKronorToOre(priceText);
