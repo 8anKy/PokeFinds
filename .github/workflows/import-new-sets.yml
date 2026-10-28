@@ -141,8 +141,14 @@ jobs:
       # att något felade. Steget måste ligga FÖRE avtryckssteget så nya kort som
       # kom in med en trasig bild ändå får ett avtryck samma körning.
       # Verifierar varje URL innan den skrivs → fungerande bilder rörs aldrig.
+      # ⛔ TAK + continue-on-error (2026-10-28): steget åt hela jobbets 300 min tre
+      # söndagar i rad (10-11, 10-18, 10-25) och tog med sig stegen efter — bl.a.
+      # skannerns unika cm-kort, som bara körs här. Skriver kort för kort, så ett
+      # avbrott behåller det som hann lagas.
       - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         name: Laga döda kortbilder (verifierar, rör aldrig en fungerande bild)
+        continue-on-error: true
+        timeout-minutes: 150
         env:
           APPLY: "1"
         run: npx tsx scripts/fix-card-images.ts
