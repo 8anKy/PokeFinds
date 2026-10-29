@@ -6,7 +6,7 @@
  *
  * Säkerhetsregler: jobbet avbryts automatiskt om felräknaren passerar 20.
  */
-import { JobStatus, SourceType, StockStatus, type Prisma, type ProductCategory } from "@prisma/client";
+import { JobStatus, SourceType, StockStatus, type Prisma, type ProductCategory, type CardLanguage } from "@prisma/client";
 import { prisma, ensureDbAwake } from "@/lib/db";
 import { normalizeTitle, slugify } from "@/lib/utils";
 import { MockAdapter } from "@/scrapers/adapters/mock-adapter";
@@ -80,6 +80,7 @@ import {
   classifyForm,
   cleanListingTitle,
   identicalIdentity,
+  isRepurposedListingPage,
   wrapperArtSameProduct,
   isAccessoryListing,
   isStoreBundleListing,
@@ -531,8 +532,15 @@ export async function ensureListingProduct(
   // butikssida — det var så dubblettstubbarna uppstod (34 delade URL:er, städat 07-07).
   const owner = await prisma.offer.findFirst({
     where: { retailerId: it.retailerId, url: it.url },
-    select: { productId: true },
+    select: { productId: true, product: { select: { title: true, language: true } } },
   });
+  // ÅTERANVÄND SIDA: butiken har gjort om URL:en till en annan vara. Memorera inte
+  // ägaren under den nya titeln (då hade felet blivit permanent) — runScrapeJob lossar
+  // den gamla offern och titelmatchar URL:en på nytt. Se isRepurposedListingPage.
+  if (owner && isRepurposedListingPage(it.title, owner.product.title, owner.product.language)) {
+    console.log(`[import] Återanvänd butikssida — binder inte "${it.title}" till "${owner.product.title}" (${it.url})`);
+    return null;
+  }
   if (owner) {
     await rememberListingProduct(it, owner.productId);
     return owner.productId;
@@ -543,7 +551,7 @@ export async function ensureListingProduct(
   const facts = it.sourceName
     ? await fetchListingFacts(it.sourceName, it.url)
     : { gtin: null, name: null };
-  const gtin = facts.gtin;
+  let gtin = facts.gtin;
 
   // Butiks-skräp ("MAX 1 per kund", "förhandsbokning", "(kopia)") bort INNAN
   // matchning/namnsättning — annars blir samma SKU från olika butiker
@@ -595,8 +603,15 @@ export async function ensureListingProduct(
   // BARA tillverkarkoder får joina: en distributör-EAN (73…) är butikens/distributörens
   // egen kod och kan delas mellan SKU:er → exakt join på den vore en gissning i förklädnad.
   if (gtin && isPokemonManufacturerGtin(gtin)) {
-    const byGtin = await prisma.product.findFirst({ where: { gtin }, select: { id: true } });
-    if (byGtin) {
+    const byGtin = await prisma.product.findFirst({ where: { gtin }, select: { id: true, title: true, language: true } });
+    // En återanvänd sida kan bära den GAMLA varans streckkod (Speltrollet 30th UPC Day
+    // hade kvar Chaos Rising-bundlens) — då är koden inget bevis, titeln får avgöra.
+    if (byGtin && isRepurposedListingPage(cleanTitle, byGtin.title, byGtin.language)) {
+      console.log(`[gtin] Streckkoden pekar på "${byGtin.title}" men sidan säljer "${cleanTitle}" — ignorerar koden.`);
+      // Ingen kod alls från och med här: annars blockerar gtinConflict nedan just den
+      // länk titeln hittar (kandidatens riktiga kod ≠ den gamla varans).
+      gtin = null;
+    } else if (byGtin) {
       // Exakt träff: hoppa över BÅDE fuzzy-poängen och LLM-domen. Samma streckkod =
       // samma tillverkar-SKU, oavsett hur olika butikerna formulerar titeln
       // ("Ascended Heroes Bundle" == "Mega Evolution - Ascended Heroes Booster Bundle").
@@ -1681,6 +1696,16 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
     const offerByProduct = new Map<string, (typeof retailerOffers)[number]>();
     for (const o of retailerOffers) if (!offerByProduct.has(o.productId)) offerByProduct.set(o.productId, o);
     const offerByUrl = new Map(retailerOffers.map((o) => [o.url, o] as const));
+    // Ägarproduktens titel per bunden URL — bara för BUTIKER (återanvända sidor, se
+    // isRepurposedListingPage). Marknadsplatsers/CM:s tiotusentals rader hämtas inte.
+    const ownerTitleById = new Map<string, { title: string; language: CardLanguage | null }>();
+    if (isStoreRetailer(source.name) && retailerOffers.length > 0) {
+      const owners = await prisma.product.findMany({
+        where: { id: { in: [...new Set(retailerOffers.map((o) => o.productId))] } },
+        select: { id: true, title: true, language: true },
+      });
+      for (const p of owners) ownerTitleById.set(p.id, { title: p.title, language: p.language });
+    }
 
     // categoryByProduct + cmPriceByProduct är förladdade (delade för hela passet) —
     // de ersätter product.findUnique och CM-referensprisfrågan som låg per annons.
@@ -1764,7 +1789,30 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
         // restock-skanningen bumpade `lastSeenAt` (URL:en stod ju i feeden) — ett
         // fruset pris som såg färskt ut. Webhallens 30th UPC stod på 5 999 kr medan
         // butiken sa 3 299 kr. Prisvakterna nedan gäller fortfarande.
-        const boundOwner = urlOwner.get(normalized.url) ?? null;
+        let boundOwner = urlOwner.get(normalized.url) ?? null;
+        // ÅTERANVÄND SIDA: butiken säljer nu en helt annan vara på URL:en. Lossa den
+        // gamla offern (och huvudboksmemot, annars binder auto-importen tillbaka den) och
+        // behandla URL:en som okänd. Annars får den gamla produkten den nya varans pris
+        // och Discord postar påfyllningen under fel namn. Se isRepurposedListingPage.
+        const ownerProduct = boundOwner ? ownerTitleById.get(boundOwner) : undefined;
+        const staleOffer = offerByUrl.get(normalized.url);
+        if (
+          boundOwner &&
+          ownerProduct &&
+          staleOffer &&
+          isRepurposedListingPage(rawProduct.title, ownerProduct.title, ownerProduct.language)
+        ) {
+          logs.push(`Återanvänd butikssida — lossar "${ownerProduct.title}" från "${rawProduct.title}" (${normalized.url})`);
+          await prisma.offer.delete({ where: { id: staleOffer.id } }).catch(() => undefined);
+          await prisma.storeListing.updateMany({
+            where: { retailerId: retailer.id, url: normalized.url },
+            data: { productId: null, productMatchTitle: null, unmatchedAt: null },
+          });
+          urlOwner.delete(normalized.url);
+          offerByUrl.delete(normalized.url);
+          if (offerByProduct.get(boundOwner)?.id === staleOffer.id) offerByProduct.delete(boundOwner);
+          boundOwner = null;
+        }
         let productId: string;
         if (boundOwner) {
           productId = boundOwner;

@@ -792,6 +792,30 @@ export function productsConflict(
   );
 }
 
+/**
+ * ÅTERANVÄND BUTIKSSIDA (2026-10-29): butiken har gjort om en befintlig produktsida till
+ * en HELT annan vara — samma URL, ny titel. Speltrollet gjorde sin Chaos Rising Booster
+ * Bundle-sida till "30th Celebration Ultra Premium Collection Box - Day" och behöll till
+ * och med bundlens streckkod på varianten; offern på URL:en stod kvar på bundlen och
+ * Discord postade "Mega Evolution Booster Bundle · 3 490 kr".
+ *
+ * ⛔ Konflikt ENSAM räcker inte: mätt mot alla 2 107 bundna butikslänkar 2026-10-29 gav
+ * productsConflict 26 träffar, bland dem korrekta länkar ("Kleavor V Star" ↔ "VSTAR",
+ * butikens grundform-namn på blistrar). Med likhetsgolvet 0,35 återstod EN — den här —
+ * och nästa låg på 0,47. Golvet är alltså mätt, inte valt; höj det inte utan ny mätning.
+ */
+export const REPURPOSED_PAGE_MAX_SIMILARITY = 0.35;
+export function isRepurposedListingPage(
+  listingTitle: string,
+  productTitle: string,
+  productLanguage?: CardLanguage | null
+): boolean {
+  return (
+    productsConflict(listingTitle, productTitle, productLanguage) &&
+    scoreSimilarity(normalizeTitle(listingTitle), normalizeTitle(productTitle)) < REPURPOSED_PAGE_MAX_SIMILARITY
+  );
+}
+
 /** Exakt samma vara, bara olika formulerad? Enda regeln som får radera en produkt. */
 export function mergeEquivalent(a: string, b: string): boolean {
   const ta = mergeTokens(a);
