@@ -3387,7 +3387,6 @@
     "phaseUpcoming": "Starts {date}",
     "phaseOpen": "Runs until {date}",
     "phaseClosed": "Ended",
-    "endsEarly": "… or earlier – when we reach 1,000 followers on TikTok. We'll announce it a day ahead.",
     "stepsTitle": "How to enter",
     "step1": "Follow Scoutr on TikTok",
     "step2": "Follow Scoutr on Instagram",
@@ -3423,7 +3422,7 @@
     "closedBody": "The giveaway has ended. The winner is drawn within 7 days and contacted by email.",
     "rulesTitle": "Rules",
     "rulesOrganizer": "The organiser is Scoutr (company details in the terms of service). Questions: hej@scoutr.se.",
-    "rulesPeriod": "The giveaway runs {start} – {end} (Swedish time), or ends earlier when Scoutr reaches 1,000 followers on TikTok. An earlier end is announced at least 24 hours ahead in the app and on TikTok.",
+    "rulesPeriod": "The giveaway runs {start} – {end} (Swedish time).",
     "rulesList": [
       "Prize: one Pokémon TCG 30th Celebration Elite Trainer Box. There is one prize and it cannot be exchanged for cash.",
       "Entry is free. Tickets cannot be bought.",

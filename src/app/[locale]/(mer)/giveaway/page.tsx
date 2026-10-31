@@ -177,7 +177,6 @@ export default function GiveawayPage() {
                     ? t("phaseOpen", { date: fmt(status.closesAt) })
                     : t("phaseClosed")}
               </p>
-              {!closed && <p className="mt-0.5">{t("endsEarly")}</p>}
             </div>
           )}
           </div>

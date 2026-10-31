@@ -38,8 +38,8 @@ export interface GiveawayConfig {
 /**
  * Aktuell giveaway. Start/slut kan flyttas med env utan kodändring
  * (`GIVEAWAY_STARTS_AT` flyttar även när den blir synlig):
- * `GIVEAWAY_CLOSES_AT` (ISO) avslutar i förtid när målet (1 000 TikTok-följare)
- * nås — sätt den ~24 h framåt och meddela det.
+ * `GIVEAWAY_CLOSES_AT` (ISO) flyttar slutet. Inget förtida slut vid ett följarmål
+ * (ägarbeslut 2026-10-31) — den löper till 17 nov.
  */
 export const GIVEAWAY_KEY = "30th-etb-2026";
 // Start = dagen ägaren tillkännager (2026-10-26, ägarbeslut — flyttad från 10-15, 10-17, 10-20 och 10-23). Före starten är
@@ -47,7 +47,7 @@ export const GIVEAWAY_KEY = "30th-etb-2026";
 const DEFAULT_STARTS_AT = "2026-10-26T00:00:00+01:00";
 // Giveawayn var ÖPPEN 2026-10-23 innan den doldes igen ⇒ aktivitet räknas därifrån.
 const DEFAULT_COUNTS_FROM = "2026-10-23T00:00:00+02:00";
-const DEFAULT_CLOSES_AT = "2026-11-15T23:59:59+01:00";
+const DEFAULT_CLOSES_AT = "2026-11-17T23:59:59+01:00";
 
 export const TICKETS = {
   account: 5,

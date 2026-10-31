@@ -3387,7 +3387,6 @@
     "phaseUpcoming": "Startar {date}",
     "phaseOpen": "Pågår till {date}",
     "phaseClosed": "Avslutad",
-    "endsEarly": "… eller tidigare – när vi når 1 000 följare på TikTok. Vi säger till ett dygn innan.",
     "stepsTitle": "Så är du med",
     "step1": "Följ Scoutr på TikTok",
     "step2": "Följ Scoutr på Instagram",
@@ -3423,7 +3422,7 @@
     "closedBody": "Giveawayn är avslutad. Vinnaren dras inom 7 dagar och kontaktas via e-post.",
     "rulesTitle": "Regler",
     "rulesOrganizer": "Arrangör är Scoutr (företagsuppgifter i användarvillkoren). Frågor: hej@scoutr.se.",
-    "rulesPeriod": "Giveawayn pågår {start} – {end} (svensk tid), eller slutar tidigare när Scoutr når 1 000 följare på TikTok. Ett tidigare slut meddelas minst 24 timmar i förväg i appen och på TikTok.",
+    "rulesPeriod": "Giveawayn pågår {start} – {end} (svensk tid).",
     "rulesList": [
       "Vinst: en Pokémon TCG 30th Celebration Elite Trainer Box. Det finns en vinst och den kan inte bytas mot pengar.",
       "Deltagandet är gratis. Inga lotter kan köpas.",

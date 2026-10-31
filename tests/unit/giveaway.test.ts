@@ -53,11 +53,11 @@ describe("giveawayPhase", () => {
     // countsFrom kan aldrig ligga efter starten
     expect(giveawayConfig({ GIVEAWAY_STARTS_AT: "2026-10-20T00:00:00+02:00" }).countsFrom.toISOString()).toBe("2026-10-19T22:00:00.000Z");
   });
-  it("env kan avsluta i förtid, ogiltigt värde faller tillbaka", () => {
+  it("env kan flytta slutet, ogiltigt värde faller tillbaka", () => {
     const early = giveawayConfig({ GIVEAWAY_CLOSES_AT: "2026-10-30T20:00:00+01:00" });
     expect(giveawayPhase(early, new Date("2026-11-01T00:00:00Z"))).toBe("closed");
     expect(giveawayConfig({ GIVEAWAY_CLOSES_AT: "inte ett datum" }).closesAt.toISOString()).toBe(
-      "2026-11-15T22:59:59.000Z"
+      "2026-11-17T22:59:59.000Z"
     );
   });
 });
