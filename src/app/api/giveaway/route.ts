@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const user = await requireUser();
     joinSchema.parse(await req.json());
     await joinGiveaway(user.id, { preview: hasRole(user.role, "MODERATOR") });
-    return jsonOk(await getGiveawayStatus(user.id));
+    return jsonOk(await getGiveawayStatus(user.id, { fresh: true }));
   } catch (e) {
     return apiError(e);
   }

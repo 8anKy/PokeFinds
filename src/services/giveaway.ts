@@ -159,11 +159,17 @@ export function giveawayPublicInfo(now: Date = new Date()) {
   };
 }
 
-export async function getGiveawayStatus(userId: string | null) {
+/**
+ * `fresh` = förbi 60 s-cachen. Svaret på anmälan MÅSTE vara färskt: revalidateTag i
+ * samma request släpper inte den cachade posten förrän nästa, så anmälan såg ut att
+ * inte ha hänt ("Gå med" gjorde ingenting synligt förrän sidan laddades om).
+ */
+export async function getGiveawayStatus(userId: string | null, opts: { fresh?: boolean } = {}) {
   const info = giveawayPublicInfo();
   if (!userId) return { ...info, user: null };
-  const { discordUserId: _omit, inviteeDiscordUserIds: _omitInvitees, ...user } =
-    await cachedUserTickets(userId);
+  const { discordUserId: _omit, inviteeDiscordUserIds: _omitInvitees, ...user } = opts.fresh
+    ? await loadUserTickets(userId)
+    : await cachedUserTickets(userId);
   return { ...info, user };
 }
 
