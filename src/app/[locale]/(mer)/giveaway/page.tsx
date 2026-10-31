@@ -33,6 +33,7 @@ interface Status {
     counts: {
       scannedCards: number;
       qualifiedInvites: number;
+      invitesInDiscord: number;
       hasRestockAlert: boolean;
       discordLinked: boolean;
       gradings: number;
@@ -185,6 +186,13 @@ export default function GiveawayPage() {
               <EarnRow label={t("rowAccount")} hint={t("earnAccountHint")} amount={`+${TICKETS.account}`} />
               <EarnRow label={t("rowScans")} hint={t("rowScansHint")} amount={`+${TICKETS.perScan}`} />
               <EarnRow label={t("rowInvites")} hint={t("rowInvitesHint")} amount={`+${TICKETS.perInvite}`} />
+              {status.discordAvailable && (
+                <EarnRow
+                  label={t("rowInviteDiscord")}
+                  hint={t("rowInviteDiscordHint")}
+                  amount={`+${TICKETS.perInviteDiscord}`}
+                />
+              )}
               <EarnRow label={t("rowRestock")} hint={t("rowRestockHint")} amount={`+${TICKETS.restockAlert}`} />
               <EarnRow label={t("rowGrading")} hint={t("rowGradingHint")} amount={`+${TICKETS.perGrading}`} />
               {status.discordAvailable && (
@@ -260,6 +268,14 @@ export default function GiveawayPage() {
                   ) : null
                 }
               />
+              {(status?.discordAvailable || user.counts.invitesInDiscord > 0) && (
+                <TicketRow
+                  label={t("rowInviteDiscord")}
+                  hint={t("rowInviteDiscordHint")}
+                  value={`${Math.min(user.counts.invitesInDiscord, TICKETS.maxInvites)}/${TICKETS.maxInvites}`}
+                  done={user.counts.invitesInDiscord >= TICKETS.maxInvites}
+                />
+              )}
               <TicketRow
                 label={t("rowRestock")}
                 hint={t("rowRestockHint")}

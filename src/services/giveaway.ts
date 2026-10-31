@@ -58,17 +58,28 @@ async function countScannedCards(userId: string, cfg: GiveawayConfig, end: Date)
   return Number(rows[0]?.n ?? 0);
 }
 
-/** Inbjudna under perioden som verifierat OCH kommit tillbaka en senare dag. */
-async function countQualifiedInvites(userId: string, cfg: GiveawayConfig, end: Date): Promise<number> {
+/**
+ * Inbjudna under perioden som verifierat OCH kommit tillbaka en senare dag, plus
+ * Discord-id:t för dem som också kopplat Discord (dragningen kollar att de är kvar).
+ */
+async function loadQualifiedInvites(
+  userId: string,
+  cfg: GiveawayConfig,
+  end: Date
+): Promise<{ qualified: number; discordUserIds: string[] }> {
   const invites = await prisma.invite.findMany({
     where: {
       inviterId: userId,
       usedAt: { gte: cfg.countsFrom, lte: end },
       verifiedAt: { not: null },
     },
-    select: { usedBy: { select: { createdAt: true, lastSeenAt: true } } },
+    select: { usedBy: { select: { createdAt: true, lastSeenAt: true, discordUserId: true } } },
   });
-  return invites.filter((i) => inviteeReturned(i.usedBy)).length;
+  const qualified = invites.filter((i) => inviteeReturned(i.usedBy));
+  return {
+    qualified: qualified.length,
+    discordUserIds: qualified.flatMap((i) => (i.usedBy?.discordUserId ? [i.usedBy.discordUserId] : [])),
+  };
 }
 
 export interface GiveawayUserTickets {
@@ -77,12 +88,15 @@ export interface GiveawayUserTickets {
   counts: {
     scannedCards: number;
     qualifiedInvites: number;
+    invitesInDiscord: number;
     hasRestockAlert: boolean;
     discordLinked: boolean;
     gradings: number;
   };
   /** För dragningens medlemskapskoll — skickas aldrig till klienten. */
   discordUserId: string | null;
+  /** De inbjudna vännernas Discord-id, för samma koll — skickas aldrig till klienten. */
+  inviteeDiscordUserIds: string[];
 }
 
 /** Okachad — dragningsskriptet läser den här direkt. */
@@ -92,13 +106,13 @@ export async function loadUserTickets(
   now: Date = new Date()
 ): Promise<GiveawayUserTickets> {
   const end = windowEnd(cfg, now);
-  const [entry, scannedCards, qualifiedInvites, restockCount, account, gradings] = await Promise.all([
+  const [entry, scannedCards, invites, restockCount, account, gradings] = await Promise.all([
     prisma.giveawayEntry.findUnique({
       where: { giveaway_userId: { giveaway: cfg.key, userId } },
       select: { id: true },
     }),
     countScannedCards(userId, cfg, end),
-    countQualifiedInvites(userId, cfg, end),
+    loadQualifiedInvites(userId, cfg, end),
     prisma.watchlistItem.count({ where: { userId, restockAlert: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { discordUserId: true } }),
     // Bara KLARA graderingar under perioden — ett misslyckat anrop är ingen gradering.
@@ -109,7 +123,8 @@ export async function loadUserTickets(
   const discordUserId = account?.discordUserId ?? null;
   const counts = {
     scannedCards,
-    qualifiedInvites,
+    qualifiedInvites: invites.qualified,
+    invitesInDiscord: invites.discordUserIds.length,
     hasRestockAlert: restockCount > 0,
     discordLinked: !!discordUserId,
     gradings,
@@ -119,6 +134,7 @@ export async function loadUserTickets(
     tickets: computeTickets({ joined: !!entry, ...counts }),
     counts,
     discordUserId,
+    inviteeDiscordUserIds: invites.discordUserIds,
   };
 }
 
@@ -145,7 +161,8 @@ export function giveawayPublicInfo(now: Date = new Date()) {
 export async function getGiveawayStatus(userId: string | null) {
   const info = giveawayPublicInfo();
   if (!userId) return { ...info, user: null };
-  const { discordUserId: _omit, ...user } = await cachedUserTickets(userId);
+  const { discordUserId: _omit, inviteeDiscordUserIds: _omitInvitees, ...user } =
+    await cachedUserTickets(userId);
   return { ...info, user };
 }
 
