@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { refreshSessionToken } from "@/lib/client-session";
 import { Button } from "@/components/ui/button";
-import { Checkbox, FieldError, Input } from "@/components/ui/input";
+import { Checkbox, FieldError } from "@/components/ui/input";
 import { SafeImage } from "@/components/ui/safe-image";
 import { IconCards, IconCheck } from "@/components/ui/icons";
 import { IconDiscord } from "@/components/ui/brand-icons";
@@ -79,13 +79,12 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // INBJUDNINGSKOD + DISCORD VIA SCOUTR (ägarbeslut 2026-10-31). Kom vännen via länken är
-  // inbjudan redan inlöst (cookien) och raden visar vem; annars kan koden skrivas här —
-  // länkens cookie når inte fram när den öppnats i en apps inbyggda webbläsare.
+  // INBJUDAN + DISCORD VIA SCOUTR (ägarbeslut 2026-10-31). Kom vännen via länken är
+  // inbjudan redan inlöst (cookien) och raden visar vem. Ingen kod att skriva in —
+  // ägaren vill bara ha länken (2026-10-31).
   // Discord går genom "Koppla Discord" (inte discord.gg) så att en inbjuden väns
   // anslutning kan krediteras; servern bokför den bara för NYA medlemmar.
   const [invite, setInvite] = useState<{ invitedBy: string | null; canEnterCode: boolean; discordLinking: boolean } | null>(null);
-  const [inviteCode, setInviteCode] = useState("");
   const [joinDiscord, setJoinDiscord] = useState(false);
   useEffect(() => {
     void fetch("/api/invites/me")
@@ -123,21 +122,6 @@ export default function OnboardingPage() {
     setError(null);
     setSubmitting(true);
     try {
-      if (inviteCode.trim() && invite?.canEnterCode) {
-        const r = await fetch("/api/invites/me", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: inviteCode }),
-        });
-        if (!r.ok) {
-          const data = (await r.json().catch(() => null)) as { error?: string } | null;
-          setError(data?.error ?? tError("genericError"));
-          setSubmitting(false);
-          return;
-        }
-        setInvite((await r.json()) as typeof invite);
-        setInviteCode("");
-      }
       const res = await fetch("/api/users/me/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -293,23 +277,6 @@ export default function OnboardingPage() {
               <p className="rounded-lg border border-holo-cyan/30 bg-holo-cyan/10 px-3 py-2 text-sm text-ink">
                 {t("inviteCodeApplied", { name: invite.invitedBy })}
               </p>
-            ) : invite?.canEnterCode ? (
-              <div className="rounded-lg border border-surface-border bg-surface-raised p-3">
-                <label htmlFor="invite-code" className="text-sm font-medium text-ink">
-                  {t("inviteCodeLabel")}
-                </label>
-                <Input
-                  id="invite-code"
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value)}
-                  autoCapitalize="characters"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  maxLength={32}
-                  className="mt-2 font-mono uppercase"
-                />
-                <p className="mt-1.5 text-xs text-ink-faint">{t("inviteCodeHint")}</p>
-              </div>
             ) : null}
 
             {/* Discord-inbjudan i SISTA steget, inte som ett eget extra steg:
