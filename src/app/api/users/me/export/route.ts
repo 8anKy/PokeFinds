@@ -122,7 +122,7 @@ export async function GET() {
         },
         inviteUsed: { select: { createdAt: true, usedAt: true, verifiedAt: true } },
         giveawayEntries: {
-          select: { giveaway: true, tiktokHandle: true, instagramHandle: true, acceptedAt: true },
+          select: { giveaway: true, tiktokHandle: true, instagramHandle: true, facebookFollowedAt: true, acceptedAt: true },
         },
         // Meddelanden (2026-09-03): samtalen jag deltar i + MINA meddelanden.
         // Motpartens meddelanden är motpartens data och exporteras inte här —

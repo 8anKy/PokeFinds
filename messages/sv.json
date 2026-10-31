@@ -3419,14 +3419,14 @@
       "Vinst: en Pokémon TCG 30th Celebration Elite Trainer Box. Det finns en vinst och den kan inte bytas mot pengar.",
       "Deltagandet är gratis. Inga lotter kan köpas.",
       "För att vara med: ha ett Scoutr-konto, anmäl dig på den här sidan, följ Scoutr på TikTok och Instagram, och kommentera giveaway-inlägget på TikTok där du taggar två vänner.",
-      "Lotter: 5 när du anmäler dig; 1 per unikt kort du skannar och lägger i samlingen under perioden (max 100); 10 per vän som skapar konto via din inbjudningslänk under perioden och kommer tillbaka en senare dag (inget tak) och 5 till per sådan vän som också gått med i Scoutrs Discord via Scoutr och fortfarande är med vid dragningen; 5 när du har ett restock-larm på en produkt; 5 när du gått med i Scoutrs Discord via Scoutr och fortfarande är med vid dragningen; 3 per kort du AI-graderar under perioden (max 3 graderingar).",
+      "Lotter: 5 när du anmäler dig; 1 per unikt kort du skannar och lägger i samlingen under perioden (max 100); 10 per vän som skapar konto via din inbjudningslänk under perioden och kommer tillbaka en senare dag (inget tak) och 5 till per sådan vän som också gått med i Scoutrs Discord via Scoutr och fortfarande är med vid dragningen; 5 när du har ett restock-larm på en produkt; 5 när du gått med i Scoutrs Discord via Scoutr och fortfarande är med vid dragningen; 5 när du följer Scoutr på Facebook; 3 per kort du AI-graderar under perioden (max 3 graderingar).",
       "Samma kort ger bara en lott. Kort som tas bort ur samlingen före dragningen räknas inte.",
       "Ett konto per person. Flera konton, falska konton eller annat fusk diskvalificerar.",
       "Dragningen sker inom 7 dagar efter slutet, slumpvis och viktat efter antal lotter. Vinnaren kontrolleras mot kraven ovan; uppfylls de inte dras en ny vinnare.",
       "Vinnaren kontaktas via kontots e-postadress och måste inom 14 dagar svara med sina användarnamn på TikTok och Instagram, så att kraven kan kontrolleras, annars dras en ny vinnare. Vinnarens användarnamn kan visas i Scoutrs kanaler.",
       "Du måste vara minst 13 år. Är du under 18 krävs målsmans godkännande för att ta emot vinsten. Vinsten skickas till en adress i Sverige.",
       "Vi använder ditt konto bara för att genomföra giveawayn. Användarnamn som vinnaren uppger raderas senast 3 månader efter dragningen.",
-      "TikTok, Instagram (Meta), Apple och Google sponsrar, stöder eller administrerar inte giveawayn och har inget ansvar för den."
+      "TikTok, Instagram och Facebook (Meta), Apple och Google sponsrar, stöder eller administrerar inte giveawayn och har inget ansvar för den."
     ],
     "rowDiscord": "Discord",
     "rowDiscordHint": "5 lotter när du går med i vår Discord via Scoutr",
@@ -3438,6 +3438,9 @@
     "earnIntro": "Ju fler lotter, desto större chans att vinna. När du anmält dig räknas de automatiskt när du använder appen:",
     "earnAccountHint": "Direkt när du anmäler dig nedan",
     "earnOdds": "Vinnaren dras slumpvis – varje lott är en chans.",
+    "rowFacebook": "Facebook",
+    "rowFacebookHint": "5 lotter när du följer Scoutr på Facebook",
+    "ctaFacebook": "Följ",
     "rowGrading": "AI-gradering",
     "rowGradingHint": "3 lotter per kort du AI-graderar, max 3",
     "ctaGrade": "Gradera"

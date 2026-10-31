@@ -4,9 +4,11 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
 import { auth, hasRole, requireUser } from "@/lib/auth";
-import { getGiveawayStatus, joinGiveaway } from "@/services/giveaway";
+import { getGiveawayStatus, joinGiveaway, markFacebookFollowed } from "@/services/giveaway";
 
 export const dynamic = "force-dynamic";
+
+const facebookSchema = z.object({ action: z.literal("facebook") });
 
 const joinSchema = z.object({
   // Reglerna + åldern (13+, under 18 med målsmans godkännande) måste kryssas i.
@@ -25,7 +27,13 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const user = await requireUser();
-    joinSchema.parse(await req.json());
+    const body: unknown = await req.json();
+    // "Följ på Facebook" — självdeklarerad lott, samma rutt som anmälan.
+    if (facebookSchema.safeParse(body).success) {
+      await markFacebookFollowed(user.id);
+      return jsonOk(await getGiveawayStatus(user.id, { fresh: true }));
+    }
+    joinSchema.parse(body);
     await joinGiveaway(user.id, { preview: hasRole(user.role, "MODERATOR") });
     return jsonOk(await getGiveawayStatus(user.id, { fresh: true }));
   } catch (e) {

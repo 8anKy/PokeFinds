@@ -11,6 +11,8 @@
  *                                                 kollar att vännen är kvar
  *   restock-larm på en produkt               5   en gång
  *   Discord kopplat (= med i servern)        5   en gång; dragningen kollar medlemskapet
+ *   Facebook ("Följ på Facebook")            5   en gång; SJÄLVDEKLARERAT, verifieras inte
+ *                                                 (ägarbeslut 2026-10-31: "vi behöver inte verifiera")
  *   AI-gradering (klar) under perioden     3/st  max 3 — gratiskontots månadskvot, så taket
  *                                                 nås utan Pro (ägarbeslut 2026-10-13)
  *
@@ -55,6 +57,7 @@ export const TICKETS = {
   perInviteDiscord: 5,
   restockAlert: 5,
   discord: 5,
+  facebook: 5,
   perGrading: 3,
   maxGradings: 3,
 } as const;
@@ -99,6 +102,8 @@ export interface TicketInput {
   hasRestockAlert: boolean;
   /** Discord-kontot kopplat via "Koppla Discord" (som lägger in personen i servern). */
   discordLinked: boolean;
+  /** Tryckte "Följ på Facebook" — självdeklarerat. */
+  facebookFollowed: boolean;
   /** Klara AI-graderingar under perioden. */
   gradings: number;
 }
@@ -110,6 +115,7 @@ export interface TicketBreakdown {
   inviteDiscord: number;
   restock: number;
   discord: number;
+  facebook: number;
   grading: number;
   total: number;
 }
@@ -123,6 +129,7 @@ export function computeTickets(input: TicketInput): TicketBreakdown {
     TICKETS.perInviteDiscord;
   const restock = input.hasRestockAlert ? TICKETS.restockAlert : 0;
   const discord = input.discordLinked ? TICKETS.discord : 0;
+  const facebook = input.facebookFollowed ? TICKETS.facebook : 0;
   const grading = Math.min(Math.max(0, input.gradings), TICKETS.maxGradings) * TICKETS.perGrading;
   return {
     account,
@@ -131,8 +138,9 @@ export function computeTickets(input: TicketInput): TicketBreakdown {
     inviteDiscord,
     restock,
     discord,
+    facebook,
     grading,
-    total: account + scans + invites + inviteDiscord + restock + discord + grading,
+    total: account + scans + invites + inviteDiscord + restock + discord + facebook + grading,
   };
 }
 

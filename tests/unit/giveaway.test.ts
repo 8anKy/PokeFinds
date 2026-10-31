@@ -11,24 +11,24 @@ import sv from "../../messages/sv.json";
 
 describe("computeTickets", () => {
   it("ger inget utan anmälan för kontot", () => {
-    expect(computeTickets({ joined: false, scannedCards: 0, qualifiedInvites: 0, invitesInDiscord: 0, hasRestockAlert: false, discordLinked: false, gradings: 0 }).total).toBe(0);
+    expect(computeTickets({ joined: false, scannedCards: 0, qualifiedInvites: 0, invitesInDiscord: 0, hasRestockAlert: false, discordLinked: false, facebookFollowed: false, gradings: 0 }).total).toBe(0);
   });
 
   it("kapar skanningar men inte inbjudningar", () => {
-    const t = computeTickets({ joined: true, scannedCards: 500, qualifiedInvites: 40, invitesInDiscord: 40, hasRestockAlert: true, discordLinked: true, gradings: 9 });
+    const t = computeTickets({ joined: true, scannedCards: 500, qualifiedInvites: 40, invitesInDiscord: 40, hasRestockAlert: true, discordLinked: true, facebookFollowed: true, gradings: 9 });
     // Inbjudningarna har inget tak (ägarbeslut 2026-10-31)
-    expect(t).toEqual({ account: 5, scans: 100, invites: 400, inviteDiscord: 200, restock: 5, discord: 5, grading: 9, total: 724 });
+    expect(t).toEqual({ account: 5, scans: 100, invites: 400, inviteDiscord: 200, restock: 5, discord: 5, facebook: 5, grading: 9, total: 729 });
   });
 
   it("räknar en lott per kort och tio per vän", () => {
-    const t = computeTickets({ joined: true, scannedCards: 7, qualifiedInvites: 2, invitesInDiscord: 0, hasRestockAlert: false, discordLinked: false, gradings: 2 });
+    const t = computeTickets({ joined: true, scannedCards: 7, qualifiedInvites: 2, invitesInDiscord: 0, hasRestockAlert: false, discordLinked: false, facebookFollowed: false, gradings: 2 });
     expect(t.total).toBe(TICKETS.account + 7 + 20 + 2 * TICKETS.perGrading);
   });
 });
 
 describe("inbjudna vänner i Discord", () => {
   it("ger 5 extra per vän i Discord, aldrig fler än de räknade vännerna", () => {
-    const base = { joined: true, scannedCards: 0, hasRestockAlert: false, discordLinked: false, gradings: 0 };
+    const base = { joined: true, scannedCards: 0, hasRestockAlert: false, discordLinked: false, facebookFollowed: false, gradings: 0 };
     expect(computeTickets({ ...base, qualifiedInvites: 3, invitesInDiscord: 2 }).inviteDiscord).toBe(2 * TICKETS.perInviteDiscord);
     expect(computeTickets({ ...base, qualifiedInvites: 1, invitesInDiscord: 4 }).inviteDiscord).toBe(TICKETS.perInviteDiscord);
     expect(computeTickets({ ...base, qualifiedInvites: 0, invitesInDiscord: 0 }).inviteDiscord).toBe(0);

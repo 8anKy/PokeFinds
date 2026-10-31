@@ -16,6 +16,8 @@ export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=se.
 export const DISCORD_URL = "https://discord.gg/kpgmdEebgW";
 export const INSTAGRAM_URL = "https://www.instagram.com/scoutr.se";
 export const TIKTOK_URL = "https://www.tiktok.com/@scoutr.se";
+/** Facebook-sidan saknar eget användarnamn ännu — därav profile.php?id=. */
+export const FACEBOOK_URL = "https://www.facebook.com/profile.php?id=61595863559650";
 
 /**
  * Subredditen r/PokemonTCGSverige. ⛔ **TOMBSTONE — LÄNKAS INTE FRÅN NÅGONSTANS.**

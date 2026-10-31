@@ -56,6 +56,7 @@ export default async function AdminGiveawayPage() {
               <TH className="text-right">Vänner i Discord</TH>
               <TH className="text-right">Gradering</TH>
               <TH>Restock</TH>
+              <TH>Facebook</TH>
               <TH>Discord</TH>
             </TR>
           </THead>
@@ -102,6 +103,7 @@ export default async function AdminGiveawayPage() {
                 <TD className="text-right align-top tabular-nums">{nf.format(r.counts.invitesInDiscord)}</TD>
                 <TD className="text-right align-top tabular-nums">{nf.format(r.counts.gradings)}</TD>
                 <TD className="align-top">{r.counts.hasRestockAlert ? "Ja" : "–"}</TD>
+                <TD className="align-top">{r.counts.facebookFollowed ? "Ja" : "–"}</TD>
                 <TD className="align-top text-ink-muted">{r.discordUsername ?? "–"}</TD>
               </TR>
             ))}

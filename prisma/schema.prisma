@@ -1842,6 +1842,8 @@ model GiveawayEntry {
   userId          String
   tiktokHandle    String?
   instagramHandle String?
+  /// Tryckte "Följ på Facebook" (självdeklarerat, verifieras inte — ägarbeslut 2026-10-31).
+  facebookFollowedAt DateTime?
   /// Bekräftade regler + ålder (13+, under 18 med målsmans godkännande).
   acceptedAt      DateTime @default(now())
   createdAt       DateTime @default(now())

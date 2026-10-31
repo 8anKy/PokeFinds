@@ -92,6 +92,7 @@ export interface GiveawayUserTickets {
     invitesInDiscord: number;
     hasRestockAlert: boolean;
     discordLinked: boolean;
+    facebookFollowed: boolean;
     gradings: number;
   };
   /** För dragningens medlemskapskoll — skickas aldrig till klienten. */
@@ -110,7 +111,7 @@ export async function loadUserTickets(
   const [entry, scannedCards, invites, restockCount, account, gradings] = await Promise.all([
     prisma.giveawayEntry.findUnique({
       where: { giveaway_userId: { giveaway: cfg.key, userId } },
-      select: { id: true },
+      select: { facebookFollowedAt: true },
     }),
     countScannedCards(userId, cfg, end),
     loadQualifiedInvites(userId, cfg, end),
@@ -128,6 +129,7 @@ export async function loadUserTickets(
     invitesInDiscord: invites.discordUserIds.length,
     hasRestockAlert: restockCount > 0,
     discordLinked: !!discordUserId,
+    facebookFollowed: !!entry?.facebookFollowedAt,
     gradings,
   };
   return {
@@ -195,6 +197,20 @@ export async function joinGiveaway(userId: string, opts: { preview?: boolean } =
     where: { giveaway_userId: { giveaway: cfg.key, userId } },
     create: { giveaway: cfg.key, userId },
     update: {},
+  });
+  revalidateTag(userTag(userId));
+}
+
+/**
+ * "Följ på Facebook": självdeklarerat (ägarbeslut 2026-10-31) — knappen öppnar sidan och
+ * ger lotten, ingen kontroll. Kräver anmälan (lotten bor på anmälningsraden).
+ */
+export async function markFacebookFollowed(userId: string): Promise<void> {
+  const cfg = giveawayConfig();
+  if (giveawayPhase(cfg, new Date()) === "closed") throw new ServiceError(400, "Giveawayn är avslutad.");
+  await prisma.giveawayEntry.updateMany({
+    where: { giveaway: cfg.key, userId, facebookFollowedAt: null },
+    data: { facebookFollowedAt: new Date() },
   });
   revalidateTag(userTag(userId));
 }

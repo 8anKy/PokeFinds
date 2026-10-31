@@ -12,10 +12,10 @@ import { Link } from "@/i18n/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/input";
 import { IconCheck, IconGift } from "@/components/ui/icons";
-import { IconInstagram, IconTikTok } from "@/components/ui/brand-icons";
+import { IconFacebook, IconInstagram, IconTikTok } from "@/components/ui/brand-icons";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { SwipeBack } from "@/components/ui/swipe-back";
-import { INSTAGRAM_URL, TIKTOK_URL } from "@/lib/social-links";
+import { FACEBOOK_URL, INSTAGRAM_URL, TIKTOK_URL } from "@/lib/social-links";
 import { TICKETS, type TicketBreakdown } from "@/lib/giveaway";
 
 /** Priset i katalogen — bilden är produktens egen (CM-proxyn), länken går till produktsidan. */
@@ -36,6 +36,7 @@ interface Status {
       invitesInDiscord: number;
       hasRestockAlert: boolean;
       discordLinked: boolean;
+      facebookFollowed: boolean;
       gradings: number;
     };
   } | null;
@@ -88,6 +89,21 @@ export default function GiveawayPage() {
       minute: "2-digit",
       timeZone: "Europe/Stockholm",
     }).format(new Date(iso));
+
+  // "Följ på Facebook" är självdeklarerat (ägarbeslut 2026-10-31): länken öppnar sidan
+  // i en ny flik och samma tryck ger lotten.
+  async function markFacebook() {
+    try {
+      const res = await fetch("/api/giveaway", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "facebook" }),
+      });
+      if (res.ok) setStatus((await res.json()) as Status);
+    } catch {
+      /* lotten kommer vid nästa tryck */
+    }
+  }
 
   async function shareInvite() {
     if (!invite) return;
@@ -194,6 +210,7 @@ export default function GiveawayPage() {
                 />
               )}
               <EarnRow label={t("rowRestock")} hint={t("rowRestockHint")} amount={`+${TICKETS.restockAlert}`} />
+              <EarnRow label={t("rowFacebook")} hint={t("rowFacebookHint")} amount={`+${TICKETS.facebook}`} />
               <EarnRow label={t("rowGrading")} hint={t("rowGradingHint")} amount={`+${TICKETS.perGrading}`} />
               {status.discordAvailable && (
                 <EarnRow label={t("rowDiscord")} hint={t("rowDiscordHint")} amount={`+${TICKETS.discord}`} />
@@ -281,6 +298,26 @@ export default function GiveawayPage() {
                     <LinkButton href="/produkter" size="sm" variant="outline">
                       {t("ctaWatch")}
                     </LinkButton>
+                  ) : null
+                }
+              />
+              <TicketRow
+                label={t("rowFacebook")}
+                hint={t("rowFacebookHint")}
+                value={`${user.tickets.facebook}/${TICKETS.facebook}`}
+                done={user.counts.facebookFollowed}
+                action={
+                  !closed && !user.counts.facebookFollowed ? (
+                    <a
+                      href={FACEBOOK_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => void markFacebook()}
+                      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-surface-border px-3 text-sm font-medium text-ink transition hover:border-holo-cyan/40 hover:text-holo-cyan"
+                    >
+                      <IconFacebook size={14} />
+                      {t("ctaFacebook")}
+                    </a>
                   ) : null
                 }
               />
