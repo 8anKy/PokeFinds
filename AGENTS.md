@@ -283,8 +283,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   30th Celebration ETB — ENDA vinsten (ägarbeslut 2026-10-13, inga Pro-pris). Start 2026-10-26 00:00 (flyttad från 10-15, 10-17, 10-20 och 10-23, ägarbeslut; DOLD före: 404 + ingen Mer-rad, admin ser den; flytta med `GIVEAWAY_STARTS_AT`). ⛔ Aktivitet RÄKNAS från 2026-10-23 (`countsFrom`, `GIVEAWAY_COUNTS_FROM`) — den var öppen den dagen innan den doldes, och det som hann göras får inte försvinna, slut 2026-11-15 23:59 svensk tid
   ELLER i förtid vid 1 000 TikTok-följare: sätt `GIVEAWAY_CLOSES_AT` (ISO) i Railway ~24 h framåt och meddela det.
   Lotter (`lib/giveaway.ts`, ren + testad): anmäld 5 · skannat UNIKT kort i samlingen 1 st (max 100) · inbjuden vän
-  som verifierat OCH återbesökt 10 st (max 10) · +5 per sådan vän som också kopplat Discord (max 10, dragningen kollar att vännen är kvar; ägarbeslut 2026-10-31) · restock-larm 5 · Discord kopplat via "Koppla Discord" (lägger in
-  personen i servern; dragningen kollar att hen är kvar) 5 · klar AI-gradering 3 st (max 3 = gratiskvoten) ⇒ max 274. Anmälan kräver INGA användarnamn sedan 2026-10-31 (vinnaren uppger dem via e-post). ⛔ Lotterna LAGRAS INTE — räknas ur
+  som verifierat OCH återbesökt 10 st · +5 per sådan vän som också kopplat Discord (dragningen kollar att vännen är kvar) — INGET TAK på inbjudningar sedan 2026-10-31 (ägarbeslut) · restock-larm 5 · Discord kopplat via "Koppla Discord" (lägger in
+  personen i servern; dragningen kollar att hen är kvar) 5 · klar AI-gradering 3 st (max 3 = gratiskvoten) ⇒ inget max per person. Admin → Giveaway visar varje deltagares lotter + inbjudna vänner. Anmälan kräver INGA användarnamn sedan 2026-10-31 (vinnaren uppger dem via e-post). ⛔ Lotterna LAGRAS INTE — räknas ur
   `ScannerJob.addedCardId` (ett jobb = ett kort, satt av `POST /api/collection` när skannern skickar `scanJobId`),
   samlingen (borttaget kort dras av), `Invite` och `WatchlistItem` (`services/giveaway.ts`, 60 s personlig cache).
   ⛔ Bara SKANNADE kort ger lotter (ägarbeslut): Pro kan skanna fler än gratiskontots 30/mån — känd avvägning, tagen

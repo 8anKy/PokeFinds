@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { href: "/admin/nyheter", label: "Nyheter" },
   { href: "/admin/engagemang", label: "Engagemang" },
   { href: "/admin/kreatorer", label: "Kreatörer" },
+  { href: "/admin/giveaway", label: "Giveaway" },
 ] as const;
 
 export function AdminNav() {

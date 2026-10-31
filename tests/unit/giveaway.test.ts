@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAX_TICKETS,
   TICKETS,
   computeTickets,
   giveawayConfig,
@@ -15,10 +14,10 @@ describe("computeTickets", () => {
     expect(computeTickets({ joined: false, scannedCards: 0, qualifiedInvites: 0, invitesInDiscord: 0, hasRestockAlert: false, discordLinked: false, gradings: 0 }).total).toBe(0);
   });
 
-  it("kapar skanningar och inbjudningar", () => {
+  it("kapar skanningar men inte inbjudningar", () => {
     const t = computeTickets({ joined: true, scannedCards: 500, qualifiedInvites: 40, invitesInDiscord: 40, hasRestockAlert: true, discordLinked: true, gradings: 9 });
-    expect(t).toEqual({ account: 5, scans: 100, invites: 100, inviteDiscord: 50, restock: 5, discord: 5, grading: 9, total: 274 });
-    expect(t.total).toBe(MAX_TICKETS);
+    // Inbjudningarna har inget tak (ägarbeslut 2026-10-31)
+    expect(t).toEqual({ account: 5, scans: 100, invites: 400, inviteDiscord: 200, restock: 5, discord: 5, grading: 9, total: 724 });
   });
 
   it("räknar en lott per kort och tio per vän", () => {
@@ -98,6 +97,6 @@ describe("copyn följer modellen", () => {
   it("reglerna nämner taken", () => {
     const rules = sv.Giveaway.rulesList.join(" ");
     expect(rules).toContain(`max ${TICKETS.maxScans}`);
-    expect(rules).toContain(`max ${TICKETS.maxInvites} vänner`);
+    expect(rules).toContain("inget tak");
   });
 });

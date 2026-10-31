@@ -5,8 +5,8 @@
  * Lotter (räknas vid läsning/dragning, lagras aldrig):
  *   konto (anmäld)                           5   en gång
  *   skannat kort lagt i samlingen          1/kort  max 100, unika kort, borttagna dras av
- *   inbjuden vän som blivit aktiv         10/vän  max 10 vänner (verifierad + återbesök)
- *   …och som också gått med i Discord      +5/vän  max 10 (ägarbeslut 2026-10-31: fler i servern);
+ *   inbjuden vän som blivit aktiv         10/vän  INGET TAK sedan 2026-10-31 (ägarbeslut; var 10)
+ *   …och som också gått med i Discord      +5/vän  inget tak (ägarbeslut 2026-10-31: fler i servern);
  *                                                 vännen kopplar via "Koppla Discord", dragningen
  *                                                 kollar att vännen är kvar
  *   restock-larm på en produkt               5   en gång
@@ -52,7 +52,6 @@ export const TICKETS = {
   perScan: 1,
   maxScans: 100,
   perInvite: 10,
-  maxInvites: 10,
   perInviteDiscord: 5,
   restockAlert: 5,
   discord: 5,
@@ -60,14 +59,11 @@ export const TICKETS = {
   maxGradings: 3,
 } as const;
 
-export const MAX_TICKETS =
-  TICKETS.account +
-  TICKETS.perScan * TICKETS.maxScans +
-  TICKETS.perInvite * TICKETS.maxInvites +
-  TICKETS.perInviteDiscord * TICKETS.maxInvites +
-  TICKETS.restockAlert +
-  TICKETS.discord +
-  TICKETS.perGrading * TICKETS.maxGradings;
+/**
+ * Inbjudningarna har inget tak sedan 2026-10-31 (ägarbeslut) — det finns alltså inget
+ * max per person längre. Skyddet mot fejkkonton är återbesöksgrinden (vännen räknas
+ * först en senare dag), regeln "ett konto per person" och admins giveaway-flik.
+ */
 
 function parseDate(raw: string | undefined, fallback: string): Date {
   const d = raw ? new Date(raw) : null;
@@ -121,10 +117,9 @@ export interface TicketBreakdown {
 export function computeTickets(input: TicketInput): TicketBreakdown {
   const account = input.joined ? TICKETS.account : 0;
   const scans = Math.min(Math.max(0, input.scannedCards), TICKETS.maxScans) * TICKETS.perScan;
-  const invites =
-    Math.min(Math.max(0, input.qualifiedInvites), TICKETS.maxInvites) * TICKETS.perInvite;
+  const invites = Math.max(0, input.qualifiedInvites) * TICKETS.perInvite;
   const inviteDiscord =
-    Math.min(Math.max(0, input.invitesInDiscord), input.qualifiedInvites, TICKETS.maxInvites) *
+    Math.min(Math.max(0, input.invitesInDiscord), Math.max(0, input.qualifiedInvites)) *
     TICKETS.perInviteDiscord;
   const restock = input.hasRestockAlert ? TICKETS.restockAlert : 0;
   const discord = input.discordLinked ? TICKETS.discord : 0;

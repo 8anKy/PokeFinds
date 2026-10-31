@@ -20,6 +20,7 @@ import {
 } from "@/lib/giveaway";
 import { discordLinkingEnabled } from "@/lib/discord";
 import { inviteeReturned } from "@/services/invites";
+import { mapPool } from "@/lib/concurrency";
 
 const PERSONAL_TTL_SECONDS = 60;
 const userTag = (userId: string) => `giveaway:${userId}`;
@@ -190,4 +191,99 @@ export async function joinGiveaway(userId: string, opts: { preview?: boolean } =
     update: {},
   });
   revalidateTag(userTag(userId));
+}
+
+export interface GiveawayAdminFriend {
+  name: string | null;
+  email: string;
+  joinedAt: string;
+  /** Kom tillbaka en senare dag ⇒ räknas (ger inbjudaren lotter). */
+  counts: boolean;
+  discordUsername: string | null;
+}
+
+export interface GiveawayAdminRow {
+  userId: string;
+  name: string | null;
+  email: string;
+  joinedAt: string;
+  tickets: TicketBreakdown;
+  counts: GiveawayUserTickets["counts"];
+  discordUsername: string | null;
+  /** Alla som skapat konto via länken under perioden — även de som ännu inte räknas. */
+  friends: GiveawayAdminFriend[];
+}
+
+/**
+ * Adminens giveaway-flik: varje anmäld med samma lottberäkning som dragningen
+ * (`loadUserTickets`), plus vännerna de bjudit in. Okachad och bara när admin
+ * öppnar fliken — inga jobb, inga extra väckningar. Discord-medlemskapet kollas
+ * INTE här (ett API-anrop per person); det gör dragningen.
+ */
+export async function loadGiveawayAdmin(now: Date = new Date()): Promise<{
+  phase: ReturnType<typeof giveawayPhase>;
+  countsFrom: string;
+  closesAt: string;
+  rows: GiveawayAdminRow[];
+}> {
+  const cfg = giveawayConfig();
+  const end = windowEnd(cfg, now);
+  const entries = await prisma.giveawayEntry.findMany({
+    where: { giveaway: cfg.key },
+    select: {
+      userId: true,
+      createdAt: true,
+      user: { select: { name: true, email: true, discordUsername: true } },
+    },
+  });
+  const invites = await prisma.invite.findMany({
+    where: {
+      inviterId: { in: entries.map((e) => e.userId) },
+      usedAt: { gte: cfg.countsFrom, lte: end },
+    },
+    orderBy: { usedAt: "asc" },
+    select: {
+      inviterId: true,
+      usedAt: true,
+      verifiedAt: true,
+      usedBy: {
+        select: { name: true, email: true, createdAt: true, lastSeenAt: true, discordUsername: true },
+      },
+    },
+  });
+  const friendsByInviter = new Map<string, GiveawayAdminFriend[]>();
+  for (const i of invites) {
+    if (!i.usedBy) continue;
+    const list = friendsByInviter.get(i.inviterId) ?? [];
+    list.push({
+      name: i.usedBy.name,
+      email: i.usedBy.email,
+      joinedAt: (i.usedAt ?? i.usedBy.createdAt).toISOString(),
+      counts: !!i.verifiedAt && inviteeReturned(i.usedBy),
+      discordUsername: i.usedBy.discordUsername,
+    });
+    friendsByInviter.set(i.inviterId, list);
+  }
+
+  const rows: GiveawayAdminRow[] = [];
+  await mapPool(entries, 4, async (e) => {
+    const t = await loadUserTickets(e.userId, cfg, now);
+    rows.push({
+      userId: e.userId,
+      name: e.user.name,
+      email: e.user.email,
+      joinedAt: e.createdAt.toISOString(),
+      tickets: t.tickets,
+      counts: t.counts,
+      discordUsername: e.user.discordUsername,
+      friends: friendsByInviter.get(e.userId) ?? [],
+    });
+  });
+  rows.sort((a, b) => b.tickets.total - a.tickets.total);
+  return {
+    phase: giveawayPhase(cfg, now),
+    countsFrom: cfg.countsFrom.toISOString(),
+    closesAt: cfg.closesAt.toISOString(),
+    rows,
+  };
 }

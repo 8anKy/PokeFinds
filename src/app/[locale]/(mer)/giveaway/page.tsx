@@ -16,7 +16,7 @@ import { IconInstagram, IconTikTok } from "@/components/ui/brand-icons";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { SwipeBack } from "@/components/ui/swipe-back";
 import { INSTAGRAM_URL, TIKTOK_URL } from "@/lib/social-links";
-import { MAX_TICKETS, TICKETS, type TicketBreakdown } from "@/lib/giveaway";
+import { TICKETS, type TicketBreakdown } from "@/lib/giveaway";
 
 /** Priset i katalogen — bilden är produktens egen (CM-proxyn), länken går till produktsidan. */
 const PRIZE_SLUG = "30th-celebration-elite-trainer-box";
@@ -199,7 +199,7 @@ export default function GiveawayPage() {
                 <EarnRow label={t("rowDiscord")} hint={t("rowDiscordHint")} amount={`+${TICKETS.discord}`} />
               )}
             </ul>
-            <p className="mt-2 text-xs text-ink-faint">{t("earnOdds", { max: MAX_TICKETS })}</p>
+            <p className="mt-2 text-xs text-ink-faint">{t("earnOdds")}</p>
           </section>
         )}
 
@@ -225,10 +225,7 @@ export default function GiveawayPage() {
         {user?.joined && (
           <section className="space-y-3">
             <div className="card-surface p-4">
-              <div className="flex items-baseline justify-between gap-3">
-                <h2 className="text-sm font-semibold text-ink">{t("ticketsTitle")}</h2>
-                <span className="text-xs text-ink-faint">{t("ticketsMax", { max: MAX_TICKETS })}</span>
-              </div>
+              <h2 className="text-sm font-semibold text-ink">{t("ticketsTitle")}</h2>
               <p className="mt-1 font-display text-3xl font-bold tabular-nums tracking-[-0.02em] text-ink">
                 {t("ticketsTotal", { count: user.tickets.total })}
               </p>
@@ -258,10 +255,9 @@ export default function GiveawayPage() {
               <TicketRow
                 label={t("rowInvites")}
                 hint={t("rowInvitesHint")}
-                value={`${Math.min(user.counts.qualifiedInvites, TICKETS.maxInvites)}/${TICKETS.maxInvites}`}
-                done={user.counts.qualifiedInvites >= TICKETS.maxInvites}
+                value={String(user.counts.qualifiedInvites)}
                 action={
-                  !closed && invite && user.counts.qualifiedInvites < TICKETS.maxInvites ? (
+                  !closed && invite ? (
                     <Button size="sm" variant="outline" onClick={shareInvite}>
                       {copied ? t("copied") : t("ctaInvite")}
                     </Button>
@@ -272,8 +268,7 @@ export default function GiveawayPage() {
                 <TicketRow
                   label={t("rowInviteDiscord")}
                   hint={t("rowInviteDiscordHint")}
-                  value={`${Math.min(user.counts.invitesInDiscord, TICKETS.maxInvites)}/${TICKETS.maxInvites}`}
-                  done={user.counts.invitesInDiscord >= TICKETS.maxInvites}
+                  value={String(user.counts.invitesInDiscord)}
                 />
               )}
               <TicketRow
