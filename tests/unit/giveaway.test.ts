@@ -5,7 +5,6 @@ import {
   computeTickets,
   giveawayConfig,
   giveawayPhase,
-  normalizeHandle,
 } from "@/lib/giveaway";
 import { drawWinners } from "@/lib/giveaway-draw";
 import en from "../../messages/en.json";
@@ -53,18 +52,6 @@ describe("giveawayPhase", () => {
       "2026-11-15T22:59:59.000Z"
     );
   });
-});
-
-describe("normalizeHandle", () => {
-  it.each([
-    ["@Scoutr.se", "scoutr.se"],
-    ["https://www.tiktok.com/@kort_samlare?lang=sv", "kort_samlare"],
-    ["instagram.com/samlaren/", "samlaren"],
-    ["  pokefan99 ", "pokefan99"],
-  ])("%s → %s", (raw, want) => expect(normalizeHandle(raw)).toBe(want));
-  it.each(["", "@", "a", "namn med mellanslag", "x".repeat(31)])("ogiltigt: %s", (raw) =>
-    expect(normalizeHandle(raw)).toBeNull()
-  );
 });
 
 describe("drawWinners", () => {

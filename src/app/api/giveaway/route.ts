@@ -1,6 +1,5 @@
 /**
- * Giveaway. GET = perioden + (inloggad) mina lotter. POST = anmäl mig / ändra
- * mina användarnamn. Regler och lottmodell: src/lib/giveaway.ts.
+ * Giveaway. GET = perioden + (inloggad) mina lotter. POST = anmäl mig. Regler och lottmodell: src/lib/giveaway.ts.
  */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
@@ -10,8 +9,6 @@ import { getGiveawayStatus, joinGiveaway } from "@/services/giveaway";
 export const dynamic = "force-dynamic";
 
 const joinSchema = z.object({
-  tiktokHandle: z.string().max(120),
-  instagramHandle: z.string().max(120),
   // Reglerna + åldern (13+, under 18 med målsmans godkännande) måste kryssas i.
   accept: z.literal(true),
 });
@@ -28,8 +25,8 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const user = await requireUser();
-    const input = joinSchema.parse(await req.json());
-    await joinGiveaway(user.id, input, { preview: hasRole(user.role, "MODERATOR") });
+    joinSchema.parse(await req.json());
+    await joinGiveaway(user.id, { preview: hasRole(user.role, "MODERATOR") });
     return jsonOk(await getGiveawayStatus(user.id));
   } catch (e) {
     return apiError(e);

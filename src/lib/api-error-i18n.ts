@@ -17,7 +17,6 @@
 export const API_ERROR_KEYS: Record<string, string> = {
   // giveaway
   "Giveawayn är avslutad.": "giveawayClosed",
-  "Ange giltiga användarnamn för TikTok och Instagram.": "giveawayHandles",
   "Butiken hittades inte.": "storeNotFound",
   "Rapporten är för gammal för att bekräftas.": "storeReportConfirmStale",
   "Du har redan uppdaterat den här rapporten flera gånger. Försök igen om en stund.": "storeReportVoteLimit",

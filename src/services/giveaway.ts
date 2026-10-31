@@ -15,7 +15,6 @@ import {
   computeTickets,
   giveawayConfig,
   giveawayPhase,
-  normalizeHandle,
   type GiveawayConfig,
   type TicketBreakdown,
 } from "@/lib/giveaway";
@@ -74,8 +73,6 @@ async function countQualifiedInvites(userId: string, cfg: GiveawayConfig, end: D
 
 export interface GiveawayUserTickets {
   joined: boolean;
-  tiktokHandle: string | null;
-  instagramHandle: string | null;
   tickets: TicketBreakdown;
   counts: {
     scannedCards: number;
@@ -98,7 +95,7 @@ export async function loadUserTickets(
   const [entry, scannedCards, qualifiedInvites, restockCount, account, gradings] = await Promise.all([
     prisma.giveawayEntry.findUnique({
       where: { giveaway_userId: { giveaway: cfg.key, userId } },
-      select: { tiktokHandle: true, instagramHandle: true },
+      select: { id: true },
     }),
     countScannedCards(userId, cfg, end),
     countQualifiedInvites(userId, cfg, end),
@@ -119,8 +116,6 @@ export async function loadUserTickets(
   };
   return {
     joined: !!entry,
-    tiktokHandle: entry?.tiktokHandle ?? null,
-    instagramHandle: entry?.instagramHandle ?? null,
     tickets: computeTickets({ joined: !!entry, ...counts }),
     counts,
     discordUserId,
@@ -159,11 +154,12 @@ export function invalidateGiveawayUser(userId: string): void {
   revalidateTag(userTag(userId));
 }
 
-export async function joinGiveaway(
-  userId: string,
-  input: { tiktokHandle: string; instagramHandle: string },
-  opts: { preview?: boolean } = {}
-): Promise<void> {
+/**
+ * Anmälan = att kryssa i reglerna (ägarbeslut 2026-10-31: inga användarnamn —
+ * följ/kommentera kontrolleras på vinnaren, som uppger sina konton via e-post).
+ * Kolumnerna `tiktokHandle`/`instagramHandle` står kvar för tidigare anmälningar.
+ */
+export async function joinGiveaway(userId: string, opts: { preview?: boolean } = {}): Promise<void> {
   const cfg = giveawayConfig();
   const phase = giveawayPhase(cfg, new Date());
   if (phase === "closed") {
@@ -171,15 +167,10 @@ export async function joinGiveaway(
   }
   // Dold före starten: bara admin (förhandsvisning) kan anmäla sig.
   if (phase === "upcoming" && !opts.preview) throw new ServiceError(404, "Hittades inte.");
-  const tiktokHandle = normalizeHandle(input.tiktokHandle);
-  const instagramHandle = normalizeHandle(input.instagramHandle);
-  if (!tiktokHandle || !instagramHandle) {
-    throw new ServiceError(400, "Ange giltiga användarnamn för TikTok och Instagram.");
-  }
   await prisma.giveawayEntry.upsert({
     where: { giveaway_userId: { giveaway: cfg.key, userId } },
-    create: { giveaway: cfg.key, userId, tiktokHandle, instagramHandle },
-    update: { tiktokHandle, instagramHandle },
+    create: { giveaway: cfg.key, userId },
+    update: {},
   });
   revalidateTag(userTag(userId));
 }

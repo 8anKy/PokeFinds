@@ -129,16 +129,3 @@ export function computeTickets(input: TicketInput): TicketBreakdown {
   };
 }
 
-/**
- * "@Namn", "tiktok.com/@namn", "instagram.com/namn/" → "namn". null = ogiltigt.
- * Båda plattformarna tillåter bokstäver, siffror, punkt och understreck.
- */
-export function normalizeHandle(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  let s = raw.trim().toLowerCase();
-  s = s.replace(/^https?:\/\//, "").replace(/^(www\.|m\.|vm\.)/, "");
-  s = s.replace(/^(tiktok\.com|instagram\.com)\//, "");
-  s = s.split(/[/?#]/)[0] ?? "";
-  s = s.replace(/^@/, "");
-  return /^[a-z0-9._]{2,30}$/.test(s) ? s : null;
-}

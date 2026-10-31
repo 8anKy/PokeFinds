@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
-import { Checkbox, Input, Label } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/input";
 import { IconCheck, IconGift } from "@/components/ui/icons";
 import { IconInstagram, IconTikTok } from "@/components/ui/brand-icons";
 import { SubpageHeader } from "@/components/layout/subpage-header";
@@ -29,8 +29,6 @@ interface Status {
   discordAvailable: boolean;
   user: {
     joined: boolean;
-    tiktokHandle: string | null;
-    instagramHandle: string | null;
     tickets: TicketBreakdown;
     counts: {
       scannedCards: number;
@@ -47,7 +45,6 @@ export default function GiveawayPage() {
   const locale = useLocale();
   const [status, setStatus] = useState<Status | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [invite, setInvite] = useState<{ url: string } | null>(null);
   const [copied, setCopied] = useState(false);
   // Tillbaka från "Koppla Discord" (/api/discord/callback) med ?discord=<status>.
@@ -213,19 +210,8 @@ export default function GiveawayPage() {
           </div>
         )}
 
-        {/* Inloggad, inte anmäld (eller ändrar sina användarnamn) */}
-        {user && !closed && (!user.joined || editing) && (
-          <JoinForm
-            initialTiktok={user.tiktokHandle ?? ""}
-            initialInstagram={user.instagramHandle ?? ""}
-            editing={user.joined}
-            onCancel={() => setEditing(false)}
-            onDone={(s) => {
-              setStatus(s);
-              setEditing(false);
-            }}
-          />
-        )}
+        {/* Inloggad, inte anmäld */}
+        {user && !closed && !user.joined && <JoinForm onDone={setStatus} />}
 
         {/* Mina lotter */}
         {user?.joined && (
@@ -324,29 +310,7 @@ export default function GiveawayPage() {
               <p className="text-sm text-fall">{t("discordError")}</p>
             )}
 
-            {!editing && (
-              <div className="space-y-1 text-xs text-ink-muted">
-                <p>{t("joinedNote")}</p>
-                <p>
-                  {t("handlesLine", {
-                    tiktok: user.tiktokHandle ?? "–",
-                    instagram: user.instagramHandle ?? "–",
-                  })}
-                  {!closed && (
-                    <>
-                      {" · "}
-                      <button
-                        type="button"
-                        onClick={() => setEditing(true)}
-                        className="text-holo-cyan underline-offset-2 hover:underline"
-                      >
-                        {t("editHandles")}
-                      </button>
-                    </>
-                  )}
-                </p>
-              </div>
-            )}
+            <p className="text-xs text-ink-muted">{t("joinedNote")}</p>
           </section>
         )}
 
@@ -449,23 +413,9 @@ function TicketRow({
   );
 }
 
-function JoinForm({
-  initialTiktok,
-  initialInstagram,
-  editing,
-  onCancel,
-  onDone,
-}: {
-  initialTiktok: string;
-  initialInstagram: string;
-  editing: boolean;
-  onCancel: () => void;
-  onDone: (s: Status) => void;
-}) {
+function JoinForm({ onDone }: { onDone: (s: Status) => void }) {
   const t = useTranslations("Giveaway");
-  const [tiktok, setTiktok] = useState(initialTiktok);
-  const [instagram, setInstagram] = useState(initialInstagram);
-  const [accept, setAccept] = useState(editing);
+  const [accept, setAccept] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -475,17 +425,13 @@ function JoinForm({
       setError(t("mustAccept"));
       return;
     }
-    if (!tiktok.trim() || !instagram.trim()) {
-      setError(t("invalidHandles"));
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
       const res = await fetch("/api/giveaway", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tiktokHandle: tiktok, instagramHandle: instagram, accept: true }),
+        body: JSON.stringify({ accept: true }),
       });
       const data = (await res.json().catch(() => null)) as (Status & { error?: string }) | null;
       if (!res.ok || !data) {
@@ -502,55 +448,20 @@ function JoinForm({
 
   return (
     <form onSubmit={submit} className="card-surface space-y-4 p-4">
-      {!editing && <h2 className="text-sm font-semibold text-ink">{t("formTitle")}</h2>}
-      <div className="space-y-1.5">
-        <Label htmlFor="gw-tiktok">{t("tiktokLabel")}</Label>
-        <Input
-          id="gw-tiktok"
-          value={tiktok}
-          onChange={(e) => setTiktok(e.target.value)}
-          placeholder={t("handlePlaceholder")}
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          maxLength={120}
+      <h2 className="text-sm font-semibold text-ink">{t("formTitle")}</h2>
+      <label htmlFor="gw-accept" className="flex cursor-pointer items-start gap-2.5 text-xs text-ink-muted">
+        <Checkbox
+          id="gw-accept"
+          checked={accept}
+          onChange={(e) => setAccept(e.target.checked)}
+          className="mt-0.5 shrink-0"
         />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="gw-instagram">{t("instagramLabel")}</Label>
-        <Input
-          id="gw-instagram"
-          value={instagram}
-          onChange={(e) => setInstagram(e.target.value)}
-          placeholder={t("handlePlaceholder")}
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          maxLength={120}
-        />
-      </div>
-      {!editing && (
-        <label htmlFor="gw-accept" className="flex cursor-pointer items-start gap-2.5 text-xs text-ink-muted">
-          <Checkbox
-            id="gw-accept"
-            checked={accept}
-            onChange={(e) => setAccept(e.target.checked)}
-            className="mt-0.5 shrink-0"
-          />
-          <span>{t("acceptLabel")}</span>
-        </label>
-      )}
+        <span>{t("acceptLabel")}</span>
+      </label>
       {error && <p className="text-sm text-fall">{error}</p>}
-      <div className="flex gap-2">
-        <Button type="submit" loading={saving} className="flex-1">
-          {editing ? t("saveButton") : t("joinButton")}
-        </Button>
-        {editing && (
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            {t("cancel")}
-          </Button>
-        )}
-      </div>
+      <Button type="submit" loading={saving} className="w-full">
+        {t("joinButton")}
+      </Button>
     </form>
   );
 }
