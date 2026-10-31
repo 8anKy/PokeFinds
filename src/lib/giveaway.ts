@@ -7,10 +7,10 @@
  *   skannat kort lagt i samlingen          1/kort  max 100, unika kort, borttagna dras av
  *   inbjuden vän som blivit aktiv         10/vän  INGET TAK sedan 2026-10-31 (ägarbeslut; var 10)
  *   …och som också gått med i Discord      +5/vän  inget tak (ägarbeslut 2026-10-31: fler i servern);
- *                                                 vännen kopplar via "Koppla Discord", dragningen
- *                                                 kollar att vännen är kvar
+ *                                                 vännen kopplar via "Koppla Discord"; dragningen
+ *                                                 kollar INTE att vännen är kvar (ägarbeslut 10-31)
  *   restock-larm på en produkt               5   en gång
- *   Discord kopplat (= med i servern)        5   en gång; dragningen kollar medlemskapet
+ *   Discord kopplat (= med i servern)        5   en gång; dragningen kollar INTE medlemskapet
  *   Facebook ("Följ på Facebook")            5   en gång; SJÄLVDEKLARERAT, verifieras inte
  *                                                 (ägarbeslut 2026-10-31: "vi behöver inte verifiera")
  *   AI-gradering (klar) under perioden     3/st  max 3 — gratiskontots månadskvot, så taket

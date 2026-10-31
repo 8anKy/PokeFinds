@@ -8,10 +8,8 @@
  * Ordningen = vinnaren, sedan reserver: uppfyller vinnaren inte kraven
  * (följer, kommentar + 2 taggar) — gå till nästa i listan.
  *
- * Discord-lotten kräver att personen FORTFARANDE är med i servern: medlemskapet
- * kollas här mot Discord (lämnat ⇒ lotten bort). Samma koll för de inbjudna
- * vännernas Discord-lotter. Utan bot-env kan det inte kollas — skriptet säger
- * det, och lotterna står kvar.
+ * Discord-lotterna kollas INTE mot servern vid dragningen (ägarbeslut 2026-10-31):
+ * den som gick med via Scoutr behåller lotten även om hen lämnat sedan.
  * ⛔ Samma seed + samma deltagare = samma utfall. Seeden skrivs ut; spara den
  * med loggen så dragningen kan visas i efterhand.
  * ⛔ Loggen bär e-post och namn ⇒ den skrivs till OS:ets temp-katalog som
@@ -24,8 +22,7 @@ import { join } from "node:path";
 import { prisma } from "../src/lib/db";
 import { mapPool } from "../src/lib/concurrency";
 import { exitJob } from "../src/lib/job-exit";
-import { computeTickets, giveawayConfig, giveawayPhase } from "../src/lib/giveaway";
-import { discordBotConfig, isGuildMember } from "../src/lib/discord";
+import { giveawayConfig, giveawayPhase } from "../src/lib/giveaway";
 import { drawWinners } from "../src/lib/giveaway-draw";
 import { loadUserTickets } from "../src/services/giveaway";
 
@@ -63,28 +60,8 @@ async function main() {
     instagram: string | null;
     breakdown: unknown;
   }> = [];
-  const canCheckDiscord = !!discordBotConfig();
-  if (!canCheckDiscord) console.log("⚠️ Discord-boten saknas i env — medlemskapet kollas INTE.");
-  let leftDiscord = 0;
-  let inviteesLeftDiscord = 0;
-  // 4 parallella: Discords gräns per rutt; discordFetch väntar ut 429 själv.
   await mapPool(entries, 4, async (e) => {
-    const t = await loadUserTickets(e.userId, cfg, now);
-    let tickets = t.tickets;
-    if (canCheckDiscord) {
-      let discordLinked = t.counts.discordLinked;
-      if (t.discordUserId && (await isGuildMember(t.discordUserId)) === false) {
-        leftDiscord++;
-        discordLinked = false;
-      }
-      // Sekventiellt per deltagare: mapPool ovan håller redan fyra parallella.
-      let invitesInDiscord = 0;
-      for (const id of t.inviteeDiscordUserIds) {
-        if ((await isGuildMember(id)) === false) inviteesLeftDiscord++;
-        else invitesInDiscord++;
-      }
-      tickets = computeTickets({ joined: t.joined, ...t.counts, discordLinked, invitesInDiscord });
-    }
+    const { tickets } = await loadUserTickets(e.userId, cfg, now);
     scored.push({
       id: e.userId,
       tickets: tickets.total,
@@ -100,7 +77,7 @@ async function main() {
   const winners = drawWinners(scored, seed, count);
 
   console.log(
-    `Deltagare: ${scored.length} · lotter: ${total} · lämnat Discord: ${leftDiscord} (+${inviteesLeftDiscord} inbjudna) · seed: ${seed}\n`
+    `Deltagare: ${scored.length} · lotter: ${total} · seed: ${seed}\n`
   );
   winners.forEach((w, i) => {
     const role = i === 0 ? "VINNARE" : "reserv";
