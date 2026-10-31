@@ -364,6 +364,10 @@
       "discordTitle": "Join us on Discord",
       "discordBody": "Restocks are posted instantly in dedicated channels per series, and you can ask other collectors about prices and deals. Free and open to everyone.",
       "discordCta": "Join Discord",
+      "inviteCodeLabel": "Invite code (optional)",
+      "inviteCodeHint": "Got a code from a friend? Then your friend gets giveaway tickets.",
+      "inviteCodeApplied": "Invited by {name} ✓",
+      "discordJoinToggle": "Join our Discord when I'm done",
       "finish": "Finish"
     },
     "social": {
@@ -1150,7 +1154,12 @@
     "storeFollowLimit": "Too many requests. Try again shortly.",
     "storeReportConfirmStale": "This report is too old to confirm.",
     "storeReportVoteLimit": "You've already updated this report several times. Try again in a while.",
-    "giveawayClosed": "The giveaway has ended."
+    "giveawayClosed": "The giveaway has ended.",
+    "inviteCodeUnknown": "Unknown invite code.",
+    "inviteCodeOwn": "You can't use your own code.",
+    "inviteCodeAlready": "You've already entered an invite code.",
+    "inviteCodeTooLate": "Invite codes can only be entered during the first 7 days.",
+    "inviteCodeNotAllowed": "This code can't be used for your account."
   },
   "Cookies": {
     "bannerAria": "Cookie information",
@@ -3438,6 +3447,14 @@
     "earnIntro": "The more tickets, the better your chance to win. Once you've signed up they're counted automatically as you use the app:",
     "earnAccountHint": "Right away when you sign up below",
     "earnOdds": "The winner is drawn at random – every ticket is a chance.",
+    "myCodeTitle": "Your invite code",
+    "myCodeHint": "Share the link – or ask your friend to enter the code in the app. You get the tickets once your friend comes back another day.",
+    "ctaShareCode": "Share",
+    "enterCodeTitle": "Got a code from a friend?",
+    "enterCodeHint": "Enter it and your friend gets tickets. Only possible during your first 7 days.",
+    "enterCodePlaceholder": "Code",
+    "enterCodeButton": "Add",
+    "invitedBy": "You were invited by {name}.",
     "rowFacebook": "Facebook",
     "rowFacebookHint": "5 tickets when you follow Scoutr on Facebook",
     "ctaFacebook": "Follow",

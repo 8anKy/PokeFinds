@@ -1748,6 +1748,10 @@ model Invite {
   rewardedAt DateTime?
   // true = skapad vid inlösen av inviterns personliga länk (User.inviteCode), inte en engångskod.
   personal   Boolean   @default(false)
+  /// Hur vännen kom in: "link" (länken/cookien) eller "code" (skrev in koden efter registreringen).
+  source     String?
+  /// Vännen gick med i Discord via "Koppla Discord" och var INTE medlem innan (Discord svarade 201).
+  discordJoinedAt DateTime?
 
   inviter User  @relation("InviteInviter", fields: [inviterId], references: [id], onDelete: Cascade)
   usedBy  User? @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)

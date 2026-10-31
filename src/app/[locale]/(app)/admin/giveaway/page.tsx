@@ -78,14 +78,17 @@ export default async function AdminGiveawayPage() {
                           <li key={`${f.email}-${f.joinedAt}`} className="text-ink-muted">
                             <span className="text-ink">{f.name ?? f.email}</span>
                             {f.name && <span> · {f.email}</span>} · {formatDate(f.joinedAt)} ·{" "}
+                            {f.source === "code" ? "skrev in koden" : f.source === "link" ? "via länken" : "–"} ·{" "}
                             {f.counts ? (
                               <span className="text-rise">räknas</span>
                             ) : (
                               <span className="text-ink-faint">väntar på återbesök</span>
                             )}
                             {" · "}
-                            {f.discordUsername ? (
-                              <span className="text-rise">Discord {f.discordUsername}</span>
+                            {f.joinedDiscord ? (
+                              <span className="text-rise">gick med i Discord via Scoutr ({f.discordUsername ?? "–"})</span>
+                            ) : f.discordUsername ? (
+                              <span className="text-ink-faint">Discord kopplat, var redan med ({f.discordUsername})</span>
                             ) : (
                               <span className="text-ink-faint">ingen Discord</span>
                             )}
@@ -111,8 +114,9 @@ export default async function AdminGiveawayPage() {
         </Table>
       )}
       <p className="text-xs text-ink-faint">
-        Vänner räknas när de skapat konto via länken och kommit tillbaka en senare dag. Discord = kopplat via
-        Scoutr; att personen fortfarande är kvar i servern kollar dragningen.
+        Vänner räknas när de skapat konto via länken eller skrivit in koden, och kommit tillbaka en senare
+        dag. Discord-lotten kräver att vännen gick med i servern via Scoutr som ny medlem; att personen
+        fortfarande är kvar kollar dragningen.
       </p>
     </div>
   );

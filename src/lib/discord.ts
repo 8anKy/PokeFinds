@@ -29,7 +29,7 @@ export const DISCORD_SCOPES = "identify guilds.join";
 export const DISCORD_STATE_COOKIE = "discord_oauth_state";
 /** Vart kopplingen ska tillbaka (vitlistat, se DISCORD_RETURN_PATHS). */
 export const DISCORD_RETURN_COOKIE = "discord_oauth_return";
-export const DISCORD_RETURN_PATHS: readonly string[] = ["/giveaway"];
+export const DISCORD_RETURN_PATHS: readonly string[] = ["/giveaway", "/produkter"];
 
 export interface DiscordBotConfig {
   botToken: string;
@@ -217,17 +217,23 @@ export async function fetchIdentity(accessToken: string): Promise<DiscordIdentit
  * separat med `addRole()` efteråt; att bara skicka dem här hade gett rätt
  * roller åt nya medlemmar och inga alls åt befintliga.
  */
-export async function joinGuild(discordUserId: string, accessToken: string): Promise<boolean> {
+/** "added" = ny i servern (201), "member" = var redan med (204), null = misslyckades. */
+export async function joinGuild(
+  discordUserId: string,
+  accessToken: string
+): Promise<"added" | "member" | null> {
   const config = requireBot();
   const res = await discordFetch(`/guilds/${config.guildId}/members/${discordUserId}`, {
     method: "PUT",
     authorization: `Bot ${config.botToken}`,
     body: JSON.stringify({ access_token: accessToken }),
   });
-  // 201 = tillagd, 204 = redan medlem. Båda är framgång.
-  if (res.status === 201 || res.status === 204) return true;
+  // 201 = tillagd, 204 = redan medlem. Båda är framgång — skillnaden avgör om en
+  // inbjuden väns Discord-lott ges (bara ny medlem, se markInviteeJoinedDiscord).
+  if (res.status === 201) return "added";
+  if (res.status === 204) return "member";
   console.error(`[discord] kunde inte lägga till ${discordUserId} i servern: ${res.status}`);
-  return false;
+  return null;
 }
 
 /**

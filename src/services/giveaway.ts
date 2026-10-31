@@ -61,7 +61,9 @@ async function countScannedCards(userId: string, cfg: GiveawayConfig, end: Date)
 
 /**
  * Inbjudna under perioden som verifierat OCH kommit tillbaka en senare dag, plus
- * Discord-id:t för dem som också kopplat Discord (dragningen kollar att de är kvar).
+ * Discord-id:t för dem som gick med i Discord via Scoutr som NYA medlemmar
+ * (`Invite.discordJoinedAt`, satt av Discord-kopplingen på 201). Ett redan kopplat
+ * eller redan medlem-konto ger ingen lott. Dragningen kollar att de är kvar.
  */
 async function loadQualifiedInvites(
   userId: string,
@@ -74,12 +76,17 @@ async function loadQualifiedInvites(
       usedAt: { gte: cfg.countsFrom, lte: end },
       verifiedAt: { not: null },
     },
-    select: { usedBy: { select: { createdAt: true, lastSeenAt: true, discordUserId: true } } },
+    select: {
+      discordJoinedAt: true,
+      usedBy: { select: { createdAt: true, lastSeenAt: true, discordUserId: true } },
+    },
   });
   const qualified = invites.filter((i) => inviteeReturned(i.usedBy));
   return {
     qualified: qualified.length,
-    discordUserIds: qualified.flatMap((i) => (i.usedBy?.discordUserId ? [i.usedBy.discordUserId] : [])),
+    discordUserIds: qualified.flatMap((i) =>
+      i.discordJoinedAt && i.usedBy?.discordUserId ? [i.usedBy.discordUserId] : []
+    ),
   };
 }
 
@@ -221,6 +228,10 @@ export interface GiveawayAdminFriend {
   joinedAt: string;
   /** Kom tillbaka en senare dag ⇒ räknas (ger inbjudaren lotter). */
   counts: boolean;
+  /** "link" = länken, "code" = skrev in koden, null = före spårningen (2026-10-31). */
+  source: string | null;
+  /** Gick med i Discord via Scoutr som NY medlem ⇒ inbjudarens +5. */
+  joinedDiscord: boolean;
   discordUsername: string | null;
 }
 
@@ -268,6 +279,8 @@ export async function loadGiveawayAdmin(now: Date = new Date()): Promise<{
       inviterId: true,
       usedAt: true,
       verifiedAt: true,
+      source: true,
+      discordJoinedAt: true,
       usedBy: {
         select: { name: true, email: true, createdAt: true, lastSeenAt: true, discordUsername: true },
       },
@@ -282,6 +295,8 @@ export async function loadGiveawayAdmin(now: Date = new Date()): Promise<{
       email: i.usedBy.email,
       joinedAt: (i.usedAt ?? i.usedBy.createdAt).toISOString(),
       counts: !!i.verifiedAt && inviteeReturned(i.usedBy),
+      source: i.source,
+      joinedDiscord: !!i.discordJoinedAt,
       discordUsername: i.usedBy.discordUsername,
     });
     friendsByInviter.set(i.inviterId, list);

@@ -14,6 +14,7 @@
  * updateMany-count) och bonusen förlängs en månad.
  */
 import { prisma } from "@/lib/db";
+import { ServiceError } from "@/lib/errors";
 import { sendMail } from "@/lib/mailer";
 import { proRewardEmail } from "@/emails/templates";
 import { syncDiscordRoles } from "@/services/discord-sync";
@@ -84,7 +85,7 @@ export async function redeemInviteAtRegistration(
 ): Promise<boolean> {
   const res = await prisma.invite.updateMany({
     where: { id: code, usedById: null },
-    data: { usedById: newUserId, usedAt: new Date() },
+    data: { usedById: newUserId, usedAt: new Date(), source: "link" },
   });
   if (res.count === 1) return true;
   return redeemPersonalInvite(code, newUserId);
@@ -103,7 +104,7 @@ export async function redeemPersonalInvite(rawCode: string, newUserId: string): 
     const inviter = await prisma.user.findUnique({ where: { inviteCode: code }, select: { id: true } });
     if (!inviter || inviter.id === newUserId) return false;
     await prisma.invite.create({
-      data: { inviterId: inviter.id, usedById: newUserId, usedAt: new Date(), personal: true },
+      data: { inviterId: inviter.id, usedById: newUserId, usedAt: new Date(), personal: true, source: "link" },
     });
     return true;
   } catch (e) {
@@ -297,4 +298,116 @@ export async function createInvite(
     select: { id: true },
   });
   return { code: invite.id };
+}
+
+/**
+ * KODEN SKRIVS IN EFTER REGISTRERINGEN (ägarbeslut 2026-10-31: "ett enkelt sätt att
+ * bjuda in så att de krediteras"). Länken bär koden i en cookie, men cookien når
+ * inte fram när länken öppnas i Snapchats/Instagrams/TikToks inbyggda webbläsare
+ * och vännen sedan installerar appen, eller på en annan enhet — det vanligaste
+ * sättet en inbjudan gick förlorad. Koden kan därför skrivas in i onboardingen
+ * och på giveaway-sidan, under de första dagarna.
+ *
+ * Spärrar (testade i tests/unit/invite-code-entry.test.ts):
+ *   - bara de första INVITE_CODE_ENTRY_DAYS dagarna efter att kontot skapades
+ *   - en inbjudan per konto (usedById är unik) — kan inte bytas
+ *   - aldrig sin egen kod, och aldrig koden hos någon man själv bjudit in
+ *   - inbjudaren måste ha funnits FÖRE kontot (ingen bjuder in någon som var där först)
+ */
+export const INVITE_CODE_ENTRY_DAYS = 7;
+
+export type CodeEntryRefusal = "unknown" | "own" | "already" | "too-late" | "not-allowed";
+
+/** Ren dom — testad. null = koden får lösas in. */
+export function codeEntryRefusal(input: {
+  now: Date;
+  me: { id: string; createdAt: Date };
+  alreadyInvited: boolean;
+  inviter: { id: string; createdAt: Date } | null;
+  inviterWasInvitedByMe: boolean;
+}): CodeEntryRefusal | null {
+  if (input.alreadyInvited) return "already";
+  if (input.now.getTime() - input.me.createdAt.getTime() > INVITE_CODE_ENTRY_DAYS * 86_400_000) return "too-late";
+  if (!input.inviter) return "unknown";
+  if (input.inviter.id === input.me.id) return "own";
+  if (input.inviterWasInvitedByMe || input.inviter.createdAt.getTime() >= input.me.createdAt.getTime()) {
+    return "not-allowed";
+  }
+  return null;
+}
+
+const REFUSAL_MESSAGE: Record<CodeEntryRefusal, string> = {
+  unknown: "Okänd inbjudningskod.",
+  own: "Du kan inte använda din egen kod.",
+  already: "Du har redan angett en inbjudningskod.",
+  "too-late": "Inbjudningskoden kan bara anges de första 7 dagarna.",
+  "not-allowed": "Den här koden kan inte användas för ditt konto.",
+};
+
+export interface MyInviteStatus {
+  /** Min egen kod — den jag delar. */
+  code: string;
+  /** Vem som bjöd in mig, om någon. */
+  invitedBy: string | null;
+  /** Kan jag fortfarande skriva in en kod? */
+  canEnterCode: boolean;
+}
+
+export async function getMyInviteStatus(userId: string, now: Date = new Date()): Promise<MyInviteStatus> {
+  const [code, me, invite] = await Promise.all([
+    getOrCreateInviteCode(userId),
+    prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }),
+    prisma.invite.findUnique({
+      where: { usedById: userId },
+      select: { inviter: { select: { name: true } } },
+    }),
+  ]);
+  const withinWindow =
+    !!me && now.getTime() - me.createdAt.getTime() <= INVITE_CODE_ENTRY_DAYS * 86_400_000;
+  return {
+    code,
+    invitedBy: invite ? (invite.inviter.name ?? "en vän") : null,
+    canEnterCode: !invite && withinWindow,
+  };
+}
+
+/** Skriv in en väns kod i efterhand. Kastar ServiceError med ett begripligt besked. */
+export async function redeemInviteCode(userId: string, rawCode: string, now: Date = new Date()): Promise<string> {
+  const code = normalizeInviteCode(rawCode);
+  const [me, existing, inviter] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { id: true, createdAt: true } }),
+    prisma.invite.findUnique({ where: { usedById: userId }, select: { id: true } }),
+    code
+      ? prisma.user.findUnique({ where: { inviteCode: code }, select: { id: true, name: true, createdAt: true } })
+      : Promise.resolve(null),
+  ]);
+  if (!me) throw new ServiceError(404, "Hittades inte.");
+  const inviterWasInvitedByMe = inviter
+    ? (await prisma.invite.count({ where: { inviterId: userId, usedById: inviter.id } })) > 0
+    : false;
+  const refusal = codeEntryRefusal({ now, me, alreadyInvited: !!existing, inviter, inviterWasInvitedByMe });
+  if (refusal || !inviter) throw new ServiceError(400, REFUSAL_MESSAGE[refusal ?? "unknown"]);
+  try {
+    await prisma.invite.create({
+      data: { inviterId: inviter.id, usedById: userId, usedAt: now, personal: true, source: "code" },
+    });
+  } catch (e) {
+    if ((e as { code?: string })?.code === "P2002") throw new ServiceError(400, REFUSAL_MESSAGE.already);
+    throw e;
+  }
+  // Nya konton föds med bekräftad e-post ⇒ samma kreditering som vid registreringen.
+  await creditInviteOnVerify(userId);
+  return inviter.name ?? "en vän";
+}
+
+/**
+ * Vännen gick med i Discord via "Koppla Discord" som NY medlem (Discord svarade 201,
+ * inte 204 = redan med). Bokförs på vännens inbjudan, en gång — det är den raden
+ * giveawayns "+5 per vän i Discord" räknar, inte bara att ett Discord-konto är kopplat.
+ */
+export async function markInviteeJoinedDiscord(userId: string): Promise<void> {
+  await prisma.invite.updateMany({
+    where: { usedById: userId, discordJoinedAt: null },
+    data: { discordJoinedAt: new Date() },
+  });
 }

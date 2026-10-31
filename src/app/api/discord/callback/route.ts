@@ -13,6 +13,7 @@ import {
 } from "@/lib/discord";
 import { revokeDiscordRoles, syncDiscordRoles, DISCORD_SYNC_SELECT } from "@/services/discord-sync";
 import { invalidateGiveawayUser } from "@/services/giveaway";
+import { markInviteeJoinedDiscord } from "@/services/invites";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,14 @@ export async function GET(req: NextRequest) {
   const joined = await joinGuild(identity.id, accessToken);
   if (!joined) return done("fel-servern");
   // Härefter behövs användartoken aldrig mer — den sparas ALDRIG (se lib/discord.ts).
+
+  // En inbjuden vän som är NY i servern ger inbjudaren giveawayns Discord-lott.
+  // Felet får aldrig fälla kopplingen — den är redan gjord hos Discord.
+  if (joined === "added") {
+    await markInviteeJoinedDiscord(session.user.id).catch((err) =>
+      console.error("[discord] kunde inte bokföra inbjudens Discord-anslutning:", err)
+    );
+  }
 
   let user;
   try {

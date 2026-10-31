@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { refreshSessionToken } from "@/lib/client-session";
 import { Button } from "@/components/ui/button";
-import { Checkbox, FieldError } from "@/components/ui/input";
+import { Checkbox, FieldError, Input } from "@/components/ui/input";
 import { SafeImage } from "@/components/ui/safe-image";
 import { IconCards, IconCheck } from "@/components/ui/icons";
 import { IconDiscord } from "@/components/ui/brand-icons";
@@ -79,6 +79,21 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // INBJUDNINGSKOD + DISCORD VIA SCOUTR (ägarbeslut 2026-10-31). Kom vännen via länken är
+  // inbjudan redan inlöst (cookien) och raden visar vem; annars kan koden skrivas här —
+  // länkens cookie når inte fram när den öppnats i en apps inbyggda webbläsare.
+  // Discord går genom "Koppla Discord" (inte discord.gg) så att en inbjuden väns
+  // anslutning kan krediteras; servern bokför den bara för NYA medlemmar.
+  const [invite, setInvite] = useState<{ invitedBy: string | null; canEnterCode: boolean; discordLinking: boolean } | null>(null);
+  const [inviteCode, setInviteCode] = useState("");
+  const [joinDiscord, setJoinDiscord] = useState(false);
+  useEffect(() => {
+    void fetch("/api/invites/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setInvite(d))
+      .catch(() => undefined);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -108,6 +123,21 @@ export default function OnboardingPage() {
     setError(null);
     setSubmitting(true);
     try {
+      if (inviteCode.trim() && invite?.canEnterCode) {
+        const r = await fetch("/api/invites/me", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: inviteCode }),
+        });
+        if (!r.ok) {
+          const data = (await r.json().catch(() => null)) as { error?: string } | null;
+          setError(data?.error ?? tError("genericError"));
+          setSubmitting(false);
+          return;
+        }
+        setInvite((await r.json()) as typeof invite);
+        setInviteCode("");
+      }
       const res = await fetch("/api/users/me/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -124,6 +154,11 @@ export default function OnboardingPage() {
       }
       // ⛔ Inte `useSession().update()` — no-op hos oss (se refreshSessionToken).
       await refreshSessionToken();
+      // Discord-kopplingen lämnar sidan (OAuth hos Discord) och kommer tillbaka till /produkter.
+      if (joinDiscord && invite?.discordLinking) {
+        window.location.href = "/api/discord/connect?return=/produkter";
+        return;
+      }
       router.push("/produkter");
       router.refresh();
     } catch {
@@ -254,6 +289,29 @@ export default function OnboardingPage() {
               </div>
             )}
 
+            {invite?.invitedBy ? (
+              <p className="rounded-lg border border-holo-cyan/30 bg-holo-cyan/10 px-3 py-2 text-sm text-ink">
+                {t("inviteCodeApplied", { name: invite.invitedBy })}
+              </p>
+            ) : invite?.canEnterCode ? (
+              <div className="rounded-lg border border-surface-border bg-surface-raised p-3">
+                <label htmlFor="invite-code" className="text-sm font-medium text-ink">
+                  {t("inviteCodeLabel")}
+                </label>
+                <Input
+                  id="invite-code"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  maxLength={32}
+                  className="mt-2 font-mono uppercase"
+                />
+                <p className="mt-1.5 text-xs text-ink-faint">{t("inviteCodeHint")}</p>
+              </div>
+            ) : null}
+
             {/* Discord-inbjudan i SISTA steget, inte som ett eget extra steg:
                 registreringen ska inte bli längre för att vi vill ha medlemmar.
                 ⛔ `target="_blank"` är inte kosmetik — öppnades servern i samma
@@ -267,14 +325,26 @@ export default function OnboardingPage() {
                   <p className="mt-1 text-xs leading-relaxed text-ink-muted">
                     {t("discordBody")}
                   </p>
-                  <a
-                    href={DISCORD_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center rounded-lg border border-holo-cyan/50 px-3 py-1.5 text-xs font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/10"
-                  >
-                    {t("discordCta")}
-                  </a>
+                  {invite?.discordLinking ? (
+                    // Kopplas efter "Slutför" — svaren sparas först, sedan Discords ruta.
+                    <div className="mt-3">
+                      <Checkbox
+                        id="join-discord"
+                        label={t("discordJoinToggle")}
+                        checked={joinDiscord}
+                        onChange={(e) => setJoinDiscord(e.target.checked)}
+                      />
+                    </div>
+                  ) : (
+                    <a
+                      href={DISCORD_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center rounded-lg border border-holo-cyan/50 px-3 py-1.5 text-xs font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/10"
+                    >
+                      {t("discordCta")}
+                    </a>
+                  )}
                 </div>
               </div>
             </div>

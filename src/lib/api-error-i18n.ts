@@ -17,6 +17,12 @@
 export const API_ERROR_KEYS: Record<string, string> = {
   // giveaway
   "Giveawayn är avslutad.": "giveawayClosed",
+  // inbjudningskod i efterhand (services/invites.ts)
+  "Okänd inbjudningskod.": "inviteCodeUnknown",
+  "Du kan inte använda din egen kod.": "inviteCodeOwn",
+  "Du har redan angett en inbjudningskod.": "inviteCodeAlready",
+  "Inbjudningskoden kan bara anges de första 7 dagarna.": "inviteCodeTooLate",
+  "Den här koden kan inte användas för ditt konto.": "inviteCodeNotAllowed",
   "Butiken hittades inte.": "storeNotFound",
   "Rapporten är för gammal för att bekräftas.": "storeReportConfirmStale",
   "Du har redan uppdaterat den här rapporten flera gånger. Försök igen om en stund.": "storeReportVoteLimit",

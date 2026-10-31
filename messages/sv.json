@@ -364,6 +364,10 @@
       "discordTitle": "Häng med oss på Discord",
       "discordBody": "Restocks postas direkt i egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.",
       "discordCta": "Gå med i Discord",
+      "inviteCodeLabel": "Inbjudningskod (valfritt)",
+      "inviteCodeHint": "Fick du en kod av en vän? Då får din vän lotter i giveawayn.",
+      "inviteCodeApplied": "Inbjuden av {name} ✓",
+      "discordJoinToggle": "Gå med i vår Discord när jag är klar",
       "finish": "Slutför"
     },
     "social": {
@@ -1150,7 +1154,12 @@
     "storeFollowLimit": "För många förfrågningar. Försök igen om en stund.",
     "storeReportConfirmStale": "Rapporten är för gammal för att bekräftas.",
     "storeReportVoteLimit": "Du har redan uppdaterat den här rapporten flera gånger. Försök igen om en stund.",
-    "giveawayClosed": "Giveawayn är avslutad."
+    "giveawayClosed": "Giveawayn är avslutad.",
+    "inviteCodeUnknown": "Okänd inbjudningskod.",
+    "inviteCodeOwn": "Du kan inte använda din egen kod.",
+    "inviteCodeAlready": "Du har redan angett en inbjudningskod.",
+    "inviteCodeTooLate": "Inbjudningskoden kan bara anges de första 7 dagarna.",
+    "inviteCodeNotAllowed": "Den här koden kan inte användas för ditt konto."
   },
   "Cookies": {
     "bannerAria": "Information om cookies",
@@ -3438,6 +3447,14 @@
     "earnIntro": "Ju fler lotter, desto större chans att vinna. När du anmält dig räknas de automatiskt när du använder appen:",
     "earnAccountHint": "Direkt när du anmäler dig nedan",
     "earnOdds": "Vinnaren dras slumpvis – varje lott är en chans.",
+    "myCodeTitle": "Din inbjudningskod",
+    "myCodeHint": "Dela länken – eller be vännen skriva in koden i appen. Du får lotterna när vännen kommit tillbaka en annan dag.",
+    "ctaShareCode": "Dela",
+    "enterCodeTitle": "Fick du en kod av en vän?",
+    "enterCodeHint": "Skriv in den så får din vän lotter. Går bara de första 7 dagarna.",
+    "enterCodePlaceholder": "Kod",
+    "enterCodeButton": "Lägg till",
+    "invitedBy": "Du blev inbjuden av {name}.",
     "rowFacebook": "Facebook",
     "rowFacebookHint": "5 lotter när du följer Scoutr på Facebook",
     "ctaFacebook": "Följ",

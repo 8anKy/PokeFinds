@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/input";
+import { Checkbox, Input } from "@/components/ui/input";
 import { IconCheck, IconGift } from "@/components/ui/icons";
 import { IconFacebook, IconInstagram, IconTikTok } from "@/components/ui/brand-icons";
 import { SubpageHeader } from "@/components/layout/subpage-header";
@@ -21,6 +21,13 @@ import { TICKETS, type TicketBreakdown } from "@/lib/giveaway";
 /** Priset i katalogen — bilden är produktens egen (CM-proxyn), länken går till produktsidan. */
 const PRIZE_SLUG = "30th-celebration-elite-trainer-box";
 const PRIZE_IMAGE = "/api/cm-image/895551";
+
+interface MyInvite {
+  code: string;
+  url: string;
+  invitedBy: string | null;
+  canEnterCode: boolean;
+}
 
 interface Status {
   phase: "upcoming" | "open" | "closed";
@@ -47,7 +54,7 @@ export default function GiveawayPage() {
   const locale = useLocale();
   const [status, setStatus] = useState<Status | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [invite, setInvite] = useState<{ url: string } | null>(null);
+  const [invite, setInvite] = useState<MyInvite | null>(null);
   const [copied, setCopied] = useState(false);
   // Tillbaka från "Koppla Discord" (/api/discord/callback) med ?discord=<status>.
   const [discordFailed, setDiscordFailed] = useState(false);
@@ -71,15 +78,15 @@ export default function GiveawayPage() {
     void load();
   }, [load]);
 
-  // Personlig inbjudningslänk — samma som /mer/bjud-in. Bara för den som är med.
-  const joined = !!status?.user?.joined;
+  // Min kod + länk (den jag delar), vem som bjöd in mig och om jag kan skriva in en kod.
+  const loggedIn = !!status?.user;
   useEffect(() => {
-    if (!joined) return;
-    void fetch("/api/invites/link")
+    if (!loggedIn) return;
+    void fetch("/api/invites/me")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { url: string } | null) => d && setInvite(d))
+      .then((d: MyInvite | null) => d && setInvite(d))
       .catch(() => undefined);
-  }, [joined]);
+  }, [loggedIn]);
 
   const fmt = (iso: string) =>
     new Intl.DateTimeFormat(locale, {
@@ -238,6 +245,19 @@ export default function GiveawayPage() {
         {/* Inloggad, inte anmäld */}
         {user && !closed && !user.joined && <JoinForm onDone={setStatus} />}
 
+        {/* Fick du en kod av en vän? Bara de första dagarna och bara om ingen inbjudan finns. */}
+        {user && !closed && invite?.canEnterCode && (
+          <EnterCodeForm
+            onDone={(d) => {
+              setInvite(d);
+              void load();
+            }}
+          />
+        )}
+        {user && invite?.invitedBy && (
+          <p className="text-xs text-ink-muted">{t("invitedBy", { name: invite.invitedBy })}</p>
+        )}
+
         {/* Mina lotter */}
         {user?.joined && (
           <section className="space-y-3">
@@ -248,6 +268,20 @@ export default function GiveawayPage() {
               </p>
               <p className="mt-1 text-xs text-ink-faint">{t("ticketsLag")}</p>
             </div>
+
+            {/* Min kod — länken bär den, men vännen kan också skriva in den i appen. */}
+            {invite && !closed && (
+              <div className="card-surface flex items-center gap-3 p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-holo-cyan">{t("myCodeTitle")}</p>
+                  <p className="mt-0.5 font-mono text-2xl font-bold tracking-[0.12em] text-ink">{invite.code.toUpperCase()}</p>
+                  <p className="mt-1 text-xs text-ink-muted">{t("myCodeHint")}</p>
+                </div>
+                <Button size="sm" onClick={shareInvite} className="shrink-0">
+                  {copied ? t("copied") : t("ctaShareCode")}
+                </Button>
+              </div>
+            )}
 
             <ul className="card-surface divide-y divide-surface-border">
               <TicketRow
@@ -273,13 +307,6 @@ export default function GiveawayPage() {
                 label={t("rowInvites")}
                 hint={t("rowInvitesHint")}
                 value={String(user.counts.qualifiedInvites)}
-                action={
-                  !closed && invite ? (
-                    <Button size="sm" variant="outline" onClick={shareInvite}>
-                      {copied ? t("copied") : t("ctaInvite")}
-                    </Button>
-                  ) : null
-                }
               />
               {(status?.discordAvailable || user.counts.invitesInDiscord > 0) && (
                 <TicketRow
@@ -510,6 +537,61 @@ function JoinForm({ onDone }: { onDone: (s: Status) => void }) {
       <Button type="submit" loading={saving} className="w-full">
         {t("joinButton")}
       </Button>
+    </form>
+  );
+}
+
+function EnterCodeForm({ onDone }: { onDone: (d: MyInvite) => void }) {
+  const t = useTranslations("Giveaway");
+  const [code, setCode] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!code.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/invites/me", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = (await res.json().catch(() => null)) as (MyInvite & { error?: string }) | null;
+      if (!res.ok || !data) {
+        setError(data?.error ?? t("joinError"));
+        return;
+      }
+      onDone(data);
+    } catch {
+      setError(t("joinError"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="card-surface space-y-2 p-4">
+      <h2 className="text-sm font-semibold text-ink">{t("enterCodeTitle")}</h2>
+      <p className="text-xs text-ink-muted">{t("enterCodeHint")}</p>
+      <div className="flex gap-2">
+        <Input
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder={t("enterCodePlaceholder")}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          maxLength={32}
+          className="font-mono uppercase"
+          aria-label={t("enterCodeTitle")}
+        />
+        <Button type="submit" loading={saving} className="shrink-0">
+          {t("enterCodeButton")}
+        </Button>
+      </div>
+      {error && <p className="text-sm text-fall">{error}</p>}
     </form>
   );
 }
