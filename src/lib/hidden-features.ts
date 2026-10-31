@@ -9,7 +9,7 @@
  *   (`recordActivity` svarar null). Påfyllning redan intjänad denna månad behålls.
  */
 export const HIDDEN_FEATURES = {
-  giveaway: true,
+  giveaway: false,
   headerDiscord: true,
   streak: true,
 } as const;

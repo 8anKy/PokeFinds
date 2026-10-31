@@ -214,8 +214,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   alltid märkt "Uppskattat". Ingen officiell branschstandard finns — talen är MÄTTA på ~10 000 kort ur CardTraders
   golv (`lib/condition-prices.ts`). CardTraders egna skickpriser visas inte längre. ⛔ Mät om kvartalsvis
   (`scripts/condition-ratio-report.ts`-metoden) och visa ägaren nya tal FÖRE ändring. Samlingsvärdet värderar lösa kort på sitt skick (`valueRawCollectionItems`; förseglat och eget `estimatedValue` orörda, slab med affärer på affärerna).
-- ⛔ **DOLT TILLS ÄGAREN SÄGER TILL (2026-10-26)**: giveawayn, Discord-knappen i SIDHUVUDET och veckoserien —
-  en spak per funktion i `src/lib/hidden-features.ts`. Veckoserien dold = inget kort, inget firande och ingen
+- ⛔ **DOLT TILLS ÄGAREN SÄGER TILL (2026-10-26)**: Discord-knappen i SIDHUVUDET och veckoserien —
+  en spak per funktion i `src/lib/hidden-features.ts`. Giveawayn SYNLIG igen sedan 2026-10-31 (ägaren). Veckoserien dold = inget kort, inget firande och ingen
   ny dag bokförs (`recordActivity` → null); redan intjänad påfyllning gäller månaden ut. Giveawayns lotter räknas
   fortsatt ur aktiviteten. Veckoserie-raden är struken ur `app-release.json` (1.6) — lägg tillbaka den vid påslag.
 - **PRISER = CARDMARKET + KATALOGLUCKOR STÄNGDA (ägaren 2026-10-15: "fel priser, kort saknas, ta bort

@@ -85,7 +85,7 @@ async function loadQualifiedInvites(
   return {
     qualified: qualified.length,
     discordUserIds: qualified.flatMap((i) =>
-      i.discordJoinedAt && i.usedBy?.discordUserId ? [i.usedBy.discordUserId] : []
+      i.discordJoinedAt && i.discordJoinedAt <= end && i.usedBy?.discordUserId ? [i.usedBy.discordUserId] : []
     ),
   };
 }
