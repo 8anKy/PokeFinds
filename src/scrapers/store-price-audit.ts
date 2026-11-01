@@ -8,6 +8,7 @@
  * gissning; en revision som påstår ett fel den inte kan bevisa är värre än ingen.
  */
 import { collectProductNodes, parseJsonLdBlocks, shopifyHandleFromUrl, variantIdFromUrl, webhallenIdFromUrl } from "./gtin-source";
+import { SE_MARKET_HEADERS, withSeMarket } from "./shopify-market";
 
 export interface LivePrice {
   priceOre: number | null;
@@ -19,7 +20,7 @@ export interface LivePrice {
 
 type Fetcher = (url: string, opts?: { delayMs?: number; headers?: Record<string, string> }) => Promise<Response>;
 
-const SHOPIFY_HEADERS = { cookie: "localization=SE", "accept-language": "sv-SE" };
+const SHOPIFY_HEADERS = { ...SE_MARKET_HEADERS };
 
 /** Shopify `.js`: `price` i öre (minsta enhet). Pekar URL:en ut en variant gäller den. */
 export function priceFromShopifyJs(
@@ -90,7 +91,7 @@ export async function liveStorePrice(storeName: string, url: string, fetcher: Fe
   const handle = shopifyHandleFromUrl(url);
   if (handle) {
     const origin = new URL(url).origin;
-    const res = await fetcher(`${origin}/products/${handle}.js`, { delayMs: 800, headers: SHOPIFY_HEADERS });
+    const res = await fetcher(withSeMarket(`${origin}/products/${handle}.js`), { delayMs: 800, headers: SHOPIFY_HEADERS });
     if (res.ok) {
       const p = priceFromShopifyJs((await res.json()) as never, variantIdFromUrl(url));
       if (p === "ambiguous") return { priceOre: null, currency: "SEK", note: "ambiguous", via: "shopify-js" };

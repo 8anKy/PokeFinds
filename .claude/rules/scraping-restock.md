@@ -309,7 +309,9 @@ paths:
   finns), Webhallen 5→8. ⛔ En utökad BEFINTLIG butiks feed måste omseedas TYST (`RESTOCK_SEED_SILENT=1`
   i run-wave5-import.ts) — annars mejlas hela utökningen som "Ny produkt i lager" till set-bevakare.
   (2) **WAVE 5**: Aquitaz (Shopify, >1000 sealed EN/JP/CN/KR — "pokemonkort"=3 896 singlar + rip&ship
-  uteslutna per butik), Rogerz (rogerz.dk, Shopify Markets ⇒ verifierat SEK; vägda vintage-packs
+  uteslutna per butik), Rogerz (rogerz.dk, Shopify Markets ⇒ verifierat SEK — ⛔ sedan 2026-11-01 KRÄVS
+  `?country=SE` (`withSeMarket`, `shopify-market.ts`): cookien ignorerades 10-31 och 504 offers lagrades i DKK
+  som SEK, 20 falska prislarm gick ut; rättat med `repair-stale-store-prices.ts --store=Rogerz --apply`; vägda vintage-packs
   fällda av `dropTitles` — korslistade, kollektionsuteslutning ensam läckte 42), Yonko TCG
   (yonko-tcg.de, SEK verifierat), Firegames, Spelkortsbutiken (Quickbutik; singlar under
   /los-pokemon fällda av SINGLE_URL; ⚠️ temat kan sakna lagermarkör i listningen → status kan

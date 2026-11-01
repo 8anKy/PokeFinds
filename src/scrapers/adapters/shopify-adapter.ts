@@ -18,6 +18,7 @@ import { shopifyCartUrl } from "../../lib/cart-url";
 import { normalizeTitle } from "../../lib/utils";
 import { characterNames, isAccessoryListing } from "../matching";
 import { guessListingCategory } from "../listing-category";
+import { SE_MARKET_HEADERS, withSeMarket } from "../shopify-market";
 import type {
   AdapterResult,
   NormalizedProduct,
@@ -118,7 +119,7 @@ const NON_SEALED_COLLECTION =
  * `localization`-cookien är auktoritativ och överstyr geo → pinna svenska marknaden så
  * priset ALLTID är ink. moms, oavsett var runnern står. Butiker utan Markets ignorerar den.
  */
-const SE_MARKET_HEADERS = { cookie: "localization=SE", "accept-language": "sv-SE" } as const;
+// SE_MARKET_HEADERS + withSeMarket: ../shopify-market.ts (cookien ensam räckte inte för Rogerz 2026-11-01).
 
 interface ShopifyRaw {
   productId: number;
@@ -273,7 +274,7 @@ export abstract class ShopifyAdapter implements SourceAdapter {
     const cached = collectionsCache.get(this.baseUrl);
     if (cached && Date.now() - cached.at < COLLECTIONS_CACHE_TTL_MS) return cached.handles;
 
-    const res = await politeFetch(`${this.baseUrl}/collections.json?limit=250`, { delayMs: SHOPIFY_JSON_DELAY_MS, headers: SE_MARKET_HEADERS });
+    const res = await politeFetch(withSeMarket(`${this.baseUrl}/collections.json?limit=250`), { delayMs: SHOPIFY_JSON_DELAY_MS, headers: SE_MARKET_HEADERS });
     if (!res.ok) {
       errors.push(`${this.name}: collections.json HTTP ${res.status}`);
       return [];
@@ -314,7 +315,7 @@ export abstract class ShopifyAdapter implements SourceAdapter {
           const url = handle === null
             ? `${this.baseUrl}/products.json?limit=250&page=${page}`
             : `${this.baseUrl}/collections/${handle}/products.json?limit=250&page=${page}`;
-          const res = await politeFetch(url, { delayMs: SHOPIFY_JSON_DELAY_MS, headers: SE_MARKET_HEADERS });
+          const res = await politeFetch(withSeMarket(url), { delayMs: SHOPIFY_JSON_DELAY_MS, headers: SE_MARKET_HEADERS });
           if (!res.ok) {
             errors.push(`${this.name}: HTTP ${res.status} ${url}`);
             break;
@@ -608,7 +609,8 @@ export class AquitazAdapter extends ShopifyAdapter {
   // av de granulära hyllorna (booster-box/packs/etbs/tins/JP/CN/KR/set-kollektioner).
   protected excludedCollections = ["pokemonkort", "rip-ship-tcg-pokemon"];
 }
-// Dansk butik på Shopify Markets — `localization=SE`-cookien (SE_MARKET_HEADERS) ger
+// Dansk butik på Shopify Markets — SVENSKA marknaden kräver `?country=SE` sedan 2026-11-01
+// (cookien ignoreras ⇒ DKK lagrades som SEK; se shopify-market.ts). Tidigare gav cookien
 // verifierat SEK-priser (Pitch Black PC ETB = 2 411,00 SEK, mätt 2026-08-13).
 export class RogerzAdapter extends ShopifyAdapter {
   name = "Rogerz";

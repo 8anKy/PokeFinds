@@ -24,6 +24,7 @@
  *       → INGEN kod finns. Permanent titelmatchning.
  */
 import { politeFetch } from "./http";
+import { SE_MARKET_HEADERS, withSeMarket } from "./shopify-market";
 import { normalizeGtin } from "@/lib/gtin";
 
 type GtinStrategy = "shopify-js" | "json-ld" | "webhallen-api" | "none";
@@ -218,9 +219,9 @@ async function resolveFacts(
       const origin = new URL(url).origin;
       // Svenska marknaden pinnad (samma skäl som ShopifyAdapter: annars ex-moms-pris —
       // spelar ingen roll för barcode, men håll requesten identisk med adapterns).
-      const res = await politeFetch(`${origin}/products/${handle}.js`, {
+      const res = await politeFetch(withSeMarket(`${origin}/products/${handle}.js`), {
         delayMs: 800,
-        headers: { cookie: "localization=SE", "accept-language": "sv-SE" },
+        headers: SE_MARKET_HEADERS,
       });
       if (!res.ok) return NONE;
       const data = (await res.json()) as { variants?: { id?: number; barcode?: string | null }[] };

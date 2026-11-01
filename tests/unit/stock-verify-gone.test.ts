@@ -42,7 +42,8 @@ describe("verifyStockForUrl — borttagen sida", () => {
     fetchMock.mockResolvedValueOnce(resp(404)).mockResolvedValueOnce(resp(404));
     expect(await verifyStockForUrl("Goblinen", goblinen)).toBe(StockStatus.OUT_OF_STOCK);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0][0]).toMatch(/\.js$/);
+    // Svenska marknaden pinnas i URL:en sedan 2026-11-01 (Rogerz ignorerade cookien).
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\.js\?country=SE$/);
   });
 
   it("Shopify: .js 404 och sidan 302:ar till STARTSIDAN (Goblinen/Beam, mätt 09-20) ⇒ OUT_OF_STOCK", async () => {

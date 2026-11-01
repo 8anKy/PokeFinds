@@ -29,6 +29,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { isDirectOfferUrl } from "../src/lib/marketplace-urls";
+import { withSeMarket } from "../src/scrapers/shopify-market";
 import { detectListingLanguage } from "../src/lib/listing-language";
 import {
   isDeadStatus,
@@ -114,7 +115,7 @@ async function shopifyVariantName(url: string): Promise<string | null> {
   const handle = url.match(/\/products\/([^/?#]+)/);
   if (!id || !handle) return null;
   try {
-    const res = await fetch(`${new URL(url).origin}/products/${handle[1]}.js`, {
+    const res = await fetch(withSeMarket(`${new URL(url).origin}/products/${handle[1]}.js`), {
       headers: { "user-agent": UA, cookie: "localization=SE" },
       signal: AbortSignal.timeout(30_000),
     });

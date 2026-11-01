@@ -19,6 +19,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { politeFetch } from "../../src/scrapers/http";
+import { SE_MARKET_HEADERS, withSeMarket } from "../../src/scrapers/shopify-market";
 import { fetchShopifyPurchasable, stockFromJsonLd, verifyStockForUrl } from "../../src/scrapers/stock-verify";
 import type { RestockPost } from "../../src/lib/discord-restock";
 import type { RouteTable } from "../../src/lib/restock-feed-events";
@@ -398,9 +399,9 @@ export class DropWatcher {
       const origin = shopifyOrigin(url);
       const handle = shopifyHandle(url);
       if (!origin || !handle) return;
-      const res = await politeFetch(`${origin}/products/${handle}.js`, {
+      const res = await politeFetch(withSeMarket(`${origin}/products/${handle}.js`), {
         delayMs: 800,
-        headers: { cookie: "localization=SE", "accept-language": "sv-SE" },
+        headers: SE_MARKET_HEADERS,
       });
       if (!res.ok) return;
       const d = (await res.json()) as { title?: string; description?: string; price?: number; images?: string[] };
@@ -501,9 +502,9 @@ export class DropWatcher {
     // Shopify: butikens nyaste produkter (en förfrågan), gemensamt för alla aktiva sidor.
     const origin = shopifyOrigin(active[0][0]);
     if (!origin) return;
-    const res = await politeFetch(`${origin}/products.json?limit=15`, {
+    const res = await politeFetch(withSeMarket(`${origin}/products.json?limit=15`), {
       delayMs: 800,
-      headers: { cookie: "localization=SE", "accept-language": "sv-SE" },
+      headers: SE_MARKET_HEADERS,
     });
     if (!res.ok) return;
     const data = (await res.json()) as {
@@ -641,9 +642,9 @@ export class DropWatcher {
       const origin = shopifyOrigin(target);
       const handle = shopifyHandle(target);
       if (origin && handle) {
-        const res = await politeFetch(`${origin}/products/${handle}.js`, {
+        const res = await politeFetch(withSeMarket(`${origin}/products/${handle}.js`), {
           delayMs: 800,
-          headers: { cookie: "localization=SE", "accept-language": "sv-SE" },
+          headers: SE_MARKET_HEADERS,
         });
         if (res.ok) {
           const d = (await res.json()) as { title?: string; price?: number; available?: boolean };

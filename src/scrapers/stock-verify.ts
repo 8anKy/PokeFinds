@@ -32,6 +32,7 @@
  */
 import { StockStatus } from "@prisma/client";
 import { politeFetch } from "./http";
+import { SE_MARKET_HEADERS, withSeMarket } from "./shopify-market";
 import {
   collectProductNodes,
   parseJsonLdBlocks,
@@ -287,11 +288,11 @@ export function purchasableFromShopifyPage(html: string, wantedVariantId: number
  */
 export async function fetchShopifyPurchasable(url: string): Promise<boolean | null> {
   try {
-    const res = await politeFetch(url, {
+    const res = await politeFetch(withSeMarket(url), {
       delayMs: 800,
       // Samma marknad som ShopifyAdapter pinnar — annars kan en annan marknads
       // sortiment/pris rendera en annan knapp.
-      headers: { cookie: "localization=SE", "accept-language": "sv-SE" },
+      headers: SE_MARKET_HEADERS,
     });
     if (!res.ok) return null;
     return purchasableFromShopifyPage(await res.text(), variantIdFromUrl(url));
@@ -389,9 +390,9 @@ export async function verifyListingForUrl(sourceName: string, url: string): Prom
       if (!handle) return NO_TRUTH;
       const origin = new URL(url).origin;
       // Svenska marknaden pinnad — håll requesten identisk med ShopifyAdapterns.
-      const res = await politeFetch(`${origin}/products/${handle}.js`, {
+      const res = await politeFetch(withSeMarket(`${origin}/products/${handle}.js`), {
         delayMs: 800,
-        headers: { cookie: "localization=SE", "accept-language": "sv-SE" },
+        headers: SE_MARKET_HEADERS,
       });
       // Ingen `.js` ⇒ butiken är inte Shopify trots `/products/`-formen (Mystery Shack
       // kör Quickbutik på samma väg). Fall tillbaka på JSON-LD i stället för att svara

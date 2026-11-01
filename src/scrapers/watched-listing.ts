@@ -26,6 +26,7 @@
  */
 import { StockStatus } from "@prisma/client";
 import { politeFetch } from "./http";
+import { SE_MARKET_HEADERS, withSeMarket } from "./shopify-market";
 import { guessListingCategory } from "./listing-category";
 import {
   shopifyHandleFromUrl,
@@ -136,9 +137,9 @@ export async function fetchWatchedListing(
       const origin = new URL(url).origin;
       // Svenska marknaden pinnad — håll requesten IDENTISK med ShopifyAdapterns,
       // annars får vi den utländska marknadens ex-moms-pris (se SE_MARKET_HEADERS).
-      const res = await politeFetch(`${origin}/products/${handle}.js`, {
+      const res = await politeFetch(withSeMarket(`${origin}/products/${handle}.js`), {
         delayMs: 800,
-        headers: { cookie: "localization=SE", "accept-language": "sv-SE" },
+        headers: SE_MARKET_HEADERS,
       });
       if (!res.ok) return { item: null, error: `HTTP ${res.status} på /products/${handle}.js` };
       const data = (await res.json()) as ShopifyJs;
