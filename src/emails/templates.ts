@@ -1599,6 +1599,77 @@ export function giveawayEmail(input: { name: string; unsubscribeUrl: string }): 
 }
 
 /**
+ * GIVEAWAYN MED LOTTER — utskick 2026-11-02 (ägarbeslut). Skickas av
+ * scripts/send-giveaway-launch.ts till konton som INTE redan anmält sig.
+ *
+ * ⛔ Lotternas tal står UT i texten — de läses ur `TICKETS` (lib/giveaway.ts) så att
+ *    mejlet aldrig lovar något annat än sidan räknar.
+ * ⛔ Slutdatumet står UT. Skriptet vägrar skicka efter `closesAt`.
+ * ⛔ `unsubscribeUrl` är obligatorisk — marknadsföring, typen är `news`.
+ */
+export function giveawayLaunchEmail(input: {
+  name: string;
+  unsubscribeUrl: string;
+  tickets: {
+    account: number;
+    perScan: number;
+    maxScans: number;
+    perInvite: number;
+    perInviteDiscord: number;
+    restockAlert: number;
+    discord: number;
+    facebook: number;
+    perGrading: number;
+    maxGradings: number;
+  };
+  /** "17 november kl 23.59" */
+  closesLabel: string;
+}): EmailContent {
+  const { unsubscribeUrl, tickets: t, closesLabel } = input;
+  const name = esc(input.name);
+  const url = `${APP_URL}/giveaway`;
+  const prize = "30th Celebration Elite Trainer Box";
+  const subject = `Vinn en ${prize}`;
+  const lott = (n: number) => (n === 1 ? "1 lott" : `${n} lotter`);
+  const rows: [string, string][] = [
+    ["Anmäl dig", lott(t.account)],
+    ["Skanna ett kort till samlingen", `${lott(t.perScan)} per kort (max ${t.maxScans})`],
+    ["Bjud in en vän", `${lott(t.perInvite)} per vän, +${t.perInviteDiscord} om vännen går med i vår Discord via Scoutr`],
+    ["Slå på ett restock-larm", lott(t.restockAlert)],
+    ["Koppla Discord", lott(t.discord)],
+    ["Följ oss på Facebook", lott(t.facebook)],
+    ["AI-gradera ett kort", `${lott(t.perGrading)} per gradering (max ${t.maxGradings})`],
+  ];
+  const html = layout(
+    `Vinn en ${prize} 🎁`,
+    `<p style="${P_STYLE}">Hej ${name}! Vi lottar ut en <strong style="color:#ffffff;">${prize}</strong> bland Scoutrs användare. Det är gratis att vara med. Du samlar lotter genom att använda appen, och fler lotter ger större chans att vinna.</p>
+     <div style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-radius:10px;padding:16px 18px;margin:20px 0;">
+       <p style="margin:0 0 10px;font-size:15px;font-weight:700;color:${D_ACCENT};">Så får du lotter</p>
+       <ul style="line-height:1.7;color:#cbd5e1;padding-left:18px;margin:0;">
+         ${rows.map(([k, v]) => `<li><strong style="color:#ffffff;">${k}:</strong> ${v}</li>`).join("\n         ")}
+       </ul>
+     </div>
+     <p style="${P_STYLE}">Giveawayn stänger <strong style="color:#ffffff;">${closesLabel}</strong>, och sedan drar vi vinnaren.</p>
+     ${button(url, "Var med i giveawayn")}
+     <p style="line-height:1.6;color:#6b7280;font-size:12px;margin:24px 0 0;">Inget köp krävs. Vinnaren kontaktas via e-post. Fullständiga regler finns på giveaway-sidan.</p>`,
+    `Du får det här mejlet för att du har ett konto på Scoutr.<br>
+      <a href="${unsubscribeUrl}" style="color:#9ca3af;">Vill du inte ha nyhetsmejl? Avregistrera dig</a> &middot; dina larm rörs inte.`
+  );
+  const text =
+    `Hej ${input.name}!\n\n` +
+    `Vi lottar ut en ${prize} bland Scoutrs användare. Det är gratis att vara med. Du samlar lotter genom att använda appen, och fler lotter ger större chans att vinna.\n\n` +
+    `SÅ FÅR DU LOTTER\n` +
+    rows.map(([k, v]) => `· ${k}: ${v}`).join("\n") +
+    `\n\nGiveawayn stänger ${closesLabel}, och sedan drar vi vinnaren.\n\n` +
+    `Var med i giveawayn: ${url}\n\n` +
+    `Inget köp krävs. Vinnaren kontaktas via e-post. Fullständiga regler finns på giveaway-sidan.\n\n` +
+    `Vill du inte ha nyhetsmejl? Avregistrera dig: ${unsubscribeUrl}\n` +
+    `Dina larm rörs inte.\n` +
+    `Scoutr · Sveriges marknadsplats för Pokémon TCG`;
+  return { subject, html, text };
+}
+
+/**
  * NAMNBYTET — "Foilio heter nu Scoutr" (2026-10-13).
  *
  * Skickas av scripts/send-rebrand-notice.ts (förhandsgranskning till ägaren först).
