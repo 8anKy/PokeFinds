@@ -1653,7 +1653,9 @@ export function giveawayLaunchEmail(input: {
      ${button(url, "Var med i giveawayn")}
      <p style="line-height:1.6;color:#6b7280;font-size:12px;margin:24px 0 0;">Inget köp krävs. Vinnaren kontaktas via e-post. Fullständiga regler finns på giveaway-sidan.</p>`,
     `Du får det här mejlet för att du har ett konto på Scoutr.<br>
-      <a href="${unsubscribeUrl}" style="color:#9ca3af;">Vill du inte ha nyhetsmejl? Avregistrera dig</a> &middot; dina larm rörs inte.`
+      <a href="${unsubscribeUrl}" style="color:#9ca3af;">Vill du inte ha nyhetsmejl? Avregistrera dig</a> &middot; dina larm rörs inte.`,
+    // Samma bild som giveaway-sidan visar (CM-produktbilden av ETB:n).
+    { hero: productHero(absUrl("/api/cm-image/895551")) }
   );
   const text =
     `Hej ${input.name}!\n\n` +
