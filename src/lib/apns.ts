@@ -33,7 +33,8 @@ interface ApnNotification {
   payload?: Record<string, unknown>;
 }
 interface ApnSendResult {
-  failed: { device: string; status?: number; response?: { reason?: string } }[];
+  sent?: { device: string }[];
+  failed: { device: string; status?: number; response?: { reason?: string }; error?: unknown }[];
 }
 interface ApnProvider {
   send(note: ApnNotification, tokens: string[]): Promise<ApnSendResult>;
@@ -102,6 +103,15 @@ export async function sendPush(
   if (payload.url) note.payload = { url: payload.url };
 
   const result = await p.send(note, tokens);
+  // APNS_DEBUG=1 (förhandsgranskningar): Apples svar per enhet, token kapad.
+  if (process.env.APNS_DEBUG === "1") {
+    const short = (d: string) => `${d.slice(0, 8)}…`;
+    console.log(
+      `[apns] topic=${note.topic} production=${process.env.APNS_PRODUCTION === "true"} · ` +
+        `levererade till Apple: ${(result.sent ?? []).map((x) => short(x.device)).join(", ") || "inga"} · ` +
+        `fel: ${result.failed.map((f) => `${short(f.device)} ${f.status ?? "?"}/${f.response?.reason ?? String(f.error ?? "?")}`).join(", ") || "inga"}`
+    );
+  }
   const invalidTokens: string[] = [];
   const otherFailures: string[] = [];
   for (const f of result.failed) {

@@ -110,6 +110,7 @@ async function main() {
       console.log(`Mejl skickat till ${OWNER}.`);
     }
     if (!skipPush) {
+      process.env.APNS_DEBUG = "1";
       // Ägarens enheter sitter på två konton: OWNER och admin-kontot (SUPERADMIN).
       const tokens = users
         .filter((u) => u.email === OWNER || u.role === "SUPERADMIN")
