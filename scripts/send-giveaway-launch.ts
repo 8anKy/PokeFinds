@@ -69,7 +69,7 @@ async function main() {
 
   const entered = new Set((await prisma.giveawayEntry.findMany({ select: { userId: true } })).map((e) => e.userId));
   const users = await prisma.user.findMany({
-    select: { id: true, email: true, name: true, notificationSettings: true, pushTokens: { select: { token: true } } },
+    select: { id: true, email: true, name: true, role: true, notificationSettings: true, pushTokens: { select: { token: true } } },
     orderBy: { email: "asc" },
   });
   const notEntered = users.filter((u) => !entered.has(u.id));
@@ -110,7 +110,10 @@ async function main() {
       console.log(`Mejl skickat till ${OWNER}.`);
     }
     if (!skipPush) {
-      const tokens = me.pushTokens.map((t) => t.token);
+      // Ägarens enheter sitter på två konton: OWNER och admin-kontot (SUPERADMIN).
+      const tokens = users
+        .filter((u) => u.email === OWNER || u.role === "SUPERADMIN")
+        .flatMap((u) => u.pushTokens.map((t) => t.token));
       if (tokens.length === 0) console.log("Ägaren har ingen registrerad enhet — ingen provnotis.");
       else {
         const { invalidTokens } = await sendPush(tokens, PUSH);
