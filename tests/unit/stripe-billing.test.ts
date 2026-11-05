@@ -3,17 +3,18 @@ import { describe, expect, it } from "vitest";
 import {
   GRACE_DAYS,
   HANDLED_EVENTS,
+  neverPaidAfterTrial,
   proUntilForSubscription,
   statusGrantsPro,
 } from "@/app/api/webhooks/stripe/mapping";
-import { subscriptionPeriodEnd } from "@/lib/stripe";
+import { latestInvoicePaid, subscriptionPeriodEnd, subscriptionPeriodStart } from "@/lib/stripe";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** 2026-09-01T00:00:00Z i sekunder — Stripes enhet. */
 const PERIOD_END = Math.floor(Date.UTC(2026, 8, 1) / 1000);
 
 /** Minsta prenumeration testerna behöver; resten av objektet är ovidkommande. */
-function sub(items: Array<{ current_period_end?: number }>, extra: object = {}) {
+function sub(items: Array<{ current_period_end?: number; current_period_start?: number }>, extra: object = {}) {
   return { items: { data: items }, ...extra } as unknown as Stripe.Subscription;
 }
 
@@ -90,6 +91,54 @@ describe("proUntilForSubscription", () => {
   });
 });
 
+describe("första betalningen efter provperioden nekades (2026-11-05)", () => {
+  const TRIAL_END = Math.floor(Date.UTC(2026, 10, 4, 17, 58) / 1000);
+  const NEXT_END = TRIAL_END + 30 * 24 * 60 * 60;
+
+  // Kunden har aldrig betalat — past_due-nåden förutsätter en betald period.
+  it("past_due direkt efter provperioden ger INTE Pro", () => {
+    expect(
+      proUntilForSubscription("past_due", NEXT_END, { trialEndSeconds: TRIAL_END, periodStartSeconds: TRIAL_END })
+    ).toBeNull();
+  });
+
+  it("en nekad FÖRNYELSE behåller nåden — kunden har betalat förut", () => {
+    const laterStart = NEXT_END;
+    const until = proUntilForSubscription("past_due", NEXT_END + 30 * 24 * 60 * 60, {
+      trialEndSeconds: TRIAL_END,
+      periodStartSeconds: laterStart,
+    });
+    expect(until).not.toBeNull();
+  });
+
+  it("ett lyckat omförsök (active) ger Pro igen", () => {
+    expect(
+      proUntilForSubscription("active", NEXT_END, { trialEndSeconds: TRIAL_END, periodStartSeconds: TRIAL_END })
+    ).not.toBeNull();
+  });
+
+  it("utan provperiod är regeln av", () => {
+    expect(neverPaidAfterTrial(null, TRIAL_END)).toBe(false);
+    expect(neverPaidAfterTrial(TRIAL_END, null)).toBe(false);
+    expect(neverPaidAfterTrial(TRIAL_END, TRIAL_END + 60)).toBe(true);
+  });
+
+  it("periodstarten läses från posterna", () => {
+    expect(subscriptionPeriodStart(sub([{ current_period_start: TRIAL_END }]))).toBe(TRIAL_END);
+  });
+});
+
+describe("latestInvoicePaid", () => {
+  const withInvoice = (inv: unknown) => ({ latest_invoice: inv }) as unknown as Stripe.Subscription;
+  it("kräver betald faktura med riktiga pengar", () => {
+    expect(latestInvoicePaid(withInvoice({ status: "paid", amount_paid: 3900 }))).toBe(true);
+    expect(latestInvoicePaid(withInvoice({ status: "open", amount_paid: 0 }))).toBe(false);
+    expect(latestInvoicePaid(withInvoice({ status: "paid", amount_paid: 0 }))).toBe(false); // provperiodens 0 kr
+    expect(latestInvoicePaid(withInvoice("in_123"))).toBe(false); // ej expanderad = vet inte
+    expect(latestInvoicePaid(withInvoice(null))).toBe(false);
+  });
+});
+
 describe("HANDLED_EVENTS", () => {
   it("täcker köpet och hela prenumerationens livscykel", () => {
     for (const e of [
@@ -97,6 +146,7 @@ describe("HANDLED_EVENTS", () => {
       "customer.subscription.created",
       "customer.subscription.updated",
       "customer.subscription.deleted",
+      "invoice.paid",
     ]) {
       expect(HANDLED_EVENTS.has(e)).toBe(true);
     }

@@ -52,11 +52,33 @@ export function statusGrantsPro(status: string): boolean {
  */
 export function proUntilForSubscription(
   status: string,
-  periodEndSeconds: number | null | undefined
+  periodEndSeconds: number | null | undefined,
+  trial?: { trialEndSeconds: number | null | undefined; periodStartSeconds: number | null | undefined }
 ): Date | null {
   if (!statusGrantsPro(status)) return null;
+  if (status === "past_due" && trial && neverPaidAfterTrial(trial.trialEndSeconds, trial.periodStartSeconds)) {
+    return null;
+  }
   if (typeof periodEndSeconds !== "number" || periodEndSeconds <= 0) return null;
   return new Date(periodEndSeconds * 1000 + GRACE_DAYS * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * ⛔ FÖRSTA BETALNINGEN EFTER PROVPERIODEN NEKADES (2026-11-05). Då är perioden som
+ * löper den FÖRSTA betalda — kunden har aldrig betalat något, och `past_due`-nåden
+ * ovan (som förutsätter en redan betald period) hade gett en hel gratis månad, och
+ * med Stripe-inställningen "lämna som past_due" en ny för varje obetald period.
+ * Mätt: provperiod slut 11-04, kortet nekat, `stripeProUntil` blev 12-07.
+ * Lyckas ett av Stripes omförsök blir statusen `active` och Pro kommer tillbaka.
+ * Slack på en timme: Stripe kan sätta periodstarten en aning efter `trial_end`.
+ */
+export function neverPaidAfterTrial(
+  trialEndSeconds: number | null | undefined,
+  periodStartSeconds: number | null | undefined
+): boolean {
+  if (typeof trialEndSeconds !== "number" || trialEndSeconds <= 0) return false;
+  if (typeof periodStartSeconds !== "number" || periodStartSeconds <= 0) return false;
+  return periodStartSeconds <= trialEndSeconds + 3600;
 }
 
 /**
@@ -74,6 +96,9 @@ export const HANDLED_EVENTS = new Set([
   "customer.subscription.created",
   "customer.subscription.updated",
   "customer.subscription.deleted",
+  // En provperiod som går över i betalning är `active` både före och efter dragningen,
+  // så inget subscription-event säger att pengarna kom — bara fakturan gör det.
+  "invoice.paid",
 ]);
 
 /**

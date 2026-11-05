@@ -1,6 +1,12 @@
 import type Stripe from "stripe";
 import { prisma, withDbRetry } from "@/lib/db";
-import { getStripe, stripeEnabled, subscriptionPeriodEnd } from "@/lib/stripe";
+import {
+  getStripe,
+  latestInvoicePaid,
+  stripeEnabled,
+  subscriptionPeriodEnd,
+  subscriptionPeriodStart,
+} from "@/lib/stripe";
 import { syncDiscordRoles } from "@/services/discord-sync";
 import { recordCheckoutPromotionRedemptions } from "@/services/stripe-promotion-redemptions";
 import { PRO_COMMIT_MONTHS } from "@/lib/pro-plans";
@@ -65,7 +71,10 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
   if (!subscriptionId) return;
 
   // Färsk hämtning, aldrig eventets egen ögonblicksbild — se HANDLED_EVENTS.
-  let sub = await stripe.subscriptions.retrieve(subscriptionId);
+  // `latest_invoice` expanderas för proSince: en provperiod som löpt ut är `active` i
+  // timmen innan Stripe drar kortet — statusen ensam bevisar ingen betalning.
+  let sub = await stripe.subscriptions.retrieve(subscriptionId, { expand: ["latest_invoice"] });
+  const invoicePaid = latestInvoicePaid(sub);
 
   // 12-MÅNADERSBINDNINGEN (mapping.ts): en uppsägning under bindningstiden flyttas
   // till bindningstidens slut. Uppdateringen ger ett nytt `updated`-event, som då
@@ -104,7 +113,10 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
     return;
   }
 
-  const proUntil = proUntilForSubscription(sub.status, subscriptionPeriodEnd(sub));
+  const proUntil = proUntilForSubscription(sub.status, subscriptionPeriodEnd(sub), {
+    trialEndSeconds: sub.trial_end,
+    periodStartSeconds: subscriptionPeriodStart(sub),
+  });
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
 
   await withDbRetry(async () => {
@@ -115,8 +127,10 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
     if (!before) return; // raderat konto — samma hantering som RC-webhooken
 
     // "Prenumerant sedan" = första gången Stripe faktiskt gav BETALD Pro. Sätts en
-    // gång. ⛔ En provperiod är inte betald (2026-10-19).
-    const firstPaid = proUntil !== null && before.proSince === null && sub.status !== "trialing";
+    // gång. ⛔ En provperiod är inte betald (2026-10-19), och inte heller en faktura
+    // som nekades när provperioden tog slut (2026-11-05) — kräv en BETALD faktura.
+    const firstPaid =
+      proUntil !== null && before.proSince === null && sub.status === "active" && invoicePaid;
     // Provperioden: stämplas första gången vi ser den. Ett nytt slutdatum (Stripe
     // kan förlänga en provperiod) nollar stämplarna, så påminnelsen följer datumet.
     const trialEndsAt = sub.trial_end ? new Date(sub.trial_end * 1000) : null;
@@ -207,6 +221,11 @@ function extractSubscription(event: Stripe.Event): {
         session.client_reference_id ??
         (typeof session.metadata?.userId === "string" ? session.metadata.userId : null),
     };
+  }
+  if (event.type === "invoice.paid") {
+    const invoice = event.data.object as Stripe.Invoice;
+    const sub = invoice.parent?.subscription_details?.subscription;
+    return { subscriptionId: typeof sub === "string" ? sub : sub?.id ?? null, fallbackUserId: null };
   }
   const sub = event.data.object as Stripe.Subscription;
   return { subscriptionId: sub.id, fallbackUserId: null };

@@ -101,3 +101,24 @@ export function subscriptionPeriodEnd(sub: Stripe.Subscription): number | null {
   const legacy = (sub as unknown as { current_period_end?: number }).current_period_end;
   return typeof legacy === "number" && legacy > 0 ? legacy : null;
 }
+
+/** Periodens START, i sekunder — samma fälla och samma läsning som `subscriptionPeriodEnd`. */
+export function subscriptionPeriodStart(sub: Stripe.Subscription): number | null {
+  const starts = (sub.items?.data ?? [])
+    .map((item) => item.current_period_start)
+    .filter((n): n is number => typeof n === "number" && n > 0);
+  if (starts.length > 0) return Math.max(...starts);
+  const legacy = (sub as unknown as { current_period_start?: number }).current_period_start;
+  return typeof legacy === "number" && legacy > 0 ? legacy : null;
+}
+
+/**
+ * Är prenumerationens SENASTE faktura betald med riktiga pengar? Kräver att
+ * `latest_invoice` är expanderad — en bar id-sträng ger false ("vet inte" är inte "betald").
+ * En provperiods 0 kr-faktura räknas inte.
+ */
+export function latestInvoicePaid(sub: Stripe.Subscription): boolean {
+  const inv = sub.latest_invoice;
+  if (!inv || typeof inv === "string") return false;
+  return inv.status === "paid" && (inv.amount_paid ?? 0) > 0;
+}
