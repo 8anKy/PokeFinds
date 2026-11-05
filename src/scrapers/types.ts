@@ -75,6 +75,13 @@ export interface RawProductData {
    */
   minRankLevel?: number | null;
   /**
+   * Nivåkravet ur ett LIVE-svar den här hämtningen, 1 = alla (2026-11-05). Skiljer sig från
+   * `minRankLevel` genom att "saknas" betyder "vet inte" — inte "alla". Discord-lanen
+   * redigerar sina egna inlägg när kravet ändras (Webhallen sänker nivån stegvis efter
+   * att en förhandsbokning öppnat) och får därför aldrig läsa en okollad rad som en sänkning.
+   */
+  rankLevel?: number;
+  /**
    * Statusen är bara sökindexets gissning och kunde inte bekräftas live den här
    * hämtningen (Webhallen: produkt-API:t svarade inte). Discord-lanen behandlar raden
    * som FRÅNVARANDE — "vet inte" — i stället för att posta på gissningen. DB-vägen

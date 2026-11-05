@@ -414,6 +414,8 @@ export type FeedItem = {
   storeStatus?: StockStatus;
   /** Medlemsnivåkrav (se RawProductData.minRankLevel). */
   minRankLevel?: number | null;
+  /** Nivåkravet ur ett live-svar, 1 = alla (se RawProductData.rankLevel). */
+  rankLevel?: number;
   /** Obekräftad status (se RawProductData.stockUnconfirmed). */
   stockUnconfirmed?: boolean;
 };
@@ -965,6 +967,7 @@ export async function fetchSourceFeed(source: RestockSourceInfo): Promise<FeedIt
           storeStock: p.storeStock ?? null,
           ...(p.storeStatus ? { storeStatus: p.storeStatus } : {}),
           ...(p.minRankLevel != null ? { minRankLevel: p.minRankLevel } : {}),
+          ...(p.rankLevel != null ? { rankLevel: p.rankLevel } : {}),
           ...(p.stockUnconfirmed ? { stockUnconfirmed: true } : {}),
         };
       });

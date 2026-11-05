@@ -321,7 +321,7 @@ export function ExploreFilterBar({
 
   /**
    * FILTERRADEN, STIL 2 (ägarbeslut 2026-10-25): ord med en tunn turkos linje under det
-   * valda — Förseglat · Singlar · I lager utan CM · Språk · Set — och antalet på samma rad.
+   * valda — Förseglat · Singlar · I lager (utan Cardmarket) · Språk · Set — och antalet på samma rad.
    * Språk glider upp som ett ark (samma BottomSheet som resten av appen), Set öppnar setarket.
    * "Allt" är BORTTAGET (ägarbeslut 2026-11-05, för att ge lagerfliken plats): ett andra
    * tryck på Förseglat/Singlar stänger av filtret. Lagerfliken visas inte i sökläget —

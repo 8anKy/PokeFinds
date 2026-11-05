@@ -27,6 +27,7 @@ import { formatMarketValue, formatTraderaSold, marketDelta, priceEdgeColor } fro
 import type { StoreStock } from "@/scrapers/types";
 import type { BoundHit } from "@/lib/restock-hits";
 import { DISCORD_APP_FIELD } from "@/lib/discord-app-field";
+import { formatRankField } from "@/lib/discord-rank-edit";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
 const BRAND_COLOR = 0x2dd4bf;
@@ -348,6 +349,11 @@ export interface RestockPost {
    * larm om en vara man inte får köpa är annars en bilresa i onödan.
    */
   minRankLevel?: number | null;
+  /**
+   * Nivåkravet inlägget först postades med, när det sedan SÄNKTS (redigeringen,
+   * src/lib/discord-rank-edit.ts) ⇒ "Nivå 9+ (sänkt från 21+)". null = oförändrat.
+   */
+  rankLevelWas?: number | null;
   imageUrl: string | null;
   setName: string | null;
   series: string | null;
@@ -551,9 +557,8 @@ export function buildRestockEmbed(
       });
     }
   }
-  if (post.minRankLevel != null && post.minRankLevel > 1) {
-    fields.push({ name: "Kräver", value: `Nivå ${post.minRankLevel}+`, inline: true });
-  }
+  const rank = formatRankField(post);
+  if (rank) fields.push({ name: "Kräver", value: rank, inline: true });
   // Marknadsvärde + Tradera sålt på EGNA rader (full bredd): de bär en dom och ett
   // antal, och inline hade klämt ihop dem bredvid Butik/Pris till oläsliga spalter.
   if (delta) {

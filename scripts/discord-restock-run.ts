@@ -43,6 +43,14 @@
  * används bara för att göra inlägget snyggare. Det var den gamla ruttgrinden som gjorde
  * att mejl gick ut om påfyllningar Discord teg om.
  */
+import {
+  applyRankLevel,
+  parseRankMemory,
+  pruneRankMemory,
+  rankLevelChanges,
+  rememberRankPosts,
+  type RankMemory,
+} from "../src/lib/discord-rank-edit";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { SourceType } from "@prisma/client";
@@ -422,6 +430,19 @@ async function main() {
     publish: (posts) => publishDrop(posts),
     baseUrl,
   });
+  // ---- NIVÅKRAVET FÖLJER BUTIKEN (src/lib/discord-rank-edit.ts, 2026-11-05) ----
+  // Inlägg med "Kräver: Nivå N+" minns per butiks-URL; sänker (eller höjer) Webhallen
+  // kravet redigeras inlägget — inget nytt inlägg, ingen ping (ägarbeslut).
+  const rankFile = join(dirname(stateFile), "rank-posts.json");
+  let rankMemory: RankMemory = {};
+  try {
+    if (existsSync(rankFile)) rankMemory = parseRankMemory(JSON.parse(readFileSync(rankFile, "utf8")));
+  } catch {
+    rankMemory = {};
+  }
+  let rankDirty = pruneRankMemory(rankMemory, Date.now());
+  let rankEdits = 0;
+  let rankChain: Promise<void> = Promise.resolve();
   let totalPosted = 0;
   let totalFailures = 0;
   let stateDirty = false;
@@ -456,6 +477,10 @@ async function main() {
       writeFileAtomic(stateFile, JSON.stringify(state));
       const drops = dropWatcher.takeDirty();
       if (drops) writeFileAtomic(dropsFile, drops);
+      if (rankDirty) {
+        rankDirty = false;
+        writeFileAtomic(rankFile, JSON.stringify(rankMemory));
+      }
     } catch (e) {
       console.warn("[discord-restock] Kunde inte skriva state-filen:", e instanceof Error ? e.message : e);
     }
@@ -784,6 +809,22 @@ async function main() {
     const requests = requestsForSource(before, requestCountSnapshot(), source, items[0]?.url);
     for (const it of items) lastFeedStatus.set(it.url, it.stockStatus);
 
+    // Nivåkravet ändrat på något vi postat ⇒ redigera inlägget (vid sidan av loopen).
+    for (const ch of rankLevelChanges(rankMemory, items)) {
+      const entry = rankMemory[ch.url];
+      applyRankLevel(entry, ch.url, ch.to);
+      rankDirty = true;
+      stateDirty = true;
+      console.log(`[discord-restock]   nivåkrav: ${source.name} → ${ch.url} ${ch.from}+ → ${ch.to}+`);
+      if (!config) continue;
+      const msgs = [...entry.msgs];
+      rankChain = rankChain.then(async () => {
+        let ok = 0;
+        for (const m of msgs) if (await editRestockMessage(m, config)) ok++;
+        if (ok) rankEdits++;
+      });
+    }
+
     if (items.length === 0) {
       // Tom feed = INGEN INFORMATION, inte "allt försvann". mergeStateMap äger
       // regeln; vi hoppar helt så inte ens frånvarominnet rörs.
@@ -1020,6 +1061,11 @@ async function main() {
 
     const res = await postRestocks(postable, config);
     for (const m of res.messages) ownMessageIds.add(m.messageId);
+    if (res.messages.some((m) => m.posts.some((p) => (p.minRankLevel ?? 1) > 1))) {
+      rememberRankPosts(rankMemory, res.messages, Date.now());
+      rankDirty = true;
+      stateDirty = true;
+    }
     // Meddelande-id:n för en senare redigering — bara ORUTTADE inlägg kan behöva en.
     const enrichable: string[] = [];
     for (const m of res.messages) {
@@ -1234,6 +1280,15 @@ async function main() {
   // skrivs till kön och plockas upp av nästa jobb.
   flushHits();
   await hitChain;
+  // Påbörjade nivåredigeringar får gå klart (PATCH:ar, sekunder).
+  await rankChain;
+  if (rankEdits) console.log(`[discord-restock] Nivåkrav: ${rankEdits} inlägg redigerade.`);
+  // Efter redigeringarna (state-filen skrevs redan ovan) — nästa jobb ska se nivån vi satte.
+  try {
+    writeFileAtomic(rankFile, JSON.stringify(rankMemory));
+  } catch {
+    /* nästa jobb börjar då med förra filen: ett missat nivåbyte, aldrig ett fel inlägg */
+  }
   clearInterval(hitsTimer);
   clearInterval(syncOfferTimer);
   writeHits();

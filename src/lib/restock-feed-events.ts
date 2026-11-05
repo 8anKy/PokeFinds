@@ -84,6 +84,8 @@ export interface FeedItemFull {
   storeStatus?: StockStatus | null;
   /** Medlemsnivåkrav för köp (Webhallens "Lvl 9+"). null = alla får köpa. */
   minRankLevel?: number | null;
+  /** Nivåkravet ur ett live-svar, 1 = alla; saknas = okänt (RawProductData.rankLevel). */
+  rankLevel?: number;
 }
 
 /**

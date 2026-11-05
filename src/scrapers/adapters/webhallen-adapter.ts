@@ -80,6 +80,13 @@ let livePollCursor = 0;
  */
 const LIVE_CACHE_TTL_MS = 15 * 60_000;
 const liveCache = new Map<number, { product: WebhallenProduct; at: number }>();
+/**
+ * Produkter vars senaste live-svar hade ett nivåkrav (> 1). De förblir live-kandidater
+ * även när de står i lager (2026-11-05): Webhallen sänker nivån stegvis efter släppet, och
+ * Discord-lanen redigerar sitt inlägg när den ser det — men bara icke-i-lager-varor slogs
+ * upp, så en i-lager-varas nivå hade frusit i inlägget. Få varor (nivålåsta släpp).
+ */
+const rankLockedIds = new Set<number>();
 
 function searchUrl(page: number): string {
   return `${BASE_URL}/api/productdiscovery/search/${encodeURIComponent(SEARCH_QUERY)}?page=${page}&touchpoint=DESKTOP&totalProductCountSet=true`;
@@ -222,6 +229,13 @@ export function webhallenMinRankLevel(item: WebhallenProduct): number | null {
   return typeof lvl === "number" && Number.isFinite(lvl) && lvl > 1 ? Math.round(lvl) : null;
 }
 
+/** Nivåkravet i ett live-svar, 1 = alla. undefined när fältet saknas (okänt, aldrig "alla"). */
+export function webhallenRankLevel(item: WebhallenProduct): number | undefined {
+  const lvl = item.minimumRankLevel;
+  if (typeof lvl !== "number" || !Number.isFinite(lvl)) return undefined;
+  return Math.max(1, Math.round(lvl));
+}
+
 /** Skriver ett live-svar på annonsen — samma fält oavsett om svaret är nytt eller cachat. */
 function applyLiveDetail(
   p: RawProductData,
@@ -233,6 +247,10 @@ function applyLiveDetail(
   p.storeStock = webhallenStoreBreakdown(product.stock, storeNames);
   p.storeStatus = webhallenStorePickupStatus(product);
   p.minRankLevel = webhallenMinRankLevel(product);
+  p.rankLevel = webhallenRankLevel(product);
+  const id = (p.raw as WebhallenRaw).id;
+  if ((p.rankLevel ?? 1) > 1) rankLockedIds.add(id);
+  else rankLockedIds.delete(id);
   if (live !== p.stockStatus) {
     const raw = p.raw as WebhallenRaw;
     p.stockStatus = live;
@@ -397,7 +415,10 @@ export class WebhallenAdapter implements SourceAdapter {
       const now = Date.now();
       const candidateSet = new Set<RawProductData>();
       for (const p of products) {
-        const indexSaysCandidate = p.stockStatus !== StockStatus.IN_STOCK || p.storeOnly === true;
+        const indexSaysCandidate =
+          p.stockStatus !== StockStatus.IN_STOCK ||
+          p.storeOnly === true ||
+          rankLockedIds.has((p.raw as WebhallenRaw).id);
         const cached = liveCache.get((p.raw as WebhallenRaw).id);
         if (cached && now - cached.at < LIVE_CACHE_TTL_MS) {
           const indexStatus = p.stockStatus;
