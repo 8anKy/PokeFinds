@@ -420,6 +420,11 @@ priskanalen.
 - **MEDLEMSNIVÅ**: Webhallens `minimumRankLevel` (bara produkt-API:t) ⇒ `minRankLevel` ⇒ fältet
   "Kräver: Nivå 9+". ≤1 = alla ⇒ inget fält. Splash-texten ("Lvl9+") är marknadsföring och kan ligga
   efter fältet (30th: splash 9+, fältet 5) — fältet gäller.
+  **NIVÅN FÖLJER BUTIKEN (ägarbeslut 2026-11-05)**: Webhallen sänker kravet stegvis (Ditto Premium postad
+  "Nivå 21+" 11-03, nivå 9 två dygn senare). Inlägget REDIGERAS ("Nivå 9+ (sänkt från 21+)", nivå 1 ⇒ "Alla (sänkt
+  från …)") — inget nytt inlägg, ingen ping. Minnet: `.discord-restock-cache/rank-posts.json` (14 d, följer
+  överlämningen), domen `src/lib/discord-rank-edit.ts`. ⛔ Bara `rankLevel` ur ett LIVE-svar räknas — okänt är aldrig
+  "alla". Nivålåsta varor hålls som live-kandidater även i lager (`rankLockedIds`), annars frös deras nivå.
 - ⛔ **PRO-SPEGELN HOPPAR ÖVER BUTIKSVAROR**: spegelns hela innehåll är korglänken, och en vara som
   bara finns på en hylla har ingen korg att lägga i.
 
