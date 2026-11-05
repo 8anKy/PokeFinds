@@ -225,8 +225,8 @@ export function ExploreFilterBar({
   // "I lager"-chipet är borttaget (ägarbeslut 2026-10-25); en gammal länk med
   // ?lager=1 gäller fortfarande och syns som ett aktivt filter bakom ikonen.
   const inStock = searchParams.lager === "1";
-  // "I lager utan Cardmarket" (?lager=butik, användarönskemål 2026-11-05): en egen
-  // på/av-rad i arket — döljer varor som bara finns i lager på Cardmarket.
+  // "I lager utan Cardmarket" (?lager=butik, användarönskemål 2026-11-05): en egen flik
+  // i raden — döljer varor som bara finns i lager på Cardmarket.
   const noCardmarket = searchParams.lager === "butik";
 
   // Kategorier som inte är exakt Kort/Förseglat räknas som "Mer"-filter.
@@ -321,13 +321,23 @@ export function ExploreFilterBar({
 
   /**
    * FILTERRADEN, STIL 2 (ägarbeslut 2026-10-25): ord med en tunn turkos linje under det
-   * valda — Allt · Förseglat · Singlar · Språk · Set — och antalet på samma rad. Språk
-   * glider upp som ett ark (samma BottomSheet som resten av appen), Set öppnar setarket.
+   * valda — Förseglat · Singlar · I lager utan CM · Språk · Set — och antalet på samma rad.
+   * Språk glider upp som ett ark (samma BottomSheet som resten av appen), Set öppnar setarket.
+   * "Allt" är BORTTAGET (ägarbeslut 2026-11-05, för att ge lagerfliken plats): ett andra
+   * tryck på Förseglat/Singlar stänger av filtret. Lagerfliken visas inte i sökläget —
+   * direktsöket filtrerar inte på lager, och en flik som inte påverkar träffarna ljuger.
    */
   const tabItems: { key: string; label: string; active: boolean; menu?: boolean; onClick: () => void }[] = [
-    { key: "all", label: t("chipAll"), active: shownKind === null && otherKategori === 0, onClick: () => chooseKind(null) },
-    { key: "sealed", label: t("chipSealed"), active: shownKind === "sealed", onClick: () => chooseKind("sealed") },
-    { key: "cards", label: t("chipSingles"), active: shownKind === "cards", onClick: () => chooseKind("cards") },
+    { key: "sealed", label: t("chipSealed"), active: shownKind === "sealed", onClick: () => chooseKind(shownKind === "sealed" ? null : "sealed") },
+    { key: "cards", label: t("chipSingles"), active: shownKind === "cards", onClick: () => chooseKind(shownKind === "cards" ? null : "cards") },
+    ...(searching
+      ? []
+      : [{
+          key: "stock",
+          label: t("chipInStockNoCardmarket"),
+          active: noCardmarket,
+          onClick: () => pushParams({ lager: noCardmarket ? undefined : "butik" }),
+        }]),
     { key: "lang", label: shownLang ?? t("language"), active: shownLang !== null, menu: true, onClick: () => setSheet("lang") },
     { key: "set", label: activeSetLabel ?? t("set"), active: activeSetLabel !== null, menu: true, onClick: () => setSheet("set") },
   ];
@@ -523,14 +533,6 @@ export function ExploreFilterBar({
             value={moreCount > 0 ? String(moreCount) : null}
             onClick={() => setSheet("more")}
           />
-          <ToggleRow
-            label={t("inStockNoCardmarket")}
-            checked={noCardmarket}
-            onToggle={() => {
-              pushParams({ lager: noCardmarket ? undefined : "butik" });
-              setSheet(null);
-            }}
-          />
           {inStock && (
             <FilterRow
               label={t("inStockShort")}
@@ -680,35 +682,6 @@ function FilterRow({
       <span className="flex items-center gap-1.5 text-ink-muted">
         {value && <span className="font-medium text-holo-cyan">{value}</span>}
         {clear ? <IconX size={15} /> : <IconChevronRight size={16} />}
-      </span>
-    </button>
-  );
-}
-
-/** En på/av-rad i "Sortera och filtrera" — ett tryck slår om filtret (som raderna ovan stänger arket). */
-function ToggleRow({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={onToggle}
-      className="flex items-center justify-between gap-3 rounded-lg px-3 py-3 text-left text-sm text-ink"
-    >
-      <span>{label}</span>
-      <span
-        aria-hidden
-        className={cn(
-          "relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors",
-          checked ? "bg-holo-cyan" : "bg-surface-overlay"
-        )}
-      >
-        <span
-          className={cn(
-            "absolute top-[3px] h-4 w-4 rounded-full bg-ink transition-[left]",
-            checked ? "left-[19px]" : "left-[3px]"
-          )}
-        />
       </span>
     </button>
   );

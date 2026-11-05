@@ -2286,6 +2286,7 @@
     "setEraOther": "Övrigt",
     "chipCards": "Kort",
     "chipSealed": "Förseglat",
+    "chipInStockNoCardmarket": "I lager utan CM",
     "sortAndFilter": "Sortera och filtrera",
     "filterSection": "Filter",
     "moreFiltersLong": "Språk, butik och kategori",
