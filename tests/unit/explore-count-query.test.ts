@@ -40,6 +40,10 @@ describe("countQuery", () => {
     expect(parse(countQuery({ lager: "0" }))).toEqual({});
   });
 
+  it("lager=butik blir i lager + utan Cardmarket (samma tolkning som feeden)", () => {
+    expect(parse(countQuery({ lager: "butik" }))).toEqual({ stockStatus: "IN_STOCK", excludeCardmarket: "1" });
+  });
+
   it("tomt urval ger tom frågesträng (= hela katalogen)", () => {
     expect(countQuery({})).toBe("");
     expect(countQuery({ minKr: 0, maxKr: null, q: "" })).toBe("");

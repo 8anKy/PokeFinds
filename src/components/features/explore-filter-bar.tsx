@@ -225,12 +225,15 @@ export function ExploreFilterBar({
   // "I lager"-chipet är borttaget (ägarbeslut 2026-10-25); en gammal länk med
   // ?lager=1 gäller fortfarande och syns som ett aktivt filter bakom ikonen.
   const inStock = searchParams.lager === "1";
+  // "I lager utan Cardmarket" (?lager=butik, användarönskemål 2026-11-05): en egen
+  // på/av-rad i arket — döljer varor som bara finns i lager på Cardmarket.
+  const noCardmarket = searchParams.lager === "butik";
 
   // Kategorier som inte är exakt Kort/Förseglat räknas som "Mer"-filter.
   const otherKategori = urlKind === null ? csvList(urlKategori).length : 0;
   // Språket har en egen flik i raden sedan 2026-10-25; bara butik + övriga kategorier räknas här.
   const moreCount = otherKategori + csvList(searchParams.butik).length + (urlLang === null ? csvList(searchParams.sprak).length : 0);
-  const filterActive = sortActive || priceActive || inStock || moreCount > 0;
+  const filterActive = sortActive || priceActive || inStock || noCardmarket || moreCount > 0;
 
   /** Bygger nästa URL. `sida` nollställs alltid — sida 3 av ett annat filter är inte sida 3. */
   function pushParams(patch: Partial<Record<keyof ExploreSearchParams, string | undefined>>) {
@@ -520,6 +523,14 @@ export function ExploreFilterBar({
             value={moreCount > 0 ? String(moreCount) : null}
             onClick={() => setSheet("more")}
           />
+          <ToggleRow
+            label={t("inStockNoCardmarket")}
+            checked={noCardmarket}
+            onToggle={() => {
+              pushParams({ lager: noCardmarket ? undefined : "butik" });
+              setSheet(null);
+            }}
+          />
           {inStock && (
             <FilterRow
               label={t("inStockShort")}
@@ -669,6 +680,35 @@ function FilterRow({
       <span className="flex items-center gap-1.5 text-ink-muted">
         {value && <span className="font-medium text-holo-cyan">{value}</span>}
         {clear ? <IconX size={15} /> : <IconChevronRight size={16} />}
+      </span>
+    </button>
+  );
+}
+
+/** En på/av-rad i "Sortera och filtrera" — ett tryck slår om filtret (som raderna ovan stänger arket). */
+function ToggleRow({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onToggle}
+      className="flex items-center justify-between gap-3 rounded-lg px-3 py-3 text-left text-sm text-ink"
+    >
+      <span>{label}</span>
+      <span
+        aria-hidden
+        className={cn(
+          "relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors",
+          checked ? "bg-holo-cyan" : "bg-surface-overlay"
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-[3px] h-4 w-4 rounded-full bg-ink transition-[left]",
+            checked ? "left-[19px]" : "left-[3px]"
+          )}
+        />
       </span>
     </button>
   );

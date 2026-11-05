@@ -2203,6 +2203,7 @@
     "filterAria": "Filter och sortering",
     "priceShort": "Pris",
     "inStockShort": "I lager",
+    "inStockNoCardmarket": "I lager utan Cardmarket",
     "moreFilters": "Mer",
     "clearSet": "Rensa set-filtret",
     "clearPrice": "Rensa prisfiltret",

@@ -205,7 +205,9 @@ function buildParams(sp: CatalogSearchParams, isAdmin: boolean): SearchProductsP
     retailerId: csv(sp.butik),
     minPrice: parseKr(sp.minPris),
     maxPrice: parseKr(sp.maxPris),
-    stockStatus: sp.lager === "1" ? "IN_STOCK" : undefined,
+    // ?lager=1 = i lager var som helst; ?lager=butik = i lager hos någon annan än Cardmarket.
+    stockStatus: sp.lager === "1" || sp.lager === "butik" ? "IN_STOCK" : undefined,
+    excludeCardmarket: sp.lager === "butik" || undefined,
     language: language?.length ? language : undefined,
     sort,
     page,
@@ -243,6 +245,7 @@ function buildFeedQuery(p: SearchProductsParams): string {
   if (p.minPrice !== undefined) s.set("minPrice", String(p.minPrice));
   if (p.maxPrice !== undefined) s.set("maxPrice", String(p.maxPrice));
   if (p.stockStatus) s.set("stockStatus", p.stockStatus);
+  if (p.excludeCardmarket) s.set("excludeCardmarket", "1");
   const language = join(p.language);
   if (language) s.set("language", language);
   // userId skickas ALDRIG med i URL:en — feed-routen läser sessionen själv.

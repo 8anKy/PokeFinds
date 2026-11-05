@@ -15,6 +15,7 @@ const feedSchema = z.object({
   minPrice: z.coerce.number().int().min(0).optional(),
   maxPrice: z.coerce.number().int().min(0).optional(),
   stockStatus: z.nativeEnum(StockStatus).optional(),
+  excludeCardmarket: z.enum(["1"]).optional().transform((v) => v === "1" || undefined),
   language: csvEnum(CardLanguage),
   // "popular" finns kvar som giltigt värde (gamla länkar/bokmärken) men mappas till
   // best_match av normalizeSort i services/products.

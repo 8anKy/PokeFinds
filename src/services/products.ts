@@ -85,6 +85,12 @@ export interface SearchProductsParams {
   minPrice?: number; // öre
   maxPrice?: number; // öre
   stockStatus?: StockStatus;
+  /**
+   * "I lager i butik" (`?lager=butik`, 2026-11-05, användarönskemål): produkten måste
+   * ha en KÖPBAR offer (i lager + direktlänk) hos någon annan än Cardmarket. En vara som
+   * bara finns i lager på Cardmarket döljs. Implicerar IN_STOCK.
+   */
+  excludeCardmarket?: boolean;
   language?: CardLanguage | CardLanguage[];
   sort?: ProductSort;
   /**
@@ -363,10 +369,10 @@ export async function snapshotStorePricedProducts(): Promise<number> {
 export async function buildProductWhere(
   params: Pick<
     SearchProductsParams,
-    "query" | "category" | "setId" | "retailerId" | "stockStatus" | "language" | "sort"
+    "query" | "category" | "setId" | "retailerId" | "stockStatus" | "excludeCardmarket" | "language" | "sort"
   >
 ): Promise<Prisma.ProductWhereInput> {
-  const { query, category, setId, retailerId, stockStatus, language } = params;
+  const { query, category, setId, retailerId, stockStatus, excludeCardmarket, language } = params;
   const andClauses: Prisma.ProductWhereInput[] = [];
 
   if (query) {
@@ -429,6 +435,12 @@ export async function buildProductWhere(
   if (languages.length > 0) where.language = { in: languages };
   else where.language = { in: CATALOG_LANGUAGES };
   const retailerIds = toList(retailerId);
+  // "I lager i butik": Cardmarket (och källorna som bär CM:s data) räknas inte. Läggs på
+  // SAMMA offer-villkor som butiksfiltret — `some` måste gälla EN och samma offer, annars
+  // hade "i lager på CM + slut i butiken" passerat.
+  const notCardmarket: Prisma.OfferWhereInput = excludeCardmarket
+    ? { retailer: { name: { notIn: CARDMARKET_SOURCE_NAMES } } }
+    : {};
   if (retailerIds.length > 0) {
     where.offers = {
       some: {
@@ -436,6 +448,16 @@ export async function buildProductWhere(
         stockStatus: "IN_STOCK",
         price: { not: null },
         NOT: { url: { contains: "search", mode: "insensitive" } },
+        ...notCardmarket,
+      },
+    };
+  } else if (excludeCardmarket) {
+    // Samma köpbarhet som butiksfiltret: i lager + direktlänk (sök-/bläddringslänkar är ingen vara).
+    where.offers = {
+      some: {
+        stockStatus: "IN_STOCK",
+        NOT: { url: { contains: "search", mode: "insensitive" } },
+        ...notCardmarket,
       },
     };
   } else if (stockStatus) {

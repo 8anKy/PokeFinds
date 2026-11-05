@@ -2203,6 +2203,7 @@
     "filterAria": "Filter and sorting",
     "priceShort": "Price",
     "inStockShort": "In stock",
+    "inStockNoCardmarket": "In stock, no Cardmarket",
     "moreFilters": "More",
     "clearSet": "Clear set filter",
     "clearPrice": "Clear price filter",

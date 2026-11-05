@@ -198,7 +198,9 @@ export function ExploreFilterPanel({
   // Set är flerval sedan 2026-09-28 (?set=a,b), som kategori och butik.
   const activeSets = getCsv("set");
   const activeLanguage = sp?.get("sprak") ?? "";
-  const inStockOnly = sp?.get("lager") === "1";
+  // ?lager=butik = i lager hos någon annan än Cardmarket (användarönskemål 2026-11-05).
+  const noCardmarket = sp?.get("lager") === "butik";
+  const inStockOnly = sp?.get("lager") === "1" || noCardmarket;
   const minPris = sp?.get("minPris") ?? "";
   const maxPris = sp?.get("maxPris") ?? "";
 
@@ -346,12 +348,20 @@ export function ExploreFilterPanel({
           <Segmented
             label={t("availability")}
             value={inStockOnly ? "1" : ""}
-            onChange={(v) => apply({ lager: v || null })}
+            // "I lager" igen när Cardmarket-spärren redan är på = ingen ändring (inte en nollning).
+            onChange={(v) => apply({ lager: v ? (noCardmarket ? "butik" : v) : null })}
             options={[
               { value: "", label: t("all") },
               { value: "1", label: t("inStockShort") },
             ]}
           />
+          <div className="mt-1.5">
+            <FacetRow
+              checked={noCardmarket}
+              label={t("inStockNoCardmarket")}
+              onToggle={() => apply({ lager: noCardmarket ? "1" : "butik" })}
+            />
+          </div>
         </Section>
 
         <Section title={t("category")}>
@@ -566,6 +576,8 @@ export function ExploreActiveChips({
 
   if (sp?.get("lager") === "1") {
     chips.push({ key: "lager", label: t("inStockShort"), onRemove: () => apply({ lager: null }) });
+  } else if (sp?.get("lager") === "butik") {
+    chips.push({ key: "lager", label: t("inStockNoCardmarket"), onRemove: () => apply({ lager: null }) });
   }
 
   const language = sp?.get("sprak");

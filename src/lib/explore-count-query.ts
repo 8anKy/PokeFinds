@@ -31,7 +31,9 @@ export function countQuery(sel: CountSelection): string {
   if (sel.set) s.set("setId", sel.set);
   if (sel.butik) s.set("retailerId", sel.butik);
   if (sel.sprak) s.set("language", sel.sprak);
-  if (sel.lager === "1") s.set("stockStatus", "IN_STOCK");
+  if (sel.lager === "1" || sel.lager === "butik") s.set("stockStatus", "IN_STOCK");
+  // "I lager i butik" = i lager hos någon annan än Cardmarket (samma tolkning som /produkter).
+  if (sel.lager === "butik") s.set("excludeCardmarket", "1");
 
   const min = sel.minKr ?? (sel.minPris ? Number(sel.minPris) : 0);
   const max = sel.maxKr !== undefined ? sel.maxKr : sel.maxPris ? Number(sel.maxPris) : null;
