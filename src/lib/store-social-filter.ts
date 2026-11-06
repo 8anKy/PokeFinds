@@ -69,12 +69,20 @@ const DELAY =
   /försen|skjuta på|skjuter på|skjuts upp|uppskjut|flyttas fram|dröjer|inte dykt upp|inte kommit|inte anlänt|delayed|postponed/i;
 const SHIPPING = /postnord|\bdhl\b|budbil|ombud|\bfrakt|beställning|\border(?:n|ar|s)?\b|skickas ut|leveranstid|kundtjänst/i;
 
-/** Pokémon-MERCH är inget släpp våra läsare väntar på. Läses i brödtexten. */
+/**
+ * Pokémon-MERCH är inget släpp våra läsare väntar på. Läses i brödtexten.
+ * + ANDRA MÄRKENS VAROR (2026-11-06): Kandyz postade "NOCCO Holiday Calendar" och den gick
+ *   fram — en butik som taggar #pokemon på allt säljer också dryck och godis.
+ */
 const MERCH =
-  /polaroid|kamera|camera|plush|gosedjur|mjukdjur|\bfigur|funko|\blego\b|kläder|tröja|t-shirt|hoodie|\bkeps\b|nintendo|switch|tv-spel|videospel|\bpokémon go\b|\bpokemon go\b|legends|squishmallow|\bkopp(?:ar)?\b|mugg|ryggsäck/i;
+  /nocco|energidryck|läsk|godis|polaroid|kamera|camera|plush|gosedjur|mjukdjur|\bfigur|funko|\blego\b|kläder|tröja|t-shirt|hoodie|\bkeps\b|nintendo|switch|tv-spel|videospel|\bpokémon go\b|\bpokemon go\b|legends|squishmallow|\bkopp(?:ar)?\b|mugg|ryggsäck/i;
 
+/**
+ * Andra kortspel OCH SPORTKORT (2026-11-06: Lekia postade "Topps Match Attax 2026/27 … booster,
+ * starter pack … i butiken" och den gick fram på butikens #pokemon-tagg).
+ */
 const OTHER_TCG =
-  /one ?piece|\bop ?-?\d{1,2}\b|lorcana|\bmagic\b|\bmtg\b|yu-?gi-?oh|star ?wars|riftbound|digimon|dragon ?ball|gundam|flesh and blood|cyberpunk|hobbit|union arena|weiss|altered/i;
+  /topps|match ?attax|panini|adrenalyn|fotboll|football|soccer|sportkort|fifa|nhl|nba|nfl|hockey|one ?piece|\bop ?-?\d{1,2}\b|lorcana|\bmagic\b|\bmtg\b|yu-?gi-?oh|star ?wars|riftbound|digimon|dragon ?ball|gundam|flesh and blood|cyberpunk|hobbit|union arena|weiss|altered/i;
 
 const RELEASE = new RegExp(
   [
@@ -225,8 +233,12 @@ export function classifyStorePost(caption: string, extraPokemonTerms: readonly s
   return { relevant: true, reason: release[0] };
 }
 
-/** Katalognamn som inte är ett set man pratar om ("Expansion", promo-/energiset, kuvert). */
-const GENERIC_SET_NAME = /promo|energy|energi|envelope|^expansion$|\(1 card\)/i;
+/**
+ * Katalognamn som inte är ett set man pratar om ("Expansion", promo-/energiset, kuvert).
+ * + KALENDRAR (2026-11-06): setet "Holiday Calendar" gjorde "NOCCO Holiday Calendar" till ett
+ *   Pokémon-inlägg. Ett Pokémon-kalenderinlägg säger "Pokémon" ändå.
+ */
+const GENERIC_SET_NAME = /promo|energy|energi|envelope|^expansion$|\(1 card\)|calendar|kalender/i;
 
 /**
  * Setnamn → söktermer: gemener, utan setkod ("Abyss Eye (M5)" → "abyss eye"), minst

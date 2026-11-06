@@ -47,6 +47,8 @@ const SHOULD_SKIP: [string, string, string][] = [
   ["delay of merch", "merch", "Tyvärr är Pokémon-plushen försenade till nästa vecka."],
   ["delay of a video game", "merch", "Pokémon Legends Z-A är försenat hos leverantören."],
   ["delay with pokemon only in tags", "no-product", "Tyvärr är leveransen försenad till nästa vecka. #pokemon #tcg"],
+  ["sports cards in the store, pokemon only in tags (Lekia 2026-10-31)", "no-pokemon", "⚽🔥 NYTT I BUTIKEN – TOPPS MATCH ATTAX 2026/27! 🔥⚽ Välj bland olika paket, boosters och starter pack och se vilka fotbollsstjärnor du lyckas samla på dig! ⭐🏆 Välkommen in till Lekia Valengallerian! 💙 #pokemon #lekia"],
+  ["energy-drink calendar tagged pokemon (Kandyz 2026-11-05)", "merch", "🎅❤️ NU ÄR JULEN LADDAD MED NOCCO! ❤️🎅 Vi har fått in några exemplar av NOCCO Holiday Calendar! 🤩🎄 24 luckor fyllda med NOCCO-överraskningar – den perfekta nedräkningen till jul för alla NOCCO-älskare! 🥤🔥 Antalet är begränsat. 📍Bättre sent än aldrig- Finns nu hos Kandy'z Norrtälje. Vem skulle du vilja överraska med en sån här kalender? 😍 #pokemon #kandyz"],
   ["prerelease of another game", "noise", "Vi kör prerelease för Homeworlds på måndag 5/10 kl. 18:00. #starwarsunlimited #tcg"],
 ];
 
@@ -60,6 +62,12 @@ describe("classifyStorePost", () => {
     const v = classifyStorePost(caption);
     expect(v.relevant).toBe(false);
     if (!v.relevant) expect(v.reason).toBe(reason);
+  });
+
+  it("the Pokémon set 'Holiday Calendar' does not make a NOCCO calendar a Pokémon post (Kandyz 2026-11-05)", () => {
+    const caption =
+      "🎅❤️ NU ÄR JULEN LADDAD MED NOCCO! ❤️🎅 Vi har fått in några exemplar av NOCCO Holiday Calendar! 🤩🎄 24 luckor fyllda med NOCCO-överraskningar – den perfekta nedräkningen till jul för alla NOCCO-älskare! 🥤🔥 Antalet är begränsat. 📍Bättre sent än aldrig- Finns nu hos Kandy'z Norrtälje.";
+    expect(classifyStorePost(caption, pokemonTermsFromSetNames(["Holiday Calendar", "Delta Reign"])).relevant).toBe(false);
   });
 
   it("an upcoming set is recognised by name even without a product word", () => {
