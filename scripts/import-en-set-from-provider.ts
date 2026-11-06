@@ -94,11 +94,15 @@ async function episodeCards(epId: number): Promise<ProviderCard[]> {
  * men inte hos oss. ⛔ En episod där NÅGOT kort redan matchar är vår, även om namnet
  * skiljer ("SV Black Star Promos" = vårt "Scarlet & Violet Black Star Promos") — där
  * skapas aldrig ett nytt set; enstaka saknade kort tas av prisjobbets reserver.
+ * ⛔ Ett EN-set med samma namn men UTAN kort hoppas INTE över (2026-11-06): CM-katalogen
+ * skapar setet i förväg för förseglat, och då föll Delta Reigns singlar bort på namnet.
+ * importEpisode fyller det befintliga setet.
  */
 async function newEpisodes(): Promise<{ ep: Episode; cards: ProviderCard[] }[]> {
   const [cards, sets] = await Promise.all([
     prisma.card.findMany({ where: { language: "EN" }, select: { cardmarketId: true, tcgExternalId: true } }),
-    prisma.cardSet.findMany({ where: { language: "EN" }, select: { name: true } }),
+    // Bara set som HAR kort — förseglat-stubben (0 kort) ska fyllas, inte blockera.
+    prisma.cardSet.findMany({ where: { language: "EN", cards: { some: {} } }, select: { name: true } }),
   ]);
   const cmIds = new Set(cards.flatMap((c) => (c.cardmarketId != null ? [c.cardmarketId] : [])));
   const extIds = new Set(cards.flatMap((c) => (c.tcgExternalId ? [c.tcgExternalId] : [])));
