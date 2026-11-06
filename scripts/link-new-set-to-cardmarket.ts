@@ -28,6 +28,14 @@
  *
  *   node scripts/with-prod-db.mjs npx tsx scripts/link-new-set-to-cardmarket.ts --set delta-reign          # torrkörning
  *   node scripts/with-prod-db.mjs npx tsx scripts/link-new-set-to-cardmarket.ts --set delta-reign --apply  # skriver
+ *   … --recent-days 45 --apply   # NATTSTEG i cardmarket-refresh.yml FÖRE prisjobbet: alla EN-set
+ *                                 # släppta senaste N dygnen (eller odaterade-framtida). Ett set som
+ *                                 # inte går att bevisa loggas och hoppas över; kopplade kort rörs aldrig.
+ *
+ * ⛔ VARFÖR FÖRE PRISJOBBET: cardmarket-refresh HITTAR ett nytt sets feed-rader (set + nummer
+ *    + namn) och leverantören HAR ofta NM-priset — men utan CM-offer och utan `cardmarket_id`
+ *    finns ingen länk att spara priset på (`if (!url) continue`), så priset kastas. Mätt på
+ *    Delta Reign 2026-11-06: leverantören visade 321 € för Mega Rayquaza ex 138, vi visade "–".
  */
 import { prisma } from "../src/lib/db";
 import {
@@ -43,17 +51,46 @@ import { cardmarketProductUrl } from "../src/lib/marketplace-urls";
 import { recomputeProductPriceCache } from "../src/services/products";
 
 const APPLY = process.argv.includes("--apply");
-const setArg = process.argv[process.argv.indexOf("--set") + 1];
+const arg = (name: string) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : undefined);
+
+type SetRow = { id: string; name: string; series: string; cmExpansionId: number | null };
 
 async function main() {
-  if (!process.argv.includes("--set") || !setArg) throw new Error("--set <slug|id> krävs");
   const cm = await prisma.retailer.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
   if (!cm) throw new Error("Ingen Cardmarket-retailer");
-  const set = await prisma.cardSet.findFirst({
-    where: { OR: [{ slug: setArg }, { id: setArg }], language: "EN" },
-    select: { id: true, name: true, series: true, cmExpansionId: true },
-  });
-  if (!set) throw new Error(`Inget EN-set "${setArg}"`);
+  const select = { id: true, name: true, series: true, cmExpansionId: true } as const;
+  const setArg = arg("--set");
+  const recentDays = Number(arg("--recent-days") ?? NaN);
+  let sets: SetRow[];
+  if (setArg) {
+    const one = await prisma.cardSet.findFirst({ where: { OR: [{ slug: setArg }, { id: setArg }], language: "EN" }, select });
+    if (!one) throw new Error(`Inget EN-set "${setArg}"`);
+    sets = [one];
+  } else if (recentDays > 0) {
+    const since = new Date(Date.now() - recentDays * 86_400_000);
+    sets = await prisma.cardSet.findMany({ where: { language: "EN", releaseDate: { gte: since }, cards: { some: {} } }, select });
+    console.log(`EN-set släppta senaste ${recentDays} dygnen: ${sets.map((s) => s.name).join(", ") || "inga"}`);
+  } else {
+    throw new Error("--set <slug|id> eller --recent-days <N> krävs");
+  }
+  let linked = 0;
+  for (const set of sets) {
+    try {
+      linked += await linkSet(cm.id, set);
+    } catch (e) {
+      // Ett set som inte går att bevisa är inget fel i jobbet — det väntar på leverantören.
+      if (setArg) throw e;
+      console.log(`::warning::"${set.name}": ${(e as Error).message}`);
+    }
+  }
+  if (APPLY && linked > 0) {
+    await recomputeProductPriceCache();
+    console.log(`\n✅ ${linked} kort kopplade till Cardmarket; produktpriserna omräknade.`);
+  }
+}
+
+async function linkSet(cmId: string, set: SetRow): Promise<number> {
+  const cm = { id: cmId };
 
   const products = await prisma.product.findMany({
     where: {
@@ -65,7 +102,7 @@ async function main() {
     select: { id: true, title: true, card: { select: { id: true, name: true, number: true, cardmarketId: true } } },
   });
   console.log(`"${set.name}": ${products.length} ordinarie singlar utan CM-offer`);
-  if (products.length === 0) return;
+  if (products.length === 0) return 0;
 
   const cmNames = await fetchCmSingleNames();
   if (cmNames.size === 0) throw new Error("CM:s singelkatalog gick inte att hämta — avbryter");
@@ -148,7 +185,7 @@ async function main() {
     console.log("  ", x.title.slice(0, 44).padEnd(44), String(x.idProduct).padEnd(8), x.priceOre != null ? `${(x.priceOre / 100).toFixed(2)} kr` : "–");
   if (!APPLY) {
     console.log(`\nTORRKÖRNING — inget skrivet. --apply skriver ${plan.length} kopplingar.`);
-    return;
+    return 0;
   }
 
   for (const x of plan) {
@@ -160,8 +197,7 @@ async function main() {
       create: { productId: x.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN", price: x.priceOre, currency: "SEK", stockStatus: "OUT_OF_STOCK", url },
     });
   }
-  await recomputeProductPriceCache();
-  console.log(`\n✅ ${plan.length} kort kopplade till Cardmarket; produktpriserna omräknade.`);
+  return plan.length;
 }
 
 main()

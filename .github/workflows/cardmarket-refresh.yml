@@ -121,7 +121,17 @@ jobs:
         name: Portföljsond — före prissteget
         continue-on-error: true
         run: npx tsx scripts/portfolio-freeze-probe.ts --save
+      # NYA SET → CARDMARKET-LÄNK FÖRE PRISSTEGET (2026-11-06): leverantören har ofta NM-priset
+      # på släppdagen men `cardmarket_id: null`, och utan en CM-länk kastar prissteget priset
+      # (Delta Reign: 321 € hos dem, "–" hos oss). Kopplar bara kort UTAN CM-offer, med två
+      # namnvakter; ett set som inte går att bevisa hoppas över. Ingen RapidAPI-kvot.
       - if: steps.guard.outputs.ready == 'true'
+        name: Nya set kopplas till Cardmarket (no-op om inget saknas)
+        continue-on-error: true
+        env:
+          CARDTRADER_TOKEN: ${{ secrets.CARDTRADER_TOKEN }}
+        run: npx tsx scripts/link-new-set-to-cardmarket.ts --recent-days 45 --apply
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         name: Priser + historik (RapidAPI)
         run: npx tsx scripts/cardmarket-refresh-run.ts
 
