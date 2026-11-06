@@ -6,7 +6,7 @@ import { normalizeTitle } from "@/lib/utils";
 import { HIDDEN_CATEGORIES, computeLowestPrice, computePriceChange7d } from "@/services/products";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { utcDaysAgo } from "@/lib/utils";
-import { NOT_HIDDEN } from "@/lib/product-visibility";
+import { NOT_HIDDEN, newSetSingleWhere } from "@/lib/product-visibility";
 import { isSealedCategory } from "@/lib/product-category";
 
 /**
@@ -63,7 +63,11 @@ async function loadIndex(): Promise<IndexEntry[]> {
     const rows = await prisma.product.findMany({
       // Samma synlighetsregler som katalogen (buildProductWhere): prissatt, ej gömd
       // kategori, och inte bortgömd av ägaren (NOT_HIDDEN).
-      where: { lowestPriceOre: { not: null }, category: { notIn: HIDDEN_CATEGORIES }, ...NOT_HIDDEN },
+      where: {
+        OR: [{ lowestPriceOre: { not: null } }, newSetSingleWhere()],
+        category: { notIn: HIDDEN_CATEGORIES },
+        ...NOT_HIDDEN,
+      },
       select: {
         id: true,
         title: true,
@@ -145,7 +149,11 @@ async function loadLive(): Promise<Map<string, LiveEntry>> {
   let cursor: string | undefined;
   for (;;) {
     const rows = await prisma.product.findMany({
-      where: { lowestPriceOre: { not: null }, category: { notIn: HIDDEN_CATEGORIES }, ...NOT_HIDDEN },
+      where: {
+        OR: [{ lowestPriceOre: { not: null } }, newSetSingleWhere()],
+        category: { notIn: HIDDEN_CATEGORIES },
+        ...NOT_HIDDEN,
+      },
       select: {
         id: true,
         offers: { select: { price: true, stockStatus: true, url: true } },

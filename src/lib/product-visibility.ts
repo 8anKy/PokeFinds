@@ -26,3 +26,31 @@ export const NOT_HIDDEN = { hiddenAt: null } as const;
 
 /** Samma villkor för de råa SQL-vägarna (utan tabellalias). */
 export const NOT_HIDDEN_SQL = `"hiddenAt" IS NULL`;
+
+/**
+ * NYSLÄPPTA SINGLAR SYNS UTAN PRIS (2026-11-06, ägaren: "jag ser inte Delta Reign
+ * när jag väljer setet"). Bläddringsytorna gömmer prislösa produkter, men ett helt
+ * nytt sets kort saknar CM-koppling hos leverantören i dagar (`cardmarket_id: null`
+ * på släppdagen) — då var hela setet osynligt i katalogen, setfiltret och sökningen.
+ * Ett kort ur katalogimporten är en kurerad post, inte skräp ⇒ det visas med "–".
+ * Gäller bara SINGLAR (sealed föds ur Cardmarket med id) i set släppta de senaste
+ * `NEW_SET_UNPRICED_DAYS` dygnen; därefter gäller vanliga regeln igen.
+ */
+export const NEW_SET_UNPRICED_DAYS = 14;
+
+function newSetSince(): Date {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - NEW_SET_UNPRICED_DAYS);
+  return d;
+}
+
+/** Prisma-villkor: singel i ett set släppt nyligen (OR:as in bredvid "har pris"). */
+export function newSetSingleWhere() {
+  return { category: "SINGLE_CARD" as const, card: { set: { releaseDate: { gte: newSetSince() } } } };
+}
+
+/** Samma villkor som rå SQL; `alias` = Product-tabellens alias (t.ex. `p`). */
+export function newSetSingleSql(alias: string): string {
+  return `(${alias}."category"::text = 'SINGLE_CARD' AND EXISTS (SELECT 1 FROM "Card" nsc JOIN "CardSet" nss ON nss."id" = nsc."setId" WHERE nsc."id" = ${alias}."cardId" AND nss."releaseDate" >= '${newSetSince().toISOString()}'))`;
+}

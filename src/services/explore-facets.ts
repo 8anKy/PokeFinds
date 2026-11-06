@@ -7,6 +7,7 @@ import {
   HIDDEN_CATEGORIES,
 } from "@/services/products";
 import { PRINT_VARIANT_LABELS } from "@/lib/print-variant";
+import { newSetSingleSql } from "@/lib/product-visibility";
 
 /**
  * Facetantal till desktop-katalogens filtersidofält (antal per kategori/set/butik,
@@ -31,7 +32,7 @@ const visibleSql = () => Prisma.sql`
   p."hiddenAt" IS NULL
   AND p."language"::text IN (${Prisma.join([...CATALOG_LANGUAGES])})
   AND p."category"::text NOT IN (${Prisma.join([...HIDDEN_CATEGORIES])})
-  AND (p."lowestPriceOre" IS NOT NULL OR p."variantLabel" IN (${Prisma.join([...PRINT_VARIANT_LABELS])}))`;
+  AND (p."lowestPriceOre" IS NOT NULL OR p."variantLabel" IN (${Prisma.join([...PRINT_VARIANT_LABELS])}) OR ${Prisma.raw(newSetSingleSql("p"))})`;
 
 async function getExploreFacetsRaw(): Promise<ExploreFacets> {
   const base = await buildProductWhere({});

@@ -13,7 +13,7 @@ import { pickCardValue, settledMarketValue, type MarketValue } from "@/lib/marke
 import { compareCardNumbers } from "@/lib/card-number-order";
 import { NOT_REVERSE_PRINTING, PRINT_VARIANT_LABELS } from "@/lib/print-variant";
 import { favoriteSetIds } from "@/lib/user-preferences";
-import { NOT_HIDDEN, NOT_HIDDEN_SQL } from "@/lib/product-visibility";
+import { NOT_HIDDEN, NOT_HIDDEN_SQL, newSetSingleWhere } from "@/lib/product-visibility";
 import { getTrendingLift } from "@/services/market";
 import { getGradedSummary, type GradedSummary } from "@/services/graded";
 import { buildGradedCards, defaultGrade } from "@/lib/graded-merge";
@@ -491,7 +491,14 @@ export async function buildProductWhere(
   andClauses.push(
     requirePrice
       ? { lowestPriceOre: { not: null } }
-      : { OR: [{ lowestPriceOre: { not: null } }, { variantLabel: { in: [...PRINT_VARIANT_LABELS] } }] }
+      : {
+          OR: [
+            { lowestPriceOre: { not: null } },
+            { variantLabel: { in: [...PRINT_VARIANT_LABELS] } },
+            // Nysläppta singlar syns med "–" tills leverantören prissatt dem.
+            newSetSingleWhere(),
+          ],
+        }
   );
   if (andClauses.length > 0) where.AND = andClauses;
   return where;
