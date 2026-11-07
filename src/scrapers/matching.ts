@@ -134,8 +134,11 @@ function computeBigrams(s: string): Map<string, number> {
  * Exporteras för enhetstester.
  */
 export function scoreSimilarity(a: string, b: string): number {
-  const na = normalizeTitleMemo(a);
-  const nb = normalizeTitleMemo(b);
+  // Bindestreck = mellanslag i POÄNGEN (2026-11-06): "Super Premium" mot katalogens
+  // "Super-Premium" (CM) gav 0,84 — under länkgränsen för en identisk vara. Vakterna som
+  // behöver bindestrecket (1-pack/3-pack, kortnummer) läser råtiteln, inte poängen.
+  const na = splitHyphens(normalizeTitleMemo(a));
+  const nb = splitHyphens(normalizeTitleMemo(b));
   if (!na || !nb) return 0;
   if (na === nb) return 1;
   const ga = bigrams(na);
@@ -511,7 +514,8 @@ const NUMERIC_SET_NAMES = new Set(["151"]);
 function distinctiveWords(normalized: string): Set<string> {
   const words = new Set(
     normalized
-      .split(" ")
+      // Bindestreck delar ord (2026-11-06): "super-premium" = "super premium" (CM vs butik).
+      .split(/[\s-]+/)
       .filter(
         (t) =>
           t.length >= 3 &&
@@ -1998,7 +2002,7 @@ function stripEra(normalized: string): string {
 
 function identityWords(normalized: string): Set<string> {
   const out = new Set<string>();
-  for (const w of normalized.split(" ")) {
+  for (const w of normalized.split(/[\s-]+/)) {
     if (!w || w.length < 3) continue;
     if (FORM_NOISE.has(w)) continue;
     if (SET_CODE_RE.test(w)) continue;
@@ -2127,8 +2131,16 @@ function indexSubsetHits(index: MatchIndex, normalized: string): MatchCandidate[
  * per pass = ~48 min av scrape-all:s 59–100 min, och jobbet dunkade i 120-min-taket.
  * Samma algoritm i minnet är mikrosekunder.
  */
-export async function loadMatchIndex(): Promise<MatchIndex> {
+/**
+ * @param opts.visibleOnly Utan produkter ägaren gömt (`hiddenAt`). ⛔ Butiks-/Tradera-/
+ *   hit-matchningen ska ALDRIG binda en annons till en gömd dubblett (2026-11-06: 30th
+ *   UPC Day/Night hos fyra butiker satt på den gömda butiksstubben "(ENG)" i stället för
+ *   katalogens Espeon/Umbreon ⇒ Discord-inläggen länkade bara till setet). Städskripten
+ *   som letar dubbletter AV gömda poster läser hela indexet (default).
+ */
+export async function loadMatchIndex(opts?: { visibleOnly?: boolean }): Promise<MatchIndex> {
   return prisma.product.findMany({
+    ...(opts?.visibleOnly ? { where: { hiddenAt: null } } : {}),
     select: {
       id: true,
       normalizedTitle: true,
@@ -2166,6 +2178,15 @@ export function applySetAliases(normalized: string): string {
   //    innehåller "etb") och matchade ingenting. Står formen redan ut ("Elite Trainer
   //    Box (ETB)") stryks förkortningen i stället, så ingen titel får formen två gånger.
   t = /\belite trainer box\b/.test(t) ? t.replace(/\betb\b/g, " ") : t.replace(/\betb\b/g, "elite trainer box");
+  // ⛔ 30th Celebration UPC "Day"/"Night" (2026-11-06): butikerna säljer dem som Day/Night,
+  //    Cardmarket (= katalogen) som Espeon/Umbreon. Ordet DIREKT efter "collection (box)"
+  //    avgör ("… Night - av Day eller Night" = Night); "Day / Night" utan val ⇒ inget alias.
+  // Dragon's Lairs "… Night - av Day eller Night" är butikens köpgräns-text, inte titeln.
+  t = t.replace(/\s*-?\s*\bav (?:day|night) eller (?:day|night)\b/g, " ");
+  if (/\b30th celebration\b/.test(t) && /\bultra[\s-]?premium\b/.test(t) && !/\b(?:espeon|umbreon)\b/.test(t)) {
+    const m = /\bcollection(?: box)?\s*-?\s*(day|night)\b(?!\s*(?:\/|eller|or|och|and)?\s*(?:day|night)\b)/.exec(t);
+    if (m) t = `${t} ${m[1] === "day" ? "espeon" : "umbreon"}`;
+  }
   return t.replace(/\s+/g, " ").trim();
 }
 
@@ -2337,6 +2358,8 @@ export async function matchProduct(
   /** Kortkandidater som klarat hela vaktkedjan — för syskonvakten efter loopen. */
   const survivorCards = new Map<string, { name: string; number: string }>();
   const cardById = new Map(candidates.filter((c) => c.card).map((c) => [c.id, c.card!]));
+  /** Blistrar/tins som bara föll på att annonsen inte namnger karaktären — se efter loopen. */
+  const onlyOfKind: { id: string; specific: number }[] = [];
 
   // Bara tal (utan "X/Y") i en singel-annons: samma vakt som matchListingToProduct.
   // Utan den fastnar "Milotic ex 42 Surging Sparks" på specialarten 217.
@@ -2429,6 +2452,13 @@ export async function matchProduct(
     if (c.card && formBeyondCandidate(normalized, c.normalizedTitle) != null) {
       continue; // annonsen har en sealed-form → kan inte vara ett enskilt kort
     }
+    // ⛔ DÄCKET ≠ KORTET UR DÄCKET (2026-11-06): "MEGA Starter Set ex Sprigatito &
+    //    Meowscarada ex (JP)" bär hela kortets setnamn, så formvakten ovan ser inget
+    //    utöver kandidaten och annonsen landade på kortet "Meowscarada ex · MEGA Starter
+    //    Set … 005". En däck-/startset-annons UTAN kortnummer är det förseglade däcket.
+    if (c.card && DECK_PRODUCT_RE.test(normalized) && !LISTING_CARD_NUMBER_RE.test(raw)) {
+      continue;
+    }
     // Tillbehör (spelmatta, pärm utan booster, akrylskydd) ≠ sealed produkt.
     if (isAccessoryListing(raw) && !isAccessoryListing(c.normalizedTitle)) {
       continue;
@@ -2462,6 +2492,11 @@ export async function matchProduct(
     // Blister: även EN ENSIDIG karaktär är en motsägelse — se funktionen.
     if (printMentionMismatch(raw, c.normalizedTitle, c.variantLabel)) continue;
     if (blisterCharacterMismatch(raw, c.normalizedTitle)) {
+      // Annonsen namnger INGEN karaktär men kandidaten gör det. Spara den som "enda i
+      // setet"-kandidat om allt utom karaktären finns i annonsen — se blocket efter loopen.
+      if (!c.card && characterNames(raw).size === 0 && !packVsBoxMismatch(raw, c.normalizedTitle) && setWordsCovered(normalized, c.normalizedTitle)) {
+        onlyOfKind.push({ id: c.id, specific: specificSetWords(c.normalizedTitle) });
+      }
       continue;
     }
     // En PÅSE är aldrig en BOX. Saknades: en enskild booster kunde vinna boxen på ren
@@ -2593,8 +2628,56 @@ export async function matchProduct(
     emit("poäng");
     return best;
   }
+  // ── ENDA AV SITT SLAG I SETET (2026-11-06) ──────────────────────────────────
+  // Butikerna skriver "Delta Reign 3-pack Blister" / "Checklane Blister" utan
+  // karaktären, Cardmarket "Delta Reign: Seel 3-Pack Blister" / "Spritzee 1-Pack
+  // Blister". Karaktärsvakten fäller det med rätta när setet har FLERA blistrar av
+  // samma slag (då är valet ett myntkast) — men finns det bara EN i katalogen är
+  // det den. Formen (1-pack/checklane ≠ 3-pack ≠ premium) har redan prövats av
+  // vakterna ovan; setet av setWordsCovered. Två kandidater ⇒ ingen länk, som förut
+  // (Delta Reigns Premium Checklane finns som fyra karaktärer).
+  // "Mega Evolution - Delta Reign 3-pack Blister" täcker både Delta Reigns och basetets
+  // ("Mega Evolution: Psyduck 3-Pack Blister") setord — det SPECIFIKA setnamnet vinner.
+  const topSpecific = Math.max(-1, ...onlyOfKind.map((o) => o.specific));
+  const onlyWinners = onlyOfKind.filter((o) => o.specific === topSpecific);
+  if (onlyWinners.length === 1) {
+    emit("poäng");
+    return { productId: onlyWinners[0].id, confidence: 0.86 };
+  }
   emit("under-golvet");
   return null;
+}
+
+const DECK_PRODUCT_RE = /\b(?:starter set|start deck|starter deck|deck set|battle deck|theme deck|league battle deck)\b/;
+/** Ett tryckt kortnummer i annonsen: "071/066", "#100/414", "SVP 123", "Nr 005". */
+const LISTING_CARD_NUMBER_RE = /\d{1,3}\s*\/\s*\d{1,3}|#\s*\d{1,3}\b|\b(?:nr|no)\.?\s*\d{1,3}\b/i;
+
+/** Ord i en blister-/tin-titel som beskriver FORMEN, inte setet eller karaktären. */
+const BLISTER_FORM_WORDS = new Set([
+  ...FORM_WORDS,
+  "1-pack", "2-pack", "3-pack", "1", "2", "3", "checklane", "check", "lane", "sleeved", "mini", "pokemon", "tcg",
+]);
+
+/**
+ * Står kandidatens alla ord UTOM karaktären och formorden i annonsen? Det är setets
+ * namn ("delta reign" i "delta reign seel 3-pack blister") — Chilling Reigns blister
+ * delar "reign" men inte "chilling" och faller.
+ */
+function blisterSetWords(candidateNormalized: string): string[] {
+  const chars = characterNames(candidateNormalized);
+  return candidateNormalized
+    .split(/[\s/]+/)
+    .filter((t) => t && !chars.has(t) && !BLISTER_FORM_WORDS.has(t) && !/^\d+$/.test(t));
+}
+function setWordsCovered(listingNormalized: string, candidateNormalized: string): boolean {
+  const listing = new Set(listingNormalized.split(/[\s/]+/));
+  const rest = blisterSetWords(candidateNormalized);
+  return rest.length > 0 && rest.every((t) => listing.has(t));
+}
+/** Serie-/eranamn som också står först i nyare sets butikstitlar ("Mega Evolution - Delta Reign …"). */
+const SERIES_WORDS = new Set([...ERA_TOKENS, "mega", "evolution", "evolutions", "xy", "black", "white", "sm", "swsh", "sv", "me"]);
+function specificSetWords(candidateNormalized: string): number {
+  return blisterSetWords(candidateNormalized).filter((t) => !SERIES_WORDS.has(t)).length;
 }
 
 /**

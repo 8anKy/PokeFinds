@@ -90,6 +90,12 @@ const WHOLESALE_RE =
   /\bcase\b(?!\s+(?:file|collection))|(?:box|blister|bundle|collection|deck)\s+display\b|\bdisplay\s+case\b/i;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/**
+ * ENBART dubblettnyckel inom skriptet. ⛔ Skriv ALDRIG detta som `normalizedTitle`
+ * (2026-11-06): matcharen jämför butikstitlar genom `normalizeTitle`, som behåller
+ * bindestreck och stryker "&" — 740 produkter bar den här formen ("3 pack", "build and
+ * battle", "super premium") och kunde inte matchas ens mot en identisk butikstitel.
+ */
 const norm = (s: string) =>
   s.toLowerCase().replace(/pok[eé]mon|tcg|:/g, "").replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
@@ -250,8 +256,10 @@ async function main() {
   const existingTitles = new Set(
     // Gömda rader blockerar inte: en gömd butiksstubb med samma namn ska ERSÄTTAS av
     // CM-produkten (merge-store-stubs-into-cm.ts slår sedan ihop den), inte stoppa den.
-    (await prisma.product.findMany({ where: { hiddenAt: null }, select: { normalizedTitle: true, category: true } }))
-      .map((p) => `${p.category}|${p.normalizedTitle}`)
+    // ⛔ Nyckeln räknas ur TITELN med skriptets egen `norm` (2026-11-06) — databasens
+    //    normalizedTitle skrivs med `normalizeTitle` (matcharens form) och är inte samma sträng.
+    (await prisma.product.findMany({ where: { hiddenAt: null }, select: { title: true, category: true } }))
+      .map((p) => `${p.category}|${norm(p.title)}`)
   );
   const usedSlugs = new Set((await prisma.product.findMany({ select: { slug: true } })).map((p) => p.slug));
 
@@ -425,7 +433,7 @@ async function main() {
     if (APPLY) {
       await prisma.product.create({
         data: {
-          title: p.name, normalizedTitle: normTitle, slug, category: cat, setId,
+          title: p.name, normalizedTitle: normalizeTitle(p.name), slug, category: cat, setId,
           imageUrl: p.image ?? null, language: "EN",
           offers: cmid != null ? {
             create: {
@@ -527,7 +535,7 @@ async function main() {
       if (APPLY) {
         await prisma.product.create({
           data: {
-            title: name, normalizedTitle: normTitle, slug, category: cat, setId: null,
+            title: name, normalizedTitle: normalizeTitle(name), slug, category: cat, setId: null,
             imageUrl: null, language: "EN",
             offers: {
               create: {

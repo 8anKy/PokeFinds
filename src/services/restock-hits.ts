@@ -56,7 +56,7 @@ let matchIndexCache: { at: number; index: MatchIndex } | null = null;
 async function cachedMatchIndex(): Promise<MatchIndex> {
   const now = Date.now();
   if (matchIndexCache && now - matchIndexCache.at < MATCH_INDEX_TTL_MS) return matchIndexCache.index;
-  const index = await loadMatchIndex();
+  const index = await loadMatchIndex({ visibleOnly: true });
   matchIndexCache = { at: now, index };
   return index;
 }

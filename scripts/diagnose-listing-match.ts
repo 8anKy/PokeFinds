@@ -33,7 +33,7 @@ async function main() {
   // Utan det diagnosticerar man EFTER importen och får 1.000 mot stubben man just
   // skapade — dvs frågan "varför blev det en stub?" besvaras med stubben själv.
   const hours = Number(process.argv.find((a) => a.startsWith("--utan-nya="))?.split("=")[1] ?? 0);
-  let index = await loadMatchIndex();
+  let index = await loadMatchIndex({ visibleOnly: true });
   if (hours > 0) {
     const recent = new Set(
       (

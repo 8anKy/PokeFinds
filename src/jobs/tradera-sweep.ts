@@ -818,7 +818,7 @@ export async function runTraderaSweep(
   let processed = 0;
   // ETT index i minnet i stället för 6–7 Neon-frågor per annons (matchProducts DB-väg),
   // och prisvakten en gång per PRODUKT — se SELLER_POOL_BUDGET ovan.
-  const matchIndex = await loadMatchIndex();
+  const matchIndex = await loadMatchIndex({ visibleOnly: true });
   const categoryById = new Map(
     (await prisma.product.findMany({ select: { id: true, category: true } })).map((p) => [p.id, p.category])
   );

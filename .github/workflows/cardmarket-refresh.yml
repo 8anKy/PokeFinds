@@ -157,6 +157,14 @@ jobs:
           RECENT_DAYS: "90"
         run: npx tsx scripts/import-sealed-from-cardmarket.ts
 
+      # normalizedTitle = normalizeTitle(title) för ALLA produkter (2026-11-06): matcharen
+      # jämför butikstitlar i den formen, och 740 rader bar en annan ("3 pack", "build and
+      # battle") ⇒ identiska butikstitlar länkades aldrig. Läker en ny skrivare samma natt.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Katalogtitlarnas matchningsform
+        continue-on-error: true
+        run: npx tsx scripts/renormalize-product-titles.ts --apply
+
       # Butiksskapade (ofta gömda) produkter vars Cardmarket-produkt nu finns slås ihop in i den —
       # annars sitter butikernas priser kvar på en gömd rad, osynliga. Deterministiskt (ingen LLM),
       # skadade exemplar/flerpack/olösta "A / B"-val rörs aldrig. Se skriptets huvudkommentar.

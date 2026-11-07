@@ -372,6 +372,8 @@ const STORE_MATCH_AI = process.env.STORE_MATCH_AI === "1";
 
 /** Senast skapade sealed-produkt — det negativa memots giltighetsgräns. Cachad 10 min per process. */
 let latestSealedCache: { at: Date; fetched: number } | null = null;
+const UNMATCHED_MEMO_MS = 7 * 86_400_000;
+
 async function latestSealedCreatedAt(): Promise<Date> {
   if (latestSealedCache && Date.now() - latestSealedCache.fetched < 10 * 60_000) return latestSealedCache.at;
   const p = await prisma.product.findFirst({
@@ -525,6 +527,10 @@ export async function ensureListingProduct(
     !ledger?.productId &&
     ledger?.unmatchedAt &&
     ledger.productMatchTitle === it.title &&
+    // ⛔ MEMOT GÅR UT efter 7 dygn (2026-11-06): matcharen och katalogens titlar ändras
+    //    också utan att en ny produkt skapas (Speltrollets Delta Reign-ETB matchade 0,96
+    //    men stod som "ingen träff" sedan förhandsbokningen).
+    Date.now() - ledger.unmatchedAt.getTime() < UNMATCHED_MEMO_MS &&
     ledger.unmatchedAt > (await latestSealedCreatedAt())
   ) {
     return null;
@@ -1387,7 +1393,7 @@ export async function runRestockScan(opts?: {
     // körning där ingen butik har en okänd URL (det normala) ska inte betala för att
     // läsa ~22k rader ur Neon. Se loadMatchIndex för varför minnesvägen är den enda
     // pålitliga — och nearestCatalogCandidate för vad den används till här.
-    matchIndexForImport ??= await loadMatchIndex();
+    matchIndexForImport ??= await loadMatchIndex({ visibleOnly: true });
     const productId = await ensureListingProduct(it, newStatus, matchIndexForImport);
     if (productId) offersCreated++;
     const listing = listingByKey.get(key);
@@ -1617,7 +1623,7 @@ export async function loadCatalogMaps(): Promise<CatalogMaps> {
       where: { retailer: { name: "Cardmarket" }, price: { not: null } },
       select: { productId: true, price: true },
     }),
-    loadMatchIndex(),
+    loadMatchIndex({ visibleOnly: true }),
   ]);
   const categoryByProduct = new Map(products.map((p) => [p.id, p.category as string]));
   const cmPriceByProduct = new Map<string, number>();
