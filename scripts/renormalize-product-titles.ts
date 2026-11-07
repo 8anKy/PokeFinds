@@ -30,7 +30,9 @@ async function main() {
     return;
   }
   // updateMany på id: rör inte @updatedAt-semantiken mer än nödvändigt och är idempotent.
-  await mapPool(stale, 8, (r) => prisma.product.updateMany({ where: { id: r.id }, data: { normalizedTitle: r.next } }));
+  await mapPool(stale, 8, async (r) => {
+    await prisma.product.updateMany({ where: { id: r.id }, data: { normalizedTitle: r.next } });
+  });
   console.log(`✅ ${stale.length} rader omräknade.`);
 }
 
