@@ -17,6 +17,18 @@ paths:
 # Matchning, auto-import och kategorivakter
 
 - **HALVDISPLAYEN (18 boosters) ÄR EN EGEN VARA (2026-10-23)**: 62 "Booster Box (18 Boosters)" + 46 sampling-/prerelease-pack + 13 kollektioner (Case Files, playmat-/deck holder-KOLLEKTIONER, My First Battle, Holiday Calendar) importerade ur CM (`import-sealed-from-cardmarket.ts`, `EXTRA_*_RE`). `boosterBoxCountMismatch` (matching.ts) håller 18 skild från 36 i butiksmatchningen; ⛔ ingen default-36 — japanska boxar har 30/20/10 paket. Case/display (grossist) och lösa tillbehör (playmat, portfolio, sleeves) är fortfarande ägarbeslut och står UTE.
+- **⛔ `normalizedTitle` = `normalizeTitle(title)`, ALLTID (2026-11-06, ägarens Discord-skärmbilder)**: CM-sealed-
+  importen skrev sin egen form ("3 pack", "build and battle", "super premium", "pokemon" strippat) — 740 rader — så
+  identiska butikstitlar föll (Super-Premium-vakten såg "super-premium" ≠ "super premium"; Delta Reign Build & Battle
+  förlorade mot Chilling Reigns kit). Importen skriver nu `normalizeTitle`; `renormalize-product-titles.ts --apply` är
+  nattsteg i cardmarket-refresh (läker nya skrivare). Bindestreck = mellanslag i poäng + identitetsord. Blister/tin
+  UTAN karaktär ⇒ setets ENDA av slaget (specifikt setnamn slår "Mega Evolution"); ⛔ Delta Reigns Checklane (×2,
+  CM kallar dem "Premium Checklane") och Premium Checklane (×4) är tvetydiga ⇒ ingen länk. 30th UPC Day ⇒ Espeon,
+  Night ⇒ Umbreon ("Day / Night", "Day & Night" ⇒ inget val). Gömda produkter är inga kandidater
+  (`loadMatchIndex({ visibleOnly })`); ⛔ befintliga memon mot gömda produkter re-matchas INTE generellt — mätt gav det
+  startset → enskilt kort och däck → mynt. Däck/startset utan kortnummer binds aldrig till ett kort. Negativa memon går
+  ut efter 7 dygn. Simulering mot alla 5 523 butiksannonser: +969 länkar, 6 flyttade (alla rättningar utom en som
+  memot ändå håller fast). Vaktat av `tests/unit/store-match-2026-11-06.test.ts`.
 - **⛔ ADJEKTIVET KRÄVER SITT SUBSTANTIV — "PROTECTIVE CASE" ÄR PLAST, "PROTECTIVE ORB" ÄR ETT KORT
   (2026-08-16)**: `PROTECTOR_SIGNS` kände `protector(s)` men inte adjektivet, så Hobbykorts fem
   "Pokémon **Protective** Case – Booster Box / Elite Trainer Box / Mini Tin Display" passerade HELA
