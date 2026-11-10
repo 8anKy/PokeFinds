@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { GAMES, GAME_LABEL, gameFromParam, gameHasLanguageChoice, gameParam } from "@/lib/game";
+import { GAMES, GAME_LABEL, GAME_LOGO, gameFromParam, gameHasLanguageChoice, gameParam } from "@/lib/game";
 import { cn } from "@/lib/utils";
 import { isSealedCategory } from "@/lib/product-category";
 import { Button } from "@/components/ui/button";
@@ -351,13 +351,28 @@ export function ExploreFilterPanel({
         </div>
 
         {gameChoice && <Section title={t("game")}>
-          <Segmented
-            label={t("game")}
-            value={gameParam(game) ?? ""}
-            // Set och språk hör till det förra spelet och nollställs (samma regel som mobilens ark).
-            onChange={(v) => apply({ spel: v || null, set: null, sprak: null })}
-            options={GAMES.map((g) => ({ value: gameParam(g) ?? "", label: GAME_LABEL[g] }))}
-          />
+          {/* Loggor, inte Segmented: dess valda läge är vitt och den vita One Piece-loggan försvann. */}
+          <div role="group" aria-label={t("game")} className="grid grid-cols-2 gap-1.5">
+            {GAMES.map((g) => {
+              const active = g === game;
+              return (
+                <button
+                  key={g}
+                  type="button"
+                  aria-pressed={active}
+                  // Set och språk hör till det förra spelet och nollställs (samma regel som mobilens ark).
+                  onClick={() => apply({ spel: gameParam(g) || null, set: null, sprak: null })}
+                  className={cn(
+                    "grid h-11 place-items-center rounded-lg border px-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-holo-cyan",
+                    active ? "border-holo-cyan bg-holo-cyan/10" : "border-surface-border opacity-60 hover:opacity-100"
+                  )}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={GAME_LOGO[g]} alt={GAME_LABEL[g]} className="h-6 w-full object-contain" />
+                </button>
+              );
+            })}
+          </div>
         </Section>}
 
         <Section title={t("availability")}>

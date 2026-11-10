@@ -17,7 +17,7 @@ import { eraRank, setEra, type Era } from "@/lib/set-era";
 import { useOwnedSets } from "@/lib/owned-sets";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import type { Game } from "@prisma/client";
-import { DEFAULT_GAME, GAMES, GAME_LABEL, gameFromParam, gameHasLanguageChoice, gameParam } from "@/lib/game";
+import { DEFAULT_GAME, GAMES, GAME_LABEL, GAME_LOGO, gameFromParam, gameHasLanguageChoice, gameParam } from "@/lib/game";
 import { IconCards, IconCheck, IconChevronDown, IconChevronRight, IconFilter, IconSearch, IconX } from "@/components/ui/icons";
 
 export interface FilterSet {
@@ -423,7 +423,13 @@ export function ExploreFilterBar({
             {tab.key === "set" && soleActiveSet?.logoUrl && (
               <SafeImage src={soleActiveSet.logoUrl} alt="" className="h-3.5 w-[24px] shrink-0 object-contain" fallback={<></>} />
             )}
-            <span className="truncate">{tab.label}</span>
+            {tab.key === "game" ? (
+              // Spelets logga i stället för namnet (ägarbeslut 2026-11-11); namnet är alt-text.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={GAME_LOGO[game]} alt={tab.label} className="h-5 w-auto max-w-[5.5rem] shrink-0 object-contain" />
+            ) : (
+              <span className="truncate">{tab.label}</span>
+            )}
             {tab.menu && <IconChevronDown size={11} strokeWidth={3} className="shrink-0" />}
             <span
               aria-hidden
@@ -653,7 +659,11 @@ export function ExploreFilterBar({
                   selected ? "bg-holo-cyan/10 text-holo-cyan" : "text-ink"
                 )}
               >
-                {GAME_LABEL[g]}
+                <span className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={GAME_LOGO[g]} alt="" className="h-7 w-20 shrink-0 object-contain object-left" />
+                  {GAME_LABEL[g]}
+                </span>
                 {selected && <IconCheck size={17} className="shrink-0 text-holo-cyan" />}
               </button>
             );

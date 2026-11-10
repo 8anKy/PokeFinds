@@ -15,6 +15,17 @@ const SLUG_BY_GAME: Record<Game, string> = { POKEMON: "pokemon", ONE_PIECE: "one
 
 export const GAME_LABEL: Record<Game, string> = { POKEMON: "Pokémon", ONE_PIECE: "One Piece" };
 
+/**
+ * Spelens loggor i spelväljaren (2026-11-11). Identifierare för vilket spel man bläddrar i
+ * (referensbruk, som butiksloggorna). Pokémon = Wikimedia Commons "International Pokémon logo",
+ * One Piece = Bandais vita logga från en.onepiece-cardgame.com — båda omgjorda till PNG, 96 px höga
+ * (`public/game-logos/`). Den färgade One Piece-loggan är svart text och syns inte på vår svarta yta.
+ */
+export const GAME_LOGO: Record<Game, string> = {
+  POKEMON: "/game-logos/pokemon.png",
+  ONE_PIECE: "/game-logos/one-piece.png",
+};
+
 export function gameFromParam(value: string | null | undefined): Game {
   const v = (value ?? "").trim().toLowerCase();
   if (v === "one-piece" || v === "one_piece" || v === "onepiece") return "ONE_PIECE";
