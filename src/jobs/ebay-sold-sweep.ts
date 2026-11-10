@@ -85,6 +85,8 @@ async function selectProducts(budget: number): Promise<ProductRow[]> {
     offers: { where: { retailer: { name: "Cardmarket" }, price: { not: null } }, select: { price: true }, take: 1 },
   } satisfies Prisma.ProductSelect;
   const baseWhere: Prisma.ProductWhereInput = {
+    // ⛔ Leverantörens eBay-sålt-väg är /pokemon(-jp)/ — One Piece-singlar frågas aldrig.
+    game: "POKEMON",
     category: "SINGLE_CARD",
     hiddenAt: null,
     card: { tcgExternalId: { not: null } },

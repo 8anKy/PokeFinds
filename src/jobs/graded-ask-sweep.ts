@@ -84,6 +84,8 @@ async function selectProducts(budget: number): Promise<ProductRow[]> {
     },
   } satisfies Prisma.ProductSelect;
   const baseWhere: Prisma.ProductWhereInput = {
+    // ⛔ eBay-kategorin 183454 är Pokémon — One Piece-singlar frågas aldrig.
+    game: "POKEMON",
     category: "SINGLE_CARD",
     hiddenAt: null,
     cardId: { not: null },

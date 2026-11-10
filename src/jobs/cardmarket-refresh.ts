@@ -3264,6 +3264,17 @@ export async function runCardmarketRefresh(
       console.error("[cm-refresh] One Piece-importen misslyckades:", err instanceof Error ? err.message : err);
     }
   }
+  // One Piece-SINGLAR (2026-11-10): /one-piece/cards, ~350 anrop. Efter sealed (seten skapas där).
+  if (opts.singles !== false) {
+    try {
+      const { runOnePieceSinglesImport } = await import("@/jobs/op-singles-import");
+      const ops = await runOnePieceSinglesImport({ apply: true });
+      res.apiCalls += ops.apiCalls;
+      res.historyPoints += ops.historyPoints;
+    } catch (err) {
+      console.error("[cm-refresh] One Piece-singlarna misslyckades:", err instanceof Error ? err.message : err);
+    }
+  }
 
   // Japanska SINGLAR (2026-08-29): RapidAPI:s /pokemon-jp, ~280 anrop/dygn ur samma
   // kvot (1197 + 280 + hot-card 400 = ~1 880 av 3 000). Egen modul; ett fel här får

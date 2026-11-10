@@ -90,7 +90,8 @@ const dexJson = <T>(url: string) => tcgdexJson<T>(url);
 
 async function main() {
   const sets = await prisma.cardSet.findMany({
-    where: { language: "EN" },
+    // Nämnarna kommer ur Pokémon-källor — One Piece-set rörs aldrig.
+    where: { language: "EN", game: "POKEMON" },
     select: {
       id: true,
       name: true,

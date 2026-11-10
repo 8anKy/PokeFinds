@@ -367,7 +367,8 @@ async function main() {
 
   const targets = await prisma.card.findMany({
     where: {
-      ...(ONLY_SET ? { set: { externalId: ONLY_SET } } : {}),
+      // Bildkällorna här är Pokémon — One Piece-bilderna (tcggo) är rätt och rörs aldrig.
+      set: { game: "POKEMON", ...(ONLY_SET ? { externalId: ONLY_SET } : {}) },
       // ⛔ EN ID-LISTA ERSÄTTER HEURISTIKEN, den filtrerar den inte. Listan kommer
       // från en MÄTNING (full bildskanning) och vet därför saker SQL inte kan se —
       // t.ex. att en bild är 400 px. AND:ade man ihop dem föll varje kort som har

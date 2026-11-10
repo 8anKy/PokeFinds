@@ -147,6 +147,8 @@ export async function runHotCardRefresh(
     offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 },
   } as const;
   const baseWhere = {
+    // One Piece-singlar prissätts av op-singles-import (/one-piece/cards), aldrig /pokemon/cards.
+    game: "POKEMON" as const,
     category: "SINGLE_CARD" as const,
     // Bara engelska: JP-singlar har "tcggo-jp:…" som externt id och prissätts av
     // jp-singles-refresh — /pokemon/cards?tcgid= känner inte till dem.

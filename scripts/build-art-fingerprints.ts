@@ -112,9 +112,10 @@ async function main() {
   // Default = rader som saknar NÅGOT av avtrycken (strukturavtrycket kom
   // 2026-07-30, så första körningen efter deploy backfyller det för alla).
   const cards = await prisma.card.findMany({
+    // Bara Pokémon: skannern indexerar inte One Piece (lib/scanner-exclusion) — 7 000 bilder i onödan.
     where: FORCE
-      ? {}
-      : { OR: [{ artFingerprint: null }, { structFingerprint: null }] },
+      ? { set: { game: "POKEMON" } }
+      : { set: { game: "POKEMON" }, OR: [{ artFingerprint: null }, { structFingerprint: null }] },
     orderBy: { id: "asc" },
     select: { id: true, name: true, imageUrl: true },
     ...(LIMIT > 0 ? { take: LIMIT } : {}),

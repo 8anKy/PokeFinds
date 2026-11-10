@@ -45,5 +45,8 @@ export const SCANNER_INCLUDED_CARD: Prisma.CardWhereInput = {
       ],
     },
     { NOT: { set: { name: { startsWith: PRIZE_PACK_SET_PREFIX } } } },
+    // ⛔ Skannern är Pokémon (2026-11-10): One Piece-singlar indexeras inte — varken i appens
+    // konstindex eller i skannermotorns data. Ta bort raden först när skannern ska läsa One Piece.
+    { set: { game: "POKEMON" } },
   ],
 };

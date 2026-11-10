@@ -40,6 +40,9 @@ import type {
 } from "@/services/scanner/types";
 import { variantDisplayRank } from "@/lib/print-variant";
 
+/** Skannern läser Pokémon (2026-11-10) — One Piece-singlar blir aldrig kandidater. */
+const POKEMON_CARD = { set: { game: "POKEMON" as const } };
+
 /** Markör för bilder som laddats upp inline (MVP, ingen objektlagring). */
 const INLINE_UPLOAD = "inline-upload";
 
@@ -1248,7 +1251,7 @@ export async function matchCards(
     // 1+2: nummerkällorna. Exakt uppslag på den indexerade generade kolumnen.
     guessedNum
       ? prisma.card.findMany({
-          where: { numberSortKey: guessedNum.sortKey },
+          where: { numberSortKey: guessedNum.sortKey, ...POKEMON_CARD },
           select,
           orderBy,
           take: CANDIDATE_LIMIT,
@@ -1259,12 +1262,12 @@ export async function matchCards(
     nameAll.length === 0
       ? Promise.resolve([])
       : prisma.card
-          .findMany({ where: { AND: nameAll }, select, orderBy, take: CANDIDATE_LIMIT })
+          .findMany({ where: { AND: [...nameAll, POKEMON_CARD] }, select, orderBy, take: CANDIDATE_LIMIT })
           .then((rows) =>
             rows.length > 0
               ? rows
               : prisma.card.findMany({
-                  where: { OR: nameAll },
+                  where: { OR: nameAll, ...POKEMON_CARD },
                   select,
                   orderBy,
                   take: CANDIDATE_LIMIT,
@@ -1499,6 +1502,7 @@ export async function matchCards(
   const winnerBase = cardBaseName(winner.name);
   const namePool = await prisma.card.findMany({
     where: {
+      ...POKEMON_CARD,
       OR: [
         { name: { equals: winnerBase, mode: "insensitive" } },
         { name: { equals: `${winnerBase} (JP)`, mode: "insensitive" } },

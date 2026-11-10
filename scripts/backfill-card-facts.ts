@@ -88,6 +88,8 @@ async function main() {
   const sets = await prisma.cardSet.findMany({
     where: {
       language: "EN",
+      // TCGdex/pokemontcg.io är Pokémon — One Piece-set frågas aldrig.
+      game: "POKEMON",
       ...(ONLY_SET ? { externalId: ONLY_SET } : {}),
     },
     select: { id: true, name: true, externalId: true, tcgdexId: true },
