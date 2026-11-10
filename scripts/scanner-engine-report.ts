@@ -12,6 +12,9 @@
  *   UTANFÖR    — rättad/sökt, kortet fanns INTE bland de sex
  *   RADERAD    — användaren tog bort skanningen (felbild, hand, eller ett fel vi inte kan döma)
  * ⛔ "Lägg till alla" (via:"bulk") är ett uteblivet klick, inte en granskning — redovisas separat.
+ *
+ * DELA_AGARE=1 delar varje period i ÄGAREN (ADMIN/SUPERADMIN + e-post i AGARE_EPOST, kommaseparerad)
+ * och ÖVRIGA — ägaren testar och raderar även rätta skanningar, så hans domar är inget facit.
  */
 import { PrismaClient } from "@prisma/client";
 
@@ -82,22 +85,33 @@ async function main() {
   const beforeFrom = new Date(SWITCH.getTime() - Math.max(span, DAYS * 864e5));
   const jobs = await prisma.scannerJob.findMany({
     where: { createdAt: { gte: beforeFrom } },
-    select: { result: true, createdAt: true },
+    select: { result: true, createdAt: true, user: { select: { role: true, email: true } } },
   });
-  const before: Row[] = [];
-  const after: Row[] = [];
+  const split = process.env.DELA_AGARE === "1";
+  const ownerEmails = new Set(
+    (process.env.AGARE_EPOST ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)
+  );
+  const isOwner = (u: { role: string; email: string | null }) =>
+    u.role === "ADMIN" || u.role === "SUPERADMIN" || ownerEmails.has((u.email ?? "").toLowerCase());
+  const groups = split ? ["ÄGAREN", "ÖVRIGA"] : ["ALLA"];
+  const before = new Map<string, Row[]>(groups.map((g) => [g, []]));
+  const after = new Map<string, Row[]>(groups.map((g) => [g, []]));
   let fallback = 0;
   for (const j of jobs) {
     const r = (j.result ?? {}) as Row;
-    if (j.createdAt < SWITCH) before.push(r);
+    const g = split ? (isOwner(j.user) ? "ÄGAREN" : "ÖVRIGA") : "ALLA";
+    if (j.createdAt < SWITCH) before.get(g)!.push(r);
     else if (j.createdAt >= afterFrom) {
-      after.push(r);
+      after.get(g)!.push(r);
       if (r.recall && r.recall.src !== "engine") fallback++;
     }
   }
-  summarize(`FÖRE bytet (dagens skanner, ${beforeFrom.toISOString().slice(0, 10)} → bytet)`, before);
-  summarize(`MOTORN (${afterFrom.toISOString().slice(0, 16)} → nu)`, after);
-  console.log(`motorn svarade inte (avtrycket ensamt avgjorde): ${fallback} av ${after.length}`);
+  for (const g of groups) {
+    const tag = split ? ` · ${g}` : "";
+    summarize(`FÖRE bytet (dagens skanner, ${beforeFrom.toISOString().slice(0, 10)} → bytet)${tag}`, before.get(g)!);
+    summarize(`MOTORN (${afterFrom.toISOString().slice(0, 16)} → nu)${tag}`, after.get(g)!);
+  }
+  console.log(`motorn svarade inte (avtrycket ensamt avgjorde): ${fallback} av ${[...after.values()].flat().length}`);
 }
 
 main()
