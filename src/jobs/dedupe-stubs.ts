@@ -165,6 +165,7 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
 
   const stubs = await prisma.product.findMany({
     where: {
+      game: "POKEMON",
       setId: null,
       cardId: null,
       category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] },
@@ -175,7 +176,8 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
   });
   res.stubs = stubs.length;
   const catalog = await prisma.product.findMany({
-    where: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
+    // ⛔ Bara Pokémon (One Piece 2026-11-10) — en stubb får aldrig slås ihop över spelgränsen.
+    where: { game: "POKEMON", category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
     // ⛔ `language` är INTE valfri här: katalogens japanska sealed bär Cardmarkets namn
     //    utan språkmarkör, och utan kolumnen läser vakterna dem som ENGELSKA. Det var
     //    precis därför det här jobbet aldrig städade bort JP-stubbarna — se languageMismatch.

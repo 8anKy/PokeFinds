@@ -576,7 +576,8 @@ export async function runTraderaSweep(
   if (SEARCH_BUDGET > 0) {
     log("📡 Fas 0: Riktade namn-sökningar (roterande full-katalog, direkt-match)...");
     const hot = await prisma.product.findMany({
-      where: { category: { not: "ACCESSORY" } },
+      // ⛔ Bara Pokémon: sökningen går i Traderas Pokémon-kategori (One Piece 2026-11-10).
+      where: { game: "POKEMON", category: { not: "ACCESSORY" } },
       select: {
         id: true, title: true, normalizedTitle: true, category: true, language: true,
         variantLabel: true,

@@ -102,7 +102,7 @@ export async function createSetLabeler(createMissing: boolean): Promise<SetLabel
   // latinska namn — "Black Bolt", "151". Utan språkgrinden hade en engelsk
   // förhandsbox kunnat få det japanska setets etikett.
   const byName = new Map<string, string | null>();
-  for (const s of await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true, series: true } })) {
+  for (const s of await prisma.cardSet.findMany({ where: { language: "EN", game: "POKEMON" }, select: { id: true, name: true, series: true } })) {
     for (const key of cmSetNameKeys(s)) byName.set(key, byName.has(key) ? null : s.id);
   }
 

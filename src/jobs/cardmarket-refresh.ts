@@ -1519,7 +1519,7 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
   const cm = await prisma.retailer.findFirst({ where: { name: "Cardmarket" } });
   if (!cm) return res;
   const jpProducts = await prisma.product.findMany({
-    where: { language: "JP", category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
+    where: { game: "POKEMON", language: "JP", category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
     include: { offers: { select: { id: true, retailerId: true, url: true, price: true, stockStatus: true } } },
   });
   res.products = jpProducts.length;
@@ -1759,6 +1759,7 @@ export async function runCardmarketRefresh(
       // TRYCKNINGAR är undantaget: de kommer just UR RapidAPI:s `version`-fält och
       // prissätts här, en produkt per tryckning (se src/lib/print-variant.ts).
       where: {
+        game: "POKEMON",
         category: "SINGLE_CARD",
         // ⛔ BARA ENGELSKA: japanska singlar (2026-08-29) har också ett
         // tcgExternalId ("tcggo-jp:…") men prissätts av jp-singles-refresh ur
@@ -1894,7 +1895,7 @@ export async function runCardmarketRefresh(
     // Episodnamn → UNDERSET (setnamn med kolon, prefixet = episoden). Se
     // cmSubsetParentKey; uppslaget i processCards kräver namn + nummer ändå.
     const subsetsByParent = new Map<string, string[]>();
-    for (const s of await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true, series: true } })) {
+    for (const s of await prisma.cardSet.findMany({ where: { language: "EN", game: "POKEMON" }, select: { id: true, name: true, series: true } })) {
       for (const key of cmSetNameKeys(s)) setsByName.set(key, setsByName.has(key) ? null : s.id);
       const parent = cmSubsetParentKey(s.name);
       if (parent) subsetsByParent.set(parent, [...(subsetsByParent.get(parent) ?? []), s.id]);
@@ -1916,7 +1917,7 @@ export async function runCardmarketRefresh(
       { entry: { productId: string; offerId?: string; url?: string }; cardName: string } | null
     >();
     const cmidProducts = await prisma.product.findMany({
-      where: { category: "SINGLE_CARD", card: { cardmarketId: { not: null }, tcgExternalId: null } },
+      where: { game: "POKEMON", category: "SINGLE_CARD", card: { cardmarketId: { not: null }, tcgExternalId: null } },
       select: { id: true, setId: true, variantLabel: true, card: { select: { cardmarketId: true, name: true, number: true } }, offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 } },
     });
     for (const p of cmidProducts) {
@@ -2801,7 +2802,10 @@ export async function runCardmarketRefresh(
     const cmSealedNameById = await fetchCmSealedNameById();
     let bridgedByName = 0;
     const ours = await prisma.product.findMany({
-      where: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
+      // ⛔ BARA POKÉMON (2026-11-10): One Piece-sealed har också en CM-offer, och den här
+      // fasen sätter priset ALLTID (även null) och set-etiketten ur Pokémon-katalogen.
+      // One Piece prissätts av src/jobs/op-sealed-import.ts.
+      where: { game: "POKEMON", category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
       include: {
         set: { select: { name: true } },
         offers: { select: { id: true, retailerId: true, price: true, stockStatus: true, url: true } },

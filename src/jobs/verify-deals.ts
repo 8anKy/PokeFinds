@@ -368,7 +368,7 @@ export async function verifyTraderaMatches(
   });
   res.offers = offers.length;
   // Katalogens setnamn — regeldomens "annat set"-koll. EN läsning per körning.
-  const setNames = (await prisma.cardSet.findMany({ select: { name: true } }))
+  const setNames = (await prisma.cardSet.findMany({ where: { game: "POKEMON" }, select: { name: true } }))
     .map((s) => s.name.replace(/\s*\([^)]*\)\s*$/, "").trim())
     .filter((n) => n.length >= 3);
   log(`[verify-matches] ${offers.length} sealed Tradera-offers.`);
