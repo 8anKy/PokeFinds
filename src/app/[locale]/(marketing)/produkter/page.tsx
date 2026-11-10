@@ -31,7 +31,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { IconSearch } from "@/components/ui/icons";
 import { SiteSchema } from "@/components/seo/site-schema";
 import { SetHero } from "@/components/features/set-hero";
-import { getSetSummary, progressTotal } from "@/services/sets-gallery";
+import { getSetSummary, progressTotal, onePieceSetCodes } from "@/services/sets-gallery";
 import { loadSetDenominators } from "@/services/set-portfolio";
 import { Link } from "@/i18n/navigation";
 import { StreakCard } from "@/components/features/streak/streak-card";
@@ -72,7 +72,7 @@ const getFilterSets = cachedRead(
       // ägarbeslut 2026-10-05) har inget att visa — det stod i arket men inte på /sets.
       // Bara det valda kortspelets set (2026-11-10, One Piece).
       where: { game, products: { some: NOT_HIDDEN } },
-      select: { id: true, name: true, logoUrl: true, series: true, language: true, releaseDate: true, externalId: true },
+      select: { id: true, name: true, logoUrl: true, series: true, language: true, releaseDate: true, externalId: true, game: true },
       // nulls: "last" — Postgres lägger NULL FÖRST vid DESC, så ett set utan
       // releaseDate (t.ex. ett promo-set vi skapat innan pokemontcg.io har det)
       // hamnade överst i filtret som om det vore det allra nyaste.
@@ -298,11 +298,13 @@ export default async function ProductsPage({
     onlySet ? getSetSummary(onlySet) : Promise.resolve(null),
     loadSetDenominators(),
   ]);
+  // One Piece-setens koder ⇒ set-arket grupperar på settyp (lib/set-era), inte på Pokémon-eror.
+  const opCodes = params.game === "ONE_PIECE" ? await onePieceSetCodes() : new Map<string, string>();
   // Set-arkets framsteg: samma nämnare som /sets (tryckningar, annars kort). Statisk 24 h-cache.
   const denomById = new Map(denoms.map((d) => [d.setId, d]));
   const sets = rawSets.map((s) => {
     const d = denomById.get(s.id);
-    return { ...s, total: d ? progressTotal(d) : null };
+    return { ...s, code: opCodes.get(s.id) ?? null, total: d ? progressTotal(d) : null };
   });
   const tHero = await getTranslations("SetHero");
   // ⛔ En FUNKTION, inte ett delat element: samma RSC-element renderat två gånger (mobil +

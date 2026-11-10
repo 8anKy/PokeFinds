@@ -26,7 +26,30 @@ export const ERA_ORDER = [
   "Gym",
   "Base",
 ] as const;
-export type Era = (typeof ERA_ORDER)[number] | "Other";
+/**
+ * ONE PIECE-GRUPPERNA (2026-11-10). One Piece har inga eror — seten grupperas på TYP, ur setkoden
+ * ("OP-09", "EB05", "PRB02", "ST32"; CardSet.code) med namnet som reserv. Visas bara på
+ * One Piece-fliken, så ordningen mot Pokémon-erorna spelar ingen roll.
+ */
+export const ONE_PIECE_GROUPS = ["Booster Sets", "Extra Boosters", "Premium Boosters", "Starter Decks"] as const;
+export type OnePieceGroup = (typeof ONE_PIECE_GROUPS)[number];
+
+export type Era = (typeof ERA_ORDER)[number] | OnePieceGroup | "Other";
+
+/** One Piece-setets grupp: koden först, annars namnet ("Promos: …" ⇒ Other). */
+export function onePieceGroup(code: string | null | undefined, name: string): OnePieceGroup | "Other" {
+  const c = (code ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (/^OP\d/.test(c) && !/P$/.test(c)) return "Booster Sets";
+  if (/^EB\d/.test(c)) return "Extra Boosters";
+  if (/^PRB\d/.test(c)) return "Premium Boosters";
+  if (/^ST\d/.test(c)) return "Starter Decks";
+  if (c) return "Other";
+  // Utan kod (före nattens import fyllt den): namnet.
+  if (/^promos?\b/i.test(name)) return "Other";
+  if (/\bthe best\b/i.test(name)) return "Premium Boosters";
+  if (/\b(?:starter|deck)\b|^(?:red|green|blue|purple|black|yellow|ex)\b/i.test(name)) return "Starter Decks";
+  return "Other";
+}
 
 const EN_SERIES: Record<string, Era> = {
   "Mega Evolution": "Mega Evolution",
@@ -101,7 +124,15 @@ function byDate(table: [string, Era][], date: Date | string | null): Era | null 
   return null;
 }
 
-export function setEra(s: { name: string; language: string; series: string | null; releaseDate: Date | string | null }): Era {
+export function setEra(s: {
+  name: string;
+  language: string;
+  series: string | null;
+  releaseDate: Date | string | null;
+  game?: string | null;
+  code?: string | null;
+}): Era {
+  if (s.game === "ONE_PIECE") return onePieceGroup(s.code, s.name);
   if (s.language === "JP") {
     const d = byDate(JP_FROM, s.releaseDate);
     if (d) return d;
@@ -116,5 +147,7 @@ export function setEra(s: { name: string; language: string; series: string | nul
 /** Sorteringsnyckel: nyaste eran först, "Other" sist. */
 export function eraRank(era: Era): number {
   const i = (ERA_ORDER as readonly string[]).indexOf(era);
-  return i === -1 ? ERA_ORDER.length : i;
+  if (i !== -1) return i;
+  const op = (ONE_PIECE_GROUPS as readonly string[]).indexOf(era);
+  return op === -1 ? ERA_ORDER.length : op;
 }

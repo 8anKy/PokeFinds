@@ -32,6 +32,9 @@ export interface FilterSet {
   externalId?: string | null;
   /** Framstegets nämnare (tryckningar, annars kort). null = okänt. */
   total?: number | null;
+  /** One Piece (2026-11-10): grupperas på settyp ur koden i stället för Pokémon-era. */
+  game?: string | null;
+  code?: string | null;
 }
 
 export interface FilterOption {
@@ -878,7 +881,7 @@ export function SetSheet({
   const groupBySeries = (items: FilterSet[]) => {
     const byEra = new Map<Era, FilterSet[]>();
     for (const s of items) {
-      const era = setEra({ name: s.name, language: s.language, series: s.series, releaseDate: s.releaseDate ?? null });
+      const era = setEra({ name: s.name, language: s.language, series: s.series, releaseDate: s.releaseDate ?? null, game: s.game, code: s.code });
       const list = byEra.get(era);
       if (list) list.push(s);
       else byEra.set(era, [s]);

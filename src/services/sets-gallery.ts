@@ -87,6 +87,7 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
   ]);
   const printingsBySet = new Map(denoms.map((d) => [d.setId, d.listedPrintings]));
   const valueBySet = new Map(values.map((r) => [r.setId, r]));
+  const codeBySet = await onePieceSetCodes();
 
   return sets.filter(isSetListed).map((s) => {
     const total = progressTotal({ totalCards: s.totalCards, totalCardsFull: s.totalCardsFull, cardCount: s._count.cards, listedPrintings: printingsBySet.get(s.id) ?? 0 });
@@ -97,7 +98,8 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
       name: s.name,
       language: s.language === "JP" ? "JP" : "EN",
       game: s.game === "ONE_PIECE" ? "ONE_PIECE" : "POKEMON",
-      era: setEra(s),
+      // One Piece grupperas på settyp ur koden (lib/set-era), inte på Pokémon-eror.
+      era: setEra({ ...s, code: codeBySet.get(s.id) ?? null }),
       // Bara riktiga loggor — kort/produktfoton/ritade brickor ⇒ null ⇒ namnbricka (lib/set-logo.ts).
       logoUrl: isRealSetLogo(s.logoUrl) ? s.logoUrl : null,
       releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,
@@ -106,6 +108,20 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
       pricedCards: v?.priced ?? 0,
     };
   });
+}
+
+/**
+ * One Piece-setens koder (CardSet.code, migration 20261110180000). Rå SQL så läsningen inte
+ * beror på en omgenererad Prisma-klient; fel ⇒ tom karta och gruppering på namnet.
+ */
+export async function onePieceSetCodes(): Promise<Map<string, string>> {
+  try {
+    const rows = await prisma.$queryRaw<{ id: string; code: string | null }[]>`
+      SELECT id, code FROM "CardSet" WHERE game::text = 'ONE_PIECE' AND code IS NOT NULL`;
+    return new Map(rows.filter((r) => r.code).map((r) => [r.id, r.code as string]));
+  } catch {
+    return new Map();
+  }
 }
 
 export interface OwnedInSet {
