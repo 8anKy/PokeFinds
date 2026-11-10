@@ -1,4 +1,5 @@
-import { Prisma, type ProductCategory } from "@prisma/client";
+import { Prisma, type Game, type ProductCategory } from "@prisma/client";
+import { DEFAULT_GAME } from "@/lib/game";
 import { prisma } from "@/lib/db";
 import { cachedRead } from "@/lib/cache";
 import {
@@ -28,14 +29,15 @@ export interface ExploreFacets {
  * inte kan uttrycka (COALESCE över produktens/kortets set, width_bucket).
  * Refererar bara alias `p` så fragmentet kan delas av alla tre frågorna.
  */
-const visibleSql = () => Prisma.sql`
+const visibleSql = (game: Game) => Prisma.sql`
   p."hiddenAt" IS NULL
+  AND p."game"::text = ${game}
   AND p."language"::text IN (${Prisma.join([...CATALOG_LANGUAGES])})
   AND p."category"::text NOT IN (${Prisma.join([...HIDDEN_CATEGORIES])})
   AND (p."lowestPriceOre" IS NOT NULL OR p."variantLabel" IN (${Prisma.join([...PRINT_VARIANT_LABELS])}) OR ${Prisma.raw(newSetSingleSql("p"))})`;
 
-async function getExploreFacetsRaw(): Promise<ExploreFacets> {
-  const base = await buildProductWhere({});
+async function getExploreFacetsRaw(game: Game = DEFAULT_GAME): Promise<ExploreFacets> {
+  const base = await buildProductWhere({ game });
 
   const [categoryRows, setRows, retailerRows] = await Promise.all([
     prisma.product.groupBy({ by: ["category"], where: base, _count: { _all: true } }),
@@ -44,14 +46,14 @@ async function getExploreFacetsRaw(): Promise<ExploreFacets> {
     prisma.$queryRaw<{ id: string; count: number }[]>`
       SELECT COALESCE(p."setId", c."setId") AS id, COUNT(*)::int AS count
       FROM "Product" p LEFT JOIN "Card" c ON c."id" = p."cardId"
-      WHERE ${visibleSql()} AND COALESCE(p."setId", c."setId") IS NOT NULL
+      WHERE ${visibleSql(game)} AND COALESCE(p."setId", c."setId") IS NOT NULL
       GROUP BY 1`,
     // Samma offer-villkor som butiksfiltret i buildProductWhere (IN_STOCK +
     // prissatt + direkt länk) — annars lovar antalet fler träffar än klicket ger.
     prisma.$queryRaw<{ id: string; count: number }[]>`
       SELECT o."retailerId" AS id, COUNT(DISTINCT o."productId")::int AS count
       FROM "Offer" o JOIN "Product" p ON p."id" = o."productId"
-      WHERE ${visibleSql()}
+      WHERE ${visibleSql(game)}
         AND o."stockStatus"::text = 'IN_STOCK'
         AND o."price" IS NOT NULL
         AND o."url" NOT ILIKE '%search%'

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { apiError, jsonCached } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { getExploreFeed } from "@/services/products";
+import { gameFromParam } from "@/lib/game";
 import { csvEnum, csvString } from "@/lib/query-params";
 import { CardLanguage, ProductCategory, StockStatus } from "@prisma/client";
 
@@ -17,6 +18,8 @@ const feedSchema = z.object({
   stockStatus: z.nativeEnum(StockStatus).optional(),
   excludeCardmarket: z.enum(["1"]).optional().transform((v) => v === "1" || undefined),
   language: csvEnum(CardLanguage),
+  // Kortspelet (`spel`-värdet, "one-piece"). Saknas ⇒ Pokémon (src/lib/game.ts).
+  game: z.string().max(20).optional().transform((v) => gameFromParam(v)),
   // "popular" finns kvar som giltigt värde (gamla länkar/bokmärken) men mappas till
   // best_match av normalizeSort i services/products.
   sort: z

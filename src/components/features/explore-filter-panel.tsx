@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { GAMES, GAME_LABEL, gameFromParam, gameHasLanguageChoice, gameParam } from "@/lib/game";
 import { cn } from "@/lib/utils";
 import { isSealedCategory } from "@/lib/product-category";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,8 @@ interface PanelProps {
   languages: FacetOption[];
   /** Aktuellt träffantal (SSR) — filtren applicerar direkt, så talet är i synk. */
   total: number;
+  /** Visa spelväljaren (One Piece) — grindad tills lanseringen, se ExploreFilterBar. */
+  gameChoice?: boolean;
 }
 
 /* ─────────────────────────── byggstenar ─────────────────────────── */
@@ -189,6 +192,7 @@ export function ExploreFilterPanel({
   retailers,
   languages,
   total,
+  gameChoice = false,
 }: PanelProps) {
   const t = useTranslations("Products");
   const { sp, apply, toggleCsv, getCsv } = useExploreParams();
@@ -198,6 +202,8 @@ export function ExploreFilterPanel({
   // Set är flerval sedan 2026-09-28 (?set=a,b), som kategori och butik.
   const activeSets = getCsv("set");
   const activeLanguage = sp?.get("sprak") ?? "";
+  // Kortspelet (2026-11-10): "" = Pokémon (default), "one-piece".
+  const game = gameFromParam(sp?.get("spel"));
   // ?lager=butik = i lager hos någon annan än Cardmarket (användarönskemål 2026-11-05).
   const noCardmarket = sp?.get("lager") === "butik";
   const inStockOnly = sp?.get("lager") === "1" || noCardmarket;
@@ -344,6 +350,16 @@ export function ExploreFilterPanel({
           )}
         </div>
 
+        {gameChoice && <Section title={t("game")}>
+          <Segmented
+            label={t("game")}
+            value={gameParam(game) ?? ""}
+            // Set och språk hör till det förra spelet och nollställs (samma regel som mobilens ark).
+            onChange={(v) => apply({ spel: v || null, set: null, sprak: null })}
+            options={GAMES.map((g) => ({ value: gameParam(g) ?? "", label: GAME_LABEL[g] }))}
+          />
+        </Section>}
+
         <Section title={t("availability")}>
           <Segmented
             label={t("availability")}
@@ -439,14 +455,16 @@ export function ExploreFilterPanel({
           </div>
         </Section>
 
-        <Section title={t("language")}>
-          <Segmented
-            label={t("language")}
-            value={activeLanguage}
-            onChange={(v) => apply({ sprak: v || null })}
-            options={[{ value: "", label: t("all") }, ...languages.map((l) => ({ value: l.value, label: l.label }))]}
-          />
-        </Section>
+        {gameHasLanguageChoice(game) && (
+          <Section title={t("language")}>
+            <Segmented
+              label={t("language")}
+              value={activeLanguage}
+              onChange={(v) => apply({ sprak: v || null })}
+              options={[{ value: "", label: t("all") }, ...languages.map((l) => ({ value: l.value, label: l.label }))]}
+            />
+          </Section>
+        )}
 
         <Section title={t("set")}>
           <div>{visibleRows(setsByCount, false, (s) => activeSets.includes(s.id)).map(setRow)}</div>

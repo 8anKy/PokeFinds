@@ -13,7 +13,9 @@ import {
   type SearchProductsParams,
 } from "@/services/products";
 import { getExploreFacets } from "@/services/explore-facets";
-import type { CardLanguage, ProductCategory } from "@prisma/client";
+import type { CardLanguage, Game, ProductCategory } from "@prisma/client";
+import { previewAllowedFor } from "@/lib/feature-preview";
+import { DEFAULT_GAME, gameFromParam, gameHasLanguageChoice, gameParam } from "@/lib/game";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
 import { ExploreFeed } from "@/components/features/explore-feed";
 import { ExploreFilterBar } from "@/components/features/explore-filter-bar";
@@ -58,7 +60,7 @@ const PAGE_SIZE = 24;
 // logoUrl + series driver mobilens set-sheet (logotypbrickor grupperade på serie).
 // Samma cachade fråga som desktop-sidofältets <select> — inga extra Neon-läsningar.
 const getFilterSets = cachedRead(
-  () =>
+  (game: Game = DEFAULT_GAME) =>
     prisma.cardSet.findMany({
       // `language` driver flikarna Engelska/Japanska i set-arket. Japanska set
       // skapas bara när vi FAKTISKT säljer något ur dem (jp-set-label.ts), så
@@ -68,7 +70,8 @@ const getFilterSets = cachedRead(
       // releaseDate + externalId: set-arkets era-rubriker och listningsregel (lib/set-era, lib/set-listing).
       // Samma urval som /sets: ett set vars produkter alla är dolda (Mega Evolution Energy,
       // ägarbeslut 2026-10-05) har inget att visa — det stod i arket men inte på /sets.
-      where: { products: { some: NOT_HIDDEN } },
+      // Bara det valda kortspelets set (2026-11-10, One Piece).
+      where: { game, products: { some: NOT_HIDDEN } },
       select: { id: true, name: true, logoUrl: true, series: true, language: true, releaseDate: true, externalId: true },
       // nulls: "last" — Postgres lägger NULL FÖRST vid DESC, så ett set utan
       // releaseDate (t.ex. ett promo-set vi skapat innan pokemontcg.io har det)
@@ -162,6 +165,8 @@ interface CatalogSearchParams {
   maxPris?: string;
   lager?: string;
   sprak?: string;
+  /** Kortspelet: "one-piece"; saknas ⇒ Pokémon (src/lib/game.ts). */
+  spel?: string;
   sortera?: string;
   sida?: string;
 }
@@ -197,6 +202,7 @@ function buildParams(sp: CatalogSearchParams, isAdmin: boolean): SearchProductsP
   const sort =
     SORT_OPTIONS.find((o) => o.value === sp.sortera && (!o.adminOnly || isAdmin))?.sort ?? "best_match";
   const page = Math.max(1, Number(sp.sida) || 1);
+  const game = gameFromParam(sp.spel);
 
   return {
     query: sp.q?.trim() || undefined,
@@ -208,7 +214,9 @@ function buildParams(sp: CatalogSearchParams, isAdmin: boolean): SearchProductsP
     // ?lager=1 = i lager var som helst; ?lager=butik = i lager hos någon annan än Cardmarket.
     stockStatus: sp.lager === "1" || sp.lager === "butik" ? "IN_STOCK" : undefined,
     excludeCardmarket: sp.lager === "butik" || undefined,
-    language: language?.length ? language : undefined,
+    // One Piece finns bara på engelska ⇒ språkfiltret ignoreras där (chipet är dolt).
+    language: language?.length && gameHasLanguageChoice(game) ? language : undefined,
+    game,
     sort,
     page,
     pageSize: PAGE_SIZE,
@@ -224,7 +232,7 @@ function buildParams(sp: CatalogSearchParams, isAdmin: boolean): SearchProductsP
  * Vanlig formulär-submit är en full sidladdning → nyckeln är no-op där.
  */
 function filterStateKey(sp: CatalogSearchParams): string {
-  return [sp.q, sp.kategori, sp.set, sp.butik, sp.minPris, sp.maxPris, sp.lager, sp.sprak, sp.sortera]
+  return [sp.q, sp.kategori, sp.set, sp.butik, sp.minPris, sp.maxPris, sp.lager, sp.sprak, sp.spel, sp.sortera]
     .map((v) => v ?? "")
     .join("|");
 }
@@ -248,6 +256,8 @@ function buildFeedQuery(p: SearchProductsParams): string {
   if (p.excludeCardmarket) s.set("excludeCardmarket", "1");
   const language = join(p.language);
   if (language) s.set("language", language);
+  const spel = p.game ? gameParam(p.game) : null;
+  if (spel) s.set("game", spel);
   // userId skickas ALDRIG med i URL:en — feed-routen läser sessionen själv.
   s.set("sort", p.sort ?? "best_match");
   return s.toString();
@@ -270,7 +280,11 @@ export default async function ProductsPage({
   const session = await auth();
   const role = session?.user?.role;
   const isAdmin = role === "ADMIN" || role === "SUPERADMIN";
-  const params = { ...buildParams(searchParams, isAdmin), userId: session?.user?.id };
+  // Spelväljaren (One Piece, 2026-11-10) är grindad tills lanseringen: utan grind gäller
+  // Pokémon oavsett `?spel` — en gissad URL ska inte visa ett halvfärdigt spel.
+  const gameChoice = previewAllowedFor("ONE_PIECE", session?.user);
+  const built = buildParams(gameChoice ? searchParams : { ...searchParams, spel: undefined }, isAdmin);
+  const params = { ...built, userId: session?.user?.id };
   // Facetterna är en delad 1h-cache — kostar inga extra Neon-läsningar per
   // sidvisning, bara per TTL-fönster.
   // ETT valt set ⇒ setets rubrikkort ovanför flödet (ägarbeslut 2026-10-16: /sets-rutorna
@@ -278,9 +292,9 @@ export default async function ProductsPage({
   const onlySet = params.setId?.length === 1 ? params.setId[0] : null;
   const [result, rawSets, retailers, facets, setSummary, denoms] = await Promise.all([
     getExploreFeed(params, 0, PAGE_SIZE),
-    getFilterSets(),
+    getFilterSets(params.game),
     getFilterRetailers(),
-    getExploreFacets(),
+    getExploreFacets(params.game),
     onlySet ? getSetSummary(onlySet) : Promise.resolve(null),
     loadSetDenominators(),
   ]);
@@ -364,6 +378,7 @@ export default async function ProductsPage({
     maxPris: searchParams.maxPris,
     lager: searchParams.lager,
     sprak: searchParams.sprak,
+    spel: searchParams.spel,
     sortera: searchParams.sortera,
   };
 
@@ -421,6 +436,7 @@ export default async function ProductsPage({
           </div>
           <form key={filterKey} method="GET" action="/produkter" data-tour="explore-search">
             <ExploreFilterBar
+              gameChoice={gameChoice}
               searchParams={searchParams}
               sets={sets}
               retailers={retailers.map((r) => ({ value: r.id, label: r.name }))}
@@ -460,6 +476,7 @@ export default async function ProductsPage({
               sin egen höjd och scrollar med sidan — ingen egen rullningslist. */}
           <aside className="space-y-4 self-start">
             <ExploreFilterPanel
+              gameChoice={gameChoice}
               categories={panelCategories}
               sets={panelSets}
               retailers={panelRetailers}

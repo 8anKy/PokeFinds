@@ -28,10 +28,12 @@ import {
 } from "@/services/ranking";
 import type {
   CardLanguage,
+  Game,
   Prisma,
   ProductCategory,
   StockStatus,
 } from "@prisma/client";
+import { DEFAULT_GAME } from "@/lib/game";
 
 export type ProductSort =
   // Katalogens standard. Utan sökord = produktens kvalitetspoäng (Product.rankScore);
@@ -92,6 +94,8 @@ export interface SearchProductsParams {
    */
   excludeCardmarket?: boolean;
   language?: CardLanguage | CardLanguage[];
+  /** Kortspelet (`?spel`). Saknas ⇒ Pokémon — se src/lib/game.ts. */
+  game?: Game;
   sort?: ProductSort;
   /**
    * Inloggad användare → "bäst matchning" lyfter det du själv bevakar/samlar på.
@@ -369,7 +373,7 @@ export async function snapshotStorePricedProducts(): Promise<number> {
 export async function buildProductWhere(
   params: Pick<
     SearchProductsParams,
-    "query" | "category" | "setId" | "retailerId" | "stockStatus" | "excludeCardmarket" | "language" | "sort"
+    "query" | "category" | "setId" | "retailerId" | "stockStatus" | "excludeCardmarket" | "language" | "sort" | "game"
   >
 ): Promise<Prisma.ProductWhereInput> {
   const { query, category, setId, retailerId, stockStatus, excludeCardmarket, language } = params;
@@ -422,6 +426,9 @@ export async function buildProductWhere(
   // Ägarens borttagna produkter — se NOT_HIDDEN. Ligger på `where` och inte bland
   // andClauses för att gälla oavsett vilka grenar ovan som råkat vara aktiva.
   where.hiddenAt = null;
+  // Kortspelet (2026-11-10). ⛔ Default Pokémon: varje anropare som inte vet om spelfiltret
+  // ska se exakt det katalogen visade före One Piece.
+  where.game = params.game ?? DEFAULT_GAME;
   // Flera valda kategorier = OR mellan dem. Gömda kategorier filtreras bort ur
   // valet först; blir listan tom faller vi tillbaka på "allt utom de gömda".
   const categories = toList(category).filter((c) => !HIDDEN_CATEGORIES.includes(c));

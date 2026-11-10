@@ -8,6 +8,7 @@ import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { utcDaysAgo } from "@/lib/utils";
 import { NOT_HIDDEN, newSetSingleWhere } from "@/lib/product-visibility";
 import { isSealedCategory } from "@/lib/product-category";
+import { gameFromParam } from "@/lib/game";
 
 /**
  * Sökförslag (autocomplete). KVOT-KRITISKT: får ALDRIG göra en Neon-fråga per
@@ -35,6 +36,8 @@ interface IndexEntry {
   category: ProductCategory;
   viewCount: number;
   language: string;
+  /** Kortspelet (2026-11-10). Söket filtrerar på `game`-parametern, default Pokémon. */
+  game: string;
   // Rutnätets kortfält (mobilens direktsök, 2026-10-25). Priset är indexets
   // ögonblicksbild (≤ 24 h gammal) — produktsidan visar alltid det levande.
   id: string;
@@ -77,6 +80,7 @@ async function loadIndex(): Promise<IndexEntry[]> {
         category: true,
         viewCount: true,
         language: true,
+        game: true,
         variantLabel: true,
         lowestPriceOre: true,
         setId: true,
@@ -99,6 +103,7 @@ async function loadIndex(): Promise<IndexEntry[]> {
         category: p.category,
         viewCount: p.viewCount,
         language: p.language,
+        game: p.game,
         id: p.id,
         setId: p.setId ?? p.card?.set?.id ?? null,
         setTotalCards: p.set?.totalCards ?? p.card?.set?.totalCards ?? null,
@@ -213,6 +218,7 @@ export async function GET(req: NextRequest) {
     const limit = grid ? Math.min(MAX_LIMIT, Math.floor(limitParam)) : MAX_SUGGESTIONS;
     const kind = sp.get("kind");
     const lang = sp.get("lang");
+    const game = gameFromParam(sp.get("game"));
     const setIds = new Set((sp.get("sets") ?? "").split(",").map((v) => v.trim()).filter(Boolean));
     const qNorm = normalizeTitle(raw);
     const words = qNorm
@@ -228,6 +234,7 @@ export async function GET(req: NextRequest) {
       if (kind === "cards" && e.category !== "SINGLE_CARD") continue;
       if (kind === "sealed" && !isSealedCategory(e.category)) continue;
       if (setIds.size > 0 && (!e.setId || !setIds.has(e.setId))) continue;
+      if (e.game !== game) continue;
       if (lang && e.language !== lang) continue;
       const s = score(e, qNorm, qCompact, words);
       if (s !== null) matches.push({ e, s });

@@ -15,6 +15,8 @@ export interface CountSelection {
   set?: string;
   butik?: string;
   sprak?: string;
+  /** `spel`-värdet ur URL:en ("one-piece"); saknas ⇒ Pokémon. */
+  spel?: string;
   lager?: string;
   /** Applicerat prisintervall ur URL:en (kronor). */
   minPris?: string;
@@ -31,6 +33,7 @@ export function countQuery(sel: CountSelection): string {
   if (sel.set) s.set("setId", sel.set);
   if (sel.butik) s.set("retailerId", sel.butik);
   if (sel.sprak) s.set("language", sel.sprak);
+  if (sel.spel) s.set("game", sel.spel);
   if (sel.lager === "1" || sel.lager === "butik") s.set("stockStatus", "IN_STOCK");
   // "I lager i butik" = i lager hos någon annan än Cardmarket (samma tolkning som /produkter).
   if (sel.lager === "butik") s.set("excludeCardmarket", "1");

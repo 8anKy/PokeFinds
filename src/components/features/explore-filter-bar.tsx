@@ -16,6 +16,8 @@ import { isSetListed } from "@/lib/set-listing";
 import { eraRank, setEra, type Era } from "@/lib/set-era";
 import { useOwnedSets } from "@/lib/owned-sets";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
+import type { Game } from "@prisma/client";
+import { DEFAULT_GAME, GAMES, GAME_LABEL, gameFromParam, gameHasLanguageChoice, gameParam } from "@/lib/game";
 import { IconCards, IconCheck, IconChevronDown, IconChevronRight, IconFilter, IconSearch, IconX } from "@/components/ui/icons";
 
 export interface FilterSet {
@@ -47,6 +49,8 @@ export interface ExploreSearchParams {
   maxPris?: string;
   lager?: string;
   sprak?: string;
+  /** Kortspelet ("one-piece"); saknas ⇒ Pokémon (src/lib/game.ts). */
+  spel?: string;
   sortera?: string;
   sida?: string;
 }
@@ -61,6 +65,11 @@ interface ExploreFilterBarProps {
   sortOptions: FilterOption[];
   /** Antal träffar för de filter som FAKTISKT är applicerade (server-sanning). */
   total: number;
+  /**
+   * Visa spelväljaren (One Piece, 2026-11-10). Grindad av `FEATURE_ONE_PIECE_PUBLIC` via
+   * feature-preview tills lanseringen — av ⇒ raden ser ut exakt som före One Piece.
+   */
+  gameChoice?: boolean;
 }
 
 /**
@@ -83,7 +92,10 @@ const PRICE_SHORTCUTS: [number, MaxKr][] = [
   [1000, null],
 ];
 
-type SheetKind = "sort" | "set" | "price" | "more" | "lang";
+type SheetKind = "sort" | "set" | "price" | "more" | "lang" | "game";
+
+/** Enhetens senast valda kortspel (localStorage). Bara ett val — ingen användardata. */
+const GAME_STORAGE_KEY = "foilio:catalog-game:v1";
 
 /** Urval som ska räknas — URL-statet med de val man håller på att göra inbakade. */
 type PendingSelection = ExploreSearchParams & CountSelection;
@@ -151,6 +163,7 @@ export function ExploreFilterBar({
   languages,
   sortOptions,
   total,
+  gameChoice = false,
 }: ExploreFilterBarProps) {
   const t = useTranslations("Products");
   const router = useRouter();
@@ -209,6 +222,9 @@ export function ExploreFilterBar({
   const activeSetIds = searching ? localSets : csvList(searchParams.set);
   const urlLang = langOf(searchParams.sprak);
   const shownLang = searching ? localLang : urlLang;
+  // Kortspelet (2026-11-10): URL:en är sanningen, default Pokémon.
+  const game = gameFromParam(searchParams.spel);
+  const spel = gameParam(game);
 
   // Logotypen i chipet bara vid ETT set — flera logotyper får inte plats.
   const soleActiveSet = activeSetIds.length === 1 ? (sets.find((s) => s.id === activeSetIds[0]) ?? null) : null;
@@ -250,6 +266,39 @@ export function ExploreFilterBar({
     if (searching) setLocalKind(kind);
     else pushParams({ kategori: kindParam(kind) });
   }
+
+  /**
+   * Byt kortspel. Set och språk hör till det förra spelet och nollställs; kategori, lager
+   * och sortering följer med. Valet minns på enheten (se effekten nedan).
+   */
+  function chooseGame(next: Game) {
+    setSheet(null);
+    try {
+      if (next === DEFAULT_GAME) localStorage.removeItem(GAME_STORAGE_KEY);
+      else localStorage.setItem(GAME_STORAGE_KEY, gameParam(next) ?? "");
+    } catch {
+      /* privat läge / full lagring — valet gäller ändå för den här sidan */
+    }
+    if (next === game) return;
+    setLocalSets([]);
+    setLocalLang(null);
+    pushParams({ spel: gameParam(next) ?? undefined, set: undefined, sprak: undefined });
+  }
+
+  // Minns valet: en BAR /produkter (inga filter alls) öppnar enhetens senaste spel. Bara när
+  // URL:en är helt tom — en länk med ett Pokémon-set eller en sökning ska aldrig få ett annat spel.
+  useEffect(() => {
+    if (!gameChoice || Object.values(searchParams).some(Boolean)) return;
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem(GAME_STORAGE_KEY);
+    } catch {
+      return;
+    }
+    const remembered = stored ? gameFromParam(stored) : DEFAULT_GAME;
+    if (remembered !== DEFAULT_GAME) router.replace(`/produkter?spel=${gameParam(remembered)}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function chooseLang(lang: string | null) {
     setSheet(null);
@@ -327,7 +376,11 @@ export function ExploreFilterBar({
    * tryck på Förseglat/Singlar stänger av filtret. Lagerfliken visas inte i sökläget —
    * direktsöket filtrerar inte på lager, och en flik som inte påverkar träffarna ljuger.
    */
-  const tabItems: { key: string; label: string; active: boolean; menu?: boolean; onClick: () => void }[] = [
+  const tabItems: { key: string; label: string; active: boolean; menu?: boolean; selector?: boolean; onClick: () => void }[] = [
+    // Spelväljaren FÖRST (ägarbeslut 2026-11-10): visar det valda spelet, aldrig ordet "Spel".
+    ...(gameChoice
+      ? [{ key: "game", label: GAME_LABEL[game], active: false, menu: true, selector: true, onClick: () => setSheet("game") }]
+      : []),
     { key: "sealed", label: t("chipSealed"), active: shownKind === "sealed", onClick: () => chooseKind(shownKind === "sealed" ? null : "sealed") },
     { key: "cards", label: t("chipSingles"), active: shownKind === "cards", onClick: () => chooseKind(shownKind === "cards" ? null : "cards") },
     ...(searching
@@ -338,7 +391,10 @@ export function ExploreFilterBar({
           active: noCardmarket,
           onClick: () => pushParams({ lager: noCardmarket ? undefined : "butik" }),
         }]),
-    { key: "lang", label: shownLang ?? t("language"), active: shownLang !== null, menu: true, onClick: () => setSheet("lang") },
+    // Språk bara där spelet finns på flera språk — One Piece är bara engelska (ägarbeslut 2026-11-10).
+    ...(gameHasLanguageChoice(game)
+      ? [{ key: "lang", label: shownLang ?? t("language"), active: shownLang !== null, menu: true, onClick: () => setSheet("lang") }]
+      : []),
     { key: "set", label: activeSetLabel ?? t("set"), active: activeSetLabel !== null, menu: true, onClick: () => setSheet("set") },
   ];
   const chips = (
@@ -356,7 +412,7 @@ export function ExploreFilterBar({
             aria-haspopup={tab.menu ? "dialog" : undefined}
             className={cn(
               "relative flex h-9 max-w-[9rem] shrink-0 items-center gap-1 text-[13.5px] outline-none transition-colors focus-visible:text-holo-cyan",
-              tab.active ? "font-bold text-ink" : "font-medium text-ink-faint"
+              tab.active || tab.selector ? "font-bold text-ink" : "font-medium text-ink-faint"
             )}
           >
             {tab.key === "set" && soleActiveSet?.logoUrl && (
@@ -371,14 +427,6 @@ export function ExploreFilterBar({
           </button>
         ))}
       </div>
-      {(() => {
-        const shown = !searching ? total : query.trim().length >= 2 ? instantTotal : null;
-        return shown == null ? null : (
-          <span aria-live="polite" className="shrink-0 whitespace-nowrap pl-3 text-xs tabular-nums text-ink-faint">
-            {t("resultCountShort", { count: shown })}
-          </span>
-        );
-      })()}
     </div>
   );
 
@@ -418,8 +466,8 @@ export function ExploreFilterBar({
                 submitSearch(query);
               }
             }}
-            placeholder={t("mobileSearchPlaceholder")}
-            aria-label={t("mobileSearchPlaceholder")}
+            placeholder={game === "ONE_PIECE" ? t("mobileSearchPlaceholderOnePiece") : t("mobileSearchPlaceholder")}
+            aria-label={game === "ONE_PIECE" ? t("mobileSearchPlaceholderOnePiece") : t("mobileSearchPlaceholder")}
             autoComplete="off"
             enterKeyHint="search"
             className="w-full min-w-0 flex-1 bg-transparent py-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
@@ -485,6 +533,7 @@ export function ExploreFilterBar({
               kind={localKind}
               setIds={localSets}
               lang={localLang}
+              game={spel}
               onTotal={setInstantTotal}
               onShowAll={() => submitSearch(query)}
             />
@@ -581,6 +630,31 @@ export function ExploreFilterBar({
           {t("howWeRank")}
         </Link>
       </Sheet>
+
+      {/* Kortspelet — samma radform som språkarket; ett tryck väljer och stänger. */}
+      <BottomSheet open={sheet === "game"} title={t("game")} onClose={() => setSheet(null)} closeLabel={t("closeSheet")}>
+        <div className="flex flex-col gap-0.5 pb-6">
+          {GAMES.map((g) => {
+            const selected = game === g;
+            return (
+              <button
+                key={g}
+                type="button"
+                role="menuitemradio"
+                aria-checked={selected}
+                onClick={() => chooseGame(g)}
+                className={cn(
+                  "flex items-center justify-between gap-3 rounded-lg px-3 py-3 text-left text-sm transition-colors",
+                  selected ? "bg-holo-cyan/10 text-holo-cyan" : "text-ink"
+                )}
+              >
+                {GAME_LABEL[g]}
+                {selected && <IconCheck size={17} className="shrink-0 text-holo-cyan" />}
+              </button>
+            );
+          })}
+        </div>
+      </BottomSheet>
 
       {/* Samma rader som sorteringen i filterarket — ett tryck väljer och stänger. */}
       <BottomSheet open={sheet === "lang"} title={t("language")} onClose={() => setSheet(null)} closeLabel={t("closeSheet")}>
@@ -1281,6 +1355,7 @@ function HiddenFilters({ searchParams }: { searchParams: ExploreSearchParams }) 
     "maxPris",
     "lager",
     "sprak",
+    "spel",
     "sortera",
   ];
   return (

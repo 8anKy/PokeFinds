@@ -2198,6 +2198,8 @@
     "scanAria": "Identify a card with the camera",
     "scanTitle": "Scan a card with the camera",
     "mobileSearchPlaceholder": "Search Pokémon, sets, products…",
+    "mobileSearchPlaceholderOnePiece": "Search One Piece, sets, products…",
+    "game": "Card game",
     "suggestShowAll": "Show all results for “{query}”",
     "suggestEmpty": "No quick matches. Try a full search",
     "filterAria": "Filter and sorting",

@@ -155,6 +155,7 @@ export function InstantResults({
   kind,
   setIds,
   lang = null,
+  game = null,
   onTotal,
   onShowAll,
 }: {
@@ -163,6 +164,8 @@ export function InstantResults({
   setIds: string[];
   /** "EN"/"JP" eller null = alla språk. */
   lang?: string | null;
+  /** `spel`-värdet ("one-piece") eller null = Pokémon. */
+  game?: string | null;
   /** Antal träffar totalt (inte bara de som visas). */
   onTotal?: (total: number | null) => void;
   onShowAll: () => void;
@@ -173,7 +176,7 @@ export function InstantResults({
   const onTotalRef = useRef(onTotal);
   onTotalRef.current = onTotal;
   const q = query.trim();
-  const key = [q.toLowerCase(), kind ?? "", setIds.join(","), lang ?? ""].join("|");
+  const key = [q.toLowerCase(), kind ?? "", setIds.join(","), lang ?? "", game ?? ""].join("|");
 
   useEffect(() => {
     if (q.length < MIN_QUERY) {
@@ -199,6 +202,7 @@ export function InstantResults({
         if (kind) usp.set("kind", kind);
         if (setIds.length > 0) usp.set("sets", setIds.join(","));
         if (lang) usp.set("lang", lang);
+        if (game) usp.set("game", game);
         const res = await fetch(`/api/search/suggest?${usp}`, { signal: ctrl.signal });
         if (!res.ok) return;
         const data = (await res.json()) as { items: InstantItem[]; total?: number };

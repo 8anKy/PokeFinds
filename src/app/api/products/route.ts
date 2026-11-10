@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
+import { gameFromParam } from "@/lib/game";
 import { apiError, jsonOk } from "@/lib/api";
 import { searchProducts } from "@/services/products";
 import { trackEvent } from "@/services/analytics";
@@ -15,6 +16,8 @@ const searchSchema = z.object({
   maxPrice: z.coerce.number().int().min(0).optional(), // öre
   stockStatus: z.nativeEnum(StockStatus).optional(),
   language: z.nativeEnum(CardLanguage).optional(),
+  // Kortspelet (`spel`-värdet, "one-piece"). Saknas ⇒ Pokémon (src/lib/game.ts).
+  game: z.string().max(20).optional().transform((v) => gameFromParam(v)),
   sort: z
     .enum([
       "price_asc",
