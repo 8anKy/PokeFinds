@@ -17,6 +17,7 @@ describe("One Piece sealed: vilka rader blir produkter", () => {
     expect(onePieceSealedCategory('70 "Nami" V.2 Sleeves')).toBeNull();
     expect(onePieceSealedCategory("Cardboard Deckbox (Trafalgar Law)")).toBeNull();
     expect(onePieceSealedCategory("Official Playmat - Luffy")).toBeNull();
+    expect(onePieceSealedCategory("Treasure Boosters Set Case")).toBeNull();
   });
 });
 

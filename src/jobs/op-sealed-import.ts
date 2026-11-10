@@ -23,14 +23,18 @@ import { prisma } from "@/lib/db";
 import { getRatesOre, priceOreFromEur } from "@/lib/exchange-rate";
 import { cardmarketOnePieceProductUrl } from "@/lib/marketplace-urls";
 import { normalizeTitle, slugify, utcToday } from "@/lib/utils";
+import { decodeEntities } from "@/lib/rss";
 import { guessListingCategory } from "@/scrapers/listing-category";
 
 const THROTTLE_MS = 220;
 const SET_EXTERNAL_PREFIX = "tcggo-op:";
 
 const OP_SEALED_CATEGORIES = new Set<string>(["BOOSTER_PACK", "BOOSTER_BOX", "COLLECTION_BOX", "TIN", "BUNDLE", "BLISTER"]);
-/** Grossist ("Booster Box Case (12x Booster Box)") — ⛔ `\bcase\b` med ordgräns; "Card Case" fälls av tillbehörsregeln. */
-const WHOLESALE_RE = /\bbox\s+case\b|\bcase\s*\(\d+x|\bdisplay\s+case\b/i;
+/**
+ * Grossist: "Booster Box Case (12x Booster Box)", "Treasure Boosters Set Case" (släpptes igenom av
+ * en smalare regel 2026-11-10). Varje "case" fälls — ett "Card Case" är tillbehör och fälls ändå.
+ */
+const WHOLESALE_RE = /\bcase\b/i;
 /** Tillbehör som leverantören blandar in i produktlistan sedan 2026-11 (sleeves, dice, coins …). */
 const ACCESSORY_RE =
   /\bsleeves?\b|\bplay\s?mat\b|\bplaymat\b|\bdeck\s*box\b|\bdeckbox\b|\bdeck\s*case\b|\bcard\s*case\b|\bbinder\b|\bportfolio\b|\balbum\b|\bdice\b|\bcoins?\b|\bpins?\b|\bstorage\b|\btoploader\b|\bdon!!\s*card\s*sleeve/i;
@@ -178,17 +182,18 @@ export async function runOnePieceSealedImport(
   res.listed = items.length;
   const offers = await prisma.offer.findMany({
     where: { retailerId: cm.id, url: { contains: "/OnePiece/" } },
-    select: { id: true, url: true, price: true, productId: true },
+    select: { id: true, url: true, price: true, productId: true, product: { select: { title: true } } },
   });
-  const offerByIdProduct = new Map<number, { id: string; price: number | null; productId: string }>();
+  const offerByIdProduct = new Map<number, { id: string; price: number | null; productId: string; title: string }>();
   for (const o of offers) {
     const m = o.url.match(/idProduct=(\d+)/);
-    if (m) offerByIdProduct.set(parseInt(m[1], 10), { id: o.id, price: o.price, productId: o.productId });
+    if (m) offerByIdProduct.set(parseInt(m[1], 10), { id: o.id, price: o.price, productId: o.productId, title: o.product.title });
   }
   const points: { productId: string; priceOre: number }[] = [];
 
   for (const it of items) {
-    const name = (it.name ?? "").trim();
+    // ⛔ Leverantören skickar HTML-kodade namn ("Ace &amp; Newgate", mätt 2026-11-10).
+    const name = decodeEntities(it.name ?? "").trim();
     if ((it.lang ?? "en") !== "en") { res.skippedFiltered++; continue; }
     const category = onePieceSealedCategory(name);
     if (!category) {
@@ -205,6 +210,13 @@ export async function runOnePieceSealedImport(
     const owned = offerByIdProduct.get(idProduct);
     if (owned) {
       if (priceOre != null && owned.productId) points.push({ productId: owned.productId, priceOre });
+      // Självläkning: produkter skapade med det okodade namnet får rätt titel (slugen står kvar).
+      if (apply && owned.productId && owned.title !== name && /&[a-z#0-9]+;/i.test(owned.title)) {
+        await prisma.product.update({
+          where: { id: owned.productId },
+          data: { title: name, normalizedTitle: normalizeTitle(name) },
+        });
+      }
       if (priceOre != null && priceOre !== owned.price) {
         res.priced++;
         if (apply)
@@ -219,7 +231,7 @@ export async function runOnePieceSealedImport(
     res.created++;
     if (priceOre != null) res.priced++;
     res.createdTitles.push(`${name} [${category}] #${idProduct}${priceOre != null ? ` ${(priceOre / 100).toFixed(0)} kr` : ""}`);
-    offerByIdProduct.set(idProduct, { id: "", price: priceOre, productId: "" });
+    offerByIdProduct.set(idProduct, { id: "", price: priceOre, productId: "", title: name });
     if (!apply) continue;
 
     let slug = slugify(`one piece ${name}`) || `one-piece-${idProduct}`;
