@@ -42,6 +42,14 @@ enum StockStatus {
   UNKNOWN
 }
 
+/// Vilket kortspel en produkt/ett set hör till (2026-11-10, One Piece steg 1). Allt som fanns
+/// före migrationen är Pokémon (default). ⛔ Varje Pokémon-jobb som itererar produkter/set
+/// MÅSTE filtrera `game: "POKEMON"` innan One Piece-rader får finnas.
+enum Game {
+  POKEMON
+  ONE_PIECE
+}
+
 enum CardLanguage {
   SV
   EN
@@ -481,6 +489,7 @@ model CardSet {
   /// hade den engelska importen svalt det japanska setet och tagit med sig dess
   /// produkter. Varje namnbaserat setuppslag MÅSTE därför filtrera på språk.
   language       CardLanguage @default(EN)
+  game           Game         @default(POKEMON)
   /// Cardmarkets `idExpansion` — identiteten för japanska set (de har inget
   /// pokemontcg.io-id att lägga i `externalId`, och ett gissat id vore värre än
   /// inget: se regeln om att aldrig sätta ett gissat externalId). Unik: en
@@ -641,6 +650,7 @@ model Product {
   description        String?
   releaseDate        DateTime?
   language           CardLanguage    @default(EN)
+  game               Game            @default(POKEMON)
   viewCount          Int             @default(0)
   clickCount         Int             @default(0)
   // "Bäst matchning": produktens KVALITETSpoäng × 1000 (heltal → DB-sorterbart utan
@@ -738,6 +748,7 @@ model Product {
   @@index([setId])
   @@index([lowestPriceOre])
   @@index([rankScore])
+  @@index([game])
 }
 
 model Retailer {

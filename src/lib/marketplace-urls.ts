@@ -172,6 +172,16 @@ export function cardmarketJapaneseSingleUrl(idProduct: number): string {
   return withNearMint(cardmarketJapaneseProductUrl(idProduct));
 }
 
+/**
+ * ONE PIECE (engelska) på Cardmarket: samma idProduct-form som Pokémon, spelets sökväg är
+ * `OnePiece`. Verifierat i riktig webbläsare 2026-11-10: `?idProduct=691244&language=1`
+ * omdirigerar till `/en/OnePiece/Products/Booster-Boxes/Romance-Dawn-Booster-Box?language=1`.
+ * Sealed ⇒ inget skickfilter.
+ */
+export function cardmarketOnePieceProductUrl(idProduct: number): string {
+  return `https://www.cardmarket.com/en/OnePiece/Products?idProduct=${idProduct}&language=1`;
+}
+
 export function cardmarketSearchUrl(term: string): string {
   return `https://www.cardmarket.com/en/Pokemon/Products/Search?searchString=${encodeURIComponent(term)}&site=1`;
 }
