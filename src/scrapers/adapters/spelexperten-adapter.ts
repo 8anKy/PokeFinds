@@ -24,6 +24,8 @@ const BASE_URL = "https://www.spelexperten.com";
 // Spelexperten Pokémon-kategori (verifierad 2026-06-11, ~32 produkter/sida, ?page=N)
 const CATEGORY_URLS = [
   "/sallskapsspel/pokemon/",
+  // One Piece (2026-11-10, länkad från butikens startsida). Matchningen fäller japanska.
+  "/sallskapsspel/spelserier/one-piece-card-game/",
 ];
 
 interface SpelexpertenRaw {
@@ -146,7 +148,7 @@ export class SpelexpertenAdapter implements SourceAdapter {
           for (const item of found) {
             const category = guessListingCategory(item.title);
             // Filtrera bort icke-Pokémon-produkter
-            if (!/pok[eé]mon/i.test(item.title) && !/tcg/i.test(item.title)) continue;
+            if (!/pok[eé]mon/i.test(item.title) && !/tcg/i.test(item.title) && !/one[\s-]?piece/i.test(item.title)) continue;
 
             products.push({
               externalId: `spelexperten-${Buffer.from(item.url).toString("base64url").slice(0, 40)}`,

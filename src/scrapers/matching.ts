@@ -6,7 +6,8 @@
 import { prisma } from "../lib/db";
 import { decodeTitle, normalizeTitle } from "../lib/utils";
 import { detectListingLanguage } from "../lib/listing-language";
-import type { CardLanguage } from "@prisma/client";
+import type { CardLanguage, Game } from "@prisma/client";
+import { isOnePieceListing, matchOnePieceListing, type OpCatalogSet } from "../lib/one-piece-listing";
 import { MARKETPLACE_MIN_PRICE_RATIO } from "../lib/listing-plausibility";
 import { listingFitsVariant, isPrintVariantLabel, printLabelInTitle, PRINT_UNLIMITED } from "../lib/print-variant";
 import { MAX_NAME_WORDS, POKEMON_NAMES } from "./pokemon-names";
@@ -2069,6 +2070,11 @@ export type MatchCandidate = {
    * Cardmarket-namn — se languageMismatch för vad det kostade.
    */
   language?: CardLanguage | null;
+  /** Kortspelet (2026-11-10). Saknas = Pokémon (äldre anropare som byggt egna index). */
+  game?: Game | null;
+  /** Produktens set + titel — One Piece-matchningen dömer på set och form (lib/one-piece-listing). */
+  setId?: string | null;
+  title?: string;
 };
 /** Hela katalogen i minnet — se matchProduct för VARFÖR. */
 export type MatchIndex = MatchCandidate[];
@@ -2139,16 +2145,44 @@ function indexSubsetHits(index: MatchIndex, normalized: string): MatchCandidate[
  *   som letar dubbletter AV gömda poster läser hela indexet (default).
  */
 export async function loadMatchIndex(opts?: { visibleOnly?: boolean }): Promise<MatchIndex> {
-  return prisma.product.findMany({
-    ...(opts?.visibleOnly ? { where: { hiddenAt: null } } : {}),
+  const index: MatchIndex = await prisma.product.findMany({
+    // ⛔ One Piece-produkter räknas som synliga för matchningen även när de är dolda (de skapas
+    //    dolda tills lanseringen 2026-11; butikernas offers ska ändå kopplas på i förväg). Inga
+    //    larm/inlägg går ut för dolda produkter (isHiddenFromAlerts, ruttexporten).
+    ...(opts?.visibleOnly ? { where: { OR: [{ hiddenAt: null }, { game: "ONE_PIECE" as const }] } } : {}),
     select: {
       id: true,
       normalizedTitle: true,
       variantLabel: true,
       language: true,
+      game: true,
+      setId: true,
+      title: true,
       card: { select: { name: true, number: true } },
     },
   });
+  OP_SETS.set(index, await loadOnePieceSets());
+  return index;
+}
+
+/** One Piece-seten per index (namn + kod) — matchningen dömer på setkoden. */
+const OP_SETS = new WeakMap<MatchIndex, OpCatalogSet[]>();
+
+/**
+ * Rå SQL med flit: `CardSet.code` kom i en senare migration, och nattjobbet får ALDRIG falla för
+ * att kolumnen saknas — utan den matchar One Piece på setets namn i stället för koden.
+ */
+async function loadOnePieceSets(): Promise<OpCatalogSet[]> {
+  try {
+    return await prisma.$queryRaw<OpCatalogSet[]>`SELECT id, name, code FROM "CardSet" WHERE game::text = 'ONE_PIECE'`;
+  } catch {
+    try {
+      const rows = await prisma.cardSet.findMany({ where: { game: "ONE_PIECE" }, select: { id: true, name: true } });
+      return rows.map((r) => ({ ...r, code: null }));
+    } catch {
+      return [];
+    }
+  }
 }
 
 /**
@@ -2202,6 +2236,17 @@ export function applySetAliases(normalized: string): string {
  *   städningen, som annars bara får tillbaka produkten själv på exakt-träffen.
  *   Import-vägen skickar den aldrig: där finns produkten ännu inte.
  */
+/** Indexet utan One Piece — cachat per index så filtreringen sker en gång per körning. */
+const POKEMON_ONLY = new WeakMap<MatchIndex, MatchIndex>();
+function pokemonOnlyIndex(index: MatchIndex): MatchIndex {
+  let only = POKEMON_ONLY.get(index);
+  if (!only) {
+    only = index.filter((p) => p.game !== "ONE_PIECE");
+    POKEMON_ONLY.set(index, only);
+  }
+  return only;
+}
+
 export async function matchProduct(
   normalizedTitle: string,
   index?: MatchIndex,
@@ -2212,6 +2257,20 @@ export async function matchProduct(
   if (!normalized) return null;
   // Avkoda entiteter men BEHÅLL parenteser/bindestreck — vakterna nedan bygger på dem.
   const raw = decodeTitle(rawTitle ?? normalizedTitle);
+
+  // ── KORTSPELET (2026-11-10) ───────────────────────────────────────────────────
+  // En One Piece-annons dömer ENBART av One Piece-matcharen (set + form, japanskt ⇒ inget),
+  // och en Pokémon-annons får aldrig landa på en One Piece-produkt. Utan index (DB-vägen,
+  // admin-verktyg) finns inga One Piece-set att döma mot ⇒ ingen träff.
+  if (isOnePieceListing(raw)) {
+    if (!index) return null;
+    const products = index
+      .filter((p) => p.game === "ONE_PIECE" && p.id !== excludeProductId)
+      .map((p) => ({ id: p.id, title: p.title ?? p.normalizedTitle, setId: p.setId ?? null }));
+    const id = matchOnePieceListing(raw, { sets: OP_SETS.get(index) ?? [], products });
+    return id ? { productId: id, confidence: 1 } : null;
+  }
+  if (index && index.some((p) => p.game === "ONE_PIECE")) index = pokemonOnlyIndex(index);
 
   // 1. Exakt träff på normaliserad titel
   const exact = index

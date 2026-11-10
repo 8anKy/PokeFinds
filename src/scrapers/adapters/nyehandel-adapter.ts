@@ -327,5 +327,6 @@ export abstract class NyehandelAdapter implements SourceAdapter {
 export class SweetNerdsAdapter extends NyehandelAdapter {
   name = "Sweet Nerds";
   baseUrl = "https://sweetnerds.se";
-  protected categoryPaths = ["/sv/categories/pokemon-tcg"];
+  // + engelska One Piece (2026-11-10); butikens /one-piece är föräldern med japanskt i.
+  protected categoryPaths = ["/sv/categories/pokemon-tcg", "/sv/categories/one-piece-eng"];
 }

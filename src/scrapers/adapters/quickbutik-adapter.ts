@@ -63,6 +63,11 @@ const NON_PRODUCT_CATEGORY =
 
 /** Vägen nämner Pokémon. `pok[eé]?mon` med flit — CardGame stavar det "pokmon". */
 const POKEMON_MARKER = /pok[eé]?mon/i;
+/**
+ * One Piece-kategorier (2026-11-10). ⛔ Japanska hoppas: katalogen är engelsk och matchningen
+ * fäller varje japansk annons ändå (lib/one-piece-listing).
+ */
+const ONE_PIECE_PATH = (path: string) => /one-?piece/i.test(path) && !/japan|japansk|\bjp\b/i.test(path);
 
 /**
  * Vägen nämner en SEALED-form. Behövs för butiker som inte skriver "pokemon" i
@@ -232,15 +237,18 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
       const segments = path.split("/").filter(Boolean).length;
       if (segments < 1 || segments > 2) continue;
       if (NON_SEALED_CATEGORY.test(path) || NON_PRODUCT_CATEGORY.test(path)) continue;
-      if (!POKEMON_MARKER.test(path) && !SEALED_MARKER.test(path)) continue;
+      if (!POKEMON_MARKER.test(path) && !SEALED_MARKER.test(path) && !ONE_PIECE_PATH(path)) continue;
       if (segments === 2 && !hasChild(path)) continue;
       cats.add(url);
     }
 
     // Pokémon-namngivna vägar först: taket ska gå till dem, inte till en generisk
     // "/sealed-produkter" som råkar stå tidigare i sitemap.
+    // One Piece direkt efter Pokémon, före de generiska sealed-vägarna — annars kunde taket
+    // äta dem hos en butik med många sealed-kategorier.
+    const rank = (u: string) => (POKEMON_MARKER.test(u) ? 2 : ONE_PIECE_PATH(u) ? 1 : 0);
     return Array.from(cats)
-      .sort((a, b) => Number(POKEMON_MARKER.test(b)) - Number(POKEMON_MARKER.test(a)))
+      .sort((a, b) => rank(b) - rank(a))
       .slice(0, MAX_CATEGORIES);
   }
 

@@ -34,6 +34,11 @@ import { nordiskCartUrl } from "@/lib/cart-url";
 import { guessListingCategory } from "../listing-category";
 
 const MAX_PAGES = 10; // ~597 pokemon-artiklar / 60 per sida → täcker hela kategorin
+/**
+ * Kategorierna som hämtas. + One Piece (2026-11-10, länkad från butikens startsida); matchningen
+ * dömer varorna mot One Piece-katalogen och fäller japanska.
+ */
+const CATEGORY_PATHS = ["/sv/pokemon", "/sv/hem-fritid/samlarkortsspel/one-piece"];
 const PAGE_DELAY_MS = 1000;
 
 function decodeEntities(s: string): string {
@@ -129,8 +134,8 @@ export class MaxGamingAdapter implements SourceAdapter {
     const errors: string[] = [];
     const seen = new Set<string>();
     try {
-      for (let page = 1; page <= MAX_PAGES; page++) {
-        const url = page === 1 ? `${this.baseUrl}/sv/pokemon` : `${this.baseUrl}/sv/pokemon?page=${page}`;
+      for (const categoryPath of CATEGORY_PATHS) for (let page = 1; page <= MAX_PAGES; page++) {
+        const url = page === 1 ? `${this.baseUrl}${categoryPath}` : `${this.baseUrl}${categoryPath}?page=${page}`;
         const res = await politeFetch(url, { delayMs: PAGE_DELAY_MS });
         if (!res.ok) {
           // ⛔ ÄVEN EN SIDA MITT I PAGINERINGEN ÄR ETT FEL. Rapporterades bara sida 1 förut,

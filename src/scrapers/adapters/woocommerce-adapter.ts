@@ -144,7 +144,10 @@ export abstract class WooCommerceAdapter implements SourceAdapter {
     return found
       .filter((c) => {
         const s = `${c.slug} ${c.name}`.toLowerCase();
-        return /pok[eé]mon/.test(s) && !/lego/.test(s) && !NON_SEALED_CATEGORY.test(s);
+        // One Piece (2026-11-10): engelska One Piece-kategorier hämtas också; japanska hoppas
+        // (katalogen är engelsk, matchningen fäller dem ändå).
+        const onePiece = /one[\s-]?piece/.test(s) && !/japan|japansk|\bjp\b/.test(s);
+        return (/pok[eé]mon/.test(s) || onePiece) && !/lego/.test(s) && !NON_SEALED_CATEGORY.test(s);
       })
       .filter((c) => c.count > 0)
       .sort((a, b) => b.count - a.count)

@@ -154,6 +154,7 @@ export async function runOnePieceSealedImport(
     ).map((s) => [s.externalId!, s.id])
   );
   const setIdByEpisode = new Map<number, string>();
+  let codeColumn = true;
   for (const e of episodes) {
     const ext = `${SET_EXTERNAL_PREFIX}${e.id}`;
     let setId = existingSets.get(ext);
@@ -175,6 +176,15 @@ export async function runOnePieceSealedImport(
       setId = created.id;
     }
     setIdByEpisode.set(e.id, setId);
+    // Setkoden ("OP-09", "EB05", "ST32") — butiksmatchningen dömer på den (lib/one-piece-listing).
+    // Rå SQL + try: kolumnen kom i migrationen 20261110180000; saknas den hoppas steget tyst.
+    if (apply && e.code && codeColumn) {
+      try {
+        await prisma.$executeRaw`UPDATE "CardSet" SET code = ${e.code} WHERE id = ${setId} AND code IS DISTINCT FROM ${e.code}`;
+      } catch {
+        codeColumn = false;
+      }
+    }
   }
 
   // ── 2. Produkter ────────────────────────────────────────────────────────────

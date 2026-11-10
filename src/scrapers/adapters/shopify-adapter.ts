@@ -65,8 +65,19 @@ function hasPokemonMarker(p: ShopifyProduct): boolean {
   return (
     /pok[eé]mon/i.test(p.title) ||
     /pok[eé]mon/i.test(p.product_type ?? "") ||
-    (p.tags ?? []).some((t) => /pok[eé]mon/i.test(t))
+    (p.tags ?? []).some((t) => /pok[eé]mon/i.test(t)) ||
+    // One Piece (2026-11-10): samma markörfilter släpper igenom spelets varor; matchningen
+    // dömer dem mot One Piece-katalogen (lib/one-piece-listing), aldrig mot Pokémon.
+    /one[\s-]?piece/i.test(p.title)
   );
+}
+
+/**
+ * One Piece-hyllor (2026-11-10). ⛔ Japanska hyllor hämtas inte: katalogen är engelsk och varje
+ * japansk annons fälls ändå av matchningen — att hämta dem vore bara fler förfrågningar per varv.
+ */
+function isOnePieceCollection(handleAndTitle: string): boolean {
+  return /one[\s-]?piece/.test(handleAndTitle) && !/japan|japansk|\bjp\b|\bjpn\b/.test(handleAndTitle);
 }
 
 /**
@@ -283,7 +294,7 @@ export abstract class ShopifyAdapter implements SourceAdapter {
     const matched = (data.collections ?? [])
       .filter((c) => {
         const s = `${c.handle} ${c.title}`.toLowerCase();
-        return /pok[eé]mon/.test(s) && !/lego/.test(s) && !NON_SEALED_COLLECTION.test(s);
+        return (/pok[eé]mon/.test(s) || isOnePieceCollection(s)) && !/lego/.test(s) && !NON_SEALED_COLLECTION.test(s);
       })
       .map((c) => c.handle)
       .filter((h) => !this.excludedCollections.includes(h));

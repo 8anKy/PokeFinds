@@ -490,6 +490,8 @@ model CardSet {
   /// produkter. Varje namnbaserat setuppslag MÅSTE därför filtrera på språk.
   language       CardLanguage @default(EN)
   game           Game         @default(POKEMON)
+  /// Utgivarens setkod ("OP-09", "EB-03", "ST32") — One Piece-matchningen (2026-11-10). Pokémon: null.
+  code           String?
   /// Cardmarkets `idExpansion` — identiteten för japanska set (de har inget
   /// pokemontcg.io-id att lägga i `externalId`, och ett gissat id vore värre än
   /// inget: se regeln om att aldrig sätta ett gissat externalId). Unik: en
