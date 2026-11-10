@@ -22,7 +22,7 @@ import type { ProductCategory } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getRatesOre, priceOreFromEur } from "@/lib/exchange-rate";
 import { cardmarketOnePieceProductUrl } from "@/lib/marketplace-urls";
-import { normalizeTitle, slugify } from "@/lib/utils";
+import { normalizeTitle, slugify, utcToday } from "@/lib/utils";
 import { guessListingCategory } from "@/scrapers/listing-category";
 
 const THROTTLE_MS = 220;
@@ -93,6 +93,8 @@ export interface OpSealedImportResult {
   listed: number;
   created: number;
   priced: number;
+  /** Dagens prispunkter (grafen byggs framåt, som för Pokémon). */
+  historyPoints: number;
   skippedNoId: number;
   skippedFiltered: number;
   createdTitles: string[];
@@ -124,7 +126,7 @@ export async function runOnePieceSealedImport(
   const hidden = opts.hidden ?? true;
   const log = opts.log ?? ((s: string) => console.log(s));
   const res: OpSealedImportResult = {
-    apiCalls: 0, episodes: 0, setsCreated: 0, listed: 0, created: 0, priced: 0, skippedNoId: 0, skippedFiltered: 0,
+    apiCalls: 0, episodes: 0, setsCreated: 0, listed: 0, created: 0, priced: 0, historyPoints: 0, skippedNoId: 0, skippedFiltered: 0,
     createdTitles: [], filteredSamples: [],
   };
   const HOST = process.env.CARDMARKET_RAPIDAPI_HOST || "cardmarket-api-tcg.p.rapidapi.com";
@@ -176,13 +178,14 @@ export async function runOnePieceSealedImport(
   res.listed = items.length;
   const offers = await prisma.offer.findMany({
     where: { retailerId: cm.id, url: { contains: "/OnePiece/" } },
-    select: { id: true, url: true, price: true },
+    select: { id: true, url: true, price: true, productId: true },
   });
-  const offerByIdProduct = new Map<number, { id: string; price: number | null }>();
+  const offerByIdProduct = new Map<number, { id: string; price: number | null; productId: string }>();
   for (const o of offers) {
     const m = o.url.match(/idProduct=(\d+)/);
-    if (m) offerByIdProduct.set(parseInt(m[1], 10), { id: o.id, price: o.price });
+    if (m) offerByIdProduct.set(parseInt(m[1], 10), { id: o.id, price: o.price, productId: o.productId });
   }
+  const points: { productId: string; priceOre: number }[] = [];
 
   for (const it of items) {
     const name = (it.name ?? "").trim();
@@ -201,6 +204,7 @@ export async function runOnePieceSealedImport(
 
     const owned = offerByIdProduct.get(idProduct);
     if (owned) {
+      if (priceOre != null && owned.productId) points.push({ productId: owned.productId, priceOre });
       if (priceOre != null && priceOre !== owned.price) {
         res.priced++;
         if (apply)
@@ -215,7 +219,7 @@ export async function runOnePieceSealedImport(
     res.created++;
     if (priceOre != null) res.priced++;
     res.createdTitles.push(`${name} [${category}] #${idProduct}${priceOre != null ? ` ${(priceOre / 100).toFixed(0)} kr` : ""}`);
-    offerByIdProduct.set(idProduct, { id: "", price: priceOre });
+    offerByIdProduct.set(idProduct, { id: "", price: priceOre, productId: "" });
     if (!apply) continue;
 
     let slug = slugify(`one piece ${name}`) || `one-piece-${idProduct}`;
@@ -235,6 +239,7 @@ export async function runOnePieceSealedImport(
       },
       select: { id: true },
     });
+    if (priceOre != null) points.push({ productId: product.id, priceOre });
     await prisma.offer.create({
       data: {
         productId: product.id,
@@ -247,6 +252,14 @@ export async function runOnePieceSealedImport(
         url: cardmarketOnePieceProductUrl(idProduct),
       },
     });
+  }
+
+  // Dagens prispunkt per prissatt produkt — samma upsert som Pokémon-sealed (en omkörning
+  // samma dag ersätter punkten). Dynamisk import: cardmarket-refresh importerar det här jobbet.
+  res.historyPoints = points.length;
+  if (apply && points.length > 0) {
+    const { upsertTodaySnapshots } = await import("@/jobs/cardmarket-refresh");
+    await upsertTodaySnapshots(points, utcToday());
   }
 
   log(

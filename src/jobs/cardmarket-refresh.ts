@@ -3251,6 +3251,20 @@ export async function runCardmarketRefresh(
     }
   }
 
+  // ONE PIECE (engelska) sealed (2026-11-10): katalog + CM-pris + dagens prispunkt ur
+  // leverantörens /one-piece-lista, ~28 anrop. Nya produkter skapas DOLDA tills lanseringen.
+  // ⛔ Före recomputeProductPriceCache nedan, så lägstapriset följer med samma natt.
+  if (opts.sealed !== false) {
+    try {
+      const { runOnePieceSealedImport } = await import("@/jobs/op-sealed-import");
+      const op = await runOnePieceSealedImport({ apply: true });
+      res.apiCalls += op.apiCalls;
+      res.historyPoints += op.historyPoints;
+    } catch (err) {
+      console.error("[cm-refresh] One Piece-importen misslyckades:", err instanceof Error ? err.message : err);
+    }
+  }
+
   // Japanska SINGLAR (2026-08-29): RapidAPI:s /pokemon-jp, ~280 anrop/dygn ur samma
   // kvot (1197 + 280 + hot-card 400 = ~1 880 av 3 000). Egen modul; ett fel här får
   // inte tysta resten av dagens priser.
