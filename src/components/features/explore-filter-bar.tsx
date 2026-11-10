@@ -902,7 +902,7 @@ export function SetSheet({
     const selected = picked.includes(s.id);
     const mine = owned?.[s.id]?.owned ?? 0;
     const dim = loggedIn === true && owned !== null && mine === 0 && !selected;
-    const logo = isRealSetLogo(s.logoUrl) ? s.logoUrl : null;
+    const logo = isRealSetLogo(s.logoUrl, s.game) ? s.logoUrl : null;
     const pct = s.total ? Math.min(100, (mine / s.total) * 100) : 0;
     return (
       <button

@@ -9,10 +9,13 @@
  *    japanska set ett kort (`dustox-lv-dp1-…-space-time-creation.webp`) — .webp/.jpg där.
  * Då ritas en namnbricka i stället (`SetNameTile`). Ren modul.
  */
-export function isRealSetLogo(url: string | null | undefined): boolean {
+export function isRealSetLogo(url: string | null | undefined, game?: string | null): boolean {
   if (!url) return false;
   if (url.startsWith("/set-logos/generated/")) return false;
   if (/cdn\.shopify\.com|pocketmonsters\.se/i.test(url)) return false;
+  // One Piece: leverantörens episodlogga ÄR loggan även som .webp (OP-17, 2026-11-11). Regeln nedan
+  // gäller Pokémon, där tcggo-bilder som inte var .png visade sig vara produktfoton.
+  if (game === "ONE_PIECE" && /images\.tcggo\.com/i.test(url)) return true;
   if (/images\.tcggo\.com/i.test(url) && !/\.png(\?|$)/i.test(url)) return false;
   return true;
 }

@@ -101,7 +101,7 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
       // One Piece grupperas på settyp ur koden (lib/set-era), inte på Pokémon-eror.
       era: setEra({ ...s, code: codeBySet.get(s.id) ?? null }),
       // Bara riktiga loggor — kort/produktfoton/ritade brickor ⇒ null ⇒ namnbricka (lib/set-logo.ts).
-      logoUrl: isRealSetLogo(s.logoUrl) ? s.logoUrl : null,
+      logoUrl: isRealSetLogo(s.logoUrl, s.game) ? s.logoUrl : null,
       releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,
       total,
       setValueOre: v?.v != null && v.priced > 0 ? Number(v.v) : null,
@@ -182,7 +182,7 @@ export const getSetSummary = cachedRead(
       prisma.cardSet.findUnique({
         where: { id: setId },
         select: {
-          id: true, slug: true, name: true, language: true, series: true, logoUrl: true, releaseDate: true,
+          id: true, slug: true, name: true, language: true, series: true, logoUrl: true, releaseDate: true, game: true,
           totalCards: true, totalCardsFull: true, _count: { select: { cards: true } },
         },
       }),
@@ -202,7 +202,7 @@ export const getSetSummary = cachedRead(
       language: s.language === "JP" ? "JP" : "EN",
       era: setEra(s),
       // Bara riktiga loggor — kort/produktfoton/ritade brickor ⇒ null ⇒ namnbricka (lib/set-logo.ts).
-      logoUrl: isRealSetLogo(s.logoUrl) ? s.logoUrl : null,
+      logoUrl: isRealSetLogo(s.logoUrl, s.game) ? s.logoUrl : null,
       releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,
       total,
       setValueOre: row?.v != null && row.priced > 0 ? Number(row.v) : null,
