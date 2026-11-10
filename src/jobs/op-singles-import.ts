@@ -155,6 +155,7 @@ export async function runOnePieceSinglesImport(
     select: {
       id: true,
       tcgExternalId: true,
+      cardmarketId: true,
       imageUrl: true,
       products: {
         where: { category: "SINGLE_CARD" },
@@ -204,6 +205,8 @@ export async function runOnePieceSinglesImport(
     if (existing) {
       const product = existing.products[0];
       if (!product) return; // kortet utan produkt läker inte här — skapas bara tillsammans
+      // ⛔ Kortet äger inte id:t (ett annat kort fick det) ⇒ ingen offer, aldrig det andra kortets pris.
+      if (existing.cardmarketId !== idProduct) return;
       if (priceOre != null) points.push({ productId: product.id, priceOre });
       if (!apply) return;
       if (image && existing.imageUrl !== image) {
@@ -228,6 +231,7 @@ export async function runOnePieceSinglesImport(
     if (res.samples.length < 12) res.samples.push(`${title} #${idProduct}${priceOre != null ? ` ${(priceOre / 100).toFixed(2)} kr${price?.live ? "" : " (uppsk.)"}` : " –"}`);
     if (!apply) return;
 
+    let borrowedId = false;
     const card = await prisma.card
       .create({
         data: {
@@ -236,9 +240,11 @@ export async function runOnePieceSinglesImport(
         },
         select: { id: true },
       })
-      .catch(async (e) => {
-        // cardmarketId @unique: ett annat kort bär redan id:t (leverantörsfel) ⇒ skapa utan.
-        console.warn(`[op-singles] ${title}: ${e instanceof Error ? e.message.split("\n")[0] : e} — skapar utan cardmarketId`);
+      .catch(async () => {
+        // cardmarketId @unique: ett annat kort bär redan id:t (leverantörsfel, 11 st 2026-11-10) ⇒
+        // skapa utan. ⛔ Då får kortet INGEN offer: länken och priset tillhör det andra kortet.
+        borrowedId = true;
+        console.warn(`[op-singles] ${title}: Cardmarket-id ${idProduct} tillhör redan ett annat kort — skapas utan pris`);
         return prisma.card.create({
           data: { setId, name, number, rarity: rarity ?? "", imageUrl: image, language: "EN", tcgExternalId: ext, tcggoId: c.id, artist: c.artist?.name ?? null },
           select: { id: true },
@@ -257,6 +263,7 @@ export async function runOnePieceSinglesImport(
       },
       select: { id: true },
     });
+    if (borrowedId) return;
     if (priceOre != null) points.push({ productId: product.id, priceOre });
     await prisma.offer.create({
       data: { productId: product.id, retailerId: cm.id, condition: "NEAR_MINT", language: "EN", price: priceOre, currency: "SEK", stockStatus, url },
