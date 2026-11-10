@@ -276,9 +276,13 @@ describe("classifyDiscordListing", () => {
   });
 
   it("blockerar andra TCG-franchiser", () => {
-    expect(ok("One Piece [OP-17]: The World's Strongest Warrior Booster Pack").reason).toBe(
-      "other-franchise"
-    );
+    expect(ok("Disney Lorcana: Archazia's Island Booster Pack").reason).toBe("other-franchise");
+  });
+
+  it("One Piece är inte längre en främmande franchise — egen kanal sedan 2026-11-10", () => {
+    const v = ok("One Piece [OP-17]: The World's Strongest Warrior Booster Pack");
+    expect(v.ok).toBe(true);
+    expect(v.game).toBe("ONE_PIECE");
   });
 
   it("blockerar butikens egen hopsättning", () => {
