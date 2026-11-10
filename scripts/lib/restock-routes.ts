@@ -72,6 +72,7 @@ const ROUTE_PRODUCT_SELECT = {
   title: true,
   slug: true,
   language: true,
+  game: true,
   imageUrl: true,
   settledValueOre: true,
   settledValueFromCm: true,
@@ -83,6 +84,7 @@ interface RouteProduct {
   title: string;
   slug: string;
   language: string | null;
+  game: string;
   imageUrl: string | null;
   settledValueOre: number | null;
   settledValueFromCm: boolean;
@@ -134,6 +136,8 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
       slug: product.slug,
       setName: product.set?.name ?? null,
       series: product.set?.series ?? null,
+      // Kortspelet styr kanalen: One Piece ⇒ One Piece-kanalen (resolveRestockChannelId).
+      ...(product.game === "ONE_PIECE" ? { game: "ONE_PIECE" } : {}),
       // Språket styr KANALVALET: JP-set bär samma latinska serienamn som de engelska
       // ("Mega Evolution"), så utan språket hade JP-boxar routats till EN-seriekanalen
       // (hände 2026-08-12: fyra japanska boxar i #mega-evolution).
@@ -179,6 +183,8 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
   // aldrig sett. Båda är TAXONOMI — några hundra rader, inga produkter — och
   // hämtas här, i det fönster där Neon ändå är vaken.
   const cardSets = await prisma.cardSet.findMany({
+    // ⛔ Bara Pokémon: setnamnen är "bevis för Pokémon" och styr Pokémon-kanalvalet.
+    where: { game: "POKEMON" },
     select: { id: true, name: true, series: true, language: true },
   });
   const setNames = cardSets.map((s) => s.name);

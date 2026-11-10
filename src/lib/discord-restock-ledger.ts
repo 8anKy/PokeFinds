@@ -53,14 +53,14 @@ export function embedKind(title: string | undefined): LedgerKind {
 export function publicRestockChannelIds(
   config: Pick<
     DiscordRestockConfig,
-    "setChannels" | "seriesChannels" | "languageChannels" | "defaultChannelId" | "priceChannelId" | "storeChannelId"
+    "setChannels" | "seriesChannels" | "languageChannels" | "defaultChannelId" | "priceChannelId" | "storeChannelId" | "onePieceChannelId"
   >
 ): string[] {
   const ids = new Set<string>();
   for (const m of [config.setChannels, config.seriesChannels, config.languageChannels]) {
     for (const id of Object.values(m)) if (id) ids.add(id);
   }
-  for (const id of [config.defaultChannelId, config.priceChannelId, config.storeChannelId]) if (id) ids.add(id);
+  for (const id of [config.defaultChannelId, config.priceChannelId, config.storeChannelId, config.onePieceChannelId]) if (id) ids.add(id);
   return [...ids];
 }
 

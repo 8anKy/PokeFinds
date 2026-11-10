@@ -87,6 +87,12 @@ export interface DiscordRestockConfig {
    */
   storeChannelId: string | null;
   /**
+   * ONE PIECE-KANALEN (2026-11-10, nyckeln "onepiece" i DISCORD_RESTOCK_CHANNELS). Varje One
+   * Piece-inlägg går hit utom butiksvaror (de går till butikskanalen som Pokémons). ⛔ Saknas
+   * den postas INGEN One Piece — aldrig i en Pokémon-kanal.
+   */
+  onePieceChannelId?: string | null;
+  /**
    * PRO-SPEGEL (ägarbeslut 2026-09-17): kanaler som bara Pro-rollen ser, där samma
    * inlägg postas EN GÅNG TILL men med LÄGG-I-KORGEN-länken (Offer.cartUrl) i stället
    * för butikens produktsida. Korgen är Pro-förmånen; de publika kanalerna får aldrig
@@ -139,6 +145,7 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     languages?: unknown;
     prices?: unknown;
     stores?: unknown;
+    onepiece?: unknown;
     pro?: unknown;
   };
   try {
@@ -167,6 +174,8 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     typeof parsed.prices === "string" && parsed.prices.trim() ? parsed.prices.trim() : null;
   const storeChannelId =
     typeof parsed.stores === "string" && parsed.stores.trim() ? parsed.stores.trim() : null;
+  const onePieceChannelId =
+    typeof parsed.onepiece === "string" && parsed.onepiece.trim() ? parsed.onepiece.trim() : null;
 
   if (!defaultChannelId && !Object.keys(setChannels).length && !Object.keys(seriesChannels).length) {
     return null;
@@ -196,6 +205,7 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     defaultChannelId,
     priceChannelId,
     storeChannelId,
+    onePieceChannelId,
     pro,
   };
 }
@@ -261,7 +271,7 @@ export function resolveChannelId(
  */
 export function resolveRestockChannelId(
   post: Pick<RestockPost, "setName" | "series" | "language" | "storeOnly" | "previousPriceOre"> &
-    Partial<Pick<RestockPost, "priceOre">>,
+    Partial<Pick<RestockPost, "priceOre" | "game">>,
   config: Pick<
     DiscordRestockConfig,
     | "setChannels"
@@ -270,9 +280,13 @@ export function resolveRestockChannelId(
     | "defaultChannelId"
     | "priceChannelId"
     | "storeChannelId"
+    | "onePieceChannelId"
   >
 ): string | null {
   if (post.storeOnly === true && config.storeChannelId) return config.storeChannelId;
+  // One Piece: egen kanal för allt utom butiksvaror. ⛔ Ingen kanal ⇒ inget inlägg (null),
+  // aldrig en Pokémon-kanal via set-/serie-/språk-/defaultreglerna nedan.
+  if (post.game === "ONE_PIECE") return config.onePieceChannelId ?? null;
   // Ett HÖJT pris rättar ett påfyllningsinlägg ⇒ samma kanal som det, inte priskanalen.
   const priceRise = post.previousPriceOre != null && post.priceOre != null && post.priceOre > post.previousPriceOre;
   if (post.previousPriceOre != null && !priceRise && config.priceChannelId) return config.priceChannelId;
@@ -319,6 +333,8 @@ export interface RestockPost {
    * etiketten som skiljer "beställ nu" från "åk dit".
    */
   storeOnly?: boolean;
+  /** "ONE_PIECE" ⇒ One Piece-kanalen (resolveRestockChannelId). Saknas/null = Pokémon. */
+  game?: "ONE_PIECE" | null;
   /**
    * Hur mycket som står i de fysiska butikerna (`StoreStock`). Visas bara på
    * butiksvaror — det är TALET som avgör om resan är värd att göra.
@@ -762,6 +778,7 @@ export async function postTestMessages(
     ...(config.storeChannelId
       ? [{ channelId: config.storeChannelId, rule: "butiksvaror (endast i fysisk butik)" }]
       : []),
+    ...(config.onePieceChannelId ? [{ channelId: config.onePieceChannelId, rule: "One Piece (engelska)" }] : []),
     ...(config.defaultChannelId
       ? [{ channelId: config.defaultChannelId, rule: "default (allt utan egen kanal)" }]
       : []),
@@ -881,6 +898,7 @@ export async function postRestocks(
     for (const p of posts) {
       if (p.previousPriceOre != null) continue; // prissänkningar: ingen korg att sälja
       if (p.storeOnly === true) continue; // butiksvara: det finns ingen korg att lägga i
+      if (p.game === "ONE_PIECE") continue; // Pro-kanalerna är Pokémon; One Piece har ingen Pro-spegel ännu
       if (!postedKeys.includes(p.key)) continue; // bara det som faktiskt gick ut publikt
       const channelId = resolveChannelId(p.setName, p.series, config.pro, p.language);
       if (!channelId) continue;

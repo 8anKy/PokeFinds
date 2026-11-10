@@ -179,6 +179,8 @@ export interface RouteEntry {
   slug: string;
   setName: string | null;
   series: string | null;
+  /** "ONE_PIECE" för One Piece-produkter (2026-11-10) ⇒ One Piece-kanalen. Saknas = Pokémon. */
+  game?: string | null;
   /**
    * Produktens språk ("EN"/"JP"). Saknas i äldre cachade ruttabeller → tolkas som EN.
    * Behövs för kanalvalet: JP-set bär samma latinska serienamn som EN-serierna.
@@ -998,19 +1000,21 @@ function buildPostBase(args: {
   item: FeedItemFull;
   sourceName: string;
   route: RouteEntry | undefined;
-  verdict: { title: string; language: "EN" | "JP" };
+  verdict: { title: string; language: "EN" | "JP"; game?: "ONE_PIECE" };
   knownSets: KnownSet[] | undefined;
   site: string;
   absoluteImage: (url: string | null | undefined) => string | null;
 }): Omit<RestockPost, "preorder" | "previousPriceOre"> {
   const { key, item, sourceName, route, verdict, knownSets, site, absoluteImage } = args;
   // Språket: katalogen vet bäst när den känner URL:en, annars annonsen själv.
+  // Kortspelet: rutten (katalogen) vinner, annars annonsens dom. One Piece gissar inget Pokémon-set.
+  const game = route?.game === "ONE_PIECE" || verdict.game === "ONE_PIECE" ? ("ONE_PIECE" as const) : null;
   const language = route?.language ?? verdict.language;
   // Set/serie: rutten först, annars ett känt setnamn ur butikens egen titel — utan
   // det hade varje URL utanför katalogen hamnat i catch-all och seriekanalerna
   // blivit tomma skal precis när lanen började se mer.
   const guessed =
-    route?.setName || !knownSets?.length ? null : matchKnownSet(item.title, knownSets, language);
+    route?.setName || !knownSets?.length || game ? null : matchKnownSet(item.title, knownSets, language);
 
   return {
     key,
@@ -1031,6 +1035,7 @@ function buildPostBase(args: {
     // Butikens egen bild först (den visar exakt varan), katalogbilden som reserv —
     // de flesta feedar bär ingen bild alls och embedden stod bildlös.
     imageUrl: item.imageUrl ?? absoluteImage(route?.imageUrl),
+    game,
     setName: route?.setName ?? guessed?.name ?? null,
     series: route?.series ?? guessed?.series ?? null,
     language,

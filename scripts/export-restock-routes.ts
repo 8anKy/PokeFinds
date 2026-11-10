@@ -31,7 +31,8 @@ const SET_NAMES_MONTHS = 18;
 async function exportSetNames(file: string) {
   const since = new Date(Date.now() - SET_NAMES_MONTHS * 30.5 * 864e5);
   const sets = await prisma.cardSet.findMany({
-    where: { OR: [{ releaseDate: { gte: since } }, { releaseDate: null }] },
+    // ⛔ Bara Pokémon: listan är "bevis för Pokémon" i Discord-vakten och butiksnyheternas filter.
+    where: { game: "POKEMON", OR: [{ releaseDate: { gte: since } }, { releaseDate: null }] },
     select: { name: true },
   });
   const names = [...new Set(sets.map((s) => s.name.trim()).filter(Boolean))].sort();

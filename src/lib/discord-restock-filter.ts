@@ -55,6 +55,7 @@ import {
   isSingleCardListing,
   isStoreBundleListing,
 } from "@/scrapers/matching";
+import { isAsianOnePieceListing, isOnePieceListing, opForm } from "@/lib/one-piece-listing";
 import { normalizeTitle } from "@/lib/utils";
 import type { RouteTable } from "@/lib/restock-feed-events";
 
@@ -94,6 +95,8 @@ export interface DiscordFilterResult {
   /** "EN" eller "JP" — enda två som passerar. Styr kanalvalet när setet är okänt. */
   language: "EN" | "JP";
   category: ListingCategory;
+  /** "ONE_PIECE" ⇒ One Piece-kanalen (2026-11-10). Saknas = Pokémon. */
+  game?: "ONE_PIECE";
 }
 
 /**
@@ -164,6 +167,21 @@ export function classifyDiscordListing(
   //     ägaren hade gömt den, och rutten räddade den ändå (Alphaspel, "Nytt lägre pris").
   //     ⛔ Inte "jumbo": "Jumbo Card Collection - Mew" är en kollektion MED boosters.
   if (isOversizedCardOnly(rawTitle)) return no("oversized-card");
+
+  // 2c. ONE PIECE (2026-11-10). Egen dom i stället för "annan franchise" (steg 6) och Pokémon-
+  //     evidensen (steg 9): engelsk utgåva, en riktig sealed-form (box, booster, sleeved,
+  //     startdäck, double pack, kollektion), inget tillbehör/merch/löskort. Samma formdom som
+  //     butiksmatchningen (lib/one-piece-listing). ⛔ Japansk One Piece postas inte — katalogen
+  //     och kanalen är engelska.
+  if (isOnePieceListing(rawTitle, item.url)) {
+    if (isAsianOnePieceListing(rawTitle)) return no("language");
+    const opf = opForm(rawTitle);
+    if (opf === "case" || opf === "other") return no("unknown-form");
+    if (isAccessoryListing(cleanTitle) || classifyForm(normalizeTitle(cleanTitle)) === "accessory") return no("accessory");
+    if (isMerchandiseListing(cleanTitle)) return no("merch");
+    if (isSingleCardListing(cleanTitle)) return no("single");
+    return { ok: true, ...base, language: "EN", game: "ONE_PIECE" };
+  }
 
   // 3. TILLBEHÖR. Uttrycklig ägarregel för kanalerna ("no accessories"), och samma
   //    vakt som håller dem ute ur katalogen. `classifyForm` fångar dessutom svenska
