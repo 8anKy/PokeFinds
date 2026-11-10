@@ -1,13 +1,26 @@
-import { PrismaClient } from "@prisma/client";
+/**
+ * Räknar om det denormaliserade lägstapriset (`Product.lowestPriceOre`) NU, utan att vänta på
+ * nattens cardmarket-refresh. Katalogen döljer produkter utan lägstapris — behövs när produkter
+ * skapats/avdolts efter nattens körning (One Piece-lanseringen 2026-11-10).
+ *
+ *   railway run npx tsx scripts/recompute-price-cache.ts
+ *
+ * Samma funktion som nattkedjan anropar; skriver bara lowestPriceOre, rör inga offers/larm.
+ */
+import { ensureDbAwake } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { recomputeProductPriceCache } from "../src/services/products";
-const prisma = new PrismaClient();
+
 async function main() {
-  console.time("recompute");
+  await ensureDbAwake();
+  const t = Date.now();
   await recomputeProductPriceCache();
-  console.timeEnd("recompute");
-  const withPrice = await prisma.product.count({ where: { lowestPriceOre: { not: null }, category: { notIn: ["ACCESSORY","GRADED_CARD","OTHER"] } } });
-  const hidden = await prisma.product.count({ where: { lowestPriceOre: null } });
-  console.log(`Synliga (med pris, ej dolda kat): ${withPrice}`);
-  console.log(`Dolda (utan pris): ${hidden}`);
+  console.log(`Lägstapriser omräknade på ${((Date.now() - t) / 1000).toFixed(1)} s.`);
 }
-main().finally(() => prisma.$disconnect());
+
+main()
+  .catch((e) => {
+    console.error(e instanceof Error ? e.message : e);
+    process.exitCode = 1;
+  })
+  .finally(() => exitJob());
