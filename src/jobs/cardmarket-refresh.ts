@@ -3252,7 +3252,7 @@ export async function runCardmarketRefresh(
   }
 
   // ONE PIECE (engelska) sealed (2026-11-10): katalog + CM-pris + dagens prispunkt ur
-  // leverantörens /one-piece-lista, ~28 anrop. Nya produkter skapas DOLDA tills lanseringen.
+  // leverantörens /one-piece-lista, ~28 anrop. Nya produkter är synliga sedan lanseringen 2026-11-10.
   // ⛔ Före recomputeProductPriceCache nedan, så lägstapriset följer med samma natt.
   if (opts.sealed !== false) {
     try {

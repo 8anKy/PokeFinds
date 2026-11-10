@@ -15,8 +15,8 @@
  *     30-dagarssnittet. Utan godkänt pris lämnas det gamla priset orört.
  *
  * ⛔ Tillbehör (sleeves, playmats, förvaring) och grossistenheter (Booster Box Case) skapas
- * aldrig — samma ägarbeslut som Pokémon. ⛔ `hidden` (default PÅ tills lanseringen): nya
- * produkter skapas med `hiddenAt` så de syns ingenstans förrän katalogens spelfilter finns.
+ * aldrig — samma ägarbeslut som Pokémon. `hidden` (default AV sedan lanseringen 2026-11-10;
+ * var PÅ medan katalogens spelfilter byggdes).
  */
 import type { ProductCategory } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -127,7 +127,8 @@ export async function runOnePieceSealedImport(
   opts: { apply?: boolean; hidden?: boolean; log?: (s: string) => void } = {}
 ): Promise<OpSealedImportResult> {
   const apply = opts.apply ?? false;
-  const hidden = opts.hidden ?? true;
+  // Lanserat 2026-11-10 (ägarbeslut): nya One Piece-produkter skapas SYNLIGA, som Pokémon.
+  const hidden = opts.hidden ?? false;
   const log = opts.log ?? ((s: string) => console.log(s));
   const res: OpSealedImportResult = {
     apiCalls: 0, episodes: 0, setsCreated: 0, listed: 0, created: 0, priced: 0, historyPoints: 0, skippedNoId: 0, skippedFiltered: 0,
