@@ -17,6 +17,7 @@ import type {
   SourceAdapter,
 } from "../types";
 import { guessListingCategory } from "../listing-category";
+import { nordiskCartUrl } from "../../lib/cart-url";
 
 const BASE_URL = "https://www.spelexperten.com";
 
@@ -32,6 +33,8 @@ interface SpelexpertenRaw {
   url: string;
   inStock: boolean;
   imageUrl?: string;
+  /** Nordisk e-handels artikelnummer (`data-artnr`, t.ex. "ULT16735") — korglänkens nyckel. */
+  artnr?: string;
 }
 
 function isSpelexpertenRaw(raw: unknown): raw is SpelexpertenRaw {
@@ -57,7 +60,7 @@ function parseSekPrice(text: string): number | null {
  *  - priset ligger i <span class="PT_PrisNormal ...">749 kr</span>
  *  - köpknappen (class="buy-button") finns bara för köpbara produkter
  */
-function extractProducts(html: string, _pageUrl: string): SpelexpertenRaw[] {
+export function extractProducts(html: string, _pageUrl: string): SpelexpertenRaw[] {
   const products: SpelexpertenRaw[] = [];
 
   // Splitta på produktbeskrivnings-blocket — varje produkt har exakt ett PT_Beskr
@@ -89,6 +92,11 @@ function extractProducts(html: string, _pageUrl: string): SpelexpertenRaw[] {
     const lastImg = imgMatches?.[imgMatches.length - 1]?.match(/"(\/[^"?]+)/)?.[1];
     const imageUrl = lastImg ? `${BASE_URL}${lastImg}` : undefined;
 
+    // Artikelnummer: `data-artnr` på köpknappen, ~400 tecken efter PT_Beskr. Blocket slutar vid
+    // NÄSTA produkts PT_Beskr, så träffen kan inte vara grannens. Saknas det (kort utan
+    // köpknapp) blir det ingen korglänk — larmet leder då till produktsidan som förut.
+    const artnr = block.match(/data-artnr="([A-Za-z0-9._-]+)"/)?.[1];
+
     products.push({
       title,
       priceText: priceMatch[0],
@@ -96,6 +104,7 @@ function extractProducts(html: string, _pageUrl: string): SpelexpertenRaw[] {
       url: `${BASE_URL}${url}`,
       inStock,
       imageUrl,
+      artnr,
     });
   }
 
@@ -147,6 +156,10 @@ export class SpelexpertenAdapter implements SourceAdapter {
               currency: "SEK",
               stockStatus: item.inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
               imageUrl: item.imageUrl,
+              // Korgen tar bara POST (Nordisk e-handel, samma formulär som MaxGaming) ⇒ länken
+              // går via vår brygga /api/go/korg. Probat 2026-11-10: POST funk=laggtill med
+              // artnr+altnr gav "Du har nu lagt i din varukorg" och raden i cart-XML:en.
+              cartUrl: nordiskCartUrl(BASE_URL, item.artnr),
               category,
               raw: item,
             });
