@@ -400,7 +400,9 @@ export function ExploreFilterBar({
   const chips = (
     <div className="-mx-2.5 flex items-center border-b border-surface-overlay px-2.5">
       <div
-        className="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        // gap 10 px (var 16): spelchipet + Språk + Set ska rymmas på en 388 px-telefon utan
+        // svep (mätt 2026-11-10: 390 px innehåll mot 368 px yta vid 16 px). Samma tal som rutnätets gap.
+        className="flex min-w-0 flex-1 items-center gap-2.5 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ touchAction: "pan-x pan-y" }}
       >
         {tabItems.map((tab) => (
