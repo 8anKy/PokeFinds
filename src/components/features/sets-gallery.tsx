@@ -139,12 +139,18 @@ function Tile({
   );
 }
 
+/** Flikens set: One Piece-fliken = One Piece, språkflikarna = Pokémon på det språket. */
+function inTab(s: SetTile, tab: "EN" | "JP" | "OP"): boolean {
+  return tab === "OP" ? s.game === "ONE_PIECE" : s.game !== "ONE_PIECE" && s.language === tab;
+}
+
 export function SetsGallery({ sets }: { sets: SetTile[] }) {
   const t = useTranslations("Sets");
   const locale = useLocale();
   const router = useRouter();
   const { loggedIn, owned } = useOwnedSets();
-  const [tab, setTab] = useState<"EN" | "JP">("EN");
+  // "OP" = One Piece (2026-11-10). EN/JP är Pokémons språkflikar som förut.
+  const [tab, setTab] = useState<"EN" | "JP" | "OP">("EN");
   const [q, setQ] = useState("");
   const [onlyMine, setOnlyMine] = useState(false);
   const [activeEra, setActiveEra] = useState<string | null>(null);
@@ -152,13 +158,14 @@ export function SetsGallery({ sets }: { sets: SetTile[] }) {
 
   useEffect(() => {
     try {
-      if (window.localStorage.getItem(TAB_KEY) === "JP") setTab("JP");
+      const saved = window.localStorage.getItem(TAB_KEY);
+      if (saved === "JP" || saved === "OP") setTab(saved);
     } catch {
       /* privat läge */
     }
   }, []);
 
-  function pickTab(next: "EN" | "JP") {
+  function pickTab(next: "EN" | "JP" | "OP") {
     setTab(next);
     try {
       window.localStorage.setItem(TAB_KEY, next);
@@ -168,7 +175,11 @@ export function SetsGallery({ sets }: { sets: SetTile[] }) {
   }
 
   const counts = useMemo(
-    () => ({ EN: sets.filter((s) => s.language === "EN").length, JP: sets.filter((s) => s.language === "JP").length }),
+    () => ({
+      EN: sets.filter((s) => s.game !== "ONE_PIECE" && s.language === "EN").length,
+      JP: sets.filter((s) => s.game !== "ONE_PIECE" && s.language === "JP").length,
+      OP: sets.filter((s) => s.game === "ONE_PIECE").length,
+    }),
     [sets]
   );
 
@@ -176,7 +187,7 @@ export function SetsGallery({ sets }: { sets: SetTile[] }) {
     const needle = q.trim().toLowerCase();
     const shown = sets.filter(
       (s) =>
-        s.language === tab &&
+        inTab(s, tab) &&
         (!needle || s.name.toLowerCase().includes(needle)) &&
         (!onlyMine || (owned?.[s.id]?.owned ?? 0) > 0)
     );
@@ -205,21 +216,22 @@ export function SetsGallery({ sets }: { sets: SetTile[] }) {
   function open(e: MouseEvent<HTMLAnchorElement>, s: SetTile) {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
-    router.push(`/produkter?set=${encodeURIComponent(s.id)}`);
+    // One Piece-set ⇒ katalogen i One Piece-läget, annars filtrerar Pokémon-defaulten bort setet.
+    router.push(`/produkter?set=${encodeURIComponent(s.id)}${s.game === "ONE_PIECE" ? "&spel=one-piece" : ""}`);
   }
 
   function jump(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  const startedTotal = owned ? sets.filter((s) => s.language === tab && (owned[s.id]?.owned ?? 0) > 0).length : 0;
+  const startedTotal = owned ? sets.filter((s) => inTab(s, tab) && (owned[s.id]?.owned ?? 0) > 0).length : 0;
 
   return (
     <div className="mt-6">
       {/* Kontrollrad: språkflikar · sök · bara mina */}
       <div className="flex flex-col gap-3 border-b border-surface-border pb-3 sm:flex-row sm:items-center sm:justify-between">
         <div role="tablist" className="flex gap-5">
-          {(["EN", "JP"] as const).map((l) =>
+          {(["EN", "JP", "OP"] as const).map((l) =>
             counts[l] === 0 ? null : (
               <button
                 key={l}
@@ -231,7 +243,7 @@ export function SetsGallery({ sets }: { sets: SetTile[] }) {
                   tab === l ? "text-ink" : "text-ink-muted hover:text-ink"
                 )}
               >
-                {l === "EN" ? t("tabEn") : t("tabJp")}
+                {l === "EN" ? t("tabEn") : l === "JP" ? t("tabJp") : t("tabOnePiece")}
                 <span className="ml-1.5 text-xs font-normal text-ink-faint">{counts[l]}</span>
                 <span
                   aria-hidden

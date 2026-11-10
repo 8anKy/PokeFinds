@@ -38,6 +38,8 @@ export interface SetTile {
   slug: string | null;
   name: string;
   language: "EN" | "JP";
+  /** Kortspelet (2026-11-10): One Piece-set får en egen flik i galleriet. */
+  game: "POKEMON" | "ONE_PIECE";
   era: Era;
   logoUrl: string | null;
   /** ISO-datum eller null. */
@@ -62,6 +64,7 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
         slug: true,
         name: true,
         language: true,
+        game: true,
         series: true,
         externalId: true,
         logoUrl: true,
@@ -93,6 +96,7 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
       slug: s.slug,
       name: s.name,
       language: s.language === "JP" ? "JP" : "EN",
+      game: s.game === "ONE_PIECE" ? "ONE_PIECE" : "POKEMON",
       era: setEra(s),
       // Bara riktiga loggor — kort/produktfoton/ritade brickor ⇒ null ⇒ namnbricka (lib/set-logo.ts).
       logoUrl: isRealSetLogo(s.logoUrl) ? s.logoUrl : null,
