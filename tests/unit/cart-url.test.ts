@@ -32,18 +32,18 @@ describe("cart-url — lägg-i-korgen-länkar (ägarbeslut 2026-09-17)", () => {
     expect(quickbutikCartUrl("https://mysteryshack.se", "12a")).toBeNull();
   });
 
-  it("Nordisk e-handel: korgen tar bara POST ⇒ länken går via bryggan /api/go/korg", () => {
+  it("Nordisk e-handel: direkt GET-länk till butikens korg, altnr = artnr", () => {
     expect(nordiskCartUrl("https://www.maxgaming.se", "41363")).toBe(
-      "https://scoutr.se/api/go/korg?shop=www.maxgaming.se&artnr=41363"
+      "https://www.maxgaming.se/shop?funk=laggtill&artnr=41363&altnr=41363&antal=1"
     );
     expect(nordiskCartUrl("https://www.spelexperten.com", "HABG7161681")).toBe(
-      "https://scoutr.se/api/go/korg?shop=www.spelexperten.com&artnr=HABG7161681"
+      "https://www.spelexperten.com/shop?funk=laggtill&artnr=HABG7161681&altnr=HABG7161681&antal=1"
     );
-    // ⛔ .env:s http://localhost:3000 får ALDRIG in i prod-databasen (hände 2026-09-18) — bara https räknas
-    expect(nordiskCartUrl("https://www.maxgaming.se", "1")).toMatch(/^https:\/\//);
+    // ⛔ alltid https mot butiken, även om baseUrl är http
+    expect(nordiskCartUrl("http://www.maxgaming.se", "1")).toMatch(/^https:\/\/www\.maxgaming\.se\//);
     expect(nordiskCartUrl("https://www.maxgaming.se", undefined)).toBeNull();
     expect(nordiskCartUrl("https://www.maxgaming.se", "41363 or 1=1")).toBeNull();
-    // ⛔ allowlist — en butik som inte är Nordisk e-handel får aldrig en bryggelänk
+    // ⛔ allowlist — en butik som inte är Nordisk e-handel får aldrig en sådan länk
     expect(nordiskCartUrl("https://goblinen.com", "41363")).toBeNull();
     expect(nordiskCartUrl("not a url", "41363")).toBeNull();
   });

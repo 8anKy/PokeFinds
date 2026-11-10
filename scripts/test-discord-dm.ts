@@ -5,6 +5,7 @@
  *
  *   railway run npx tsx scripts/test-discord-dm.ts --user <e-post|discord-namn>   (rapport)
  *   railway run npx tsx scripts/test-discord-dm.ts --user <e-post> --apply   (skickar)
+ *   … --retailer Spelexperten   (testet byggs ur en viss butiks offer)
  *
  * `railway run` = bot-token + prod-DB ur tjänstens variabler (aldrig i kommandoraden).
  */
@@ -41,7 +42,13 @@ async function main() {
   if (!user.discordUserId) throw new Error("Kontot har inget kopplat Discord-konto.");
 
   const offer = await prisma.offer.findFirst({
-    where: { stockStatus: StockStatus.IN_STOCK, cartUrl: { not: null }, price: { gt: 0 }, product: { hiddenAt: null } },
+    where: {
+      stockStatus: StockStatus.IN_STOCK,
+      cartUrl: { not: null },
+      price: { gt: 0 },
+      product: { hiddenAt: null },
+      ...(arg("retailer") ? { retailer: { name: arg("retailer") } } : {}),
+    },
     orderBy: { lastSeenAt: "desc" },
     select: {
       url: true,

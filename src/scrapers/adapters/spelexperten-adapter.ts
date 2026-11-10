@@ -156,9 +156,8 @@ export class SpelexpertenAdapter implements SourceAdapter {
               currency: "SEK",
               stockStatus: item.inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
               imageUrl: item.imageUrl,
-              // Korgen tar bara POST (Nordisk e-handel, samma formulär som MaxGaming) ⇒ länken
-              // går via vår brygga /api/go/korg. Probat 2026-11-10: POST funk=laggtill med
-              // artnr+altnr gav "Du har nu lagt i din varukorg" och raden i cart-XML:en.
+              // Nordisk e-handel (som MaxGaming): direkt GET-länk till korgen, se cart-url.ts.
+              // Probat 2026-11-10: varan hamnade i cart-XML:en.
               cartUrl: nordiskCartUrl(BASE_URL, item.artnr),
               category,
               raw: item,

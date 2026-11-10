@@ -23,17 +23,17 @@
  *                `data-pid` i kategoriblocket = `qs-cart-pid` på produktsidan. En produkt
  *                MED alternativ (Packs on Packs "Öppna live / Skicka sealed") studsar
  *                tillbaka till produktsidan med tom korg — dvs vår vanliga fallback, ofarligt.
- *   Nordisk e-handel (MaxGaming, Spelexperten — `AIR_ibutik`): korgen tar BARA POST
- *                (`/shop`, funk=laggtill + artnr + altnr + antal; ingen CSRF-token — probat
- *                2026-09-18 mot bådas cart-XML, GET gör ingenting). En länk kan inte POST:a,
- *                så `cartUrl` pekar på VÅR brygga `/api/go/korg?shop=<host>&artnr=<nr>`,
- *                som renderar ett självskickande formulär (`nordiskCartForm`). Öppnas som
- *                extern länk (systemwebbläsaren) — i WebView:en hade Capacitor tappat
- *                POST-kroppen. ⚠️ Butikens sessionskaka saknar SameSite ⇒ Chrome skickar
- *                inte en BEFINTLIG session på cross-site-POST (Lax+POST-undantaget gäller
- *                bara kakor < 2 min): butiken startar ny session, varan hamnar i korgen,
- *                men det användaren redan hade i MaxGamings korg är borta. Safari/iOS
- *                skickar kakan. Ägaren informerad 2026-09-18.
+ *   Nordisk e-handel (MaxGaming, Spelexperten — `AIR_ibutik`): `/shop?funk=laggtill&artnr=X
+ *                &altnr=X&antal=1` som vanlig GET-länk → butikens "Du har nu lagt i din
+ *                varukorg"-sida med "Till kassan". ⛔ `altnr` KRÄVS — utan det gör butiken
+ *                ingenting (därför trodde probet 2026-09-18 att bara POST fungerade, och
+ *                länken gick via vår POST-brygga /api/go/korg). Omprobat 2026-11-10 mot bådas
+ *                cart-XML: GET lägger varan i korgen. Direktlänken är snabbare (ingen omväg
+ *                via oss) och, som toppnivå-GET, skickar den butikens BEFINTLIGA sessionskaka
+ *                (Lax) ⇒ korgen användaren redan hade behålls i Chrome — bryggans POST
+ *                tappade den. ⛔ Ingen parameter skickar vidare till kassan: butiken visar
+ *                alltid bekräftelsesidan (probat 2026-11-10: nastasteg/funk2/retur gör inget).
+ *                Bryggan (`nordiskCartForm` + rutten) står KVAR för länkar som redan skickats.
  *   Alla andra   ingen länk — POST med äkta CSRF (Alphaspel), JS-korg (Webhallen),
  *                butiksvara (SF-Bok). Pushen faller då tillbaka på produktsidan.
  *
@@ -68,7 +68,7 @@ export function quickbutikCartUrl(baseUrl: string, productId: number | string): 
 }
 
 /**
- * Nordisk e-handel-butiker som bryggan får POST:a till. ⛔ Allowlist, aldrig fri host —
+ * Nordisk e-handel-butiker som får korglänkar (direktlänken och den gamla bryggan). ⛔ Allowlist, aldrig fri host —
  * annars är `/api/go/korg` en öppen omdirigerare/formulärkanon mot vilken sajt som helst.
  * Nyckel = värdnamnet exakt som butikens `baseUrl` bär det; värde = namnet i bryggans copy.
  */
@@ -81,19 +81,8 @@ export const NORDISK_CART_SHOPS: Readonly<Record<string, string>> = {
 const NORDISK_ARTNR = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 
 /**
- * Bryggans bas. ⛔ BARA en https-adress duger: länken skrivs i Offer.cartUrl i PROD-databasen
- * och hamnar i pushar/Discord — en lokal körning med `.env`:s `http://localhost:3000` skrev
- * 112 MaxGaming-offers med localhost-länkar 2026-09-18 (backfill mot prod). Allt annat än
- * https ⇒ apex. `||`, inte `??`: tom sträng är felläget (samma regel som canonical.ts).
- */
-const APP_URL = (() => {
-  const v = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
-  return /^https:\/\//.test(v) ? v : "https://scoutr.se";
-})();
-
-/**
- * Nordisk e-handel: länk till VÅR brygga, som POST:ar varan i butikens korg. `null` när
- * butiken inte står i allowlisten eller artikelnumret inte ser ut som ett.
+ * Nordisk e-handel: direkt GET-länk som lägger varan i butikens korg. `null` när butiken
+ * inte står i allowlisten eller artikelnumret inte ser ut som ett.
  */
 export function nordiskCartUrl(baseUrl: string, artnr: string | null | undefined): string | null {
   const nr = (artnr ?? "").trim();
@@ -104,7 +93,8 @@ export function nordiskCartUrl(baseUrl: string, artnr: string | null | undefined
     return null;
   }
   if (!(host in NORDISK_CART_SHOPS) || !NORDISK_ARTNR.test(nr)) return null;
-  return `${APP_URL}/api/go/korg?shop=${encodeURIComponent(host)}&artnr=${encodeURIComponent(nr)}`;
+  const a = encodeURIComponent(nr);
+  return `https://${host}/shop?funk=laggtill&artnr=${a}&altnr=${a}&antal=1`;
 }
 
 /**

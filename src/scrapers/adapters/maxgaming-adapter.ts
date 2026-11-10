@@ -155,8 +155,8 @@ export class MaxGamingAdapter implements SourceAdapter {
             price: item.priceOre,
             currency: "SEK",
             stockStatus: STATUS_BY_STOCK[item.stock ?? (item.inStock ? "in" : "out")],
-            // Korgen tar bara POST hos Nordisk e-handel ⇒ länken går via vår brygga
-            // (/api/go/korg). Samma `artnr` som externalId; saknas det finns ingen länk.
+            // Direkt GET-länk till korgen (Nordisk e-handel, se cart-url.ts). Samma `artnr`
+            // som externalId; saknas det finns ingen länk.
             cartUrl: nordiskCartUrl(this.baseUrl, item.artnr),
             category: guessListingCategory(item.title),
             raw: item,
