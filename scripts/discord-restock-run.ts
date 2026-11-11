@@ -773,7 +773,7 @@ async function main() {
     //    kallar en nivålåst vara (Delta Reign, nivå 26) för förhandsbokning. Kunde live-
     //    svaret inte hämtas postar vi inte på gissningen — raden hoppas ett varv, och
     //    frånvarominnet gör att en ÄKTA förhandsbokning ändå postas när svaret kommer.
-    const fetchedItems: FeedItem[] = await fetchSourceFeed(source);
+    const fetchedItems: FeedItem[] = await fetchSourceFeed(source, { dropPartial: true });
     // ⛔ FÖR SENT ATT DIFFA: nästa jobb tar över vid `deadline` och ser samma övergång mot
     //    sitt eget state. Diffade vi här hade båda kunnat posta den — och state:t vi sparar
     //    hade dessutom svalt övergången för ett jobb som startar kallt.

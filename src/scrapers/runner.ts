@@ -939,7 +939,10 @@ export function offersToVerify<
  * den LÅNGSAMMASTE butiken svarat — mätt samma dag: svepet tog 36 s, så en butik som
  * svarade på 4 s fick ändå ~32 s ren väntan påklistrad innan diffen ens beräknades.
  */
-export async function fetchSourceFeed(source: RestockSourceInfo): Promise<FeedItem[]> {
+export async function fetchSourceFeed(
+  source: RestockSourceInfo,
+  opts: { dropPartial?: boolean } = {}
+): Promise<FeedItem[]> {
   try {
     const adapter = getAdapter(source.type, source.name);
     const result = await adapter.fetchProducts();
@@ -956,6 +959,12 @@ export async function fetchSourceFeed(source: RestockSourceInfo): Promise<FeedIt
           `(feeden kan vara AVKLIPPT — ${result.products.length} annonser kom med): ` +
           result.errors.slice(0, 5).join(" · ")
       );
+      // ⛔ AVKLIPPT FEED = INGEN INFORMATION FÖR DISCORD-LANEN (2026-11-11): Sweet Nerds svarade
+      //    429 på One Piece-kategorin men inte på de andra — lanen såg tre startdäck "försvinna",
+      //    glömde dem och postade dem som nya när kategorin kom tillbaka, tre gånger på en natt.
+      //    Lanen ber därför om tom lista (= förra lagerläget behålls). DB-vägarna behåller den
+      //    avklippta listan med flit: auto-importen ska få det som faktiskt kom med.
+      if (opts.dropPartial) return [];
     }
     return result.products
       .filter((p) => adapter.validateResult(p))
