@@ -41,3 +41,19 @@ export function gameParam(game: Game): string | null {
 export function gameHasLanguageChoice(game: Game): boolean {
   return game === "POKEMON";
 }
+
+/** Enhetens senast valda kortspel i katalogen (localStorage). Bara ett val — ingen användardata. */
+export const GAME_STORAGE_KEY = "foilio:catalog-game:v1";
+
+/**
+ * Spara valet. ⛔ VARJE spelväljare måste anropa den (2026-11-11): desktopens knappar bytte bara
+ * URL:en, så "Pokémon" gav en bar /produkter och minnet skickade tillbaka till One Piece.
+ */
+export function rememberGame(game: Game): void {
+  try {
+    if (game === DEFAULT_GAME) localStorage.removeItem(GAME_STORAGE_KEY);
+    else localStorage.setItem(GAME_STORAGE_KEY, gameParam(game) ?? "");
+  } catch {
+    /* privat läge / full lagring — valet gäller ändå för den här sidan */
+  }
+}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { GAMES, GAME_LABEL, GAME_LOGO, gameFromParam, gameHasLanguageChoice, gameParam } from "@/lib/game";
+import { GAMES, GAME_LABEL, GAME_LOGO, gameFromParam, rememberGame, gameHasLanguageChoice, gameParam } from "@/lib/game";
 import { cn } from "@/lib/utils";
 import { isSealedCategory } from "@/lib/product-category";
 import { Button } from "@/components/ui/button";
@@ -361,7 +361,10 @@ export function ExploreFilterPanel({
                   type="button"
                   aria-pressed={active}
                   // Set och språk hör till det förra spelet och nollställs (samma regel som mobilens ark).
-                  onClick={() => apply({ spel: gameParam(g) || null, set: null, sprak: null })}
+                  onClick={() => {
+                    rememberGame(g);
+                    apply({ spel: gameParam(g) || null, set: null, sprak: null });
+                  }}
                   className={cn(
                     "grid h-11 place-items-center rounded-lg border px-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-holo-cyan",
                     active ? "border-holo-cyan bg-holo-cyan/10" : "border-surface-border opacity-60 hover:opacity-100"

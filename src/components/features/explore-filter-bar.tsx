@@ -17,7 +17,7 @@ import { eraRank, setEra, type Era } from "@/lib/set-era";
 import { useOwnedSets } from "@/lib/owned-sets";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import type { Game } from "@prisma/client";
-import { DEFAULT_GAME, GAMES, GAME_LABEL, GAME_LOGO, gameFromParam, gameHasLanguageChoice, gameParam } from "@/lib/game";
+import { DEFAULT_GAME, GAMES, GAME_LABEL, GAME_LOGO, gameFromParam, gameHasLanguageChoice, gameParam, GAME_STORAGE_KEY, rememberGame } from "@/lib/game";
 import { IconCards, IconCheck, IconChevronDown, IconChevronRight, IconFilter, IconSearch, IconX } from "@/components/ui/icons";
 
 export interface FilterSet {
@@ -96,9 +96,6 @@ const PRICE_SHORTCUTS: [number, MaxKr][] = [
 ];
 
 type SheetKind = "sort" | "set" | "price" | "more" | "lang" | "game";
-
-/** Enhetens senast valda kortspel (localStorage). Bara ett val — ingen användardata. */
-const GAME_STORAGE_KEY = "foilio:catalog-game:v1";
 
 /** Urval som ska räknas — URL-statet med de val man håller på att göra inbakade. */
 type PendingSelection = ExploreSearchParams & CountSelection;
@@ -276,12 +273,7 @@ export function ExploreFilterBar({
    */
   function chooseGame(next: Game) {
     setSheet(null);
-    try {
-      if (next === DEFAULT_GAME) localStorage.removeItem(GAME_STORAGE_KEY);
-      else localStorage.setItem(GAME_STORAGE_KEY, gameParam(next) ?? "");
-    } catch {
-      /* privat läge / full lagring — valet gäller ändå för den här sidan */
-    }
+    rememberGame(next);
     if (next === game) return;
     setLocalSets([]);
     setLocalLang(null);
