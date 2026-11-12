@@ -375,6 +375,8 @@ jobs:
       # däremellan läses sida 1 + sidorna med det lanen nyss postat, var ~12:e sekund.
       # ⛔ Sätts BARA här — nattkedjan kör en hämtning per process och läser alltid allt.
       MAXGAMING_HOT_FULL_EVERY: "4"
+      # Sweet Nerds svarade 429 på varannan hämtning (15 sidor per minut): samma läge, glesare.
+      SWEETNERDS_HOT_FULL_EVERY: "4"
       NEXT_PUBLIC_APP_URL: "https://scoutr.se"
     steps:
       # Hoppa tyst och grönt när integrationen är avstängd — annars kör vi checkout

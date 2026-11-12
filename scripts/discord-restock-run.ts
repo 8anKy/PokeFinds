@@ -107,7 +107,8 @@ import { setHotUrls } from "../src/scrapers/hot-pages";
  * MaxGaming 3 × 12 s + 21 s (full) ≈ 9 förfrågningar per 57 s = 0,16/s mot taket 0,29/s.
  * ⛔ Lägg bara till en butik vars adapter har läget — annars pollas HELA feeden så här ofta.
  */
-const HOT_FLOOR_SECONDS: Record<string, number> = { MaxGaming: 12 };
+// Sweet Nerds: 429 på varannan hämtning vid 15 sidor/60 s ⇒ heta sidor var 30:e s, allt var ~2,5 min.
+const HOT_FLOOR_SECONDS: Record<string, number> = { MaxGaming: 12, "Sweet Nerds": 30 };
 import {
   hitsFromPosts,
   hitsFromStockSyncs,

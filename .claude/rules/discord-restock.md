@@ -27,10 +27,15 @@ paths:
   DIREKTLÄNKEN; originalet pekas ut bara när exakt EN slutsåld Pokémon-vara kostar lika mycket, annars egen rubrik
   + kandidaterna i texten, ingen hit. En post per påfyllning (`spent`). ⚠️ OVERIFIERAT i ett skarpt släpp, och
   bygger på att butiken behåller "POK …"/"P-…" (fullsöket kräver "pok" i namnet).
-- ⚠️ **BLINDA BUTIKER SAMMA DAG (olagat)**: Card Haven svarar 429 på VARJE hämtning (även från vanlig IP med vår
-  UA — spärr, ingen bypass), Spel & Sånt har byggt om sajten (`POST /products/json` ⇒ 404, ny adapter krävs),
-  Sweet Nerds 429 på ungefär varannan hämtning (15 förfr./60 s) och `dropPartial` gör då hela varvet blint,
-  TCG Picks 404 + NordicTCG 403 som förut. Webhallen går var ~150:e s (77 förfr./hämtning).
+- **BLINDA BUTIKER SAMMA DAG**: Spel & Sånt hade byggt om sajten (404 på varje hämtning) — LAGAT, nytt API
+  (se adapterns filhuvud). Sweet Nerds svarade 429 på varannan hämtning (15 sidor/60 s) — heta sidor var 30:e s,
+  hela katalogen var ~2,5 min, 3 s mellan sidorna (`SWEETNERDS_HOT_FULL_EVERY`); ⚠️ deras gräns är OMÄTT, läs loggen.
+  ⚠️ KVAR: Card Haven svarar 429 på VARJE hämtning, även från vanlig IP med vår UA (spärr — ingen bypass,
+  ägaren får fråga butiken); TCG Picks 404 + NordicTCG 403 som förut. Webhallens "var 154:e s" i loggen är bara
+  jobbets FÖRSTA varv (alla okollade slås upp); därefter ~24 förfrågningar ⇒ ~48 s.
+- **PROV AV DOLDA SLÄPP**: `railway run npx tsx scripts/test-hidden-drop.ts --user <discord-namn> --apply` kör hela
+  svepvägen mot butikens gamla dolda sida med simulerat lager och skickar inlägget som DM. Hittade 11-12 att
+  `post()` skickade en RELATIV miniatyr (`/api/cm-image/…`) ⇒ Discord 400 på hela inlägget — lagat.
 
 ## ✅ JOBBEN ÖVERLAPPAR — INGET BLINT GLAPP VID JOBBYTET (2026-10-11)
 2026-10-11 15:00 fylldes Speltrollet på i glappet mellan två 20-minutersjobb (förra jobbets sista

@@ -31,6 +31,23 @@
  * Produktsidan (`/produkt/<slug>`) bär JSON-LD med `availability` + GTIN ⇒ `json-ld` i
  * stock-verify. ⚠️ En borttagen produkt-URL svarar 200 med en generisk sida (ingen 404) —
  * då finns ingen Product-nod och verifieringen svarar null.
+ *
+ * ⛔ OMBYGGD SAJT 2026-11 (upptäckt 2026-11-12: lanen fick 404 på varje hämtning, butiken var
+ *    blind). Butiken är nu en Nuxt-app mot ett eget API:
+ *      POST https://api.spelochsant.se/bombrest/products/json
+ *      JSON: { settings: { category, product_limit, limit_offset, sort_by, sort_order } }
+ *      svar: { status, result: { success, num_products, products[] } }
+ *    "Pokemon Kort" är kategori 242 (var 192; id:t står i kategorisidans `page-sections`-svar,
+ *    `parent_id`). Produktsidorna ligger kvar på `/produkt/<slug>` ⇒ befintliga offers gäller.
+ *    API-värdens robots.txt svarar 200 med tom kropp (= tillåtet).
+ *    `buy_button` finns INTE längre i svaret — domen tas på lagerbrickan (`sosStockFromBadge`):
+ *      `green_bomb` + saldo > 0 ("3 st i lager", "20+ i lager") ⇒ IN_STOCK
+ *      `red_bomb` ("ej i lager")                                 ⇒ OUT_OF_STOCK
+ *      "N bokningsbara" i texten                                 ⇒ PREORDER
+ *      annat                                                     ⇒ UNKNOWN
+ *    ⚠️ OMÄTT: ingen bokningsbar vara fanns vid proben (39 produkter: 12 gröna, 27 röda) —
+ *       förhandsbokningens bricka är härledd ur den gamla sajtens text. Kontrollera mot sidans
+ *       knapp vid nästa förhandsbokning (scripts/audit-preorder-claims.ts).
  */
 import { StockStatus, SourceType } from "@prisma/client";
 import { politeFetch } from "../http";
@@ -44,9 +61,10 @@ import type {
 import { guessListingCategory } from "../listing-category";
 
 const BASE_URL = "https://www.spelochsant.se";
+const LIST_URL = "https://api.spelochsant.se/bombrest/products/json";
 const LIST_PATH = "/products/json";
-/** "Pokemon Kort" i butikens kategoriträd. */
-const POKEMON_CATEGORY_ID = 192;
+/** "Pokemon Kort" i butikens kategoriträd (242 sedan ombygget 2026-11; var 192). */
+const POKEMON_CATEGORY_ID = 242;
 /** Serverns eget tak per anrop. */
 const PAGE_SIZE = 50;
 const MAX_PAGES = 10;
@@ -75,6 +93,21 @@ export function sosStockFromButton(buttonHtml: string | null | undefined): SosSt
   if (/\bbuy\b/.test(cls)) return "in";
   if (/\bbooking\b/.test(cls)) return "preorder";
   if (/\bsubscribe\b/.test(cls)) return "out";
+  return "unknown";
+}
+
+/**
+ * Lagerbrickan (`stock.class` + text + saldo) → dom, för API:t efter ombygget 2026-11 där
+ * `buy_button` saknas. Ren funktion — testad.
+ */
+export function sosStockFromBadge(stock: SosApiProduct["stock"]): SosStock {
+  if (!stock) return "unknown";
+  const cls = String(stock.class ?? "");
+  const text = String(stock.text ?? "").toLowerCase();
+  const q = parseInt(String(stock.quantity ?? ""), 10);
+  if (/bokningsbar/.test(text)) return "preorder";
+  if (/\bred/.test(cls) || /ej i lager|fullbokad|slut/.test(text)) return "out";
+  if (/\bgreen/.test(cls) && (/i lager/.test(text) || (Number.isFinite(q) && q > 0))) return "in";
   return "unknown";
 }
 
@@ -129,7 +162,8 @@ export function parseSosProduct(p: SosApiProduct): SosItem | null {
     title,
     url: `${BASE_URL}/produkt/${slug}`,
     priceOre,
-    stock: sosStockFromButton(p.buy_button),
+    // Gamla svaret bar knappen; det nya bara lagerbrickan.
+    stock: p.buy_button ? sosStockFromButton(p.buy_button) : sosStockFromBadge(p.stock),
     quantity: Number.isFinite(q) ? q : null,
     stockText: String(p.stock?.text ?? "").trim(),
     imageUrl: img || undefined,
@@ -157,27 +191,28 @@ export class SpelOchSantAdapter implements SourceAdapter {
   supportsStock = true;
 
   private async fetchPage(offset: number): Promise<SosPage> {
-    const form = new URLSearchParams({
-      sort_by: "received",
-      sort_order: "desc",
-      product_limit: String(PAGE_SIZE),
-      category: String(POKEMON_CATEGORY_ID),
-      initial: "true",
-    });
-    if (offset > 0) form.set("limit_offset", String(offset));
-    const res = await politeFetch(`${BASE_URL}${LIST_PATH}`, {
+    const res = await politeFetch(LIST_URL, {
       delayMs: PAGE_DELAY_MS,
       method: "POST",
-      body: form.toString(),
+      body: JSON.stringify({
+        settings: {
+          sort_by: "received",
+          sort_order: "desc",
+          product_limit: PAGE_SIZE,
+          category: POKEMON_CATEGORY_ID,
+          limit_offset: offset > 0 ? offset : false,
+          initial: offset === 0,
+        },
+      }),
       headers: {
-        "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "x-requested-with": "XMLHttpRequest",
+        "content-type": "application/json",
         accept: "application/json",
         "accept-language": "sv-SE,sv;q=0.9",
       },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${LIST_PATH} (offset ${offset})`);
-    const json = (await res.json()) as SosPage;
+    const body = (await res.json()) as { result?: SosPage } & SosPage;
+    const json: SosPage = body.result ?? body;
     if (json.success !== true || !Array.isArray(json.products)) {
       throw new Error(`oväntat svar från ${LIST_PATH} (offset ${offset})`);
     }

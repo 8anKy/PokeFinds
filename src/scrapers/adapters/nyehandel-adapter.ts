@@ -53,10 +53,13 @@ import type {
   SourceAdapter,
 } from "../types";
 import { guessListingCategory } from "../listing-category";
+import { commitFullFetch, commitHotFetch, hotFullEvery, planHotFetch } from "../hot-pages";
 
 /** 9 sidor uppmätta 2026-09-06 (206 produkter) — 20 ger gott om växtutrymme. */
 const MAX_PAGES = 20;
 const PAGE_DELAY_MS = 1500;
+/** Loop-läget (heta sidor): glesare mellan sidorna, så den fulla hämtningen inte blir en skur. */
+const HOT_MODE_PAGE_DELAY_MS = 3000;
 /** Bunden segmentlängd per produktkort — mot patologisk backtracking. */
 const ITEM_SLICE = 9_000;
 
@@ -205,19 +208,78 @@ export abstract class NyehandelAdapter implements SourceAdapter {
     return this.name.toLowerCase().replace(/[^a-z0-9]/g, "");
   }
 
+  private toProduct(item: ReturnType<typeof parseNyehandelListing>[number]): RawProductData {
+    return {
+      externalId: item.productId
+        ? `${this.idPrefix}-${item.productId}`
+        : `${this.idPrefix}-${Buffer.from(item.url).toString("base64url").slice(0, 40)}`,
+      title: item.title,
+      url: item.url,
+      price: item.priceOre,
+      currency: "SEK",
+      stockStatus:
+        item.stock === "in"
+          ? StockStatus.IN_STOCK
+          : item.stock === "out"
+            ? StockStatus.OUT_OF_STOCK
+            : item.stock === "preorder"
+              ? StockStatus.PREORDER
+              : StockStatus.UNKNOWN,
+      imageUrl: item.imageUrl,
+      category: guessListingCategory(item.title),
+      raw: {
+        priceOre: item.priceOre,
+        stock: item.stock,
+        url: item.url,
+        productId: item.productId,
+      } satisfies NyehandelRaw,
+    };
+  }
+
   async fetchProducts(): Promise<AdapterResult> {
-    const products: RawProductData[] = [];
+    type Item = ReturnType<typeof parseNyehandelListing>[number];
     const errors: string[] = [];
     const seen = new Set<string>();
+    const pages = new Map<string, Item[]>();
+    // HETA SIDOR (bara Discord-lanen sätter <BUTIK>_HOT_FULL_EVERY, se hot-pages.ts). Sweet
+    // Nerds svarade 429 på varannan hämtning (15 sidor per minut, mätt 2026-11-12) — i
+    // loop-läget läses hela katalogen mer sällan och glesare, de heta sidorna oftare.
+    const fullEvery = hotFullEvery(`${this.idPrefix.toUpperCase()}_HOT_FULL_EVERY`);
+    const delayMs = fullEvery ? HOT_MODE_PAGE_DELAY_MS : PAGE_DELAY_MS;
+    const plan = planHotFetch(this.name, fullEvery);
+
+    if (plan.pages) {
+      for (const url of plan.pages) {
+        try {
+          const res = await politeFetch(url, { delayMs });
+          if (!res.ok) {
+            errors.push(`${this.name}: HTTP ${res.status} ${url} (het sida)`);
+            return { products: [], errors };
+          }
+          const found = parseNyehandelListing(await res.text());
+          if (found.length === 0) {
+            errors.push(`${this.name}: 0 produkter på het sida ${url}`);
+            return { products: [], errors };
+          }
+          pages.set(url, found);
+        } catch (err) {
+          errors.push(`${this.name}: ${err instanceof Error ? err.message : String(err)}`);
+          return { products: [], errors };
+        }
+      }
+      return { products: commitHotFetch(this.name, pages).map((it) => this.toProduct(it)), errors };
+    }
 
     for (const path of this.categoryPaths) {
       for (let page = 1; page <= MAX_PAGES; page++) {
         const url = page === 1 ? `${this.baseUrl}${path}` : `${this.baseUrl}${path}?page=${page}`;
         let html: string;
         try {
-          const res = await politeFetch(url, { delayMs: PAGE_DELAY_MS });
+          const res = await politeFetch(url, { delayMs });
           if (!res.ok) {
-            if (page === 1) errors.push(`${this.name}: HTTP ${res.status} ${url}`);
+            // ⛔ ÄVEN EN SIDA MITT I PAGINERINGEN ÄR ETT FEL (2026-11-12): bara sida 1
+            //    rapporterades, så ett 429 på sida 3 gav en tyst avklippt katalog.
+            errors.push(`${this.name}: HTTP ${res.status} ${url}`);
             break;
           }
           html = await res.text();
@@ -236,42 +298,21 @@ export abstract class NyehandelAdapter implements SourceAdapter {
           break;
         }
 
-        let added = 0;
+        const added: Item[] = [];
         for (const item of found) {
           if (seen.has(item.url)) continue;
           seen.add(item.url);
-          added++;
-          products.push({
-            externalId: item.productId
-              ? `${this.idPrefix}-${item.productId}`
-              : `${this.idPrefix}-${Buffer.from(item.url).toString("base64url").slice(0, 40)}`,
-            title: item.title,
-            url: item.url,
-            price: item.priceOre,
-            currency: "SEK",
-            stockStatus:
-              item.stock === "in"
-                ? StockStatus.IN_STOCK
-                : item.stock === "out"
-                  ? StockStatus.OUT_OF_STOCK
-                  : item.stock === "preorder"
-                    ? StockStatus.PREORDER
-                    : StockStatus.UNKNOWN,
-            imageUrl: item.imageUrl,
-            category: guessListingCategory(item.title),
-            raw: {
-              priceOre: item.priceOre,
-              stock: item.stock,
-              url: item.url,
-              productId: item.productId,
-            } satisfies NyehandelRaw,
-          });
+          added.push(item);
         }
         // Sista sidan repeteras för höga ?page → inga NYA produkter = klart.
-        if (added === 0) break;
+        if (added.length === 0) break;
+        pages.set(url, added);
       }
     }
 
+    // Bara en HEL katalog blir minne för de heta hämtningarna.
+    if (!errors.length && pages.size) commitFullFetch(this.name, pages);
+    const products = [...pages.values()].flat().map((it) => this.toProduct(it));
     return { products, errors };
   }
 

@@ -951,16 +951,23 @@ export class DropWatcher {
     t.spent = true;
     this.markAlerted(key);
     this.found++;
-    const twins = (this.feed.get(store) ?? []).filter(
+    let twins = (this.feed.get(store) ?? []).filter(
       (it) => it.stockStatus !== "IN_STOCK" && priceOre != null && it.price === priceOre && /pok[eé]mon/i.test(it.title)
     );
+    // Flera med samma pris: artikelnumrets svans pekar ut varan ("P-BUN" ⇒ Booster BUNdle,
+    // "P-TIN" ⇒ Tin) — bara när EXAKT EN kandidat har ett ord som börjar så.
+    const tail = spelexpertenArtnr(html)?.match(/^P-?([A-Z]{3,})$/i)?.[1]?.toLowerCase();
+    if (twins.length > 1 && tail) {
+      const byTail = twins.filter((x) => x.title.toLowerCase().split(/[^a-zåäö0-9]+/).some((w) => w.startsWith(tail)));
+      if (byTail.length === 1) twins = byTail;
+    }
     console.log(`[drop-watch] ${store}: dold sida ${url} i lager (svepet) — ${twins.length} möjliga original`);
     if (twins.length === 1) {
       const orig = twins[0];
       await this.deps.publish([
         this.post(store, orig.url, url, { title: orig.title, priceOre } as DropPage, {
           kind: "hidden",
-          note: "Dold produktsida — direktlänken, hittad i butikens eget sök (samma pris som originalsidan).",
+          note: "Dold produktsida — direktlänken, hittad i butikens eget sök (samma pris som butikens vanliga sida).",
         }),
       ]);
       return;
@@ -1076,7 +1083,9 @@ export class DropWatcher {
       marketValueOre: route?.marketValueOre ?? null,
       soldMedianOre: route?.soldMedianOre ?? null,
       soldCount: route?.soldCount ?? null,
-      imageUrl: route?.imageUrl ?? null,
+      // ⛔ ABSOLUT URL: ruttabellen bär "/api/cm-image/…" och Discord svarar 400 på en relativ
+      //    miniatyr — HELA inlägget nekas (hittat av test-hidden-drop.ts 2026-11-12).
+      imageUrl: route?.imageUrl ? (route.imageUrl.startsWith("/") ? `${site}${route.imageUrl}` : route.imageUrl) : null,
       setName: route?.setName ?? null,
       series: route?.series ?? null,
       language: route?.language ?? null,
