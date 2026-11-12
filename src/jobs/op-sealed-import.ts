@@ -18,6 +18,7 @@
  * aldrig — samma ägarbeslut som Pokémon. `hidden` (default AV sedan lanseringen 2026-11-10;
  * var PÅ medan katalogens spelfilter byggdes).
  */
+import { withOpCode } from "@/lib/one-piece-listing";
 import type { ProductCategory } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getRatesOre, priceOreFromEur } from "@/lib/exchange-rate";
@@ -155,6 +156,7 @@ export async function runOnePieceSealedImport(
     ).map((s) => [s.externalId!, s.id])
   );
   const setIdByEpisode = new Map<number, string>();
+  const codeByEpisode = new Map<number, string>();
   let codeColumn = true;
   for (const e of episodes) {
     const ext = `${SET_EXTERNAL_PREFIX}${e.id}`;
@@ -177,6 +179,7 @@ export async function runOnePieceSealedImport(
       setId = created.id;
     }
     setIdByEpisode.set(e.id, setId);
+    if (e.code) codeByEpisode.set(e.id, e.code);
     // Setkoden ("OP-09", "EB05", "ST32") — butiksmatchningen dömer på den (lib/one-piece-listing).
     // Rå SQL + try: kolumnen kom i migrationen 20261110180000; saknas den hoppas steget tyst.
     if (apply && e.code && codeColumn) {
@@ -204,12 +207,15 @@ export async function runOnePieceSealedImport(
 
   for (const it of items) {
     // ⛔ Leverantören skickar HTML-kodade namn ("Ace &amp; Newgate", mätt 2026-11-10).
-    const name = decodeEntities(it.name ?? "").trim();
+    const rawName = decodeEntities(it.name ?? "").trim();
     if ((it.lang ?? "en") !== "en") { res.skippedFiltered++; continue; }
-    const category = onePieceSealedCategory(name);
+    const category = onePieceSealedCategory(rawName);
+    // Setkoden först i titeln ("OP-17 The World's Strongest Warriors Booster Box", ägaren
+    // 2026-11-12) — sök, katalog och Discord visar då koden spelarna känner igen.
+    const name = withOpCode(rawName, it.episode?.id != null ? codeByEpisode.get(it.episode.id) : null);
     if (!category) {
       res.skippedFiltered++;
-      if (res.filteredSamples.length < 25) res.filteredSamples.push(name);
+      if (res.filteredSamples.length < 25) res.filteredSamples.push(rawName);
       continue;
     }
     const idProduct = it.cardmarket_id;
@@ -222,7 +228,8 @@ export async function runOnePieceSealedImport(
     if (owned) {
       if (priceOre != null && owned.productId) points.push({ productId: owned.productId, priceOre });
       // Självläkning: produkter skapade med det okodade namnet får rätt titel (slugen står kvar).
-      if (apply && owned.productId && owned.title !== name && /&[a-z#0-9]+;/i.test(owned.title)) {
+      // … och produkter skapade före 2026-11-12 får setkoden (bara när titeln ÄR leverantörens namn).
+      if (apply && owned.productId && owned.title !== name && (/&[a-z#0-9]+;/i.test(owned.title) || owned.title === rawName)) {
         await prisma.product.update({
           where: { id: owned.productId },
           data: { title: name, normalizedTitle: normalizeTitle(name) },

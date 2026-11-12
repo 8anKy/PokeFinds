@@ -54,6 +54,27 @@ export function normalizeOpCode(raw: string): string | null {
   return `${m[1].toUpperCase()}${m[2].padStart(2, "0")}`;
 }
 
+/**
+ * Koden som spelarna skriver den: "OP17" / "OP-17" / "op 17" ⇒ "OP-17", "ST35" ⇒ "ST-35"
+ * (ägaren 2026-11-12: "många känner igen OP-17 bättre än setets namn"). Promo-seten
+ * ("OP17P") och okända koder ⇒ null.
+ */
+export function opCodeLabel(code: string | null | undefined): string | null {
+  const c = code ? normalizeOpCode(code) : null;
+  return c ? c.replace(/^([A-Z]+)(\d+)$/, "$1-$2") : null;
+}
+
+/**
+ * Namnet med koden först: "The World's Strongest Warriors" + "OP17" ⇒ "OP-17 The World's
+ * Strongest Warriors". Står koden redan i namnet (eller saknas den) lämnas namnet orört.
+ */
+export function withOpCode(name: string, code: string | null | undefined): string {
+  const label = opCodeLabel(code);
+  if (!label) return name;
+  if (opCodesInTitle(name).includes(label.replace("-", ""))) return name;
+  return `${label} ${name}`;
+}
+
 /** Alla setkoder i en titel, normaliserade. Kortnummer ("EB02-003") räknas inte — de är singlar. */
 export function opCodesInTitle(title: string): string[] {
   const out = new Set<string>();
@@ -105,7 +126,8 @@ const norm = (s: string) =>
  */
 function byFullTitle(ntitle: string, form: OpForm, products: OpCatalogProduct[]): string | null {
   const hits = products
-    .map((p) => ({ id: p.id, key: norm(p.title) }))
+    // Katalogtiteln bär setkoden först ("OP-17 …") — butikens annons gör det sällan.
+    .map((p) => ({ id: p.id, key: norm(p.title).replace(/^(?:op|eb|st|prb) \d{1,2} /, "") }))
     .filter((p) => p.key.length >= 10 && opForm(p.key) === form && ntitle.includes(` ${p.key} `))
     .sort((a, b) => b.key.length - a.key.length);
   if (hits.length === 0) return null;
@@ -159,7 +181,7 @@ export function matchOnePieceListing(
   // SÄRSKILJANDE ord (utöver setnamn och formord) måste stå i annonsen. Bland de som passar vinner
   // den mest specifika — "Booster Box Pre-Errata" ⇒ Pre-Errata, "Booster Box" ⇒ den vanliga.
   const setName = norm(catalog.sets.find((s) => s.id === setId)?.name ?? "");
-  const STOP = new Set(["starter", "deck", "booster", "box", "pack", "set", "the", "of", "and", "vol", "ex", ...setName.split(" ")]);
+  const STOP = new Set(["prb", "starter", "deck", "booster", "box", "pack", "set", "the", "of", "and", "vol", "ex", ...setName.split(" ")]);
   const scored = candidates
     .map((p) => {
       const words = norm(p.title).split(" ").filter((w) => w.length >= 3 && !STOP.has(w));

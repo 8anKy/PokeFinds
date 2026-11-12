@@ -12,6 +12,26 @@ paths:
 ---
 # Discord restock-lane
 
+## HETA SIDOR + SPELEXPERTENS SVEP (2026-11-12, ägaren: "ingen ska vara i närheten")
+- **MaxGaming, 30th UPC 14:00**: vågen syntes aldrig i feeden (bara 11:10, 12:37 och 14:32 samma dag) — hela
+  kategorin är 6 sidor ⇒ en hämtning per 60 s, och varan sålde troligen slut mellan två. `src/scrapers/hot-pages.ts`:
+  mellan de fulla hämtningarna läser adaptern bara sida 1 + sidorna som bär det lanen postat senaste dygnet
+  (`setHotUrls` ur `state.posted`), var ~12:e s (`HOT_FLOOR_SECONDS` i scriptet, `MAXGAMING_HOT_FULL_EVERY=4`
+  i workflowet). Lasten är densamma (~0,16 förfr./s mot taket 0,29), feeden är ALLTID komplett (färska sidor +
+  resten ur förra fulla). ⛔ Lägg bara en butik i `HOT_FLOOR_SECONDS` om adaptern har läget.
+  ⛔ MaxGamings robots.txt stänger `/cgi-bin/` — snabbsöket som används hos Spelexperten får INTE användas där.
+- **Spelexperten lägger länken på Facebook/Instagram** (originalsidan säger bara "se våra sociala medier"): den
+  dolda sidan ligger i butikens rot och finns i butikens EGET sök. `sweepSpelexperten` (drop-watch.ts): snabbsök på
+  prefixen "P-" (artikelnummer, t.ex. P-BUN) och "POK 30" var 12:e s + fullsök "POK" var ~5:e min ⇒ rotnivåsidor
+  utanför feeden blir `orphans` i drops.json och läses som länkmål (`checkOrphan`). I lager ⇒ "Dolt släpp" med
+  DIREKTLÄNKEN; originalet pekas ut bara när exakt EN slutsåld Pokémon-vara kostar lika mycket, annars egen rubrik
+  + kandidaterna i texten, ingen hit. En post per påfyllning (`spent`). ⚠️ OVERIFIERAT i ett skarpt släpp, och
+  bygger på att butiken behåller "POK …"/"P-…" (fullsöket kräver "pok" i namnet).
+- ⚠️ **BLINDA BUTIKER SAMMA DAG (olagat)**: Card Haven svarar 429 på VARJE hämtning (även från vanlig IP med vår
+  UA — spärr, ingen bypass), Spel & Sånt har byggt om sajten (`POST /products/json` ⇒ 404, ny adapter krävs),
+  Sweet Nerds 429 på ungefär varannan hämtning (15 förfr./60 s) och `dropPartial` gör då hela varvet blint,
+  TCG Picks 404 + NordicTCG 403 som förut. Webhallen går var ~150:e s (77 förfr./hämtning).
+
 ## ✅ JOBBEN ÖVERLAPPAR — INGET BLINT GLAPP VID JOBBYTET (2026-10-11)
 2026-10-11 15:00 fylldes Speltrollet på i glappet mellan två 20-minutersjobb (förra jobbets sista
 hämtning ~12:59:40 UTC, nästa jobbs första 13:01:17); en konkurrent postade 15:00, vi 15:01:19. Glappet

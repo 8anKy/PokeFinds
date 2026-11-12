@@ -83,6 +83,16 @@ export const SLOW_FEED_WHILE_CODES_MS = 180_000;
  * efter en ny kod är det en kortare topp, en gång per släpp.
  */
 const CODE_SEARCH_EVERY_MS = 12_000;
+/**
+ * SVEPET efter föräldralösa dolda sidor (2026-11-12): ett snabbsök (~2–8 kB) var 12:e s dagtid
+ * (2 min natt) i tur och ordning över termerna; var 8:e varv fullsöket på "POK" (~1,5 MB okomprimerat).
+ */
+const SWEEP_TERMS = ["P-", "POK 30"];
+const SWEEP_FULL_EVERY = 8;
+const ORPHAN_OLD_EVERY_MS = 60_000;
+function sweepEveryMs(): number {
+  return isNight() ? 120_000 : 12_000;
+}
 const URGENT_CODE_EVERY_MS = 4_000;
 function isNight(): boolean {
   const h = Number(new Date().toLocaleString("sv-SE", { timeZone: "Europe/Stockholm", hour: "2-digit", hour12: false }));
@@ -178,6 +188,11 @@ export interface LinkTarget {
 
 interface DropFile {
   pages: Record<string, DropPage>;
+  /**
+   * FÖRÄLDRALÖSA dolda sidor (Spelexperten, 2026-11-12): hittade av svepet i butikens eget
+   * sök, inte via en länk/kod på originalsidan (länken läggs numera ut på Facebook/Instagram).
+   */
+  orphans?: Record<string, LinkTarget & { ignored?: boolean; spent?: boolean }>;
   /** Heta set (gemener) → senast sedda i lanens cooldown-karta (ms). */
   hot?: Record<string, number>;
   /** Postade nycklar → tid (dold sida / rebus), så vi inte postar samma sak igen. */
@@ -239,7 +254,7 @@ export class DropWatcher {
     try {
       if (existsSync(deps.file)) {
         const raw = JSON.parse(readFileSync(deps.file, "utf8")) as Partial<DropFile>;
-        this.data = { pages: raw.pages ?? {}, alerted: raw.alerted ?? {}, hot: raw.hot ?? {} };
+        this.data = { pages: raw.pages ?? {}, alerted: raw.alerted ?? {}, hot: raw.hot ?? {}, orphans: raw.orphans ?? {} };
       }
     } catch {
       this.data = { pages: {}, alerted: {} };
@@ -718,10 +733,16 @@ export class DropWatcher {
 
       // 0. LÄNKMÅL (dold sida länkad från originalet) — släppet sker där. Varannan tick som
       //    mest, så att upptäckt/koder/sidläsning aldrig svälts helt.
-      const link = last("lastWasLink") ? null : this.dueLinkTarget(store);
-      this.lastRun.set(`${store}#lastWasLink`, link ? 1 : 0);
+      const mayLink = !last("lastWasLink");
+      const link = mayLink ? this.dueLinkTarget(store) : null;
+      const orphan = mayLink && !link ? this.dueOrphan(store) : null;
+      this.lastRun.set(`${store}#lastWasLink`, link || orphan ? 1 : 0);
       if (link) {
         await this.checkLinkTarget(store, link[0], link[1], link[2]);
+        return;
+      }
+      if (orphan) {
+        await this.checkOrphan(store, orphan);
         return;
       }
 
@@ -732,6 +753,13 @@ export class DropWatcher {
       if (now - last("discover") >= discoverEveryMs()) {
         stamp("discover");
         await this.discoverSpelexperten(store);
+        return;
+      }
+      // 1b. SVEP: dolda sidor som INTE länkas från originalsidan (länken ligger på butikens
+      //     Facebook/Instagram) — hittas i butikens eget sök på namn-/artikelnummerprefix.
+      if (now - last("sweep") >= sweepEveryMs()) {
+        stamp("sweep");
+        await this.sweepSpelexperten(store);
         return;
       }
       // 2. Kända koder via snabbsöket (~2 kB) i tur och ordning.
@@ -794,6 +822,181 @@ export class DropWatcher {
         await this.searchSpelexperten(store, url, p, code);
       }
     }
+  }
+
+  /** Söktermerna för svepet: fasta prefix + de två första orden i kända dolda sidors titlar. */
+  private sweepTerms(): string[] {
+    const terms = new Set(SWEEP_TERMS);
+    for (const t of Object.values(this.data.orphans ?? {})) {
+      const m = !t.ignored && t.title.match(/^\s*(pok\S*)\s+(\S+)/i);
+      if (m) terms.add(`${m[1]} ${m[2]}`.toUpperCase());
+    }
+    return [...terms];
+  }
+
+  /**
+   * SVEPET (2026-11-12, ägaren: "man måste gå till deras Facebook/Instagram för att få länken
+   * till den nya produktsidan"). Den dolda sidan ligger i butikens ROT ("/pok-30-12-oktober.html",
+   * rubrik "POK 30 12 oktober 15:00", Artnr "P-BUN") och finns i butikens sök långt före släppet
+   * (10-12: 6 h). Snabbsöket (~2–8 kB) matchar namn- och artikelnummerPREFIX ("POK 30", "P-");
+   * var `SWEEP_FULL_EVERY`:e varv tas fullsöket på "POK" (alla Pokémon-sidor, även dolda med
+   * nytt namnmönster). En rotnivåsida som inte står i butikens vanliga feed blir en föräldralös
+   * kandidat och läses sedan som ett länkmål (`checkOrphan`).
+   * ⚠️ OVERIFIERAT: att butiken behåller namnmönstret "POK …"/"P-…" — byter de det helt hittar
+   *    bara fullsöket sidan (kräver "pok" i namnet).
+   */
+  private async sweepSpelexperten(store: string) {
+    const terms = this.sweepTerms();
+    const turn = this.codeTurn.get(`${store}#sweep`) ?? 0;
+    this.codeTurn.set(`${store}#sweep`, turn + 1);
+    const slot = turn % (terms.length + 1);
+    const full = slot === terms.length && Math.floor(turn / (terms.length + 1)) % SWEEP_FULL_EVERY === 0;
+    if (slot === terms.length && !full) return;
+    const res = await politeFetch(
+      full
+        ? `${SPELEXPERTEN}/cgi-bin/ibutik/AIR_ibutik.fcgi?funk=gor_sokning&term=POK`
+        : `${SPELEXPERTEN}/cgi-bin/ibutik/API.fcgi?funk=as_fil&chars=${encodeURIComponent(terms[slot])}&retur=html&Sprak_Suffix=SV`,
+      { delayMs: 1000 }
+    );
+    if (!res.ok) return;
+    const html = await res.text();
+    const links = full ? spelexpertenSearchLinks(html, SPELEXPERTEN) : spelexpertenLiveSearchLinks(html, SPELEXPERTEN);
+    const inFeed = new Set((this.feed.get(store) ?? []).map((it) => it.url));
+    const linked = new Set(this.linkTargets(store).map(([, , t]) => t));
+    const orphans = (this.data.orphans ??= {});
+    for (const url of links) {
+      if (!isRootLevelPage(url) || inFeed.has(url) || linked.has(url) || orphans[url]) continue;
+      orphans[url] = { title: "", priceOre: null, releaseAt: null, stock: null, checkedAt: 0, seenAt: Date.now() };
+      this.dirty = true;
+      console.log(`[drop-watch] ${store}: rotnivåsida i söket (${full ? "fullsök POK" : terms[slot]}) — ${url}`);
+    }
+  }
+
+  /** Den föräldralösa sida som är mest försenad, eller null. */
+  private dueOrphan(store: string): string | null {
+    const now = Date.now();
+    let best: { url: string; late: number } | null = null;
+    for (const [url, t] of Object.entries(this.data.orphans ?? {})) {
+      if (t.ignored) continue;
+      // En gammal sida (butiken kan återanvända den) läses glesare utanför sitt släppfönster.
+      const old = now - t.seenAt > 24 * 3600_000;
+      const inWindow = t.releaseAt != null && Math.abs(now - t.releaseAt) < LINK_WINDOW_AFTER_MS;
+      const every = Math.max(
+        linkTargetEveryMs(t, now, this.wasAlerted(`${store}\t${url}`), isNight()),
+        old && !inWindow ? ORPHAN_OLD_EVERY_MS : 0
+      );
+      const late = now - t.checkedAt - every;
+      if (late >= 0 && (!best || late > best.late)) best = { url, late };
+    }
+    return best?.url ?? null;
+  }
+
+  /**
+   * Läs en föräldralös dold sida. Inte Pokémon i rubriken ⇒ glöms (butiken har andra
+   * rotnivåsidor). I lager ⇒ post med DIREKTLÄNKEN; originalsidan pekas ut när EXAKT EN
+   * slutsåld Pokémon-vara i butikens feed kostar lika mycket (689/689 och 349/349 den 10-12),
+   * annars postas sidan under sin egen rubrik med kandidaterna i texten — aldrig en gissning.
+   */
+  private async checkOrphan(store: string, url: string) {
+    const orphans = (this.data.orphans ??= {});
+    const prev = orphans[url];
+    if (!prev) return;
+    const now = Date.now();
+    const res = await politeFetch(url, { delayMs: 1000 });
+    if (res.status === 404 || res.status === 410) {
+      delete orphans[url];
+      this.dirty = true;
+      return;
+    }
+    if (!res.ok) {
+      prev.checkedAt = now;
+      return;
+    }
+    const html = await res.text();
+    const title =
+      htmlToText(html.match(/<h1[^>]*id="ArtikelnamnFalt"[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ?? "") ||
+      htmlToText(html.match(/<title>([^<]*)<\/title>/i)?.[1] ?? "") ||
+      prev.title;
+    const priceOre = jsonLdPriceOre(html) ?? prev.priceOre;
+    const stock = stockFromJsonLd(html) ?? prev.stock;
+    const first = prev.checkedAt === 0;
+    const t = (orphans[url] = {
+      ...prev,
+      title,
+      priceOre,
+      stock,
+      releaseAt: releaseTimeFromTitle(title, now) ?? prev.releaseAt,
+      checkedAt: now,
+    });
+    this.dirty = true;
+    const inFeed = (this.feed.get(store) ?? []).some((it) => it.url === url);
+    if (!linkTargetPlausible({ origPriceOre: null, priceOre, inFeed, rootLevel: true, title })) {
+      t.ignored = true;
+      return;
+    }
+    if (first) {
+      console.log(
+        `[drop-watch] ${store}: dold sida bevakas ${url} "${title}"` +
+          `${t.releaseAt ? ` (tid i rubriken ${new Date(t.releaseAt).toISOString()})` : ""} — ${stock ?? "okänt lager"}`
+      );
+    }
+    // ⛔ EN POST PER PÅFYLLNING: en rotnivåsida som bara står i lager dag efter dag (felplacerad
+    //    vanlig vara) får inte bli ett dagligt "dolt släpp" — den måste ha setts slut emellan.
+    if (stock !== "IN_STOCK") {
+      if (stock) t.spent = false;
+      return;
+    }
+    const key = `${store}\t${url}`;
+    if (t.spent || this.wasAlerted(key)) return;
+    t.spent = true;
+    this.markAlerted(key);
+    this.found++;
+    const twins = (this.feed.get(store) ?? []).filter(
+      (it) => it.stockStatus !== "IN_STOCK" && priceOre != null && it.price === priceOre && /pok[eé]mon/i.test(it.title)
+    );
+    console.log(`[drop-watch] ${store}: dold sida ${url} i lager (svepet) — ${twins.length} möjliga original`);
+    if (twins.length === 1) {
+      const orig = twins[0];
+      await this.deps.publish([
+        this.post(store, orig.url, url, { title: orig.title, priceOre } as DropPage, {
+          kind: "hidden",
+          note: "Dold produktsida — direktlänken, hittad i butikens eget sök (samma pris som originalsidan).",
+        }),
+      ]);
+      return;
+    }
+    // Ingen eller flera kandidater: sidan postas under sin egen rubrik. Set/kanal ur
+    // kandidaterna när de är överens — men ingen produktlänk och ingen larm-hit.
+    const setOf = (u: string) => this.deps.routes[u]?.setName ?? null;
+    const shared = twins.length > 0 && twins.every((x) => setOf(x.url) === setOf(twins[0].url)) ? this.deps.routes[twins[0].url] : null;
+    const names = twins.slice(0, 4).map((x) => this.deps.routes[x.url]?.title ?? x.title);
+    await this.deps.publish([
+      {
+        key,
+        title: `Pokémon — "${title}"`,
+        storeName: store,
+        storeUrl: url,
+        priceOre,
+        marketValueOre: null,
+        soldMedianOre: null,
+        soldCount: null,
+        imageUrl: null,
+        setName: shared?.setName ?? null,
+        series: shared?.series ?? null,
+        language: shared?.language ?? null,
+        productUrl: null,
+        productSlug: null,
+        transition: { from: "ABSENT", to: "IN_STOCK" },
+        noHit: true,
+        drop: {
+          kind: "hidden",
+          note:
+            "Dold produktsida — direktlänken, hittad i butikens eget sök." +
+            (names.length ? ` Troligen: ${names.join(" eller ")} (samma pris).` : " Butiken skriver inte ut vilken vara det är — se sidan."),
+          originalUrl: url,
+        },
+      },
+    ]);
   }
 
   private async searchSpelexperten(store: string, url: string, p: DropPage, code: string) {

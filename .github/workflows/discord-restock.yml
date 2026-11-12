@@ -370,6 +370,11 @@ jobs:
       # ⛔ Sätts BARA här. scrape-all och restock-watch kör EN hämtning per process och
       #    behåller defaulten (80 = alla) — där finns inget nästa varv att rotera till.
       WEBHALLEN_LIVE_POLL_MAX: "16"
+      # HETA SIDOR (2026-11-12, src/scrapers/hot-pages.ts): MaxGamings 30th UPC släpptes 14:00
+      # och sålde slut mellan två 60-sekundershämtningar. Var 4:e hämtning är full (6 sidor);
+      # däremellan läses sida 1 + sidorna med det lanen nyss postat, var ~12:e sekund.
+      # ⛔ Sätts BARA här — nattkedjan kör en hämtning per process och läser alltid allt.
+      MAXGAMING_HOT_FULL_EVERY: "4"
       NEXT_PUBLIC_APP_URL: "https://scoutr.se"
     steps:
       # Hoppa tyst och grönt när integrationen är avstängd — annars kör vi checkout

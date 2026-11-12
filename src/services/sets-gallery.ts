@@ -15,6 +15,7 @@
  * förrän alla reverse holo finns i katalogen (Pitch Black 187 av TCGdex 194, ~2–3k saknas,
  * se cardtrader-reverse: bara kort med CardTrader-annonser får en reverse-produkt).
  */
+import { withOpCode } from "@/lib/one-piece-listing";
 import { prisma } from "@/lib/db";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { resolveSetTotals } from "@/lib/set-denominator";
@@ -95,7 +96,8 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
     return {
       id: s.id,
       slug: s.slug,
-      name: s.name,
+      // One Piece: koden först ("OP-17 …") — den känner spelarna igen (ägaren 2026-11-12).
+      name: withOpCode(s.name, codeBySet.get(s.id)),
       language: s.language === "JP" ? "JP" : "EN",
       game: s.game === "ONE_PIECE" ? "ONE_PIECE" : "POKEMON",
       // One Piece grupperas på settyp ur koden (lib/set-era), inte på Pokémon-eror.
@@ -116,13 +118,27 @@ export async function loadSetsGallery(): Promise<SetTile[]> {
  */
 export async function onePieceSetCodes(): Promise<Map<string, string>> {
   try {
-    const rows = await prisma.$queryRaw<{ id: string; code: string | null }[]>`
-      SELECT id, code FROM "CardSet" WHERE game::text = 'ONE_PIECE' AND code IS NOT NULL`;
-    return new Map(rows.filter((r) => r.code).map((r) => [r.id, r.code as string]));
+    return new Map(await onePieceSetCodeRows());
   } catch {
     return new Map();
   }
 }
+
+/**
+ * ⛔ CACHAD (2026-11-12): läsningen låg ocachad i katalogsidan — en Neon-fråga (och en
+ * väckning när databasen sov) per One Piece-visning, en del av varför "första bytet
+ * är långsamt" (ägaren). Koderna ändras bara av nattens import. Rader, inte Map: unstable_cache
+ * JSON-serialiserar. Ett fel kastas ut ur cachen (fångas ovan) så att det aldrig sparas.
+ */
+const onePieceSetCodeRows = cachedRead(
+  async (): Promise<[string, string][]> => {
+    const rows = await prisma.$queryRaw<{ id: string; code: string | null }[]>`
+      SELECT id, code FROM "CardSet" WHERE game::text = 'ONE_PIECE' AND code IS NOT NULL`;
+    return rows.filter((r) => r.code).map((r) => [r.id, r.code as string]);
+  },
+  "onePieceSetCodes",
+  6 * 3600
+);
 
 export interface OwnedInSet {
   /** Antal OLIKA kort (eller tryckningar med COUNT_PRINTINGS) ur setet; lots räknas en gång. */
@@ -192,15 +208,16 @@ export const getSetSummary = cachedRead(
          WHERE "setId" = ${setId} AND category = 'SINGLE_CARD' AND "variantLabel" IS NULL AND "hiddenAt" IS NULL`,
     ]);
     if (!s) return null;
+    const opCode = s.game === "ONE_PIECE" ? (await onePieceSetCodes()).get(s.id) : null;
     const listed = (await loadSetDenominators()).find((d) => d.setId === s.id)?.listedPrintings ?? 0;
     const total = progressTotal({ totalCards: s.totalCards, totalCardsFull: s.totalCardsFull, cardCount: s._count.cards, listedPrintings: listed });
     const row = v[0];
     return {
       id: s.id,
       slug: s.slug,
-      name: s.name,
+      name: withOpCode(s.name, opCode),
       language: s.language === "JP" ? "JP" : "EN",
-      era: setEra(s),
+      era: setEra({ ...s, code: opCode }),
       // Bara riktiga loggor — kort/produktfoton/ritade brickor ⇒ null ⇒ namnbricka (lib/set-logo.ts).
       logoUrl: isRealSetLogo(s.logoUrl, s.game) ? s.logoUrl : null,
       releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,

@@ -1,8 +1,10 @@
 "use client";
 
+import { withOpCode } from "@/lib/one-piece-listing";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
+import { PrefetchKind } from "next/dist/client/components/router-reducer/router-reducer-types";
 import { cn } from "@/lib/utils";
 import { countQuery, type CountSelection } from "@/lib/explore-count-query";
 import { isSealedCategory } from "@/lib/product-category";
@@ -251,16 +253,35 @@ export function ExploreFilterBar({
   const moreCount = otherKategori + csvList(searchParams.butik).length + (urlLang === null ? csvList(searchParams.sprak).length : 0);
   const filterActive = sortActive || priceActive || inStock || noCardmarket || moreCount > 0;
 
-  /** Bygger nästa URL. `sida` nollställs alltid — sida 3 av ett annat filter är inte sida 3. */
-  function pushParams(patch: Partial<Record<keyof ExploreSearchParams, string | undefined>>) {
+  /** Nästa URL. `sida` nollställs alltid — sida 3 av ett annat filter är inte sida 3. */
+  function hrefFor(patch: Partial<Record<keyof ExploreSearchParams, string | undefined>>): string {
     const next: ExploreSearchParams = { ...searchParams, ...patch, sida: undefined };
     const usp = new URLSearchParams();
     for (const [key, value] of Object.entries(next)) {
       if (value !== undefined && value !== "") usp.set(key, value);
     }
     const qs = usp.toString();
-    router.push(qs ? `/produkter?${qs}` : "/produkter");
+    return qs ? `/produkter?${qs}` : "/produkter";
   }
+
+  function pushParams(patch: Partial<Record<keyof ExploreSearchParams, string | undefined>>) {
+    router.push(hrefFor(patch));
+  }
+
+  /** URL:en ett spelbyte leder till — samma i väljaren och i förladdningen nedan. */
+  const gameHref = (g: Game) => hrefFor({ spel: gameParam(g) ?? undefined, set: undefined, sprak: undefined });
+
+  // FÖRLADDA DET ANDRA SPELET NÄR VÄLJAREN ÖPPNAS (2026-11-12, ägaren: "första bytet till One
+  // Piece är lite långsamt"). /produkter är dynamisk, så ett byte är en hel serverrendering —
+  // och One Piece-cacharna är oftare kalla än Pokémons. Arket är öppet någon sekund innan
+  // trycket; hela sidan hämtas under tiden och bytet blir omedelbart (klientcachen 30 s).
+  useEffect(() => {
+    if (sheet !== "game" || !gameChoice) return;
+    for (const g of GAMES) {
+      if (g !== game) router.prefetch(gameHref(g), { kind: PrefetchKind.FULL });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheet]);
 
   function chooseKind(kind: InstantKind) {
     if (searching) setLocalKind(kind);
@@ -277,7 +298,7 @@ export function ExploreFilterBar({
     if (next === game) return;
     setLocalSets([]);
     setLocalLang(null);
-    pushParams({ spel: gameParam(next) ?? undefined, set: undefined, sprak: undefined });
+    router.push(gameHref(next));
   }
 
   // Minns valet: en BAR /produkter (inga filter alls) öppnar enhetens senaste spel. Bara när
@@ -925,10 +946,10 @@ export function SetSheet({
               src={logo}
               alt=""
               className={cn("max-h-full max-w-full object-contain transition", dim && "opacity-60 saturate-[0.25]")}
-              fallback={<SetNameTile name={s.name} compact />}
+              fallback={<SetNameTile name={s.game === "ONE_PIECE" ? withOpCode(s.name, s.code) : s.name} compact />}
             />
           ) : (
-            <SetNameTile name={s.name} compact className={cn(dim && "opacity-60")} />
+            <SetNameTile name={s.game === "ONE_PIECE" ? withOpCode(s.name, s.code) : s.name} compact className={cn(dim && "opacity-60")} />
           )}
           {/* Framstegsstapeln (foliekant) längst ned i brickan. */}
           {mine > 0 && s.total ? (
@@ -942,7 +963,7 @@ export function SetSheet({
             </span>
           )}
         </span>
-        <span className={cn("line-clamp-2 text-[11px] font-medium leading-snug", dim ? "text-ink-muted" : "text-ink")}>{s.name}</span>
+        <span className={cn("line-clamp-2 text-[11px] font-medium leading-snug", dim ? "text-ink-muted" : "text-ink")}>{s.game === "ONE_PIECE" ? withOpCode(s.name, s.code) : s.name}</span>
         {loggedIn && s.total ? (
           <span className={cn("-mt-1 text-[10px] tabular-nums", mine > 0 ? "text-holo-cyan" : "text-ink-faint")}>
             {mine}/{s.total}

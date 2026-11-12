@@ -32,6 +32,7 @@ import type {
 } from "../types";
 import { nordiskCartUrl } from "@/lib/cart-url";
 import { guessListingCategory } from "../listing-category";
+import { commitFullFetch, commitHotFetch, hotFullEvery, planHotFetch } from "../hot-pages";
 
 const MAX_PAGES = 10; // ~597 pokemon-artiklar / 60 per sida → täcker hela kategorin
 /**
@@ -129,11 +130,47 @@ export class MaxGamingAdapter implements SourceAdapter {
     return out;
   }
 
+  private toProduct(item: MaxRaw): RawProductData {
+    return {
+      externalId: item.artnr ? `maxgaming-${item.artnr}` : `maxgaming-${Buffer.from(item.url).toString("base64url").slice(0, 40)}`,
+      title: item.title,
+      url: item.url,
+      price: item.priceOre,
+      currency: "SEK",
+      stockStatus: STATUS_BY_STOCK[item.stock ?? (item.inStock ? "in" : "out")],
+      // Direkt GET-länk till korgen (Nordisk e-handel, se cart-url.ts). Samma `artnr`
+      // som externalId; saknas det finns ingen länk.
+      cartUrl: nordiskCartUrl(this.baseUrl, item.artnr),
+      category: guessListingCategory(item.title),
+      raw: item,
+    };
+  }
+
   async fetchProducts(): Promise<AdapterResult> {
-    const products: RawProductData[] = [];
     const errors: string[] = [];
     const seen = new Set<string>();
+    const pages = new Map<string, MaxRaw[]>();
+    // HETA SIDOR (bara Discord-lanen sätter MAXGAMING_HOT_FULL_EVERY, se hot-pages.ts):
+    // mellan de fulla hämtningarna läses bara sida 1 + sidorna med nyss postade varor.
+    const plan = planHotFetch(this.name, hotFullEvery("MAXGAMING_HOT_FULL_EVERY"));
     try {
+      if (plan.pages) {
+        for (const url of plan.pages) {
+          const res = await politeFetch(url, { delayMs: PAGE_DELAY_MS });
+          if (!res.ok) {
+            errors.push(`${this.name}: HTTP ${res.status} ${url} (het sida)`);
+            return { products: [], errors };
+          }
+          const found = this.parseProducts(await res.text());
+          // En tom het sida är ett fel (sida 1 är aldrig tom) — hellre förra läget än en lucka.
+          if (found.length === 0) {
+            errors.push(`${this.name}: 0 produkter på het sida ${url}`);
+            return { products: [], errors };
+          }
+          pages.set(url, found);
+        }
+        return { products: commitHotFetch(this.name, pages).map((it) => this.toProduct(it)), errors };
+      }
       for (const categoryPath of CATEGORY_PATHS) for (let page = 1; page <= MAX_PAGES; page++) {
         const url = page === 1 ? `${this.baseUrl}${categoryPath}` : `${this.baseUrl}${categoryPath}?page=${page}`;
         const res = await politeFetch(url, { delayMs: PAGE_DELAY_MS });
@@ -148,31 +185,21 @@ export class MaxGamingAdapter implements SourceAdapter {
         const html = await res.text();
         const found = this.parseProducts(html);
         if (found.length === 0) break;
-        let added = 0;
+        const added: MaxRaw[] = [];
         for (const item of found) {
           if (seen.has(item.url)) continue;
           seen.add(item.url);
-          added++;
-          products.push({
-            externalId: item.artnr ? `maxgaming-${item.artnr}` : `maxgaming-${Buffer.from(item.url).toString("base64url").slice(0, 40)}`,
-            title: item.title,
-            url: item.url,
-            price: item.priceOre,
-            currency: "SEK",
-            stockStatus: STATUS_BY_STOCK[item.stock ?? (item.inStock ? "in" : "out")],
-            // Direkt GET-länk till korgen (Nordisk e-handel, se cart-url.ts). Samma `artnr`
-            // som externalId; saknas det finns ingen länk.
-            cartUrl: nordiskCartUrl(this.baseUrl, item.artnr),
-            category: guessListingCategory(item.title),
-            raw: item,
-          });
+          added.push(item);
         }
-        if (added === 0) break; // ingen ny produkt → sista sidan (paginering tog slut)
+        if (added.length === 0) break; // ingen ny produkt → sista sidan (paginering tog slut)
+        pages.set(url, added);
       }
     } catch (err) {
       errors.push(`${this.name}: ${err instanceof Error ? err.message : String(err)}`);
     }
-    return { products, errors };
+    // Bara en HEL katalog blir minne för de heta hämtningarna.
+    if (!errors.length && pages.size) commitFullFetch(this.name, pages);
+    return { products: [...pages.values()].flat().map((it) => this.toProduct(it)), errors };
   }
 
   normalizeProduct(raw: RawProductData): NormalizedProduct {

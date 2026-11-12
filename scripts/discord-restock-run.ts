@@ -97,6 +97,17 @@ import {
 import { flapPolicy } from "../src/lib/stock-flap";
 import { pricePolicy } from "../src/lib/price-drop";
 import { pollBudget, pollIntervalMs } from "../src/lib/restock-poll-interval";
+import { setHotUrls } from "../src/scrapers/hot-pages";
+
+/**
+ * BUTIKER MED HETA SIDOR (2026-11-12, MaxGamings 30th UPC 14:00 såldes slut mellan två
+ * hämtningar): golvet för taktens intervall, i sekunder. Adaptern läser mellan de fulla
+ * hämtningarna bara sida 1 + sidorna med nyss postade varor (`<BUTIK>_HOT_FULL_EVERY` i
+ * workflowet) — 1–3 förfrågningar ⇒ golvet avgör. ⛔ `perRequestSeconds` är orört:
+ * MaxGaming 3 × 12 s + 21 s (full) ≈ 9 förfrågningar per 57 s = 0,16/s mot taket 0,29/s.
+ * ⛔ Lägg bara till en butik vars adapter har läget — annars pollas HELA feeden så här ofta.
+ */
+const HOT_FLOOR_SECONDS: Record<string, number> = { MaxGaming: 12 };
 import {
   hitsFromPosts,
   hitsFromStockSyncs,
@@ -773,6 +784,16 @@ async function main() {
     //    kallar en nivålåst vara (Delta Reign, nivå 26) för förhandsbokning. Kunde live-
     //    svaret inte hämtas postar vi inte på gissningen — raden hoppas ett varv, och
     //    frånvarominnet gör att en ÄKTA förhandsbokning ändå postas när svaret kommer.
+    // HETA SIDOR (hot-pages.ts): det lanen postat om senaste dygnet fylls på i vågor —
+    // adaptrar som stöder det läser de sidorna oftare än hela katalogen.
+    if (HOT_FLOOR_SECONDS[source.name] != null && state) {
+      const prefix = `${source.name}	`;
+      const urls: string[] = [];
+      for (const key of Object.keys(state.posted)) {
+        if (key.startsWith(prefix)) urls.push(key.slice(prefix.length).split("#")[0]);
+      }
+      setHotUrls(source.name, urls);
+    }
     const fetchedItems: FeedItem[] = await fetchSourceFeed(source, { dropPartial: true });
     // ⛔ FÖR SENT ATT DIFFA: nästa jobb tar över vid `deadline` och ser samma övergång mot
     //    sitt eget state. Diffade vi här hade båda kunnat posta den — och state:t vi sparar
@@ -1211,7 +1232,8 @@ async function main() {
     await new Promise((r) => setTimeout(r, index * STAGGER_MS));
 
     const cdn = isCdnServed(source);
-    const budget = pollBudget(cdn);
+    const hotFloor = HOT_FLOOR_SECONDS[source.name];
+    const budget = hotFloor != null ? { ...pollBudget(cdn), floorSeconds: hotFloor } : pollBudget(cdn);
     let interval = pollIntervalMs(0, budget);
     let logged = false;
     for (;;) {
