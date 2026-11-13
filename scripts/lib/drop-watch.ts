@@ -910,21 +910,19 @@ export class DropWatcher {
   }
 
   /**
-   * Fullsök på NÄSTA heta originalsidas streckkod. Sidor med köpgräns först (de hypade), i tur
-   * och ordning. Returnerar false när det inte finns någon kod att söka (då tas ett prefix).
+   * Fullsök på Pokémons streckkodsprefix — alla Pokémon-sidor i butiken i ETT svar.
    */
   private async sweepGtin(store: string): Promise<boolean> {
-    const byGtin = new Map<string, { limited: boolean }>();
-    for (const p of Object.values(this.data.pages)) {
-      if (p.store !== store || !p.gtin) continue;
-      const e = byGtin.get(p.gtin);
-      byGtin.set(p.gtin, { limited: !!p.limited || !!e?.limited });
-    }
-    const gtins = [...byGtin.entries()].sort((a, b) => Number(b[1].limited) - Number(a[1].limited)).map(([g]) => g);
-    if (!gtins.length) return false;
+    // ⚡ ETT SÖK HITTAR ALLA (2026-11-13, ägaren: "om sidan läggs upp minuten före släppet?"):
+    //    fullsöket matchar streckkodens PREFIX. "196214" = The Pokémon Company International ⇒
+    //    varje engelsk Pokémon-vara i butiken (103 st, ~90 kB) — och alla dolda sidor, vad de
+    //    än heter (mätt: /upc-night, /dag-ultra och /pok-30-12-oktober i samma svar). En ny
+    //    dold sida syns alltså inom ett svepvarv (~16 s dagtid), inte efter en hel rotation
+    //    över originalsidornas koder. Var 10:e gång Pokémon Japans prefix.
+    //    ⛔ Svaret kapas vid 300 träffar — växer sortimentet förbi det måste prefixet förlängas.
     const turn = this.codeTurn.get(`${store}#gtin`) ?? 0;
     this.codeTurn.set(`${store}#gtin`, turn + 1);
-    const gtin = gtins[turn % gtins.length];
+    const gtin = turn % 10 === 9 ? "4521329" : "196214";
     const res = await politeFetch(
       `${SPELEXPERTEN}/cgi-bin/ibutik/AIR_ibutik.fcgi?funk=gor_sokning&term=${encodeURIComponent(gtin)}`,
       { delayMs: 1000 }
@@ -934,20 +932,23 @@ export class DropWatcher {
     const linked = new Set(this.linkTargets(store).map(([, , t]) => t));
     const orphans = (this.data.orphans ??= {});
     for (const url of spelexpertenSearchLinks(await res.text(), SPELEXPERTEN)) {
+      // ⛔ BARA ROTNIVÅ, och bara när feeden är läst: svaret är hela Pokémon-sortimentet, och en
+      //    vanlig vara som råkar saknas i vår feed får inte bli ett "dolt släpp". Alla dolda
+      //    sidor hittills har legat i roten; en dold sida under en kategori hittas inte här.
+      if (!inFeed.size || !isRootLevelPage(url)) continue;
       if (inFeed.has(url) || linked.has(url) || this.data.pages[url]) continue;
       const known = orphans[url];
       if (known) {
         // Hittad på streckkoden ⇒ den ÄR en Pokémon-vara, även om rubriken fällde den förut.
-        if (known.ignored || !known.gtin) {
+        if (known.ignored) {
           known.ignored = false;
-          known.gtin = gtin;
           this.dirty = true;
         }
         continue;
       }
-      orphans[url] = { title: "", priceOre: null, releaseAt: null, stock: null, checkedAt: 0, seenAt: Date.now(), gtin };
+      orphans[url] = { title: "", priceOre: null, releaseAt: null, stock: null, checkedAt: 0, seenAt: Date.now() };
       this.dirty = true;
-      console.log(`[drop-watch] ${store}: dold sida på streckkoden ${gtin} — ${url}`);
+      console.log(`[drop-watch] ${store}: dold sida i streckkodssöket (${gtin}…) — ${url}`);
     }
     return true;
   }

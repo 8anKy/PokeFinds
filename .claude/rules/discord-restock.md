@@ -37,6 +37,11 @@ paths:
   UPC, ULTRA, DAG, NIGHT, ETB, BUNDLE, TIN. Provat: `test-hidden-drop.ts --page upc-night.html` (⛔ utan inledande
   snedstreck i Git Bash — MSYS skriver om det till en Windows-sökväg) ⇒ rätt vara (Umbreon UPC) på 51 s.
   ⚠️ Streckkodsvägen kräver att originalsidan lästs (koden) och att butiken fortsätter kopiera koden.
+- ⚡ **ETT SÖK HITTAR ALLA DOLDA SIDOR (2026-11-13)**: fullsöket matchar streckkodens PREFIX — `term=196214`
+  (The Pokémon Company International) ger hela butikens engelska Pokémon-sortiment (103 kort, ~90 kB gzip, ~3 s)
+  inklusive varje dold rotnivåsida. `sweepGtin` kör det varannan svepplats (~16 s dagtid; var 10:e gång japanska
+  prefixet 4521329) ⇒ en sida som skapas minuten före släppet hittas inom ~20 s. ⛔ Bara ROTNIVÅ-träffar blir
+  kandidater (svaret är hela sortimentet), och svaret kapas vid 300 träffar — förläng prefixet om det växer förbi.
 - **Spelexperten lägger länken på Facebook/Instagram** (originalsidan säger bara "se våra sociala medier"): den
   dolda sidan ligger i butikens rot och finns i butikens EGET sök. `sweepSpelexperten` (drop-watch.ts): snabbsök på
   prefixen "P-" (artikelnummer, t.ex. P-BUN) och "POK 30" var 12:e s + fullsök "POK" var ~5:e min ⇒ rotnivåsidor
