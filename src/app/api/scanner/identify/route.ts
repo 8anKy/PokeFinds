@@ -121,7 +121,18 @@ export async function POST(req: Request) {
     // eget livstidstak (10). Allt nedan som rör konto/Pro/diagnostik är
     // grindat på `actor.kind` — en gäst får billiga modellen, ingen intro-
     // skanning, inget ScannerJob (ingen rad att fästa återkoppling i).
+    // FASTIDER (2026-11-13): en loggrad per skanning — mät var tiden går FÖRE optimering.
+    // Ingen DB, inga personuppgifter; läses ur Railways loggar ("[scan-timing]").
+    const t0 = Date.now();
+    let tPrev = t0;
+    const phases: string[] = [];
+    const mark = (k: string) => {
+      const now = Date.now();
+      phases.push(`${k}=${now - tPrev}`);
+      tPrev = now;
+    };
     const actor = await resolveScanActor(req);
+    mark("actor");
     const user = actor.kind === "user" ? actor.user : null;
 
     // Live-flödet pollar ~var 1,5 s (= ~40/min) → 60/min ger marginal men halverar
@@ -147,6 +158,7 @@ export async function POST(req: Request) {
       langHint,
       precise,
     } = schema.parse(await req.json());
+    mark("body");
     if (image.length + (detail?.length ?? 0) > MAX_IMAGE_BYTES * 1.4) {
       throw new ServiceError(413, "Bilden är för stor. Skala ner videorutan innan den skickas.");
     }
@@ -157,6 +169,7 @@ export async function POST(req: Request) {
       actor.kind === "user"
         ? await getScannerQuota(actor.user.id, effectivePlanTier(actor.user), actor.user.role, actor.deviceId)
         : await getGuestQuota(actor.deviceId, actor.ip);
+    mark("quota");
     if (quota.remaining <= 0) {
       throw new ServiceError(
         429,
@@ -175,9 +188,11 @@ export async function POST(req: Request) {
     const intro = user ? await isIntroScan(user.id) : false;
     // MOTORLÄGE (2026-09-30 admin, ALLA sedan 2026-10-14 — ägarbeslut): skannermotorn utan AI
     // svarar och Gemini anropas aldrig. Faller motorn bort avgör konstavtrycket ensamt (noVision).
+    mark("intro");
     const engineMode = engineModeFor(user?.role);
     // Telefonens lästa nummer avgör mellan namnsyskon i motorns topp-5 (applyLocalNumber).
     const engine = engineMode ? await applyLocalNumber(await callEngine(image), localNumber?.num) : undefined;
+    mark("engine");
     if (engine?.error) console.warn("[engine] motorläge föll tillbaka:", engine.error);
     const result = await identifyCard(image, {
       engine,
@@ -199,6 +214,7 @@ export async function POST(req: Request) {
     // verkliga träffsäkerheten kan mätas. Allt vi har i dag är TAK-siffror: varje
     // mätning bygger på frågor härledda ur samma filer som referenserna, aldrig
     // på en riktig fångst. Avtrycket (264 byte) sparas, aldrig bilden.
+    mark("match");
     const isAdmin = !!user && (user.role === "ADMIN" || user.role === "SUPERADMIN");
     // FOLIEMÅTTEN räknas bara för admin — de är instrumentering, inte en
     // produktfunktion, och en vanlig rad ska inte bära diagnostik alls
@@ -354,6 +370,7 @@ export async function POST(req: Request) {
         : null
     );
 
+    mark("write");
     // SKANNERFACIT (2026-09-29) — BARA ADMIN: kortfotot sparas i bucketen så att
     // en bildmatchare utan AI kan mätas mot riktiga fångster offline
     // (scripts/scanner-photo-export.ts). Nyckeln härleds ur jobbet. Fire-and-
@@ -400,6 +417,11 @@ export async function POST(req: Request) {
     } = result;
 
     const streak = user && matched ? await recordActivity(user.id, effectivePlanTier(user)) : null;
+    mark("streak");
+    console.log(
+      `[scan-timing] total=${Date.now() - t0} ${phases.join(" ")} kb=${Math.round((image.length + (detail?.length ?? 0)) / 1024)} ` +
+        `eng=${engine ? (engine.error ?? "ok") : "off"} who=${user ? "user" : "guest"}`
+    );
     return withStreak(jsonOk({
       ...clientResult,
       remaining: Math.max(0, quota.remaining - (matched ? 1 : 0)),
