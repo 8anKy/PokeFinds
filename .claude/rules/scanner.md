@@ -38,7 +38,11 @@ paths:
   spel — samma nummer i flera tryckningar är regel där (6 718 kort, 3 018 nummer), så valraden är hur man
   väljer rätt kopia. MÄTT offline före påslag (motorns recept, 220 frågor = officiella JP-bilden förvanskad,
   527 referenser inkl. alternativ konst): rätt kort 100 % mild / 99,1 % hård; referensernas "SAMPLE"-stämpel
-  kostar ingenting (samma tal med bandet maskat ⇒ maska inte). ⚠️ Ett TAK — inga riktiga foton ännu; läs
+  kostar ingenting (samma tal med bandet maskat ⇒ maska inte). RIKTIGA FOTON (2026-11-13, 260 Tradera-säljarfoton
+  från 89 säljare mot 2 200 referenser, motorns steg A + B): rätt kort 97,3 %; säkra svar (≥ 25 inliers) 90,8 % av
+  fotona och 99,6 % rätt — resten går till valsteget. ⛔ Mät ALDRIG med kvotprov per kort: One Piece-korten delar
+  ram och textruta, och utan motorns "distinkt mot ett ANNAT kort" gav fel kort 300+ inliers. ~1 av 4 foton var
+  JAPANSKA kort (samma konst) — skannern svarar då det engelska kortet; katalogen har inga japanska. Läs
   rättelsefrekvensen per spel efter påslag. Kostnad: +6 718 kort ≈ +13 % av motorns index (~35 MB RAM,
   ~0,55 GB volym) ≈ 5 kr/mån. Första påfyllningen tar 3 nätter (engine-sync `MAX_PER_RUN` 3 000).
 
