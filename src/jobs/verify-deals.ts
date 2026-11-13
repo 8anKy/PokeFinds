@@ -354,7 +354,9 @@ export async function verifyTraderaMatches(
   const offers = await prisma.offer.findMany({
     where: {
       retailerId: tradera.id,
-      product: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY", "OTHER"] } },
+      // ⛔ Bara Pokémon: regeldomen (setnamn, karaktärer, produktformer) är byggd för Pokémon och hade
+      //    fällt riktiga One Piece-annonser (op-tradera-sweep har sin egen matchare).
+      product: { game: "POKEMON", category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY", "OTHER"] } },
     },
     select: {
       id: true,

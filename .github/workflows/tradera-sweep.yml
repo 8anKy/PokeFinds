@@ -77,6 +77,15 @@ jobs:
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/tradera-full-sweep.ts
 
+      # ONE PIECE (2026-11-13): hela Tradera-kategorin 1001268, ~140 sökanrop. TORRKÖRNING tills loggen
+      # är läst (träffar + stickprov) — sätt repo-variabeln OP_TRADERA_APPLY=1 för att börja skriva.
+      - if: steps.guard.outputs.ready == 'true' && !cancelled()
+        name: One Piece på Tradera
+        continue-on-error: true
+        env:
+          OP_TRADERA_APPLY: ${{ vars.OP_TRADERA_APPLY }}
+        run: npx tsx scripts/op-tradera-sweep.ts
+
       # Släng den cachade bilden av priserna — se cardmarket-refresh.yml för varför.
       - if: steps.guard.outputs.ready == 'true'
         name: Invalidera sid-cachen (annonserna är skrivna)
