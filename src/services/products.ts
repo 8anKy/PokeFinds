@@ -569,6 +569,17 @@ function feedOrderBy(sort: ProductSort): Prisma.ProductOrderByWithRelationInput 
   }
 }
 
+/**
+ * One Piece-nummer ("OP08-007") får SAMMA `numberSortKey` inom ett set — nyckeln läser bara
+ * första sifferföljden (setets "08"). Råsträngen är nollutfylld och sorterar rätt, så den bryter
+ * lika-läget. För Pokémon är lika nyckel i praktiken lika nummer ⇒ ingen ändring där.
+ */
+function feedTieBreak(sort: ProductSort): Prisma.ProductOrderByWithRelationInput[] {
+  if (sort === "card_number_asc") return [{ card: { number: "asc" } }];
+  if (sort === "card_number_desc") return [{ card: { number: "desc" } }];
+  return [];
+}
+
 const FEED_INCLUDE = {
   // releaseDate används BARA av rankningen (färskhetsdelen i qualityScore) — den
   // mappas inte av toListItem och når alltså aldrig klientens payload.
@@ -818,7 +829,7 @@ async function getExploreFeedRaw(
     const products = await prisma.product.findMany({
       where,
       include: FEED_INCLUDE,
-      orderBy: [feedOrderBy(sort), { id: "asc" }],
+      orderBy: [feedOrderBy(sort), ...feedTieBreak(sort), { id: "asc" }],
       skip: offset,
       take: limit,
     });

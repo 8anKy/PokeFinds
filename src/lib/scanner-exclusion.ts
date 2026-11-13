@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Game, Prisma } from "@prisma/client";
 
 /**
  * KORT SKANNERN INTE SKA KÄNNA IGEN (2026-10-15).
@@ -30,6 +30,18 @@ export const SCANNER_EXCLUDED_CARD: Prisma.CardWhereInput = {
 };
 
 /**
+ * SPELEN SKANNERN KÄNNER (2026-11-13). Pokémon alltid; One Piece när `SCANNER_ONE_PIECE=1`
+ * (Railway, läses i runtime). Spaken styr TRE saker på en gång — vilka kort engine-sync skickar
+ * till skannermotorn, vilka avtryck appens konstindex laddar och vilka kort en skanning får
+ * svara med — så av = skannern är Pokémon igen samma sekund, även om motorn redan lärt sig korten.
+ * Mätt offline före påslag (220 frågor mot 527 referenser inkl. alternativ konst, motorns recept):
+ * rätt kort 100 % mild / 99,1 % hård förvanskning; "SAMPLE"-stämpeln i referensbilderna kostar
+ * ingenting (samma tal med bandet maskat).
+ */
+export const SCANNER_GAMES: Game[] =
+  process.env.SCANNER_ONE_PIECE === "1" ? ["POKEMON", "ONE_PIECE"] : ["POKEMON"];
+
+/**
  * Prisma-villkor: kortet får finnas i skannerns index.
  * ⛔ INTE `{ NOT: SCANNER_EXCLUDED_CARD }`: SQL:s NOT över en nullbar kolumn
  * (`NOT (tcgExternalId LIKE 'cm:%')`) blir NULL för kort UTAN tcgExternalId och
@@ -45,8 +57,6 @@ export const SCANNER_INCLUDED_CARD: Prisma.CardWhereInput = {
       ],
     },
     { NOT: { set: { name: { startsWith: PRIZE_PACK_SET_PREFIX } } } },
-    // ⛔ Skannern är Pokémon (2026-11-10): One Piece-singlar indexeras inte — varken i appens
-    // konstindex eller i skannermotorns data. Ta bort raden först när skannern ska läsa One Piece.
-    { set: { game: "POKEMON" } },
+    { set: { game: { in: SCANNER_GAMES } } },
   ],
 };

@@ -30,6 +30,18 @@ paths:
   (`scripts/build-scanner-unique-cards.ts`: normaliserat namn utan vanligt syskon, aldrig WCD, konst < 0,9 mot
   indexet — namnet ensamt släppte igenom 485 omtryck med annan stavning, "Pokegear"/"Pokégear").
 
+- **ONE PIECE I SKANNERN = EN SPAK, `SCANNER_ONE_PIECE=1` (byggt 2026-11-13, AV tills ägaren slår på)**:
+  `SCANNER_GAMES` (`lib/scanner-exclusion.ts`) styr engine-sync (vilka kort motorn lär sig), appens konstindex
+  och vilka kort en skanning får svara med — av = Pokémon igen direkt, även om motorn redan har korten.
+  One Piece hittas på BILDEN; text-källorna (OCR-namn/nummer) och telefonens nummerregel
+  (`applyLocalNumber`) är Pokémon-only, för "OP08-007" har setets siffror först. Syskonen hämtas i VINNARENS
+  spel — samma nummer i flera tryckningar är regel där (6 718 kort, 3 018 nummer), så valraden är hur man
+  väljer rätt kopia. MÄTT offline före påslag (motorns recept, 220 frågor = officiella JP-bilden förvanskad,
+  527 referenser inkl. alternativ konst): rätt kort 100 % mild / 99,1 % hård; referensernas "SAMPLE"-stämpel
+  kostar ingenting (samma tal med bandet maskat ⇒ maska inte). ⚠️ Ett TAK — inga riktiga foton ännu; läs
+  rättelsefrekvensen per spel efter påslag. Kostnad: +6 718 kort ≈ +13 % av motorns index (~35 MB RAM,
+  ~0,55 GB volym) ≈ 5 kr/mån. Första påfyllningen tar 3 nätter (engine-sync `MAX_PER_RUN` 3 000).
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **SKANNERN IDENTIFIERAR PÅ UTSEENDE, INTE PÅ TEXT (2026-07-29)**: samlarnumret trycks ~2 mm högt. På en fysisk

@@ -14,6 +14,7 @@ import { FINGERPRINT_BYTES, STRUCT_BYTES } from "@/lib/art-fingerprint";
 import { subsetAliasExternalIds } from "@/lib/subset-number-alias";
 import { engineChoiceOrder, engineNoCard } from "@/lib/engine-choice";
 import { cardNumberSortKey } from "@/lib/card-number-order";
+import { SCANNER_GAMES } from "@/lib/scanner-exclusion";
 import { parseScanSearch } from "@/lib/scan-search-query";
 // ⛔ Delad med graderingen OCH adminens kostnadsvy — kvotfönstret måste vara
 // samma gräns överallt. Se src/lib/utils.ts.
@@ -40,8 +41,13 @@ import type {
 } from "@/services/scanner/types";
 import { variantDisplayRank } from "@/lib/print-variant";
 
-/** Skannern läser Pokémon (2026-11-10) — One Piece-singlar blir aldrig kandidater. */
+/**
+ * TEXT-källorna (namn/nummer ur OCR) är Pokémon: nummerformatet ("123/198") och namnmatchningen
+ * är byggda för det. One Piece hittas på BILDEN (motorn/konstavtrycket) — se SCANNER_GAMES.
+ */
 const POKEMON_CARD = { set: { game: "POKEMON" as const } };
+/** Bildkällan: bara spel skannern får svara med (spaken av ⇒ motorns One Piece-id:n ignoreras). */
+const SCANNABLE_CARD = { set: { game: { in: SCANNER_GAMES } } };
 
 /** Markör för bilder som laddats upp inline (MVP, ingen objektlagring). */
 const INLINE_UPLOAD = "inline-upload";
@@ -1241,7 +1247,7 @@ export async function matchCards(
     language: true,
     imageUrl: true,
     hp: true,
-    set: { select: { name: true, totalCards: true, releaseDate: true } },
+    set: { select: { name: true, totalCards: true, releaseDate: true, game: true } },
   } as const;
   const nameAll = tokens.map((t) => ({ name: { contains: t, mode: "insensitive" as const } }));
   // Deterministisk ordning: ett tak utan orderBy är samma slumpurval igen.
@@ -1278,7 +1284,7 @@ export async function matchCards(
     // i stället för ytterligare en genomsökning.
     artScores?.size
       ? prisma.card.findMany({
-          where: { id: { in: [...artScores.keys()] } },
+          where: { id: { in: [...artScores.keys()] }, ...SCANNABLE_CARD },
           select,
           orderBy,
         })
@@ -1500,9 +1506,12 @@ export async function matchCards(
   // användarens senaste val i sessionen när det finns (92 % rätt mot 80 % för
   // "EN vinner", 455 domar) — se `preferTwinLanguage`.
   const winnerBase = cardBaseName(winner.name);
+  // Syskonen hämtas i VINNARENS spel: en One Piece-träff ska få sina egna omtryck som val
+  // (samma nummer i flera set är regel där — P-001 finns i sex tryckningar), aldrig Pokémon-kort.
+  const winnerGame = byId.get(winner.cardId)?.set.game ?? "POKEMON";
   const namePool = await prisma.card.findMany({
     where: {
-      ...POKEMON_CARD,
+      set: { game: winnerGame },
       OR: [
         { name: { equals: winnerBase, mode: "insensitive" } },
         { name: { equals: `${winnerBase} (JP)`, mode: "insensitive" } },
@@ -2041,6 +2050,7 @@ export async function searchScannerCards(raw: string, limit = 24): Promise<ScanC
             ],
           })),
           ...(number ? [{ numberSortKey: cardNumberSortKey(number) }] : []),
+          SCANNABLE_CARD,
         ],
       },
       select: {

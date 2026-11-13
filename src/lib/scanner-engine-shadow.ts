@@ -109,7 +109,14 @@ export async function applyLocalNumber(res: EngineResponse, localNum: number | n
   const ids = res.candidates.slice(0, 5).map((c) => c.cardId);
   if (res.best && !ids.includes(res.best)) ids.push(res.best);
   try {
-    const rows = await prisma.card.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, number: true } });
+    const rows = await prisma.card.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true, number: true, set: { select: { game: true } } },
+    });
+    // ⛔ Bara Pokémon: numret läses som "123/198". Ett One Piece-nummer ("OP08-007") har setets
+    // siffror först, så regeln hade bytt mellan namnsyskon på setnumret.
+    const bestRow = rows.find((r) => r.id === (res.best ?? res.candidates![0].cardId));
+    if (bestRow && bestRow.set.game !== "POKEMON") return res;
     return pickByLocalNumber(res, localNum, new Map(rows.map((r) => [r.id, r])));
   } catch (e) {
     console.warn("[engine] nummerkontrollen hoppades över:", (e as Error).message);
