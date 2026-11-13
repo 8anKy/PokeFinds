@@ -1550,6 +1550,31 @@ function Scanner() {
     return () => video.removeEventListener("pause", onPause);
   }, [view, cameraState]);
 
+  // SVARTA KANTER RUNT KAMERABILDEN (ägaren 2026-11-13, iOS-appen, efter granskningsvyn): bilden låg som
+  // en smal spalt mitt i skärmen i stället för att fylla den. `object-cover` räknas på videons EGNA mått,
+  // och WebKit räknar inte alltid om när måtten kommer i efterhand — ett nymonterat <video> som får en
+  // redan igång ström (review → capture) är synligt innan måtten finns. Första starten har inte felet:
+  // där är elementet dolt tills kameran är "live". Tvinga därför en omlayout när måtten blir kända eller
+  // ändras (objektivbyte ger nya mått). ⚠️ Ej reproducerat på enhet — följ upp om det kommer igen.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || view !== "capture") return;
+    const relayout = () => {
+      const prev = video.style.display;
+      video.style.display = "none";
+      void video.offsetHeight; // tvingad reflow mellan av och på
+      video.style.display = prev;
+    };
+    video.addEventListener("loadedmetadata", relayout);
+    video.addEventListener("resize", relayout);
+    // Måtten kan redan vara kända när lyssnaren sätts (strömmen var igång) — gör det en gång direkt.
+    if (video.videoWidth > 0) relayout();
+    return () => {
+      video.removeEventListener("loadedmetadata", relayout);
+      video.removeEventListener("resize", relayout);
+    };
+  }, [view, cameraState]);
+
   // LIVE-POLLEN: fingeravtryck ur aktuell videoruta ~var 600:e ms medan
   // kameravyn är aktiv. Varje poll är ~1 kB upp och ~40 ms server-CPU mot
   // indexet i minnet — ingen bild, ingen modell, ingen kvot. En poll i taget
