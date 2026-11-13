@@ -665,11 +665,8 @@ export class FiregamesAdapter extends ShopifyAdapter {
 //    otypade raderna (slab guards, pärmar, 3D-figurer). Samma skäl som Kanto Vault:
 //    ren Pokémon-butik ⇒ ofiltrerad wholeCatalog, ingen risk att en framtida sealed-SKU
 //    utan markör faller ur feeden tyst.
-export class TcgPicksAdapter extends ShopifyAdapter {
-  name = "TCG Picks";
-  baseUrl = "https://tcgpicks.com";
-  protected wholeCatalog = true;
-}
+// ⛔ GRAVSTEN 2026-11-13: butiken byggde om till en egen app ovanpå Storefront-API:t —
+//    `/products.json` svarar 404. Adaptern bor nu i `tcgpicks-adapter.ts`.
 
 // ---------- Wave 8: Shopify-butiker (2026-09-08) ----------
 // Cardshop Sweden (cardshopsweden.se) — Shopify, robots.txt tillåter allt publikt,

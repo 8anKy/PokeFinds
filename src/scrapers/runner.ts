@@ -47,7 +47,6 @@ import {
   RogerzAdapter,
   YonkoTcgAdapter,
   FiregamesAdapter,
-  TcgPicksAdapter,
   CardshopSwedenAdapter,
 } from "@/scrapers/adapters/shopify-adapter";
 import {
@@ -74,6 +73,7 @@ import { CardHavenAdapter } from "@/scrapers/adapters/cardhaven-adapter";
 import { SfBokAdapter } from "@/scrapers/adapters/sfbok-adapter";
 import { WorldOfBoardGamesAdapter } from "@/scrapers/adapters/worldofboardgames-adapter";
 import { SpelOchSantAdapter } from "@/scrapers/adapters/spelochsant-adapter";
+import { TcgPicksAdapter } from "@/scrapers/adapters/tcgpicks-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import { isStoreRetailer } from "../lib/offer-source";
 import {

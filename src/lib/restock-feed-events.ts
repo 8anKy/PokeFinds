@@ -131,6 +131,9 @@ type LaneItem = FeedItemFull & {
  * är DE som postar: en ny butik med saldo ⇒ ett inlägg som räknar upp alla butiker
  * och märker de nya. Aggregatet står kvar i state (alsoOnline, hits, seedning).
  */
+/** Så många annonser utan en enda känd URL räknas som en ombyggd sajt (seedas tyst). */
+const REBUILT_MIN_ITEMS = 10;
+
 function laneGroups(groups: FullFeedGroup[]): { sourceName: string; items: LaneItem[] }[] {
   return groups.map((g) => {
     if (!g.items.some((it) => it.storeStatus)) return g;
@@ -566,6 +569,22 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
   );
   for (const g of lane) {
     if (g.items.length > 0 && !prevSources.has(g.sourceName)) {
+      freshSources.add(g.sourceName);
+      stats.seededSources.push(g.sourceName);
+      continue;
+    }
+    // OMBYGGD SAJT (2026-11-13, TCG Picks: `/products/<handle>` → `/produkt/<handle>`): källan är
+    // känd men INGEN av dagens URL:er finns i lagerläget eller frånvarominnet. Det är inte ett
+    // släpp utan samma sortiment under nya adresser — utan regeln hade hela butiken postats som
+    // "ny produkt i lager". Minst REBUILT_MIN_ITEMS, så en liten butik som byter ut sina få varor
+    // fortfarande larmar.
+    if (
+      g.items.length >= REBUILT_MIN_ITEMS &&
+      !g.items.some((it) => {
+        const key = `${g.sourceName}\t${it.url}`;
+        return key in prev.stock || absentMemory(prev.absent, key) !== undefined;
+      })
+    ) {
       freshSources.add(g.sourceName);
       stats.seededSources.push(g.sourceName);
     }

@@ -382,6 +382,32 @@ describe("deriveRestockPosts", () => {
     expect(r2.posts).toHaveLength(1);
   });
 
+  it("⛔ OMBYGGD SAJT: känd källa där ingen URL känns igen seedas tyst", () => {
+    // TCG Picks 2026-11: /products/<handle> → /produkt/<handle>, hela sortimentet på nya adresser.
+    const old = Object.fromEntries(
+      Array.from({ length: 12 }, (_, i) => [`Dragon's Lair\thttps://butik.se/products/vara-${i}`, "IN_STOCK"])
+    );
+    const moved = Array.from({ length: 12 }, (_, i) => ({
+      url: `https://butik.se/produkt/vara-${i}`,
+      stockStatus: "IN_STOCK",
+      title: `Pokémon Booster Box ${i}`,
+    }));
+    const r = derive({ state: state({ stock: old }), groups: groups(moved) });
+    expect(r.posts).toHaveLength(0);
+    expect(r.stats.seededSources).toEqual(["Dragon's Lair"]);
+
+    // En enda känd URL kvar ⇒ inte en ombyggnad: de nya postas som vanligt.
+    const r2 = derive({
+      state: state({ stock: { ...old, [`Dragon's Lair\t${moved[0].url}`]: "IN_STOCK" } }),
+      groups: groups(moved),
+    });
+    expect(r2.stats.seededSources).toEqual([]);
+
+    // Få varor utan känd URL ⇒ ett litet släpp, inte en ombyggnad.
+    const r3 = derive({ state: state({ stock: old }), groups: groups(moved.slice(0, 3)) });
+    expect(r3.stats.seededSources).toEqual([]);
+  });
+
   it("postar en påfyllning (OUT → IN) på en känd URL", () => {
     const r = derive({
       state: state({ stock: { [KEY]: "OUT_OF_STOCK" } }),

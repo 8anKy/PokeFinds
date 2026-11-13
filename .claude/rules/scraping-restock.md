@@ -25,7 +25,7 @@ paths:
   API, JSON-LD; tvetydigt/annan valuta ⇒ null) och både nattens verify-pass och `verify-stale-offers.ts` skriver det.
   (3) **Tysta tomma feedar**: Sweet Nerds tog bort `id="product-price"` ur korten ⇒ 0 annonser utan ett fel
   (parsern kräver nu bara `<ins>` och felar när kort finns men inget läses). TCG Picks byggde om butiken (headless,
-  `/produkt/`, `/kollektion/` — `/products.json` 404) ⇒ ny adapter krävs. NordicTCG är bakom Cloudflare-utmaning
+  `/produkt/`, `/kollektion/` — `/products.json` 404) ⇒ ✅ ny adapter 2026-11-13 (`tcgpicks-adapter.ts`: laddardatat i `/kollektion/sealed-produkter`, en hämtning, "Visar N av M" som fullständighetskontroll, språk ur butikens `lang:`-tagg, ingen korglänk; lanen seedar en ombyggd sajt tyst — `REBUILT_MIN_ITEMS`). ⚠️ Omätt: hur en slutsåld vara ser ut där. NordicTCG är bakom Cloudflare-utmaning
   (403 även lokalt) ⇒ ägarbeslut, ingen bypass. En butik med tom feed verifieras ALDRIG (`feedRetailers`) ⇒ allt fryser.
   (4) **Pris ändrat efter nattkörningen** (Webhallen sänkte 5 999 → 3 299 kl 10:43 svensk tid, 1,5 h efter
   skrapningen) — rättas nästa natt; dagtid skriver bara IN_STOCK-prisfall (lanens hits). Ingen ändring, med flit
