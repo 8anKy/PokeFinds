@@ -18,6 +18,8 @@
 import { prisma } from "@/lib/db";
 
 const TIMEOUT_MS = 15_000;
+/** Den synliga vägen: en varm motor svarar på ~0,4 s. */
+const FAST_TIMEOUT_MS = 4_000;
 
 export interface EngineResponse {
   best?: string | null;
@@ -174,19 +176,25 @@ function jpegBytes(dataUrl: string): Buffer | null {
  * medan containern startar — mätt 2026-09-30 blev första skanningen i passet "unreachable".
  * Nätverksfel försöks därför om efter 3 och 8 s; HTTP-fel och timeout aldrig.
  */
-export async function callEngine(imageDataUrl: string): Promise<EngineResponse> {
+/**
+ * `fast` (ägarbeslut 2026-11-13): den SYNLIGA skanningen väntar aldrig på en kallstart. Mätt: motorn
+ * startar på 12–18 s och omförsöken (3 + 8 s) gav en svans på 13–15 s för passets första kort. Ett
+ * försök, kort tidsgräns — svarar motorn inte avgör konstavtrycket ensamt, och skuggvägen
+ * (med omförsök, i bakgrunden) väcker motorn till nästa kort.
+ */
+export async function callEngine(imageDataUrl: string, opts: { fast?: boolean } = {}): Promise<EngineResponse> {
   if (!engineShadowEnabled()) return { error: "disabled" };
   const body = jpegBytes(imageDataUrl);
   if (!body) return { error: "bad-image" };
   let last: EngineResponse = { error: "unreachable" };
-  for (const waitMs of [0, 3000, 8000]) {
+  for (const waitMs of opts.fast ? [0] : [0, 3000, 8000]) {
     if (waitMs) await new Promise((r) => setTimeout(r, waitMs));
     try {
       const res = await fetch(engineUrl("/identify"), {
         method: "POST",
         headers: { "content-type": "image/jpeg", "x-engine-secret": process.env.SCANNER_ENGINE_SECRET!.trim() },
         body: new Uint8Array(body),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(opts.fast ? FAST_TIMEOUT_MS : TIMEOUT_MS),
       });
       return res.ok ? ((await res.json()) as EngineResponse) : { error: `http-${res.status}` };
     } catch (e) {

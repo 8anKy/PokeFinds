@@ -191,7 +191,7 @@ export async function POST(req: Request) {
     mark("intro");
     const engineMode = engineModeFor(user?.role);
     // Telefonens lästa nummer avgör mellan namnsyskon i motorns topp-5 (applyLocalNumber).
-    const engine = engineMode ? await applyLocalNumber(await callEngine(image), localNumber?.num) : undefined;
+    const engine = engineMode ? await applyLocalNumber(await callEngine(image, { fast: true }), localNumber?.num) : undefined;
     mark("engine");
     if (engine?.error) console.warn("[engine] motorläge föll tillbaka:", engine.error);
     const result = await identifyCard(image, {
