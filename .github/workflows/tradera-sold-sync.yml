@@ -89,6 +89,8 @@ jobs:
         if: steps.guard.outputs.ready == 'true' && !cancelled()
         env:
           TRADERA_SOLD_PAGES: "200"
+          # One Piece-kategorin följer med när repo-variabeln är satt (samma spak som annonssvepet).
+          OP_TRADERA_APPLY: ${{ vars.OP_TRADERA_APPLY }}
           TRADERA_SOLD_LOOKBACK_DAYS: "3"
           # ── GETITEM-TAKET VAR VÅRT EGET, INTE TRADERAS (mätt 2026-09-05) ─────
           # Traderas kvot är 10 000 anrop/dygn PER METOD, och GetItem har EN enda

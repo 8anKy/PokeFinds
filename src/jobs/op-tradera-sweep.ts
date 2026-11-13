@@ -56,6 +56,43 @@ async function fetchPage(appId: string, appKey: string, page: number): Promise<s
   return res.text();
 }
 
+/** Katalogens One Piece-singlar per kortkod — delas med sålt-svepet (tradera-sold-sweep.ts). */
+export async function loadOnePieceCardRows(): Promise<Map<string, OpCardRow[]>> {
+  const cards = await prisma.product.findMany({
+    where: { game: "ONE_PIECE", category: "SINGLE_CARD", hiddenAt: null, card: { isNot: null } },
+    select: { id: true, title: true, card: { select: { number: true, name: true, set: { select: { code: true } } } } },
+  });
+  const byNumber = new Map<string, OpCardRow[]>();
+  for (const p of cards) {
+    const row: OpCardRow = { productId: p.id, title: p.title, number: p.card!.number, name: p.card!.name, setCode: p.card!.set.code };
+    (byNumber.get(row.number) ?? byNumber.set(row.number, []).get(row.number)!).push(row);
+  }
+  return byNumber;
+}
+
+/**
+ * EN One Piece-annons → produkt (singel på kortkoden, annars förseglat via butiksmatcharen).
+ * Samma dom för aktiva annonser och sålda affärer — två matchare hade gett två sanningar.
+ */
+export async function matchOnePieceTraderaListing(
+  title: string,
+  cardsByNumber: ReadonlyMap<string, readonly OpCardRow[]>,
+  matchIndex: Awaited<ReturnType<typeof loadMatchIndex>>,
+  categoryOf: (productId: string) => string | null | undefined
+): Promise<{ productId: string; kind: "single" | "sealed" } | { productId: null; reason: string }> {
+  const single = matchOnePieceTraderaSingle(title, cardsByNumber);
+  if (!("reason" in single)) return { productId: single.productId, kind: "single" };
+  // Förseglat: bara annonser UTAN kortkod (en kod = en singel vi valde att inte matcha).
+  if (single.reason === "ingen kortkod" || single.reason === "förseglat/tillbehör") {
+    // Kategorin ÄR One Piece — säg det åt matcharen när säljaren inte gjorde det.
+    const raw = /one\s*piece/i.test(title) ? title : `One Piece ${title}`;
+    const m = await matchProduct(normalizeTitle(raw), matchIndex, raw);
+    const cat = m ? categoryOf(m.productId) : null;
+    if (m && cat && cat !== "SINGLE_CARD" && cat !== "GRADED_CARD") return { productId: m.productId, kind: "sealed" };
+  }
+  return { productId: null, reason: single.reason };
+}
+
 export async function runOnePieceTraderaSweep(
   opts: { apply?: boolean; log?: (s: string) => void; sample?: number } = {}
 ): Promise<OpTraderaResult> {
@@ -99,15 +136,7 @@ export async function runOnePieceTraderaSweep(
   if (items.size === 0) return res;
 
   // ── 2. Katalogen ────────────────────────────────────────────────────────────
-  const cards = await prisma.product.findMany({
-    where: { game: "ONE_PIECE", category: "SINGLE_CARD", hiddenAt: null, card: { isNot: null } },
-    select: { id: true, title: true, card: { select: { number: true, name: true, set: { select: { code: true } } } } },
-  });
-  const cardsByNumber = new Map<string, OpCardRow[]>();
-  for (const p of cards) {
-    const row: OpCardRow = { productId: p.id, title: p.title, number: p.card!.number, name: p.card!.name, setCode: p.card!.set.code };
-    (cardsByNumber.get(row.number) ?? cardsByNumber.set(row.number, []).get(row.number)!).push(row);
-  }
+  const cardsByNumber = await loadOnePieceCardRows();
   const matchIndex = await loadMatchIndex({ visibleOnly: true });
   const meta = new Map(
     (await prisma.product.findMany({ where: { game: "ONE_PIECE" }, select: { id: true, category: true, title: true } }))
@@ -124,22 +153,9 @@ export async function runOnePieceTraderaSweep(
   const byProduct = new Map<string, TraderaItem[]>();
   const samples: string[] = [];
   await mapPool([...items.values()], DB_CONCURRENCY, async (item) => {
-    let productId: string | null = null;
-    let kind: "single" | "sealed" = "single";
-    const single = matchOnePieceTraderaSingle(item.title, cardsByNumber);
-    if (!("reason" in single)) productId = single.productId;
-    else {
-      res.reasons[single.reason] = (res.reasons[single.reason] ?? 0) + 1;
-      // Förseglat: bara annonser UTAN kortkod (en kod = en singel vi valde att inte matcha).
-      if (single.reason === "ingen kortkod" || single.reason === "förseglat/tillbehör") {
-        // Kategorin ÄR One Piece — säg det åt matcharen när säljaren inte gjorde det.
-        const raw = /one\s*piece/i.test(item.title) ? item.title : `One Piece ${item.title}`;
-        const m = await matchProduct(normalizeTitle(raw), matchIndex, raw);
-        const cat = m ? meta.get(m.productId)?.category : null;
-        if (m && cat && cat !== "SINGLE_CARD" && cat !== "GRADED_CARD") { productId = m.productId; kind = "sealed"; }
-      }
-    }
-    if (!productId) return;
+    const m = await matchOnePieceTraderaListing(item.title, cardsByNumber, matchIndex, (id) => meta.get(id)?.category);
+    if ("reason" in m) { res.reasons[m.reason] = (res.reasons[m.reason] ?? 0) + 1; return; }
+    const { productId, kind } = m;
     if (!(await guardFor(productId))(item.priceOre)) { res.implausible++; return; }
     if (kind === "single") res.matchedSingles++; else res.matchedSealed++;
     (byProduct.get(productId) ?? byProduct.set(productId, []).get(productId)!).push(item);

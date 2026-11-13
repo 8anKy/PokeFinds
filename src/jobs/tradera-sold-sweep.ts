@@ -45,7 +45,8 @@ import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { normalizeTitle } from "../lib/utils";
 import { isBlockedListingLanguage, listingCardLanguage } from "../lib/listing-language";
-import { matchProduct, getListingPriceGuard } from "../scrapers/matching";
+import { matchProduct, getListingPriceGuard, loadMatchIndex } from "../scrapers/matching";
+import { loadOnePieceCardRows, matchOnePieceTraderaListing } from "./op-tradera-sweep";
 import { traderaCategoryCompatible } from "./tradera-sweep";
 import { TRADERA_SOLD_SOURCE_NAME } from "../services/products";
 import { gradedTooSoonAfterRelease, gradingVerdictFor, isPlausibleGradedPriceOre } from "../lib/graded-listing";
@@ -63,7 +64,15 @@ const PUBLIC_API = "https://api.tradera.com/v3/publicservice.asmx";
  * annonserna i 1001337 (Löskort) i själva verket är slabbar. Domen tas därför på
  * ANNONSEN (`detectGrading`), aldrig på kategorin. Kategorin styr bara var vi letar.
  */
-const CATEGORIES = [1001337, 1001340, 1001339, 1001341, 1001338] as const;
+const POKEMON_CATEGORIES = [1001337, 1001340, 1001339, 1001341, 1001338] as const;
+/**
+ * ONE PIECE (2026-11-13): Traderas enda One Piece-kategori (singlar + förseglat + graderat blandat).
+ * Med i svepet när `OP_TRADERA_APPLY=1` — samma spak som det aktiva One Piece-svepet, så sålt och
+ * annonser slås på tillsammans. Matchas av One Piece-matcharen, aldrig av Pokémon-vägen.
+ */
+const ONE_PIECE_CATEGORY = 1001268;
+const CATEGORIES: readonly number[] =
+  process.env.OP_TRADERA_APPLY === "1" ? [...POKEMON_CATEGORIES, ONE_PIECE_CATEGORY] : POKEMON_CATEGORIES;
 /** Relevance-läget: så många sidor i rad utan en annons inom lookbacken ⇒ kategorin är klar. */
 const STALE_PAGES = 3;
 
@@ -515,6 +524,21 @@ export async function runTraderaSoldSweep(
     return ref;
   };
   let getItemQuotaHit = false;
+  // One Piece-underlaget laddas EN gång, och bara om kategorin är med i körningen.
+  let opCtx: Promise<{
+    cards: Awaited<ReturnType<typeof loadOnePieceCardRows>>;
+    index: Awaited<ReturnType<typeof loadMatchIndex>>;
+    categories: Map<string, string>;
+  }> | null = null;
+  const onePieceContext = () =>
+    (opCtx ??= (async () => {
+      const [cards, index, products] = await Promise.all([
+        loadOnePieceCardRows(),
+        loadMatchIndex({ visibleOnly: true }),
+        prisma.product.findMany({ where: { game: "ONE_PIECE" }, select: { id: true, category: true } }),
+      ]);
+      return { cards, index, categories: new Map(products.map((p) => [p.id, p.category as string])) };
+    })());
 
   await mapPool(fresh, DB_CONCURRENCY, async (sale) => {
     const bidsOre = soldByBidsOre(sale);
@@ -524,7 +548,15 @@ export async function runTraderaSoldSweep(
     if (!candidateOre || candidateOre <= 0) return;
 
     // Råtiteln MED — matchProducts vakter läser tecken som normalizeTitle kastar.
-    const match = await matchProduct(normalizeTitle(sale.title), undefined, sale.title);
+    const isOnePiece = sale.categoryId === ONE_PIECE_CATEGORY;
+    let match: { productId: string } | null;
+    if (isOnePiece) {
+      const op = await onePieceContext();
+      const m = await matchOnePieceTraderaListing(sale.title, op.cards, op.index, (id) => op.categories.get(id));
+      match = "reason" in m ? null : { productId: m.productId };
+    } else {
+      match = await matchProduct(normalizeTitle(sale.title), undefined, sale.title);
+    }
     if (!match) {
       stats.noMatch++;
       return;
@@ -541,7 +573,8 @@ export async function runTraderaSoldSweep(
       stats.noMatch++;
       return;
     }
-    if (!traderaCategoryCompatible(product.category, sale.categoryId)) {
+    // One Piece-kategorin blandar singlar och förseglat — där dömer matcharen formen, inte kategorin.
+    if (!isOnePiece && !traderaCategoryCompatible(product.category, sale.categoryId)) {
       stats.categoryMismatch++;
       return;
     }
