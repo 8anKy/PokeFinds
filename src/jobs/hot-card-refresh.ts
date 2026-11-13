@@ -275,7 +275,24 @@ export async function runHotCardRefresh(
     console.error("[hot-refresh] JP-luckfyllnaden misslyckades (ignoreras):", err instanceof Error ? err.message : err);
   }
 
-  if (res.updated > 0 || jpFilled > 0) {
+  // ONE PIECE på kvällen (2026-11-13, ägaren: "samma som Pokémon"). Leverantören har ingen känd
+  // uppslagning per kort för One Piece, så kvällen kör om HELA listan (sealed + singlar, ~380 anrop
+  // av dygnets 15 000) — alla kort får kvällspris, inte bara de heta. Fel sväljs som JP ovan.
+  let opRan = false;
+  if (process.env.OP_EVENING_REFRESH !== "0") {
+    try {
+      const { runOnePieceSealedImport } = await import("@/jobs/op-sealed-import");
+      const { runOnePieceSinglesImport } = await import("@/jobs/op-singles-import");
+      const sealed = await runOnePieceSealedImport({ apply: true });
+      const singles = await runOnePieceSinglesImport({ apply: true });
+      res.apiCalls += sealed.apiCalls + singles.apiCalls;
+      opRan = sealed.listed > 0 || singles.listed > 0;
+    } catch (err) {
+      console.error("[hot-refresh] One Piece-kvällen misslyckades (ignoreras):", err instanceof Error ? err.message : err);
+    }
+  }
+
+  if (res.updated > 0 || jpFilled > 0 || opRan) {
     await recomputeProductPriceCache();
     // Prislarmssvepet (se cardmarket-refresh): fel sväljs, kvällens priser är redan skrivna.
     try {

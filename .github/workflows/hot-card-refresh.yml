@@ -24,7 +24,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 45 # + JP-luckfyllnaden (~780 listanrop ≈ 10 min)
+    timeout-minutes: 70 # + JP-luckfyllnaden (~780 listanrop ≈ 10 min) + One Piece-kvällen (~380 anrop)
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10"
