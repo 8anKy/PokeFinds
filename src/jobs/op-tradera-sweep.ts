@@ -22,7 +22,7 @@ import { mapPool } from "@/lib/concurrency";
 import { normalizeTitle } from "@/lib/utils";
 import { getListingPriceGuard, loadMatchIndex, matchProduct } from "@/scrapers/matching";
 import { MAX_RAIL_LISTINGS, parseItemsFromXml, type TraderaItem } from "@/jobs/tradera-sweep";
-import { matchOnePieceTraderaSingle, type OpCardRow } from "@/lib/one-piece-tradera";
+import { looksLikeOnePieceSingle, matchOnePieceTraderaSingle, type OpCardRow } from "@/lib/one-piece-tradera";
 
 export const TRADERA_ONE_PIECE_CATEGORY = 1001268;
 const SEARCH_API = "https://api.tradera.com/v3/searchservice.asmx";
@@ -82,8 +82,10 @@ export async function matchOnePieceTraderaListing(
 ): Promise<{ productId: string; kind: "single" | "sealed" } | { productId: null; reason: string }> {
   const single = matchOnePieceTraderaSingle(title, cardsByNumber);
   if (!("reason" in single)) return { productId: single.productId, kind: "single" };
-  // Förseglat: bara annonser UTAN kortkod (en kod = en singel vi valde att inte matcha).
-  if (single.reason === "ingen kortkod" || single.reason === "förseglat/tillbehör") {
+  // Förseglat: bara annonser UTAN kortkod (en kod = en singel vi valde att inte matcha) och utan
+  // korttyp/sällsynthet — "Koza - Extra Booster Memorial Collection - Character" är ett kort för 6 kr,
+  // inte en booster (torrkörningen 2026-11-13: sealed-stickprovet var nästan bara sådana).
+  if (single.reason === "ingen kortkod" && !looksLikeOnePieceSingle(title)) {
     // Kategorin ÄR One Piece — säg det åt matcharen när säljaren inte gjorde det.
     const raw = /one\s*piece/i.test(title) ? title : `One Piece ${title}`;
     const m = await matchProduct(normalizeTitle(raw), matchIndex, raw);

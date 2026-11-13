@@ -31,6 +31,11 @@ describe("matchOnePieceTraderaSingle", () => {
     expect(hit("Alvida - EB05-021 SR - One Piece Card Game")).toBe("alvida");
     expect(hit("Shanks P-083 - One Piece Card Game")).toBe("shanks-p");
   });
+  it("setnamnet med 'Booster'/'Collection' gör inte en singel till förseglat eller särtryck", () => {
+    expect(hit("Alvida - One Piece: Extra Booster Memorial Collection - Character - #EB05-021")).toBe("alvida");
+    expect(hit("Nami (Pirate Foil) OP01-016 Premium Booster -The Best- Vol. 2")).toBe("särtryck utan säker tryckning");
+    expect(hit("Nami OP01-016 Booster Box")).toBe("förseglat/tillbehör");
+  });
   it("läser tryckningen ur titeln", () => {
     expect(hit("Nami OP01-016 Alternate Art One Piece")).toBe("nami-aa");
     expect(hit("Monkey D. Luffy - OP09-119 SP - One Piece Card Game")).toBe("luffy-sp");

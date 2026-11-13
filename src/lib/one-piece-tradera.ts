@@ -49,7 +49,14 @@ const GRADED_RE = /\b(psa|bgs|cgc|beckett|sgc|tag|ace|raukcard|rauk|graded|grade
 const LOT_RE =
   /\b(lot|parti|samling|kortsamling|bulk|blandade|diverse|bundle|playset|set om|paket med|\d+\s?(st|x|kort|cards)|x\s?\d+)\b|\+/i;
 const DON_RE = /\bdon\s?!!|\bdon\b/i;
-const SEALED_RE = /\b(booster|display|box|case|starter deck|deck|pack|paket|sleeves?|playmat|binder|pärm)\b/i;
+// "booster" saknas med flit: en annons MED kortkod bär ofta setnamnet ("Extra Booster Memorial
+// Collection", "Premium Booster") — torrkörningen 2026-11-13 kallade de singlarna förseglade.
+/** Setnamn som innehåller ett särtrycksord ("collection") utan att vara ett särtryck. */
+const SET_NAME_RE = /\b(memorial|anime\s?25th)\s+collection\b/gi;
+/** Korttyp/sällsynthet i titeln = ett KORT, aldrig en förseglad produkt. */
+const CARD_WORD_RE = /\b(character|event|stage|leader|common|uncommon|rare|foil|SR|SEC|UC)\b/i;
+export const looksLikeOnePieceSingle = (title: string): boolean => CARD_WORD_RE.test(title);
+const SEALED_RE = /\b(display|box|case|starter deck|deck|pack|paket|sleeves?|playmat|binder|pärm)\b/i;
 
 const PRINTING_RULES: [OpPrinting, RegExp][] = [
   ["Manga Rare", /\bmanga\b/i],
@@ -63,8 +70,9 @@ const OTHER_SPECIAL_RE =
 
 /** Tryckningen titeln påstår. `null` = ett särtryck vi inte kan peka ut ⇒ ingen träff. */
 export function onePiecePrintingInTitle(title: string): OpPrinting | null {
-  for (const [printing, re] of PRINTING_RULES) if (re.test(title)) return printing;
-  return OTHER_SPECIAL_RE.test(title) ? null : "base";
+  const t = title.replace(SET_NAME_RE, " ");
+  for (const [printing, re] of PRINTING_RULES) if (re.test(t)) return printing;
+  return OTHER_SPECIAL_RE.test(t) ? null : "base";
 }
 
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
