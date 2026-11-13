@@ -10,6 +10,7 @@
  *   railway run npx tsx scripts/test-hidden-drop.ts --user <e-post|discord-namn>            (rapport)
  *   railway run npx tsx scripts/test-hidden-drop.ts --user <e-post|discord-namn> --apply    (skickar DM)
  *   … --discord-id <id>   (hoppar över databasen)
+ *   … --page /upc-night.html   (provar streckkodsvägen: 30th UPC, sidan heter inte "POK …")
  *
  * `railway run` = bot-token (+ prod-DB för uppslaget av Discord-id) ur tjänstens variabler.
  */
@@ -21,7 +22,14 @@ import { SpelexpertenAdapter } from "../src/scrapers/adapters/spelexperten-adapt
 import { buildRestockEmbed, type RestockPost } from "../src/lib/discord-restock";
 
 const STORE = "Spelexperten";
-const TEST_PAGE = "/pok-30-12-oktober.html";
+// Vilken dold sida som "fylls på" i provet: --page /upc-night.html (30th UPC, hittas på
+// STRECKKODEN — inget "POK" i namnet) eller standard = oktobersidan (hittas på prefixet).
+const TEST_PAGE = (() => {
+  const i = process.argv.indexOf("--page");
+  return i >= 0 ? process.argv[i + 1] : "/pok-30-12-oktober.html";
+})();
+/** Gör 30th Celebration till ett HETT set, som i lanen (den har postat om setet). */
+const HOT_SEED = "https://www.spelexperten.com/sallskapsspel/pokemon/pokemon-tcg-30th-celebration-ultra-premium-collection-night.html";
 const APPLY = process.argv.includes("--apply");
 
 function arg(name: string): string | undefined {
@@ -92,7 +100,7 @@ async function main() {
   const watcher = new DropWatcher({
     file,
     routes,
-    posted: () => ({}),
+    posted: () => ({ [`${STORE}	${HOT_SEED}`]: Date.now() }),
     publish: async (posts) => {
       published = posts;
     },
@@ -111,7 +119,7 @@ async function main() {
   );
 
   const started = Date.now();
-  while (!published && Date.now() - started < 4 * 60_000) {
+  while (!published && Date.now() - started < 10 * 60_000) {
     await watcher.fastTick(STORE, 0);
     await new Promise((r) => setTimeout(r, 3000));
   }
@@ -121,7 +129,7 @@ async function main() {
     /* temporär fil */
   }
   if (!published) {
-    console.error("[test] ❌ Ingen post inom 4 min — svepet hittade inte den dolda sidan eller domen fällde den.");
+    console.error("[test] ❌ Ingen post inom 10 min — svepet hittade inte den dolda sidan eller domen fällde den.");
     process.exitCode = 1;
     return;
   }

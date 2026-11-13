@@ -87,14 +87,16 @@ const CODE_SEARCH_EVERY_MS = 12_000;
  * SVEPET efter föräldralösa dolda sidor (2026-11-12): ett snabbsök (~2–8 kB) var 12:e s dagtid
  * (2 min natt) i tur och ordning över termerna; var 8:e varv fullsöket på "POK" (~1,5 MB okomprimerat).
  */
-const SWEEP_TERMS = ["P-", "POK 30"];
+const SWEEP_TERMS = ["P-", "POK 30", "UPC", "ULTRA", "DAG", "NIGHT", "ETB", "BUNDLE", "TIN"];
 const SWEEP_FULL_EVERY = 8;
 const ORPHAN_OLD_EVERY_MS = 60_000;
 function sweepEveryMs(): number {
-  return isNight() ? 120_000 : 12_000;
+  return isNight() ? 120_000 : 8_000;
 }
 const URGENT_CODE_EVERY_MS = 4_000;
 function isNight(): boolean {
+  // Provkörningar (scripts/test-hidden-drop.ts) kör i dagtakt oavsett klockslag.
+  if (process.env.DROP_WATCH_FORCE_DAY === "1") return false;
   const h = Number(new Date().toLocaleString("sv-SE", { timeZone: "Europe/Stockholm", hour: "2-digit", hour12: false }));
   return h >= 0 && h < 7;
 }
@@ -157,6 +159,28 @@ function jsonLdPriceOre(html: string): number | null {
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
 }
 
+/** Streckkoden ur sidans JSON-LD (`"gtin8": "196214144903"` — nyckeln heter gtin8 oavsett längd). */
+function jsonLdGtin(html: string): string | undefined {
+  return html.match(/"gtin\d*"\s*:\s*"(\d{8,14})"/)?.[1];
+}
+
+/** The Pokémon Company International (196214…) och Pokémon Japan (4521329…) — GS1-prefixen. */
+function isPokemonGtin(gtin: string | null | undefined): boolean {
+  return !!gtin && /^0*(?:196214|4521329)/.test(gtin);
+}
+
+/** "Dag Ultra" ↔ "… Ultra Premium Collection Day": orden på engelska, gemener. */
+const TITLE_SYNONYMS: Record<string, string> = { dag: "day", natt: "night", upc: "ultra", etb: "elite", bunt: "bundle" };
+function titleWords(title: string): Set<string> {
+  return new Set(
+    title
+      .toLowerCase()
+      .split(/[^a-zåäö0-9]+/)
+      .filter((w) => w.length >= 3)
+      .map((w) => TITLE_SYNONYMS[w] ?? w)
+  );
+}
+
 interface DropPage {
   store: string;
   title: string;
@@ -172,6 +196,8 @@ interface DropPage {
   limited?: boolean;
   /** Länkmålen (kind "link") och deras senaste läsning. */
   targets?: Record<string, LinkTarget>;
+  /** Tillverkarens streckkod ur sidans JSON-LD — butikens fullsök hittar den DOLDA sidan på den. */
+  gtin?: string;
 }
 
 export interface LinkTarget {
@@ -192,7 +218,7 @@ interface DropFile {
    * FÖRÄLDRALÖSA dolda sidor (Spelexperten, 2026-11-12): hittade av svepet i butikens eget
    * sök, inte via en länk/kod på originalsidan (länken läggs numera ut på Facebook/Instagram).
    */
-  orphans?: Record<string, LinkTarget & { ignored?: boolean; spent?: boolean }>;
+  orphans?: Record<string, LinkTarget & { ignored?: boolean; spent?: boolean; gtin?: string }>;
   /** Heta set (gemener) → senast sedda i lanens cooldown-karta (ms). */
   hot?: Record<string, number>;
   /** Postade nycklar → tid (dold sida / rebus), så vi inte postar samma sak igen. */
@@ -401,6 +427,7 @@ export class DropWatcher {
     let title = seen?.title ?? prev?.title ?? "";
     let ownCodes: string[] = [];
     let links: string[] = [];
+    let gtin: string | undefined = prev?.gtin;
     if (store === "Spelexperten") {
       const res = await politeFetch(url, { delayMs: 2000 });
       if (!res.ok) return;
@@ -408,6 +435,7 @@ export class DropWatcher {
       text = htmlToText(html);
       const artnr = spelexpertenArtnr(html);
       if (artnr) ownCodes = [artnr];
+      gtin = jsonLdGtin(html) ?? gtin;
       links = spelexpertenDropLinks(html, SPELEXPERTEN, url);
       images = [...images, ...[...html.matchAll(/\/bilder\/artiklar\/[^"?\s]+/g)].map((m) => m[0])];
     } else {
@@ -452,6 +480,7 @@ export class DropWatcher {
       liveAt: becameLive ? Date.now() : instruction ? prev?.liveAt : undefined,
       codesSeenAt: codes ? (codesChanged ? Date.now() : (prev?.codesSeenAt ?? 0)) : undefined,
       limited: hasPurchaseLimit(text) || /max\.?\s*\d/i.test(title),
+      ...(gtin ? { gtin } : {}),
       ...(Object.keys(targets).length ? { targets } : {}),
     };
     this.dirty = true;
@@ -846,6 +875,14 @@ export class DropWatcher {
    *    bara fullsöket sidan (kräver "pok" i namnet).
    */
   private async sweepSpelexperten(store: string) {
+    // VARANNAN GÅNG: STRECKKODEN (2026-11-13). 30th UPC släpptes via Facebook/Instagram på
+    // "/upc-night.html" och "/dag-ultra.html" — inget "POK" i namnet, så prefixsöket hade
+    // missat dem. Men den dolda sidan bär SAMMA streckkod som originalsidan, och butikens
+    // fullsök matchar streckkoder: en sökning på originalets kod ger originalet + den dolda
+    // sidan, vad den än heter.
+    const sweepNo = this.codeTurn.get(`${store}#sweepNo`) ?? 0;
+    this.codeTurn.set(`${store}#sweepNo`, sweepNo + 1);
+    if (sweepNo % 2 === 0 && (await this.sweepGtin(store))) return;
     const terms = this.sweepTerms();
     const turn = this.codeTurn.get(`${store}#sweep`) ?? 0;
     this.codeTurn.set(`${store}#sweep`, turn + 1);
@@ -870,6 +907,49 @@ export class DropWatcher {
       this.dirty = true;
       console.log(`[drop-watch] ${store}: rotnivåsida i söket (${full ? "fullsök POK" : terms[slot]}) — ${url}`);
     }
+  }
+
+  /**
+   * Fullsök på NÄSTA heta originalsidas streckkod. Sidor med köpgräns först (de hypade), i tur
+   * och ordning. Returnerar false när det inte finns någon kod att söka (då tas ett prefix).
+   */
+  private async sweepGtin(store: string): Promise<boolean> {
+    const byGtin = new Map<string, { limited: boolean }>();
+    for (const p of Object.values(this.data.pages)) {
+      if (p.store !== store || !p.gtin) continue;
+      const e = byGtin.get(p.gtin);
+      byGtin.set(p.gtin, { limited: !!p.limited || !!e?.limited });
+    }
+    const gtins = [...byGtin.entries()].sort((a, b) => Number(b[1].limited) - Number(a[1].limited)).map(([g]) => g);
+    if (!gtins.length) return false;
+    const turn = this.codeTurn.get(`${store}#gtin`) ?? 0;
+    this.codeTurn.set(`${store}#gtin`, turn + 1);
+    const gtin = gtins[turn % gtins.length];
+    const res = await politeFetch(
+      `${SPELEXPERTEN}/cgi-bin/ibutik/AIR_ibutik.fcgi?funk=gor_sokning&term=${encodeURIComponent(gtin)}`,
+      { delayMs: 1000 }
+    );
+    if (!res.ok) return true;
+    const inFeed = new Set((this.feed.get(store) ?? []).map((it) => it.url));
+    const linked = new Set(this.linkTargets(store).map(([, , t]) => t));
+    const orphans = (this.data.orphans ??= {});
+    for (const url of spelexpertenSearchLinks(await res.text(), SPELEXPERTEN)) {
+      if (inFeed.has(url) || linked.has(url) || this.data.pages[url]) continue;
+      const known = orphans[url];
+      if (known) {
+        // Hittad på streckkoden ⇒ den ÄR en Pokémon-vara, även om rubriken fällde den förut.
+        if (known.ignored || !known.gtin) {
+          known.ignored = false;
+          known.gtin = gtin;
+          this.dirty = true;
+        }
+        continue;
+      }
+      orphans[url] = { title: "", priceOre: null, releaseAt: null, stock: null, checkedAt: 0, seenAt: Date.now(), gtin };
+      this.dirty = true;
+      console.log(`[drop-watch] ${store}: dold sida på streckkoden ${gtin} — ${url}`);
+    }
+    return true;
   }
 
   /** Den föräldralösa sida som är mest försenad, eller null. */
@@ -929,8 +1009,11 @@ export class DropWatcher {
       checkedAt: now,
     });
     this.dirty = true;
+    const pageGtin = jsonLdGtin(html) ?? prev.gtin;
+    if (pageGtin) t.gtin = pageGtin;
     const inFeed = (this.feed.get(store) ?? []).some((it) => it.url === url);
-    if (!linkTargetPlausible({ origPriceOre: null, priceOre, inFeed, rootLevel: true, title })) {
+    // Pokémon i rubriken ELLER Pokémons streckkod (rubriken kan vara "UPC Night" / "Dag Ultra").
+    if (inFeed || (!isPokemonGtin(pageGtin) && !linkTargetPlausible({ origPriceOre: null, priceOre, inFeed, rootLevel: true, title }))) {
       t.ignored = true;
       return;
     }
@@ -951,9 +1034,31 @@ export class DropWatcher {
     t.spent = true;
     this.markAlerted(key);
     this.found++;
-    let twins = (this.feed.get(store) ?? []).filter(
-      (it) => it.stockStatus !== "IN_STOCK" && priceOre != null && it.price === priceOre && /pok[eé]mon/i.test(it.title)
-    );
+    // ORIGINALET: streckkoden först (exakt), annars samma pris bland slutsålda Pokémon-varor.
+    const feedItems = this.feed.get(store) ?? [];
+    const byGtin = pageGtin
+      ? Object.entries(this.data.pages)
+          .filter(([, p]) => p.store === store && p.gtin === pageGtin)
+          .map(([u, p]) => feedItems.find((it) => it.url === u) ?? { url: u, title: p.title, stockStatus: "OUT_OF_STOCK", price: p.priceOre, imageUrl: null })
+      : [];
+    let twins = byGtin.length
+      ? byGtin
+      : feedItems.filter(
+          (it) => it.stockStatus !== "IN_STOCK" && priceOre != null && it.price === priceOre && /pok[eé]mon/i.test(it.title)
+        );
+    // Butiken återanvänder en streckkod för syskonvaror (UPC Day + Night): rubrikens ord avgör
+    // ("UPC Night" ⇒ Night, "Dag Ultra" ⇒ Day) — bara när EXAKT EN kandidat har flest gemensamma ord.
+    if (twins.length > 1) {
+      const mine = titleWords(title);
+      const shared = twins.map((x) => {
+        const others = twins.filter((y) => y !== x).map((y) => titleWords(y.title));
+        const own = titleWords(x.title);
+        // Bara ord som SKILJER kandidaten från syskonen räknas.
+        return [...own].filter((w) => mine.has(w) && !others.every((o) => o.has(w))).length;
+      });
+      const best = Math.max(...shared);
+      if (best > 0 && shared.filter((n) => n === best).length === 1) twins = [twins[shared.indexOf(best)]];
+    }
     // Flera med samma pris: artikelnumrets svans pekar ut varan ("P-BUN" ⇒ Booster BUNdle,
     // "P-TIN" ⇒ Tin) — bara när EXAKT EN kandidat har ett ord som börjar så.
     const tail = spelexpertenArtnr(html)?.match(/^P-?([A-Z]{3,})$/i)?.[1]?.toLowerCase();
@@ -967,7 +1072,7 @@ export class DropWatcher {
       await this.deps.publish([
         this.post(store, orig.url, url, { title: orig.title, priceOre } as DropPage, {
           kind: "hidden",
-          note: "Dold produktsida — direktlänken, hittad i butikens eget sök (samma pris som butikens vanliga sida).",
+          note: `Dold produktsida — direktlänken, hittad i butikens eget sök (${byGtin.length ? "samma streckkod" : "samma pris"} som butikens vanliga sida).`,
         }),
       ]);
       return;

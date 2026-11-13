@@ -27,6 +27,16 @@ paths:
   först, sedan "varma" (butikens varor i set lanen postat om, `setWarmUrls`). Svaret läggs ovanpå listan i 10 min
   (`liveStockFor`) — utan det pendlar varan lista/sida varje varv (Webhallens läxa 09-23). ⚠️ Fler än ~10 slutsålda
   heta/varma varor ⇒ varje vara kollas mer sällan (2 per ~12 s).
+- ⛔ **SPELEXPERTENS DOLDA SIDOR HETER VAD SOM HELST — STRECKKODEN ÄR NYCKELN (2026-11-13)**: 30th UPC släpptes via
+  Facebook/Instagram på `/upc-night.html` ("UPC Night", Artnr UPCN-1) och `/dag-ultra.html` ("Dag Ultra", DAG101) —
+  inget "POK", så prefixsvepet från dagen innan hade missat dem (ägaren påpekade det). Den dolda sidan bär SAMMA
+  streckkod i JSON-LD som originalsidan (`gtin8`, även för P-BUN), och butikens FULLSÖK matchar streckkoder
+  (snabbsöket gör det inte): `sweepGtin` söker heta originalsidors kod i tur och ordning (varannan svepplats, ~16 s
+  mellan). En sida med Pokémons GS1-prefix (196214 / 4521329) räknas som Pokémon oavsett rubrik. Syskon med samma
+  kod (UPC Day + Night delar 196214144903) skiljs på rubrikens ord ("Dag" ⇒ Day, `TITLE_SYNONYMS`). Fler snabbsöksord:
+  UPC, ULTRA, DAG, NIGHT, ETB, BUNDLE, TIN. Provat: `test-hidden-drop.ts --page upc-night.html` (⛔ utan inledande
+  snedstreck i Git Bash — MSYS skriver om det till en Windows-sökväg) ⇒ rätt vara (Umbreon UPC) på 51 s.
+  ⚠️ Streckkodsvägen kräver att originalsidan lästs (koden) och att butiken fortsätter kopiera koden.
 - **Spelexperten lägger länken på Facebook/Instagram** (originalsidan säger bara "se våra sociala medier"): den
   dolda sidan ligger i butikens rot och finns i butikens EGET sök. `sweepSpelexperten` (drop-watch.ts): snabbsök på
   prefixen "P-" (artikelnummer, t.ex. P-BUN) och "POK 30" var 12:e s + fullsök "POK" var ~5:e min ⇒ rotnivåsidor
