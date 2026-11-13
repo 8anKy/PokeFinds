@@ -3,14 +3,14 @@ name: Skannern ikapp katalogen (manuell)
 # Samma två steg som nattkörningen gör sist (konstavtryck + skannermotorns påfyllning), utan att köra
 # om hela prisjobbet. För lägen där natten missade dem — 2026-11-13 svarade appen 502 på engine-sync
 # mitt i en deploy, samma natt som One Piece slogs på i skannern (6 718 kort att lära).
-# Väcker Neon en gång. Motorn tar högst 3 000 kort per anrop ⇒ `rounds` anrop i rad.
+# Väcker Neon en gång. Motorn tar högst 800 kort per anrop (kantproxyn bryter efter 5 min) ⇒ `rounds` anrop i rad.
 on:
   workflow_dispatch:
     inputs:
       rounds:
-        description: "Antal engine-sync-anrop (3 000 kort per anrop)"
+        description: "Antal engine-sync-anrop (800 kort per anrop)"
         required: true
-        default: "3"
+        default: "10"
 
 concurrency:
   group: scanner-sync
@@ -40,7 +40,7 @@ jobs:
         timeout-minutes: 55
         run: |
           for i in $(seq 1 "${{ inputs.rounds }}"); do
-            code=$(curl -sS -o sync.json -w '%{http_code}' --max-time 1100 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://scoutr.se}/api/cron/engine-sync")
+            code=$(curl -sS -o sync.json -w '%{http_code}' --max-time 290 -X POST -H "x-cron-secret: ${CRON_SECRET}" "${SITE_URL:-https://scoutr.se}/api/cron/engine-sync")
             echo "engine-sync $i → HTTP $code $(cat sync.json)"
             test "$code" = "200" || exit 1
             if grep -q '"missing":0' sync.json; then echo "Inget saknas längre."; break; fi

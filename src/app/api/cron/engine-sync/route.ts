@@ -23,8 +23,12 @@ export const maxDuration = 900;
 const BATCH = 100;
 /** Bara id + URL per rad — motorns tak per anrop är 4 MB. */
 const URL_BATCH = 2000;
-/** Tak per körning: resten tas nästa natt (en ny JP-omgång kan vara tusentals kort). */
-const MAX_PER_RUN = 3000;
+/**
+ * Tak per ANROP. ⛔ Railways kantproxy bryter ett svar efter 5 min (mätt 2026-11-13: 3 000 kort tog
+ * ~12 min ⇒ anroparen fick "502 upstream error" medan rutten arbetade vidare osedd). Motorn hinner
+ * ~4 kort/s ⇒ 800 kort ≈ 3,5 min. Fler kort = fler anrop i rad (scanner-sync.yml), aldrig ett längre.
+ */
+const MAX_PER_RUN = 800;
 
 function engine(path: string, init?: RequestInit, timeoutMs = 120_000) {
   return fetch(`${process.env.SCANNER_ENGINE_URL!.trim().replace(/\/$/, "")}${path}`, {
