@@ -288,8 +288,8 @@ export async function runOnePieceSealedImport(
   // samma dag ersätter punkten). Dynamisk import: cardmarket-refresh importerar det här jobbet.
   res.historyPoints = points.length;
   if (apply && points.length > 0) {
-    const { upsertTodaySnapshots } = await import("@/jobs/cardmarket-refresh");
-    await upsertTodaySnapshots(points, utcToday());
+    const { writeCardmarketHistoryPoints } = await import("@/jobs/cardmarket-refresh");
+    await writeCardmarketHistoryPoints(points, utcToday());
   }
 
   log(

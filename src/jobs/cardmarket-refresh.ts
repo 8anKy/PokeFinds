@@ -1249,6 +1249,26 @@ export async function upsertTodaySnapshots(
   );
 }
 
+/**
+ * Dagens Cardmarket-punkt i BÅDA historiktabellerna: `PriceObservation` (produktsidans graf
+ * ritar en serie per källa ur den) och `PriceSnapshot` (7d-förändring, samlingsgrafen).
+ * ⛔ One Piece-jobben skrev bara snapshoten 2026-11-10 → 11-13 ⇒ grafen stod tom
+ * ("Ingen prishistorik ännu") fast priset uppdaterades varje natt.
+ */
+export async function writeCardmarketHistoryPoints(
+  points: { productId: string; priceOre: number }[],
+  today: Date
+): Promise<void> {
+  if (points.length === 0) return;
+  const source = await prisma.scrapeSource.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
+  if (source) {
+    await prisma.priceObservation.createMany({
+      data: points.map((p) => ({ productId: p.productId, sourceId: source.id, price: p.priceOre, currency: "SEK" })),
+    });
+  }
+  await upsertTodaySnapshots(points, today);
+}
+
 /** Senaste snapshot-avgPrice FÖRE idag per produkt (last-known-good för dag-vakten). */
 async function priorSnapshotMap(productIds: string[]): Promise<Map<string, number>> {
   if (productIds.length === 0) return new Map();
