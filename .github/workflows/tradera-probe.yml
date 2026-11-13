@@ -1,0 +1,28 @@
+name: Tradera-sond (manuell)
+
+# Mätningar mot Tradera FÖRE ett bygge. Rapport i loggen, skriver ingenting, ingen databas.
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Sondskript under scripts/ (utan .ts)"
+        required: true
+        default: "tradera-op-probe"
+        type: choice
+        options:
+          - tradera-op-probe
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TRADERA_APP_ID: ${{ secrets.TRADERA_APP_ID }}
+      TRADERA_APP_KEY: ${{ secrets.TRADERA_APP_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Kör sonden
+        run: npx --yes tsx "scripts/${{ inputs.script }}.ts"

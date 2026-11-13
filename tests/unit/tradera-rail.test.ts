@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 
-import { pickRailCandidates, type TraderaItem } from "@/jobs/tradera-sweep";
+import { pickRailCandidates, reprintMarkerMissing, type TraderaItem } from "@/jobs/tradera-sweep";
 
 const swshPack = {
   id: "prod-1",
@@ -128,5 +128,20 @@ describe("pickRailCandidates — tryckningar (Base)", () => {
 
   it("annons som säger 'unlimited' hamnar inte på 1st Edition (Dragonair-fallet)", () => {
     expect(pickRailCandidates([single("Blastoise 2/102 Base Set Unlimited vintage")], firstEd, new Set())).toEqual([]);
+  });
+});
+
+describe("reprintMarkerMissing — särtryck kräver sitt märke (riktiga annonser 2026-11-13)", () => {
+  it("fäller originalkortets annons på WCD-, Prize Pack- och MEP-kortet", () => {
+    expect(reprintMarkerMissing("robo substitute world championship decks 2015 102 wcd 2015 alejandro ng guzman", "Robo Substitute 102/119 | XY Phantom Forces")).toBe(true);
+    expect(reprintMarkerMissing("cram o matic play pokemon prize pack series two 229/264 holo", "Cram-o-matic - 229/264 - Fusion Strike - Sword & Shield - Pokemon")).toBe(true);
+    expect(reprintMarkerMissing("squirtle mep black star promos 039", "Squirtle SWSH233 Holo SWSH Black Star Promos Pokemon")).toBe(true);
+    expect(reprintMarkerMissing("weavile mep black star promos 021", "Weavile SWSH246 black Star promo")).toBe(true);
+  });
+  it("släpper igenom annonser som bär märket, och vanliga kort", () => {
+    expect(reprintMarkerMissing("absol ex world championship decks 2007 092 wcd 2007 tom roos", "Absol ex (Tom Roos) 92/108 R World Championship Decks Pokemon Card")).toBe(false);
+    expect(reprintMarkerMissing("meganium play pokemon prize pack series nine 010/132", "Meganium 010/132 Prize Pack Series 9 stämplad")).toBe(false);
+    expect(reprintMarkerMissing("mega charizard x ex mep black star promos 023", "Mega Charizard X ex MEP 023 promo")).toBe(false);
+    expect(reprintMarkerMissing("jynx mega evolution 57/132", "Jynx 57/132 Mega Evolution Pokemonkort")).toBe(false);
   });
 });

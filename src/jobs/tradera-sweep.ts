@@ -197,6 +197,23 @@ const RAIL_PURGE_DAYS = 7;
  * EN-produkt (och omvänt). Dedup på itemId (samma annons kan dyka upp flera
  * gånger i ett sök-svar).
  */
+/**
+ * SÄRTRYCK KRÄVER SITT MÄRKE I ANNONSEN (2026-11-13). World Championship-lekarnas kort, Prize Pack-
+ * stämplade kort och MEP-promos delar namn (och ofta nummer) med ett vanligt kort, så namn + nummer
+ * räcker inte: "Robo Substitute 102/119 | XY Phantom Forces" låg på WCD 2015-kortet, "Cram-o-matic
+ * 229/264 Fusion Strike" på Prize Pack-kortet och "Squirtle SWSH233" på MEP 039. MÄTT: 5 av 170
+ * slumpade levande singel-offers, alla den här sorten. En annons utan märket hör till originalet.
+ */
+export function reprintMarkerMissing(productNormalizedTitle: string, listingTitle: string): boolean {
+  const p = productNormalizedTitle.toLowerCase();
+  const l = normalizeTitle(listingTitle);
+  if (/world championship|\bwcd\b/.test(p)) return !/world championship|\bwcd\b|\bworlds\b/.test(l);
+  if (/prize pack/.test(p)) return !/prize pack/.test(l);
+  // MEP-numren är "039" — en annons med ett ANNAT promoblocks kod (SWSH233, SM45, XY28, SVP 101) är det blockets kort.
+  if (/\bmep\b/.test(p)) return /\b(swsh|sm|xy|bw|dp|hgss|svp)\s?\d{2,3}\b/.test(l);
+  return false;
+}
+
 export function pickRailCandidates(
   items: TraderaItem[],
   product: {
@@ -227,6 +244,7 @@ export function pickRailCandidates(
     if (gradingBlocksListing(product.category, item)) continue;
     if (listingCardLanguage(item.title, item.url) !== product.language) continue;
     if (matchListingToProduct(item.title, product) == null) continue;
+    if (product.card && reprintMarkerMissing(product.normalizedTitle, item.title)) continue;
     if (
       product.ambiguousName &&
       product.card &&
@@ -543,6 +561,9 @@ export async function runTraderaSweep(
   const callsByMethod: Record<string, number> = {};
 
   const searchFns = makeSearchFns(appId, appKey);
+  // ETT index i minnet för hela körningen: Fas 0:s korskontroll av förseglat och poolmatchningen.
+  const matchIndex = await loadMatchIndex({ visibleOnly: true });
+  let sealedCrossRejected = 0;
 
   // ── Fas 0: Riktade namn-sökningar (roterande full-katalog) ────────────
   // Vi namn-söker en produkt i taget och matchar träffarna DIREKT mot just den
@@ -658,8 +679,25 @@ export async function runTraderaSweep(
         if (result.items.length === 0) break;
       }
       if (candidates.length === 0) return;
+      // FÖRSEGLAT: ANNONSEN FÅR BARA EN PRODUKT (2026-11-13). Fas 0 frågar "passar annonsen den här
+      // produkten?" per produkt, och en annons passar ofta flera — "Pitch Black 18 pack booster box"
+      // låg på både 18- och 36-boxen, "10 Mini Tins" på fem enskilda burkar, "Booster Pack" på Fun
+      // Pack. Katalogens egen bästa träff (matchProduct, samma som poolen) måste vara JUST den här
+      // produkten. MÄTT på 170 slumpade levande sealed-offers, handgranskade: 24 fel (14 %) ⇒
+      // regeln fäller 23 av dem och 2 av 134 rätta (båda tvetydiga versioner). Singlar berörs inte:
+      // namn + nummer är identiteten där (6 fel av 170, andra orsaker).
+      let confirmed = candidates;
+      if (!p.card) {
+        confirmed = [];
+        for (const c of candidates) {
+          const best = await matchProduct(normalizeTitle(c.title), matchIndex, c.title);
+          if (best?.productId === p.id) confirmed.push(c);
+          else sealedCrossRejected++;
+        }
+        if (confirmed.length === 0) return;
+      }
       const plausible = await getListingPriceGuard(p.id);
-      const kept = candidates
+      const kept = confirmed
         .filter((c) => plausible(c.priceOre))
         .sort((a, b) => a.priceOre - b.priceOre)
         .slice(0, MAX_RAIL_LISTINGS);
@@ -686,6 +724,7 @@ export async function runTraderaSweep(
     log(
       `   ${hotCalls} sökningar (varav ${extraPagesUsed} räddningssidor, ${psCalls} på PublicService-körfältet) → ` +
         `${searchedProductIds.size} sökta produkter, ${directMatches.size} direkt-matchade` +
+        `${sealedCrossRejected ? `, ${sealedCrossRejected} sealed-annonser fällda (hör till en annan produkt)` : ""}` +
         `${laneQuota.length ? ` [kvot slut: ${laneQuota.join(", ")}]` : ""}\n`
     );
   }
@@ -818,8 +857,7 @@ export async function runTraderaSweep(
   const itemsArr = [...allItems.values()];
   let processed = 0;
   // ETT index i minnet i stället för 6–7 Neon-frågor per annons (matchProducts DB-väg),
-  // och prisvakten en gång per PRODUKT — se SELLER_POOL_BUDGET ovan.
-  const matchIndex = await loadMatchIndex({ visibleOnly: true });
+  // och prisvakten en gång per PRODUKT — se SELLER_POOL_BUDGET ovan. (Indexet laddas före Fas 0.)
   const categoryById = new Map(
     (await prisma.product.findMany({ select: { id: true, category: true } })).map((p) => [p.id, p.category])
   );
