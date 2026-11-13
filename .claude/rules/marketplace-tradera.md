@@ -155,3 +155,18 @@ paths:
   aspekter) ⇒ samma `detectGrading`, samma aspirationsveto, samma undre prisvakt (15 % av CM-ref). Ett bevis
   per träff: produktens nummer i titeln (`titleCarriesNumber`), rätt språk, rätt tryckning, `FIXED_PRICE`
   (auktionsbud är varken begärt eller betalt), ingen lott. Vaktat av `tests/unit/graded-ask.test.ts`.
+- ⛔ **ONE PIECE: EN SINGEL SÄTTER PRIS BARA NÄR FOTOT BEVISATS ENGELSKT (2026-11-13)**: kortkoden ("OP08-098") är
+  densamma på japanska, kategori 1001268 bär BARA attributet `condition` (sondat — inget språkfält), och säljare märker
+  sällan japanska kort i titeln. Domen tas på annonsens foto (`scripts/op-listing-language.py`, OpenCV): fotot riktas
+  mot vår engelska referens (SIFT + RANSAC), och NAMNREMSAN jämförs mot BÅDE den engelska referensen och Bandais
+  officiella japanska bild av samma kod (`onepiece-cardgame.com/images/cardlist/card/<KOD>.png`); d = likhet(en) −
+  likhet(jp). d ≥ +0,10 ⇒ `en`, d ≤ −0,07 ⇒ `jp`, däremellan `unclear`, ingen riktning ⇒ `noalign`.
+  MÄTT på 120 annonser (max 3/säljare): 72 `en` (alla 72 engelska vid okulär kontroll, 0 japanska), 16 `jp` (alla
+  japanska), 17 `unclear` (fel kort på bilden, slab, alternativ konst, tom bild), 15 `noalign`. ⚠️ Trösklarna är satta
+  på SAMMA stickprov — mät om på ett nytt innan de litas på. ⛔ Jämförelse mot ENBART den engelska referensen fungerar
+  inte (ramen dominerar; japanska kort fick 0,56–0,76). Regler + cache: `lib/op-listing-language.ts` (ren, testad),
+  körning: `jobs/op-listing-language.ts`. Domen sparas per annons-id i Actions-cachen (`.op-lang-cache`, nyckel
+  `op-lang-<run>`), bedöms EN gång, billigaste-per-produkt först inom `OP_LANG_BUDGET_SECONDS` (600; ~0,7 s/foto ⇒
+  första fyllningen tar några nätter — obedömda sätter inget pris). Sålt-svepet räknar en såld singel bara om
+  annonssvepet redan gett den `en` (läser samma cache). Förseglat bildkollas inte. ⛔ Pokémon behöver den inte i
+  dag: japanska kort har där annat nummer/set; mät setpar med samma numrering (151) innan den vidgas.

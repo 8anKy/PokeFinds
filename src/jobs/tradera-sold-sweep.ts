@@ -47,6 +47,8 @@ import { normalizeTitle } from "../lib/utils";
 import { isBlockedListingLanguage, listingCardLanguage } from "../lib/listing-language";
 import { matchProduct, getListingPriceGuard, loadMatchIndex } from "../scrapers/matching";
 import { loadOnePieceCardRows, matchOnePieceTraderaListing } from "./op-tradera-sweep";
+import { readOpLanguageCache } from "./op-listing-language";
+import { isConfirmedEnglish, type OpLanguageCache } from "../lib/op-listing-language";
 import { traderaCategoryCompatible } from "./tradera-sweep";
 import { TRADERA_SOLD_SOURCE_NAME } from "../services/products";
 import { gradedTooSoonAfterRelease, gradingVerdictFor, isPlausibleGradedPriceOre } from "../lib/graded-listing";
@@ -529,7 +531,9 @@ export async function runTraderaSoldSweep(
     cards: Awaited<ReturnType<typeof loadOnePieceCardRows>>;
     index: Awaited<ReturnType<typeof loadMatchIndex>>;
     categories: Map<string, string>;
+    language: OpLanguageCache;
   }> | null = null;
+  let opUnconfirmed = 0;
   const onePieceContext = () =>
     (opCtx ??= (async () => {
       const [cards, index, products] = await Promise.all([
@@ -537,7 +541,10 @@ export async function runTraderaSoldSweep(
         loadMatchIndex({ visibleOnly: true }),
         prisma.product.findMany({ where: { game: "ONE_PIECE" }, select: { id: true, category: true } }),
       ]);
-      return { cards, index, categories: new Map(products.map((p) => [p.id, p.category as string])) };
+      return {
+        cards, index, categories: new Map(products.map((p) => [p.id, p.category as string])),
+        language: readOpLanguageCache(),
+      };
     })());
 
   await mapPool(fresh, DB_CONCURRENCY, async (sale) => {
@@ -553,7 +560,11 @@ export async function runTraderaSoldSweep(
     if (isOnePiece) {
       const op = await onePieceContext();
       const m = await matchOnePieceTraderaListing(sale.title, op.cards, op.index, (id) => op.categories.get(id));
-      match = "reason" in m ? null : { productId: m.productId };
+      // ⛔ En såld SINGEL räknas bara när annonssvepet redan bevisat på FOTOT att kortet var
+      // engelskt (samma kod på japanska; `lib/op-listing-language.ts`). Ingen dom ⇒ ingen affär.
+      const english = "reason" in m || m.kind !== "single" || isConfirmedEnglish(op.language, sale.itemId);
+      if (!english) opUnconfirmed++;
+      match = "reason" in m || !english ? null : { productId: m.productId };
     } else {
       match = await matchProduct(normalizeTitle(sale.title), undefined, sale.title);
     }
@@ -748,6 +759,7 @@ export async function runTraderaSoldSweep(
     `   Ej matchade: ${stats.noMatch} | Kategorifel: ${stats.categoryMismatch} | ` +
       `Orimligt pris: ${stats.implausible}`
   );
+  if (opUnconfirmed > 0) log(`   One Piece: ${opUnconfirmed} sålda singlar utan bevisat engelskt foto (räknas inte).`);
   log(
     `   🏅 Graderat: ${stats.gradedWritten} skrivna | ${stats.gradedImplausible} orimliga | ` +
       `${stats.gradedInRawCategory} låg i en RÅ kategori (skulle ha förorenat den ograderade kurvan) | ` +

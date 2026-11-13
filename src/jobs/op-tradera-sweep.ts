@@ -9,6 +9,8 @@
  *  - Förseglat: samma matchare som butikerna (`matchProduct` → `matchOnePieceListing`, set + form).
  *  - Prisvakten är Pokémon-svepets (`getListingPriceGuard`): en dyr variant utan märke fälls där.
  *  - Auktioner och graderade kort släpps redan av `parseItemsFromXml`.
+ *  - ⛔ En singel sätter pris BARA när FOTOT bevisats vara det engelska kortet (`lib/op-listing-language.ts`):
+ *    koden är densamma på japanska och ~1 av 6 annonser var japanska utan märke i titeln.
  *
  * Skriver Tradera-offern (billigaste annonsen), en prisobservation och skena-raderna — samma
  * tabeller som Pokémon, så produktsidan, grafen och "Fler annonser på Tradera" fungerar utan mer kod.
@@ -23,6 +25,8 @@ import { normalizeTitle } from "@/lib/utils";
 import { getListingPriceGuard, loadMatchIndex, matchProduct } from "@/scrapers/matching";
 import { MAX_RAIL_LISTINGS, parseItemsFromXml, type TraderaItem } from "@/jobs/tradera-sweep";
 import { looksLikeOnePieceSingle, matchOnePieceTraderaSingle, type OpCardRow } from "@/lib/one-piece-tradera";
+import { judgeOnePieceListingLanguage } from "@/jobs/op-listing-language";
+import { isConfirmedEnglish, traderaPhotoUrl } from "@/lib/op-listing-language";
 
 export const TRADERA_ONE_PIECE_CATEGORY = 1001268;
 const SEARCH_API = "https://api.tradera.com/v3/searchservice.asmx";
@@ -60,11 +64,14 @@ async function fetchPage(appId: string, appKey: string, page: number): Promise<s
 export async function loadOnePieceCardRows(): Promise<Map<string, OpCardRow[]>> {
   const cards = await prisma.product.findMany({
     where: { game: "ONE_PIECE", category: "SINGLE_CARD", hiddenAt: null, card: { isNot: null } },
-    select: { id: true, title: true, card: { select: { number: true, name: true, set: { select: { code: true } } } } },
+    select: { id: true, title: true, card: { select: { number: true, name: true, imageUrl: true, set: { select: { code: true } } } } },
   });
   const byNumber = new Map<string, OpCardRow[]>();
   for (const p of cards) {
-    const row: OpCardRow = { productId: p.id, title: p.title, number: p.card!.number, name: p.card!.name, setCode: p.card!.set.code };
+    const row: OpCardRow = {
+      productId: p.id, title: p.title, number: p.card!.number, name: p.card!.name, setCode: p.card!.set.code,
+      imageUrl: p.card!.imageUrl,
+    };
     (byNumber.get(row.number) ?? byNumber.set(row.number, []).get(row.number)!).push(row);
   }
   return byNumber;
@@ -79,9 +86,9 @@ export async function matchOnePieceTraderaListing(
   cardsByNumber: ReadonlyMap<string, readonly OpCardRow[]>,
   matchIndex: Awaited<ReturnType<typeof loadMatchIndex>>,
   categoryOf: (productId: string) => string | null | undefined
-): Promise<{ productId: string; kind: "single" | "sealed" } | { productId: null; reason: string }> {
+): Promise<{ productId: string; kind: "single" | "sealed"; code?: string } | { productId: null; reason: string }> {
   const single = matchOnePieceTraderaSingle(title, cardsByNumber);
-  if (!("reason" in single)) return { productId: single.productId, kind: "single" };
+  if (!("reason" in single)) return { productId: single.productId, kind: "single", code: single.code };
   // Förseglat: bara annonser UTAN kortkod (en kod = en singel vi valde att inte matcha) och utan
   // korttyp/sällsynthet — "Koza - Extra Booster Memorial Collection - Character" är ett kort för 6 kr,
   // inte en booster (torrkörningen 2026-11-13: sealed-stickprovet var nästan bara sådana).
@@ -154,10 +161,38 @@ export async function runOnePieceTraderaSweep(
   };
   const byProduct = new Map<string, TraderaItem[]>();
   const samples: string[] = [];
+  const bump = (reason: string) => { res.reasons[reason] = (res.reasons[reason] ?? 0) + 1; };
+  const hits: { item: TraderaItem; productId: string; kind: "single" | "sealed"; code?: string }[] = [];
   await mapPool([...items.values()], DB_CONCURRENCY, async (item) => {
     const m = await matchOnePieceTraderaListing(item.title, cardsByNumber, matchIndex, (id) => meta.get(id)?.category);
-    if ("reason" in m) { res.reasons[m.reason] = (res.reasons[m.reason] ?? 0) + 1; return; }
-    const { productId, kind } = m;
+    if ("reason" in m) { bump(m.reason); return; }
+    hits.push({ item, ...m });
+  });
+
+  // ── 3b. Språkdomen på fotot (singlar) ───────────────────────────────────────
+  const refImage = new Map<string, string>();
+  for (const rows of cardsByNumber.values()) for (const r of rows) if (r.imageUrl) refImage.set(r.productId, r.imageUrl);
+  const lang = await judgeOnePieceListingLanguage(
+    hits.filter((h) => h.kind === "single").map((h) => ({
+      itemId: h.item.itemId, code: h.code!, productId: h.productId, priceOre: h.item.priceOre,
+      photo: traderaPhotoUrl(h.item.imageUrl), ref: refImage.get(h.productId) ?? null,
+    })),
+    new Set(items.keys()),
+    log
+  );
+
+  await mapPool(hits, DB_CONCURRENCY, async ({ item, productId, kind }) => {
+    if (kind === "single" && !isConfirmedEnglish(lang, item.itemId)) {
+      const v = lang[item.itemId]?.v;
+      bump(
+        v === "jp" ? "japanskt kort på bilden"
+          : v === "unclear" ? "bilden visar inte kortet tydligt (fel kort/slab/alt. konst)"
+          : v === "noalign" ? "fotot gick inte att rikta mot kortet"
+          : v === "nojp" ? "ingen japansk jämförelsebild"
+          : "språkdom saknas ännu (prövas nästa natt)"
+      );
+      return;
+    }
     if (!(await guardFor(productId))(item.priceOre)) { res.implausible++; return; }
     if (kind === "single") res.matchedSingles++; else res.matchedSealed++;
     (byProduct.get(productId) ?? byProduct.set(productId, []).get(productId)!).push(item);

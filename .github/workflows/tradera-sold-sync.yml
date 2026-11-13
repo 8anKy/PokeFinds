@@ -85,6 +85,17 @@ jobs:
       # ⛔ `!cancelled()`: svepet är OBEROENDE av synken — samma princip som
       # kedjans "ingen conclusion-grind". Ett synkfel får inte tyst svälja svepet.
       # `tests/unit/cron-chain-sync.test.ts` vaktar att steget finns kvar.
+      # One Piece: sålda singlar räknas bara med en språkdom "engelskt" från annonssvepet
+      # (tradera-sweep.yml skriver cachen; här läses den bara).
+      - name: Språkdomarnas cache (One Piece-foton, läses)
+        if: steps.guard.outputs.ready == 'true' && !cancelled()
+        continue-on-error: true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .op-lang-cache
+          key: op-lang-read-${{ github.run_id }}
+          restore-keys: |
+            op-lang-
       - name: Tradera sålt-svep (hammarpriser till prisgrafen)
         if: steps.guard.outputs.ready == 'true' && !cancelled()
         env:

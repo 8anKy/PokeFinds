@@ -40,7 +40,7 @@ concurrency:
 jobs:
   sweep:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 80 # 60 → 80 (2026-11-13): One Piece-stegets bildkoll får 10 min ovanpå svepets ~50
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout
@@ -79,11 +79,31 @@ jobs:
 
       # ONE PIECE (2026-11-13): hela Tradera-kategorin 1001268, ~140 sökanrop. TORRKÖRNING tills loggen
       # är läst (träffar + stickprov) — sätt repo-variabeln OP_TRADERA_APPLY=1 för att börja skriva.
+      #
+      # SPRÅKDOMEN PÅ FOTOT (2026-11-13): koden är densamma på japanska kort och kategorin saknar
+      # språkattribut ⇒ en singel sätter pris bara när fotot bevisats vara det engelska kortet
+      # (scripts/op-listing-language.py, OpenCV). Domarna sparas per annons-id i Actions-cachen —
+      # nyckeln är unik per körning så cachen alltid sparas, och återställs på prefix. Sålt-svepet
+      # (tradera-sold-sync.yml) läser samma cache. Budgeten håller steget kort: första nätterna
+      # hinner inte alla ~2 400 foton, resten väntar (och sätter inget pris) till nästa natt.
+      - if: steps.guard.outputs.ready == 'true' && !cancelled()
+        name: Språkdomarnas cache (One Piece-foton)
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .op-lang-cache
+          key: op-lang-${{ github.run_id }}
+          restore-keys: |
+            op-lang-
+      - if: steps.guard.outputs.ready == 'true' && !cancelled()
+        name: OpenCV till bildkollen
+        continue-on-error: true
+        run: python3 -m pip install --quiet --disable-pip-version-check opencv-python-headless numpy
       - if: steps.guard.outputs.ready == 'true' && !cancelled()
         name: One Piece på Tradera
         continue-on-error: true
         env:
           OP_TRADERA_APPLY: ${{ vars.OP_TRADERA_APPLY }}
+          OP_LANG_BUDGET_SECONDS: "600"
         run: npx tsx scripts/op-tradera-sweep.ts
 
       # Släng den cachade bilden av priserna — se cardmarket-refresh.yml för varför.

@@ -29,6 +29,8 @@ export interface OpCardRow {
   setCode: string | null;
   /** Kortnamnet: "Tony Tony.Chopper". */
   name: string;
+  /** Vår (engelska) referensbild — underlaget för språkdomen på annonsens foto. */
+  imageUrl?: string | null;
 }
 
 export type OpPrinting = "base" | "Alternate Art" | "Manga Rare" | "Special Rare" | "Treasure Rare";

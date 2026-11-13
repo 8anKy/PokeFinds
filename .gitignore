@@ -69,3 +69,4 @@ docs/TERMS-DRAFT-CLAUSES.md
 
 # mätsond: leverantörens prisuppdateringstakt (scripts/probe-cm-freshness.ts)
 .cm-freshness/
+.op-lang-cache/
