@@ -27,13 +27,26 @@ const tag = (b: string, t: string) => b.match(new RegExp("<" + t + ">([^<]*)</" 
 async function main() {
   const out: Record<string, string | number>[] = [];
   let total = 1;
+  const attrs = new Map<string, number>();
+  let rawSample = "";
   for (let n = 1; n <= Math.min(total, 200); n++) {
     const xml = await page(n);
     total = Number(xml.match(/<TotalNumberOfPages>([0-9]+)<\/TotalNumberOfPages>/)?.[1] ?? 1);
     const items = xml.split("<Items>").slice(1).map((s) => s.split("</Items>")[0]);
     if (items.length === 0) break;
     for (const b of items) {
+      // Strukturerade attribut (språk?) — Pokémon-kategorierna bär `pokemon_language`.
+      for (const m of b.matchAll(/<Name>([^<]+)<\/Name>([\s\S]*?)<\/TermAttributeValues>/g)) {
+        const values = [...m[2].matchAll(/>([^<>]+)</g)].map((x) => x[1].trim()).filter(Boolean);
+        for (const v of values.length ? values : ["(tomt)"]) {
+          const k = `${m[1]} = ${v}`;
+          attrs.set(k, (attrs.get(k) ?? 0) + 1);
+        }
+      }
+      if (b.includes("AttributeValues") && !rawSample) rawSample = b.slice(0, 3000);
       out.push({
+        attrs: [...b.matchAll(/<Name>([^<]+)<\/Name>([\s\S]*?)<\/TermAttributeValues>/g)]
+          .map((m) => `${m[1]}=${[...m[2].matchAll(/>([^<>]+)</g)].map((x) => x[1].trim()).filter(Boolean).join("|")}`).join(";"),
         itemId: tag(b, "Id"), title: tag(b, "ShortDescription"), type: tag(b, "ItemType"),
         buyNow: Number(tag(b, "BuyItNowPrice") || 0), maxBid: Number(tag(b, "MaxBid") || 0),
         seller: tag(b, "SellerId"), url: tag(b, "ItemUrl"), image: tag(b, "ThumbnailLink"),
@@ -44,6 +57,9 @@ async function main() {
   writeFileSync("tradera-op-listings.json", JSON.stringify(out));
   const types = new Map<string, number>();
   for (const o of out) types.set(String(o.type), (types.get(String(o.type)) ?? 0) + 1);
+  console.log("Attribut (namn = värde → antal):");
+  for (const [k, n] of [...attrs].sort((a, b) => b[1] - a[1]).slice(0, 80)) console.log(`  ${n}\t${k}`);
+  console.log("Rått exempel:\n" + rawSample);
   console.log(`${out.length} annonser på ${total} sidor. Typer:`, Object.fromEntries(types));
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });
