@@ -20,6 +20,13 @@ paths:
   i workflowet). Lasten är densamma (~0,16 förfr./s mot taket 0,29), feeden är ALLTID komplett (färska sidor +
   resten ur förra fulla). ⛔ Lägg bara en butik i `HOT_FLOOR_SECONDS` om adaptern har läget.
   ⛔ MaxGamings robots.txt stänger `/cgi-bin/` — snabbsöket som används hos Spelexperten får INTE användas där.
+- ⛔ **KATEGORILISTAN SLÄPAR MINUTER EFTER PRODUKTSIDAN (2026-11-13, ägarens skärmbilder)**: en annan server
+  postade MaxGamings UPC 14:28, vi 14:32 — lanen var frisk och hämtade kategorin 14:28:56, 14:29:56, 14:30:56 och
+  14:31:56 med "Slutsåld" varje gång. Tätare listhämtning ensam löser alltså INTE det. I de heta varven frågar
+  adaptern därför PRODUKTSIDAN (JSON-LD) för upp till 2 varor som listan kallar slut: heta (postade senaste dygnet)
+  först, sedan "varma" (butikens varor i set lanen postat om, `setWarmUrls`). Svaret läggs ovanpå listan i 10 min
+  (`liveStockFor`) — utan det pendlar varan lista/sida varje varv (Webhallens läxa 09-23). ⚠️ Fler än ~10 slutsålda
+  heta/varma varor ⇒ varje vara kollas mer sällan (2 per ~12 s).
 - **Spelexperten lägger länken på Facebook/Instagram** (originalsidan säger bara "se våra sociala medier"): den
   dolda sidan ligger i butikens rot och finns i butikens EGET sök. `sweepSpelexperten` (drop-watch.ts): snabbsök på
   prefixen "P-" (artikelnummer, t.ex. P-BUN) och "POK 30" var 12:e s + fullsök "POK" var ~5:e min ⇒ rotnivåsidor

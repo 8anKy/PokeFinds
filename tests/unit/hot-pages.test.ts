@@ -36,3 +36,29 @@ describe("heta sidor (MaxGaming 2026-11-12)", () => {
     expect(out.find((x) => x.url === "b")?.s).toBe("out");
   });
 });
+
+import { liveStockFor, pickLiveChecks, setLiveStock, setWarmUrls, LIVE_TTL_MS } from "@/scrapers/hot-pages";
+
+describe("live-svar från produktsidan (MaxGaming 14:28 mot 14:32, 2026-11-12)", () => {
+  beforeEach(() => resetHotPages());
+
+  it("frågar heta varor som listan kallar slut, heta före varma, och roterar", () => {
+    setHotUrls("X", ["a", "b", "c"]);
+    setWarmUrls("X", ["c", "d", "e"]);
+    const items = ["a", "b", "c", "d", "e"].map((url) => ({ url, inStock: url === "b" }));
+    expect(pickLiveChecks("X", items, 2)).toEqual(["a", "c"]);
+    expect(pickLiveChecks("X", items, 3)).toEqual(["a", "c", "d"]);
+    expect(pickLiveChecks("X", items, 0)).toEqual([]);
+  });
+
+  it("ett färskt svar gäller i tio minuter och en oenig vara hålls färsk", () => {
+    const t = 1_000_000;
+    setLiveStock("X", "a", "in", t);
+    expect(liveStockFor("X", "a", t + 60_000)).toBe("in");
+    expect(liveStockFor("X", "a", t + LIVE_TTL_MS + 1)).toBeNull();
+    // Listan säger i lager, sidan sa slut ⇒ fortsatt kandidat.
+    setHotUrls("X", ["b"]);
+    setLiveStock("X", "b", "out", t);
+    expect(pickLiveChecks("X", [{ url: "b", inStock: true }], 2, t + 1000)).toEqual(["b"]);
+  });
+});

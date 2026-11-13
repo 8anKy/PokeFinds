@@ -97,7 +97,7 @@ import {
 import { flapPolicy } from "../src/lib/stock-flap";
 import { pricePolicy } from "../src/lib/price-drop";
 import { pollBudget, pollIntervalMs } from "../src/lib/restock-poll-interval";
-import { setHotUrls } from "../src/scrapers/hot-pages";
+import { setHotUrls, setWarmUrls } from "../src/scrapers/hot-pages";
 
 /**
  * BUTIKER MED HETA SIDOR (2026-11-12, MaxGamings 30th UPC 14:00 såldes slut mellan två
@@ -794,6 +794,21 @@ async function main() {
         if (key.startsWith(prefix)) urls.push(key.slice(prefix.length).split("#")[0]);
       }
       setHotUrls(source.name, urls);
+      // VARMA: butikens övriga varor i set som lanen postat om senaste dygnet (i någon butik) —
+      // 30th UPC:n hos MaxGaming ska kollas på sin produktsida även dagen efter sitt eget inlägg.
+      const hotSets = new Set<string>();
+      for (const key of Object.keys(state.posted)) {
+        const set = routes[key.slice(key.indexOf("\t") + 1).split("#")[0]]?.setName;
+        if (set) hotSets.add(set);
+      }
+      const warmUrls: string[] = [];
+      if (hotSets.size) {
+        const host = new URL(source.baseUrl).hostname.replace(/^www\./, "");
+        for (const [url, r] of Object.entries(routes)) {
+          if (r.setName && hotSets.has(r.setName) && url.includes(host)) warmUrls.push(url);
+        }
+      }
+      setWarmUrls(source.name, warmUrls);
     }
     const fetchedItems: FeedItem[] = await fetchSourceFeed(source, { dropPartial: true });
     // ⛔ FÖR SENT ATT DIFFA: nästa jobb tar över vid `deadline` och ser samma övergång mot

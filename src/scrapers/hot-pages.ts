@@ -27,6 +27,79 @@ export function hotUrlsFor(store: string): ReadonlySet<string> {
   return hot.get(store) ?? new Set();
 }
 
+const warm = new Map<string, Set<string>>();
+
+/** Butikens övriga varor i HETA SET (lanen postat om setet, i någon butik) — kollas efter de heta. */
+export function setWarmUrls(store: string, urls: Iterable<string>): void {
+  warm.set(store, new Set(urls));
+}
+
+export function warmUrlsFor(store: string): ReadonlySet<string> {
+  return warm.get(store) ?? new Set();
+}
+
+/**
+ * LIVE-SVAR FRÅN PRODUKTSIDAN (2026-11-13). MaxGamings 30th UPC: en annan server postade 14:28,
+ * vi 14:32 — lanen hämtade kategorin varje minut däremellan och såg "Slutsåld" fyra gånger.
+ * Kategorilistan SLÄPAR alltså minuter efter produktsidan (samma sak som Webhallens sökindex).
+ * Adaptern frågar därför produktsidan för de heta varor som listan kallar slut, och svaret
+ * läggs OVANPÅ listan så länge det är färskt — annars hade varan pendlat lista/sida varje varv.
+ */
+const live = new Map<string, Map<string, { stock: string; at: number }>>();
+export const LIVE_TTL_MS = 10 * 60_000;
+
+export function setLiveStock(store: string, url: string, stock: string, at = Date.now()): void {
+  const m = live.get(store) ?? new Map();
+  m.set(url, { stock, at });
+  live.set(store, m);
+}
+
+/** Färskt live-svar för URL:en, eller null. */
+export function liveStockFor(store: string, url: string, now = Date.now()): string | null {
+  const e = live.get(store)?.get(url);
+  if (!e) return null;
+  if (now - e.at > LIVE_TTL_MS) {
+    live.get(store)?.delete(url);
+    return null;
+  }
+  return e.stock;
+}
+
+const cursors = new Map<string, number>();
+
+/**
+ * Vilka produktsidor ska frågas det här varvet? Heta först, sedan varma; bara de som listan
+ * INTE kallar "i lager" (eller där ett live-svar säger emot listan — de hålls färska).
+ * Roterar, så alla kandidater får sin tur.
+ */
+export function pickLiveChecks(
+  store: string,
+  items: { url: string; inStock: boolean }[],
+  max: number,
+  now = Date.now()
+): string[] {
+  if (max <= 0) return [];
+  const byUrl = new Map(items.map((it) => [it.url, it]));
+  const wants = (u: string) => {
+    const it = byUrl.get(u);
+    if (!it) return false;
+    const l = liveStockFor(store, u, now);
+    return !it.inStock || (l != null && l !== "in");
+  };
+  const tier = (set: ReadonlySet<string>, key: string, n: number): string[] => {
+    const list = [...set].filter(wants);
+    if (!list.length || n <= 0) return [];
+    const start = (cursors.get(key) ?? 0) % list.length;
+    const out: string[] = [];
+    for (let i = 0; i < Math.min(n, list.length); i++) out.push(list[(start + i) % list.length]);
+    cursors.set(key, start + out.length);
+    return out;
+  };
+  const first = tier(hotUrlsFor(store), `${store}#hot`, max);
+  const rest = tier(new Set([...warmUrlsFor(store)].filter((u) => !hotUrlsFor(store).has(u))), `${store}#warm`, max - first.length);
+  return [...first, ...rest];
+}
+
 interface CacheEntry<T> {
   /** Sidnyckel (hämtnings-URL) → sidans varor, i hämtningsordning. */
   pages: Map<string, T[]>;
@@ -39,6 +112,9 @@ const caches = new Map<string, CacheEntry<{ url: string }>>();
 /** Nollställer minnet (tester). */
 export function resetHotPages(): void {
   hot.clear();
+  warm.clear();
+  live.clear();
+  cursors.clear();
   caches.clear();
 }
 

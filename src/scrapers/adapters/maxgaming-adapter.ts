@@ -32,7 +32,26 @@ import type {
 } from "../types";
 import { nordiskCartUrl } from "@/lib/cart-url";
 import { guessListingCategory } from "../listing-category";
-import { commitFullFetch, commitHotFetch, hotFullEvery, planHotFetch } from "../hot-pages";
+import {
+  commitFullFetch,
+  commitHotFetch,
+  hotFullEvery,
+  liveStockFor,
+  pickLiveChecks,
+  planHotFetch,
+  setLiveStock,
+} from "../hot-pages";
+import { stockFromJsonLd } from "../stock-verify";
+
+/** Produktsidor per het hämtning (se hot-pages.ts: kategorilistan släpar minuter efter sidan). */
+const LIVE_CHECKS_PER_HOT_FETCH = 2;
+
+/** Färskt svar från produktsidan vinner över kategorilistan. */
+function withLive<T extends MaxRaw>(store: string, item: T): T {
+  const l = liveStockFor(store, item.url);
+  if (l !== "in" && l !== "preorder" && l !== "out") return item;
+  return { ...item, stock: l, inStock: l === "in" };
+}
 
 const MAX_PAGES = 10; // ~597 pokemon-artiklar / 60 per sida → täcker hela kategorin
 /**
@@ -169,7 +188,27 @@ export class MaxGamingAdapter implements SourceAdapter {
           }
           pages.set(url, found);
         }
-        return { products: commitHotFetch(this.name, pages).map((it) => this.toProduct(it)), errors };
+        const merged = commitHotFetch(this.name, pages);
+        // PRODUKTSIDAN för heta varor som listan kallar slut — den vet minuter före listan.
+        // Ett uteblivet svar är ingen upplysning (listans besked står kvar).
+        const checks = pickLiveChecks(
+          this.name,
+          merged.map((it) => ({ url: it.url, inStock: (it.stock ?? (it.inStock ? "in" : "out")) === "in" })),
+          LIVE_CHECKS_PER_HOT_FETCH
+        );
+        for (const url of checks) {
+          try {
+            const res = await politeFetch(url, { delayMs: PAGE_DELAY_MS });
+            if (!res.ok) continue;
+            const verdict = stockFromJsonLd(await res.text());
+            if (verdict === StockStatus.IN_STOCK) setLiveStock(this.name, url, "in");
+            else if (verdict === StockStatus.PREORDER) setLiveStock(this.name, url, "preorder");
+            else if (verdict === StockStatus.OUT_OF_STOCK) setLiveStock(this.name, url, "out");
+          } catch {
+            /* nästa varv */
+          }
+        }
+        return { products: merged.map((it) => this.toProduct(withLive(this.name, it))), errors };
       }
       for (const categoryPath of CATEGORY_PATHS) for (let page = 1; page <= MAX_PAGES; page++) {
         const url = page === 1 ? `${this.baseUrl}${categoryPath}` : `${this.baseUrl}${categoryPath}?page=${page}`;
@@ -199,7 +238,7 @@ export class MaxGamingAdapter implements SourceAdapter {
     }
     // Bara en HEL katalog blir minne för de heta hämtningarna.
     if (!errors.length && pages.size) commitFullFetch(this.name, pages);
-    return { products: [...pages.values()].flat().map((it) => this.toProduct(it)), errors };
+    return { products: [...pages.values()].flat().map((it) => this.toProduct(withLive(this.name, it))), errors };
   }
 
   normalizeProduct(raw: RawProductData): NormalizedProduct {
