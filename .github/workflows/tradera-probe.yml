@@ -11,6 +11,7 @@ on:
         type: choice
         options:
           - tradera-op-probe
+          - tradera-op-dump
 
 jobs:
   probe:
@@ -26,3 +27,11 @@ jobs:
           node-version: 22
       - name: Kör sonden
         run: npx --yes tsx "scripts/${{ inputs.script }}.ts"
+      - name: Spara dumpen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-output
+          path: "*.json"
+          if-no-files-found: ignore
+          retention-days: 3
