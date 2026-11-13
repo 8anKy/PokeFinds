@@ -4,6 +4,7 @@
  * Svarar på: finns en egen One Piece-kategori, hur många aktiva/avslutade annonser, hur ser titlarna ut?
  * ~10 anrop mot Tradera.
  */
+export {}; // modul, inte globalt skript (annars krockar main() med andra sonder i tsc)
 const appId = process.env.TRADERA_APP_ID ?? "";
 const appKey = process.env.TRADERA_APP_KEY ?? "";
 if (!appId || !appKey) { console.error("TRADERA_APP_ID/TRADERA_APP_KEY saknas."); process.exit(1); }
