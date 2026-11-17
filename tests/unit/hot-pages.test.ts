@@ -62,3 +62,20 @@ describe("live-svar från produktsidan (MaxGaming 14:28 mot 14:32, 2026-11-12)",
     expect(pickLiveChecks("X", [{ url: "b", inStock: true }], 2, t + 1000)).toEqual(["b"]);
   });
 });
+
+import { withLive as maxgamingWithLive } from "@/scrapers/adapters/maxgaming-adapter";
+
+describe("MaxGaming: produktsidans 'slut' fäller inte listans förhandsbokning", () => {
+  const base = { title: "t", priceOre: 44900, inStock: false };
+  it("JSON-LD OutOfStock på en Förhandsboka-vara lämnar PREORDER kvar (postades en gång per jobb)", () => {
+    setLiveStock("MaxGaming", "https://www.maxgaming.se/sv/pokemon/pre", "out");
+    const out = maxgamingWithLive("MaxGaming", { ...base, url: "https://www.maxgaming.se/sv/pokemon/pre", stock: "preorder" as const });
+    expect(out.stock).toBe("preorder");
+  });
+  it("live 'i lager' vinner fortfarande över listans 'slut', och live 'slut' över listans 'i lager'", () => {
+    setLiveStock("MaxGaming", "https://www.maxgaming.se/sv/pokemon/a", "in");
+    expect(maxgamingWithLive("MaxGaming", { ...base, url: "https://www.maxgaming.se/sv/pokemon/a", stock: "out" as const }).stock).toBe("in");
+    setLiveStock("MaxGaming", "https://www.maxgaming.se/sv/pokemon/b", "out");
+    expect(maxgamingWithLive("MaxGaming", { ...base, inStock: true, url: "https://www.maxgaming.se/sv/pokemon/b", stock: "in" as const }).stock).toBe("out");
+  });
+});

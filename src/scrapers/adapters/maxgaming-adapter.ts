@@ -46,10 +46,19 @@ import { stockFromJsonLd } from "../stock-verify";
 /** Produktsidor per het hämtning (se hot-pages.ts: kategorilistan släpar minuter efter sidan). */
 const LIVE_CHECKS_PER_HOT_FETCH = 2;
 
-/** Färskt svar från produktsidan vinner över kategorilistan. */
-function withLive<T extends MaxRaw>(store: string, item: T): T {
+/**
+ * Färskt svar från produktsidan vinner över kategorilistan.
+ *
+ * ⛔ UTOM "SLUT" MOT LISTANS "FÖRHANDSBOKA" (2026-11-17): produktsidans JSON-LD säger
+ * `OutOfStock` för en vara med aktiv Förhandsboka-knapp (schemat bär ingen PreOrder hos
+ * MaxGaming). Live-svaret skrev då PREORDER → OUT, och varje nytt lanejobb (tomt live-minne,
+ * ~var 20:e min) läste listans PREORDER igen ⇒ "Går nu att förhandsboka" en gång per jobb
+ * (First Partner Illustration Collection Series 3). Listans Lager_8 är domen för förhandsbokning.
+ */
+export function withLive<T extends MaxRaw>(store: string, item: T): T {
   const l = liveStockFor(store, item.url);
   if (l !== "in" && l !== "preorder" && l !== "out") return item;
+  if (l === "out" && item.stock === "preorder") return item;
   return { ...item, stock: l, inStock: l === "in" };
 }
 
@@ -193,7 +202,8 @@ export class MaxGamingAdapter implements SourceAdapter {
         // Ett uteblivet svar är ingen upplysning (listans besked står kvar).
         const checks = pickLiveChecks(
           this.name,
-          merged.map((it) => ({ url: it.url, inStock: (it.stock ?? (it.inStock ? "in" : "out")) === "in" })),
+          // Förhandsbokningsbara frågas inte: sidans JSON-LD kan inte uttrycka dem (se withLive).
+          merged.map((it) => ({ url: it.url, inStock: (it.stock ?? (it.inStock ? "in" : "out")) !== "out" })),
           LIVE_CHECKS_PER_HOT_FETCH
         );
         for (const url of checks) {
