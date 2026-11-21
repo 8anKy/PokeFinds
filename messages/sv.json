@@ -1729,6 +1729,7 @@
     "front": "Framsida",
     "back": "Baksida",
     "previewAlt": "Förhandsvisning: {label}",
+    "gradeMeasureFirst": "Mät centrering och gradera",
     "gradeBtn": "Gradera kort",
     "analyzing": "Analyserar skicket…",
     "limitPremium": "Månadens graderingar är slut. Kvoten nollställs den 1:a.",
@@ -3193,7 +3194,7 @@
     "helpLines3": "Lika breda ramar på båda sidor betyder perfekt centrerat. Tryck Klar när alla linjer sitter.",
     "helpGotIt": "Jag förstår",
     "linesGeneral": "Dra varje linje till sin kant — förstoringsglaset visas medan du drar.",
-    "tipShort": "Mät centreringen under fotot — det tar en halv minut och ger en exaktare grad."
+    "tipShort": "Centreringen mäts före graderingen — det tar en halv minut och ger en exaktare grad."
   },
   "LocalStores": {
     "guide": {

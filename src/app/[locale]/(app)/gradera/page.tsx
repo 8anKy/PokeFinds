@@ -813,6 +813,16 @@ export default function GraderaPage() {
     back: null,
   });
   const [toolSide, setToolSide] = useState<CenteringSide | null>(null);
+  // CENTRERINGEN ÄR ETT STEG I GRADERINGEN (ägaren 2026-11-21: "gör den mer obligatorisk"). Mätt
+  // 60 dygn: bara ~47 % av graderingarna hade båda sidor mätta — resten lät AI:n gissa centreringen
+  // ur fotot. Gradera-knappen öppnar nu verktyget för den sida som saknas (fram, sedan bak) och
+  // startar graderingen själv när båda är mätta. Stängs verktyget utan "Klar" graderas ingenting.
+  const pendingGrade = useRef(false);
+  const openedSide = useRef<CenteringSide | null>(null);
+  const openTool = (s: CenteringSide) => {
+    openedSide.current = s;
+    setToolSide(s);
+  };
   const [shareOpen, setShareOpen] = useState(false);
   /** "Fel kort? Välj rätt" — användaren väljer kortet ur katalogen (api/grading/jobs/[id]/card). */
   const [pickOpen, setPickOpen] = useState(false);
@@ -993,6 +1003,37 @@ export default function GraderaPage() {
     setCentering((c) => ({ ...c, [side]: null }));
     setResult(null);
   }
+
+  const missingCentering: CenteringSide | null = !centering.front ? "front" : !centering.back ? "back" : null;
+  function startGrade() {
+    if (!front || !back) return;
+    if (missingCentering) {
+      pendingGrade.current = true;
+      openTool(missingCentering);
+      return;
+    }
+    void gradeNow();
+  }
+  const gradeNowRef = useRef<() => Promise<void>>(async () => undefined);
+  // Funktionsdeklarationen nedan lyfts (hoisting) — effekten når alltid den senaste.
+  gradeNowRef.current = gradeNow;
+  useEffect(() => {
+    if (toolSide !== null || !pendingGrade.current) return;
+    const closed = openedSide.current;
+    openedSide.current = null;
+    // Stängt utan "Klar" ⇒ användaren avbröt — ingen gradering.
+    if (closed && !centering[closed]) {
+      pendingGrade.current = false;
+      return;
+    }
+    const next: CenteringSide | null = !centering.front ? "front" : !centering.back ? "back" : null;
+    if (next) {
+      openTool(next);
+      return;
+    }
+    pendingGrade.current = false;
+    void gradeNowRef.current();
+  }, [toolSide, centering]);
 
   async function gradeNow() {
     if (!front || !back) return;
@@ -1266,16 +1307,15 @@ export default function GraderaPage() {
             <Button
               data-tour="grading-grade"
               size="lg"
-              // Omätt centrering ⇒ knappen backar (kontur) så att Mät centrering är
-              // det som lyser — graderingen går ändå att starta direkt.
-              variant={front && back && !centering.front && !centering.back ? "outline" : "primary"}
+              // Omätt centrering ⇒ knappen öppnar centreringsverktyget först (startGrade).
+              variant="primary"
               className="w-full"
-              onClick={() => void gradeNow()}
+              onClick={startGrade}
               disabled={!front || !back || limitReached}
               loading={grading}
             >
-              <IconShield size={18} />
-              {grading ? t("analyzing") : t("gradeBtn")}
+              {missingCentering && front && back ? <IconCentering size={18} /> : <IconShield size={18} />}
+              {grading ? t("analyzing") : missingCentering && front && back ? t("gradeMeasureFirst") : t("gradeBtn")}
             </Button>
           )}
           {limitReached ? (

@@ -1729,6 +1729,7 @@
     "front": "Front",
     "back": "Back",
     "previewAlt": "Preview: {label}",
+    "gradeMeasureFirst": "Measure centering & grade",
     "gradeBtn": "Grade card",
     "analyzing": "Analyzing condition…",
     "limitPremium": "This month's gradings are used up. The quota resets on the 1st.",
@@ -3193,7 +3194,7 @@
     "helpLines3": "Equal borders on both sides means perfectly centered. Tap Done when all lines are in place.",
     "helpGotIt": "Got it",
     "linesGeneral": "Drag each line to its edge — the magnifier shows while you drag.",
-    "tipShort": "Measure centering under the photo — it takes half a minute and gives a more accurate grade."
+    "tipShort": "Centering is measured before grading — it takes half a minute and gives a more accurate grade."
   },
   "LocalStores": {
     "guide": {
