@@ -9,7 +9,7 @@ import { detectListingLanguage } from "../lib/listing-language";
 import type { CardLanguage, Game } from "@prisma/client";
 import { isOnePieceListing, matchOnePieceListing, type OpCatalogSet } from "../lib/one-piece-listing";
 import { MARKETPLACE_MIN_PRICE_RATIO } from "../lib/listing-plausibility";
-import { listingFitsVariant, isPrintVariantLabel, printLabelInTitle, PRINT_UNLIMITED } from "../lib/print-variant";
+import { listingFitsVariant, isPrintVariantLabel, printLabelInTitle, PRINT_UNLIMITED, titleSaysStamped } from "../lib/print-variant";
 import { MAX_NAME_WORDS, POKEMON_NAMES } from "./pokemon-names";
 
 /** Lägsta konfidens för att en matchning ska accepteras. */
@@ -292,6 +292,67 @@ const FORM_WORDS = new Set([
   "boosterbox",
   "boosterboxar",
 ]);
+
+/**
+ * MEKANIKSUFFIX DIREKT EFTER NAMNET (2026-11-21). "Galarian Moltres V 080/172" är ett annat kort än
+ * "Galarian Moltres" — namnet ryms i annonsen och `cardSuffixMismatch` kräver suffix på BÅDA sidor.
+ * Bara V-familjen och GX: "EX" efter ett namn är lika ofta skicket ("Typhlosion i EX!", "(EX Skick)")
+ * eller en EX-era-set ("EX Power Keepers") som kortets mekanik.
+ */
+const NAME_SUFFIXES = new Set(["v", "vmax", "vstar", "vunion", "gx"]);
+export function nameSuffixContradicts(cardName: string, normalizedListing: string): boolean {
+  const nameToks = splitHyphens(normalizeTitle(cardName)).split(" ").filter(Boolean);
+  if (nameToks.some((t) => NAME_SUFFIXES.has(t))) return false;
+  const toks = splitHyphens(normalizedListing).split(" ");
+  const last = nameToks[nameToks.length - 1];
+  for (let i = 0; i < toks.length - 1; i++) {
+    if (toks[i] === last && NAME_SUFFIXES.has(toks[i + 1])) return true;
+  }
+  return false;
+}
+
+/** Ord i ett setnamn som inte säger VILKET set (de står i många setnamn och annonser). */
+const GENERIC_SET_WORDS = new Set([
+  "base", "set", "promos", "promo", "black", "star", "pokemon", "series", "collection", "edition", "the", "and",
+  "of", "jp", "reverse", "holo", "1st", "shadowless", "unlimited", "specialversion", "staff", "trainer", "gallery",
+  "galarian", "shiny", "vault", "energy", "decks", "world", "championship", "wcd", "classic", "half", "deck",
+  "miscellaneous", "misc",
+]);
+/**
+ * ANNONS UTAN KORTNUMMER: setets namn måste stå där (2026-11-21). Utan nummer bevisar bara namnet
+ * identiteten, och ett namn finns i dussintals set — "Lightning Energy 2017 - Sun & Moon Base Set" låg
+ * på Expedition-kortet, "Psychic Energy 2020 reverse holo" på Diamond & Pearl-kortet. Setets egna ord
+ * (namn, nummer, tryckning och generiska ord bortstrukna) — minst ett måste stå i annonsen.
+ */
+export function noNumberSetMissing(
+  card: { name: string; number: string },
+  productNormalizedTitle: string,
+  normalizedListing: string
+): boolean {
+  // Vårt nummer i NÅGON form ("056", "56", "swsh175", "mep100") bevisar identiteten — promoannonser
+  // skriver koden i stället för setet ("Eevee #SWSH175 Black Star Promo").
+  const listingToks = splitHyphens(normalizedListing).split(/[\s#/]+/);
+  const code = card.number.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const digits = card.number.replace(/\D/g, "");
+  const num = digits ? parseInt(digits, 10) : NaN;
+  if (
+    listingToks.some(
+      (t) =>
+        (code.length >= 3 && t === code) ||
+        (Number.isFinite(num) && /^\d{1,3}$/.test(t) && parseInt(t, 10) === num) ||
+        (Number.isFinite(num) && /^[a-z]{2,5}\d{1,3}$/.test(t) && parseInt(t.replace(/\D/g, ""), 10) === num && code.startsWith(t.replace(/\d/g, "")))
+    )
+  ) {
+    return false;
+  }
+  const nameToks = new Set(splitHyphens(normalizeTitle(card.name)).split(" "));
+  const setWords = splitHyphens(productNormalizedTitle)
+    .split(" ")
+    .filter((w) => w.length >= 3 && !/\d/.test(w) && !nameToks.has(w) && !GENERIC_SET_WORDS.has(w));
+  if (setWords.length === 0) return false;
+  const listing = new Set(splitHyphens(normalizedListing).split(" "));
+  return !setWords.some((w) => listing.has(w) || listing.has(`${w}s`) || (w.endsWith("s") && listing.has(w.slice(0, -1))));
+}
 
 /** True om alla betydelsebärande ord i kortnamnet finns i den normaliserade titeln. */
 function cardNameInTitle(name: string, normalizedListing: string): boolean {
@@ -2866,6 +2927,22 @@ export function matchListingToProduct(
   // som skilde dem var känt sedan 2026-07-26 — vakten satt bara i fel kodväg.
   if (isAccessoryListing(listingTitle) && !isAccessoryListing(product.normalizedTitle)) return null;
 
+  // STÄMPLAT KORT på det etikettlösa kortet (2026-11-21): "Charizard ex - League Stamp 125/197",
+  // "Gengar LOR 066/196 Trick or Trade Stamp" på vanliga Lost Origin-kortet. ⛔ Inte när produkten SJÄLV
+  // är stämplad: set där varje kort bär en stämpel (Trick or Trade, Holiday Calendar, Battle Academy,
+  // promos, exklusiva lekkort) och league-kort med bokstavsnummer ("112a").
+  if (
+    product.card &&
+    product.variantLabel == null &&
+    titleSaysStamped(listingTitle, product.card.name) &&
+    !/[a-z]$/i.test(product.card.number.trim()) &&
+    !/stamp|trick or trade|calendar|battle academy|promo|exclusive|league|championship|prerelease|staff|burger king|mcdonald/.test(
+      product.normalizedTitle
+    )
+  ) {
+    return null;
+  }
+
   // Singel-identitet: tryckt nummer + kortnamn (samma som matchProduct).
   if (product.card) {
     const ourKey = cardNumberKey(product.card.number);
@@ -2874,6 +2951,7 @@ export function matchListingToProduct(
       if (ourKey !== listingKey) return null;
       if (!cardNameInTitle(product.card.name, normalized)) return null;
       if (setTotalContradicts(normalized, product.normalizedTitle, product.card.name)) return null;
+      if (nameSuffixContradicts(product.card.name, normalized)) return null;
       return 0.9;
     }
     if (promoCodeContradicts(product.card.number, normalized)) return null;
@@ -2884,15 +2962,17 @@ export function matchListingToProduct(
     // kort som helst ur samma set på delade set-ord ("Forretress ex Paldean Fates"
     // fastnade på Xatu/Ralts/Flittle m.fl. via överlapp på just "paldean fates").
     if (!cardNameInTitle(product.card.name, normalized)) return null;
+    if (nameSuffixContradicts(product.card.name, normalized)) return null;
     // Annonsen saknar "X/Y" men nämner ETT ELLER FLERA bara tal — är inget av dem
     // vårt kortnummer är det en ANNAN tryckning av samma kort (den ordinarie i
     // stället för alt-arten). Se bareCardNumbers för varför det här är den enda
     // vakten som fångar dem.
     const ourNum = ourKey ? parseInt(ourKey.replace(/[a-z]/g, ""), 10) : NaN;
-    if (Number.isFinite(ourNum)) {
-      const bare = bareCardNumbers(normalized);
-      if (bare.length > 0 && !bare.includes(ourNum)) return null;
-    }
+    const bare = Number.isFinite(ourNum) ? bareCardNumbers(normalized) : [];
+    if (bare.length > 0 && !bare.includes(ourNum)) return null;
+    // Bär annonsen vårt nummer ("Rescue Board 159 Reverse TEF") är identiteten bevisad — setet står
+    // då ofta som en kod vi inte kan läsa. Bara HELT nummerlösa annonser måste nämna setet.
+    if (!bare.includes(ourNum) && noNumberSetMissing(product.card, product.normalizedTitle, normalized)) return null;
   }
 
   if (

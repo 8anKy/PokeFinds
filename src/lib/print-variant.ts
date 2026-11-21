@@ -198,8 +198,29 @@ export function variantInTitle(
   if (/\bpok[eé]\s*ball\b/.test(t)) return VARIANT_POKE_BALL;
   // Bara mönstret ("Rocket Reverse Holo"), aldrig "Team Rocket's …" i ett kortnamn.
   if (/\brocket\s+reverse\b|\breverse\s+rocket\b/.test(t)) return VARIANT_ROCKET;
-  if (/\breverse\b/.test(t) || /\brev\.?\s*holo\b/.test(t)) return VARIANT_REVERSE_HOLO;
+  // Stavningar ur levande annonser (2026-11-21): "Reverese Holo", "reverserat", danskt "revers",
+  // svenskt "omvänt holografiskt". ⛔ Aldrig "reversal" (Pokémon Reversal är ett kort).
+  if (
+    /\breverse\b/.test(t) ||
+    /\brev\.?\s*holo\b/.test(t) ||
+    /\breverese\b|\brevers\b|\breverser(?:at|ad|ade)\b/.test(t) ||
+    /\bomv[aä]n(?:t|d|da)\s+holo/.test(t)
+  ) {
+    return VARIANT_REVERSE_HOLO;
+  }
   return null;
+}
+
+/**
+ * STÄMPLAT KORT (2026-11-21): "Delta Species-stämplat", "sætstempel", "stamped". Katalogens stämplade
+ * tryckningar heter "Specialversion"; en stämplad annons prissätter aldrig det etikettlösa kortet.
+ */
+const STAMPED = /\bstamp(?:ed)?\b|\bst[aä]mpe?l\w*|\bst[aä]mpla\w*|\b(?:s[aæ]t)?stempel\w*/i;
+export function titleSaysStamped(title: string | null | undefined, cardName?: string | null): boolean {
+  let t = (title ?? "").toLowerCase();
+  const name = (cardName ?? "").trim().toLowerCase();
+  if (name) t = t.split(name).join(" ");
+  return STAMPED.test(t);
 }
 
 /** Bakåtkompatibelt alias — säger titeln att varan är NÅGON sorts reverse holo? */
@@ -236,6 +257,8 @@ export function listingFitsVariant(
   }
   const inTitle = variantInTitle(listingTitle, cardName);
   if (REVERSE_VARIANT_LABELS.includes(variantLabel as never)) return inTitle === variantLabel;
+  // OVERSIZED (jumbo) är en egen vara — en vanlig promoannons är inte den (2026-11-21).
+  if (variantLabel === "Oversized") return /oversize|jumbo|\blarge\b|\bstort?\b|\bxl\b/i.test(listingTitle);
   if (variantLabel == null) return inTitle == null;
   return true;
 }

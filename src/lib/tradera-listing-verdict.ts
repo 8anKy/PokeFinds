@@ -10,6 +10,7 @@ import { sealedListingProblem } from "@/lib/tradera-sealed-rules";
 import { listingProductProblem, listingWholeProblem } from "@/lib/tradera-listing-rules";
 import { characterNames } from "@/scrapers/matching";
 import { listingContradiction } from "@/lib/tradera-listing-contradictions";
+import { sealedIdentityProblem } from "@/lib/tradera-sealed-identity";
 
 export interface RuleInput {
   catalogTitle: string;
@@ -24,6 +25,7 @@ export function traderaRuleVerdict(x: RuleInput, setNames: readonly string[] = [
     listingProductProblem(x.catalogTitle, x.catalogCategory, x.listingTitle) ??
     sealedListingProblem(x.listingTitle, x.description) ??
     listingWholeProblem(x.catalogTitle, x.catalogCategory, x.listingTitle, x.description, characterNames, x.catalogLanguage) ??
-    listingContradiction(x.catalogTitle, x.catalogCategory, x.listingTitle, x.description, setNames)
+    listingContradiction(x.catalogTitle, x.catalogCategory, x.listingTitle, x.description, setNames) ??
+    sealedIdentityProblem(x.catalogTitle, x.catalogCategory, x.listingTitle, setNames)
   );
 }

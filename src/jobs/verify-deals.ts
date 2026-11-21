@@ -52,6 +52,7 @@ import type {
 } from "@/services/deal-verify/contract";
 import { StockStatus } from "@prisma/client";
 import { traderaRuleVerdict } from "@/lib/tradera-listing-verdict";
+import { sealedIdentityProblem } from "@/lib/tradera-sealed-identity";
 
 const PUBLIC_API = "https://api.tradera.com/v3/publicservice.asmx";
 
@@ -377,11 +378,9 @@ export async function verifyTraderaMatches(
 
   // Redan avgjorda (annons, produkt)-par prövas inte om — domen är stabil. Men de
   // HOPPAS inte längre blint över: en offer som MOTSÄGER en fälld dom nollas igen.
-  const known = new Map(
-    (await prisma.traderaMatch.findMany({ select: { itemId: true, productId: true, ok: true } })).map(
-      (m) => [`${m.itemId}|${m.productId}`, m.ok] as const
-    )
-  );
+  const knownRows = await prisma.traderaMatch.findMany({ select: { itemId: true, productId: true, ok: true, listingTitle: true } });
+  const known = new Map(knownRows.map((m) => [`${m.itemId}|${m.productId}`, m.ok] as const));
+  const knownTitle = new Map(knownRows.map((m) => [`${m.itemId}|${m.productId}`, m.listingTitle] as const));
 
   await mapPool(offers, 3, async (offer) => {
     const itemId = await resolveItemId(offer);
@@ -389,7 +388,23 @@ export async function verifyTraderaMatches(
       res.skipped++;
       return;
     }
-    const priorOk = known.get(`${itemId}|${offer.productId}`);
+    let priorOk = known.get(`${itemId}|${offer.productId}`);
+    // EN GODKÄND DOM PRÖVAS OM MOT NYA TITELREGLER (2026-11-21). Domen cachas för evigt, så en regel som
+    // läggs till efter godkännandet når aldrig paret — 10 av 150 levande sealed-offers var fel på sätt
+    // en ny regel fångar. Titeln sparades vid domen (`listingTitle`) ⇒ inget nytt GetItem-anrop.
+    const storedTitle = knownTitle.get(`${itemId}|${offer.productId}`);
+    if (priorOk === true && storedTitle) {
+      const newProblem = sealedIdentityProblem(offer.product.title, offer.product.category, storedTitle, setNames);
+      if (newProblem) {
+        await prisma.traderaMatch.update({
+          where: { itemId_productId: { itemId, productId: offer.productId } },
+          data: { ok: false, reason: newProblem, ruleOk: false, ruleReason: newProblem, checkedAt: new Date() },
+        });
+        log(`   ❌ omprövad (${newProblem}): ${offer.product.title} ← ${storedTitle.slice(0, 80)}`);
+        res.wrong++;
+        priorOk = false;
+      }
+    }
     if (priorOk !== undefined) {
       // SJÄLVLÄKNING (2026-08-10): domen fanns, men offern levde vidare ändå —
       // scrape-alls Tradera-adapter skrev tillbaka den "tomma asken" (738310978,

@@ -207,7 +207,13 @@ const RAIL_PURGE_DAYS = 7;
 export function reprintMarkerMissing(productNormalizedTitle: string, listingTitle: string): boolean {
   const p = productNormalizedTitle.toLowerCase();
   const l = normalizeTitle(listingTitle);
-  if (/world championship|\bwcd\b/.test(p)) return !/world championship|\bwcd\b|\bworlds\b/.test(l);
+  if (/world championship|\bwcd\b/.test(p)) {
+    if (!/world championship|\bwcd\b|\bworlds\b/.test(l)) return true;
+    // ÅRET (2026-11-21): "Nest Ball World Championship 2024" låg på WCD 2025-kortet — varje år är en egen lek.
+    const py = p.match(/(?<!\d)(20\d\d)(?!\d)/)?.[1];
+    const ly = [...l.matchAll(/(?<!\d)((?:19|20)\d\d)(?!\d)/g)].map((m) => m[1]);
+    return !!py && ly.length > 0 && !ly.includes(py);
+  }
   if (/prize pack/.test(p)) return !/prize pack/.test(l);
   // MEP-numren är "039" — en annons med ett ANNAT promoblocks kod (SWSH233, SM45, XY28, SVP 101) är det blockets kort.
   if (/\bmep\b/.test(p)) return /\b(swsh|sm|xy|bw|dp|hgss|svp)\s?\d{2,3}\b/.test(l);

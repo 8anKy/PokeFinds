@@ -16,7 +16,9 @@
  *   … --sold   tar även med "Tradera sålt"-punkter (rapporteras alltid, raderas bara med flaggan)
  */
 import { PrismaClient, type CardLanguage } from "@prisma/client";
-import { singleListingContradiction, listingCarriesCardNumber } from "../src/scrapers/matching";
+import { singleListingContradiction, listingCarriesCardNumber, nameSuffixContradicts, noNumberSetMissing } from "../src/scrapers/matching";
+import { variantInTitle, titleSaysStamped } from "../src/lib/print-variant";
+import { reprintMarkerMissing } from "../src/jobs/tradera-sweep";
 import { normalizeTitle } from "../src/lib/utils";
 import { recomputeProductPriceCache, TRADERA_SOLD_SOURCE_NAME } from "../src/services/products";
 import { listingItemIdFromUrl, purgeMismatchedMarketplaceOffer } from "../src/services/marketplace-offers";
@@ -24,7 +26,27 @@ import { listingItemIdFromUrl, purgeMismatchedMarketplaceOffer } from "../src/se
 const prisma = new PrismaClient();
 const APPLY = process.argv.includes("--apply");
 const SOLD = process.argv.includes("--sold");
-const REASON = "singel-identitet (setnamnets formord, omprövning 2026-10-14)";
+/**
+ * --rules-2026-11-21: BARA reglerna som lades till 2026-11-21 (reverse/stämpel på det vanliga kortet, Oversized,
+ * V/GX-suffix, set i nummerlös annons, WCD-år). ⛔ INTE hela matchListingToProduct: den är strängare än de
+ * äldre vägar som skrev raderna och fäller korrekta annonser med stavfel ("Gurrdurr", "Skunktank") — mätt
+ * 2026-11-21: 577 offers mot ~150 äkta fel.
+ */
+const FULL = process.argv.includes("--rules-2026-11-21");
+const STAMP_SET = /stamp|trick or trade|calendar|battle academy|promo|exclusive|league|championship|prerelease|staff|burger king|mcdonald/;
+function newRuleRejects(title: string, p: Single): boolean {
+  if (!p.card) return false;
+  const n = normalizeTitle(title);
+  if (p.variantLabel == null && variantInTitle(title, p.card.name) != null) return true;
+  if (p.variantLabel == null && titleSaysStamped(title, p.card.name) && !/[a-z]$/i.test(p.card.number.trim()) && !STAMP_SET.test(p.normalizedTitle)) return true;
+  if (p.variantLabel === "Oversized" && !/oversize|jumbo|large|stort?|xl/i.test(title)) return true;
+  if (nameSuffixContradicts(p.card.name, n)) return true;
+  if (!/\d{1,3}\s?\/\s?\d{2,3}/.test(title) && noNumberSetMissing(p.card, p.normalizedTitle, n)) return true;
+  return /world championship|wcd/.test(p.normalizedTitle) && reprintMarkerMissing(p.normalizedTitle, title);
+}
+const REASON = FULL
+  ? "singel-matchning (tryckning/stämpel/Oversized/set/WCD-år, omprövning 2026-11-21)"
+  : "singel-identitet (setnamnets formord, omprövning 2026-10-14)";
 
 type Single = {
   id: string;
@@ -46,6 +68,7 @@ type Single = {
 function fits(title: string, _url: string | null, p: Single): boolean {
   if (p.card == null) return true;
   if (singleListingContradiction(title, { normalizedTitle: p.normalizedTitle, card: p.card }) != null) return false;
+  if (FULL && newRuleRejects(title, p)) return false;
   // Samma namn finns på ett annat nummer i setet och annonsen säger inte vilket.
   return !(p.ambiguous && !listingCarriesCardNumber(p.card.number, normalizeTitle(title)));
 }
