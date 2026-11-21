@@ -31,6 +31,7 @@ import { gradingTourSeen } from "@/lib/grading-tour";
 import { prepareGradeSpinLayers, renderGradeShareCard } from "@/lib/share-card";
 import {
   combinedPsaCap,
+  combinedCgcCap,
   formatRatio,
   isEReaderSet,
   worstShare,
@@ -1077,6 +1078,7 @@ export default function GraderaPage() {
   }
 
   const centeringCap = combinedPsaCap([centering.front?.result, centering.back?.result]);
+  const centeringCgcCap = combinedCgcCap([centering.front?.result, centering.back?.result]);
 
   /** Delningsbildens indata ur resultatet + mätningen. */
   function gradeShareInput(r: GradeResponse, domain: string, image: "catalog" | "photo" = "catalog") {
@@ -1275,6 +1277,10 @@ export default function GraderaPage() {
           <p className="text-[13px] leading-snug text-ink-muted">
             <span className="font-semibold text-ink">{tc("psaCapLabel")}</span>{" "}
             <span className="font-semibold text-holo-cyan">{tc("psaCap", { grade: centeringCap })}</span>
+            {" · "}
+            <span className="font-semibold text-holo-cyan">
+              {centeringCgcCap != null ? tc("cgcCap", { grade: centeringCgcCap }) : tc("cgcBelow")}
+            </span>
             <span className="block text-[11px] text-ink-faint">{tc("capNote")}</span>
           </p>
         )}

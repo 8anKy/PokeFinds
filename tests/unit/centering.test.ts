@@ -9,6 +9,8 @@ import {
   isEReaderSet,
   measureCentering,
   psaCapFor,
+  cgcCapFor,
+  combinedCgcCap,
   type CenteringLines,
 } from "@/lib/centering";
 
@@ -105,5 +107,26 @@ describe("centrering", () => {
     expect(l.outerRight * w).toBeCloseTo(270, -1);
     expect(l.innerTop * h).toBeCloseTo(48, -1);
     expect(l.outerBottom * h).toBeCloseTo(390, -1);
+  });
+});
+
+describe("CGC-taket (publicerade gränser, cgccards.com 2026-11-21)", () => {
+  it("framsidan följer CGC:s tabell, och sämre än publicerat ger null", () => {
+    expect(cgcCapFor(55, "front")).toBe(10);
+    expect(cgcCapFor(58, "front")).toBe(9);
+    expect(cgcCapFor(65, "front")).toBe(8);
+    expect(cgcCapFor(75, "front")).toBe(6);
+    expect(cgcCapFor(85, "front")).toBe(4.5);
+    expect(cgcCapFor(95, "front")).toBeNull();
+  });
+  it("baksidan: 75/25 för 10, 90/10 för 9", () => {
+    expect(cgcCapFor(75, "back")).toBe(10);
+    expect(cgcCapFor(88, "back")).toBe(9);
+    expect(cgcCapFor(95, "back")).toBeNull();
+  });
+  it("hela kortet = strängaste sidan; en sida under tabellen ⇒ null", () => {
+    expect(combinedCgcCap([{ psaCap: 10, cgcCap: 10 } as never, { psaCap: 9, cgcCap: 9 } as never])).toBe(9);
+    expect(combinedCgcCap([{ psaCap: 10, cgcCap: 10 } as never, { psaCap: 1, cgcCap: null } as never])).toBeNull();
+    expect(combinedCgcCap([null, undefined])).toBeNull();
   });
 });

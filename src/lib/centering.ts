@@ -124,6 +124,8 @@ export interface CenteringResult {
   topRight: AxisRatio | null;
   /** Högsta PSA-grad centreringen tillåter (tak, inte en grad). null = omätt. */
   psaCap: number | null;
+  /** Högsta CGC-grad centreringen tillåter. null = omätt ELLER sämre än CGC:s publicerade gränser. */
+  cgcCap: number | null;
 }
 
 /** Framsidans gränser, högsta grad först: [grad, största tillåtna andel]. */
@@ -165,6 +167,35 @@ export function psaCapFor(share: number, side: CenteringSide): number {
   return 1;
 }
 
+/**
+ * CGC:s publicerade gränser (cgccards.com/card-grading/grading-scale, läst 2026-11-21). Gem Mint 10:
+ * "not to exceed approximately 55/45, and reverse centering … 75/25". 9 och nedåt står där "for sports
+ * and non-sports cards" — CGC publicerar inga egna TCG-tal. Grader utan tal på sidan (9.5, 8.5, 5 …)
+ * finns inte i tabellen: vi påstår aldrig en gräns CGC inte skrivit. Pristine 10 (50/50) är en etikett
+ * ovanpå Gem Mint och visas inte som tak.
+ */
+const CGC_FRONT: [number, number][] = [
+  [10, 55],
+  [9, 60],
+  [8, 65],
+  [7, 70],
+  [6, 75],
+  [4.5, 85],
+  [3.5, 90],
+];
+const CGC_BACK: [number, number][] = [
+  [10, 75],
+  [9, 90],
+];
+
+/** Högsta CGC-grad en sämsta andel tillåter; null = sämre än det CGC publicerat. */
+export function cgcCapFor(share: number, side: CenteringSide): number | null {
+  for (const [grade, limit] of side === "front" ? CGC_FRONT : CGC_BACK) {
+    if (share <= limit + 0.5) return grade;
+  }
+  return null;
+}
+
 export function measureCentering(
   lines: CenteringLines,
   width: number,
@@ -182,6 +213,7 @@ export function measureCentering(
       topBottom: null,
       topRight,
       psaCap: topRight ? psaCapFor(worstShare(topRight), side) : null,
+      cgcCap: topRight ? cgcCapFor(worstShare(topRight), side) : null,
     };
   }
   const leftRight = axisRatio(b.left, b.right);
@@ -195,6 +227,7 @@ export function measureCentering(
     topBottom,
     topRight: null,
     psaCap: shares.length === 2 ? psaCapFor(Math.max(...shares), side) : null,
+    cgcCap: shares.length === 2 ? cgcCapFor(Math.max(...shares), side) : null,
   };
 }
 
@@ -202,6 +235,13 @@ export function measureCentering(
 export function combinedPsaCap(results: (CenteringResult | null | undefined)[]): number | null {
   const caps = results.map((r) => r?.psaCap).filter((c): c is number => c != null);
   return caps.length ? Math.min(...caps) : null;
+}
+
+/** CGC-taket för hela kortet. En mätt sida sämre än CGC:s tabell ⇒ null (inget publicerat tak). */
+export function combinedCgcCap(results: (CenteringResult | null | undefined)[]): number | null {
+  const measured = results.filter((r): r is CenteringResult => r != null && r.psaCap != null);
+  if (!measured.length || measured.some((r) => r.cgcCap == null)) return null;
+  return Math.min(...measured.map((r) => r.cgcCap as number));
 }
 
 /**

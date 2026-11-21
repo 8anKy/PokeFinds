@@ -3154,16 +3154,16 @@
       "innerBottom": "Inre nedre"
     },
     "ereader": "e-Reader-kort",
-    "legendOuter": "Vit = kortets kant",
-    "legendInner": "Turkos = ramens innerkant",
     "hintEreader": "e-Reader-kort har punktkod längs vänster- och nederkanten, så vi jämför den övre och den högra kanten — lika breda betyder centrerat.",
     "axisLeftRight": "Vänster/höger",
     "axisTopBottom": "Övre/nedre",
     "axisTopRight": "Övre/höger",
     "psaCapLabel": "Centreringen räcker till",
     "psaCap": "PSA {grade}",
+    "cgcCap": "CGC {grade}",
+    "cgcBelow": "Under CGC:s gränser",
     "measure": "Mät centrering",
-    "capNote": "Taket enligt PSA:s publicerade gränser (fram 55/45 för en 10:a, bak 75/25). Ett tak, inte en grad.",
+    "capNote": "Taket enligt bolagens publicerade gränser: PSA fram 55/45 för en 10:a, bak 75/25; CGC samma för Gem Mint 10 och 60/40 fram, 90/10 bak för en 9:a. Ett tak, inte en grad.",
     "capShort": "Räcker till",
     "stepCorners": "Steg 1 av 2 · hörnen",
     "stepLines": "Steg 2 av 2 · linjerna",
@@ -3193,7 +3193,6 @@
     "helpLines2": "Dra en linje i taget. Förstoringsglaset visas medan du drar så att du kan lägga den exakt.",
     "helpLines3": "Lika breda ramar på båda sidor betyder perfekt centrerat. Tryck Klar när alla linjer sitter.",
     "helpGotIt": "Jag förstår",
-    "linesGeneral": "Dra varje linje till sin kant — förstoringsglaset visas medan du drar.",
     "tipShort": "Centreringen mäts före graderingen — det tar en halv minut och ger en exaktare grad."
   },
   "LocalStores": {

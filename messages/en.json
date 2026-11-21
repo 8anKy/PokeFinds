@@ -3154,16 +3154,16 @@
       "innerBottom": "Inner bottom"
     },
     "ereader": "e-Reader card",
-    "legendOuter": "White = card edge",
-    "legendInner": "Turquoise = inner frame edge",
     "hintEreader": "e-Reader cards have a dot code along the left and bottom edges, so we compare the top and right borders — equal width means centered.",
     "axisLeftRight": "Left/right",
     "axisTopBottom": "Top/bottom",
     "axisTopRight": "Top/right",
     "psaCapLabel": "Centering allows up to",
     "psaCap": "PSA {grade}",
+    "cgcCap": "CGC {grade}",
+    "cgcBelow": "Below CGC's limits",
     "measure": "Measure centering",
-    "capNote": "Ceiling per PSA's published limits (front 55/45 for a 10, back 75/25). A ceiling, not a grade.",
+    "capNote": "Ceiling per each company's published limits: PSA front 55/45 for a 10, back 75/25; CGC the same for Gem Mint 10 and 60/40 front, 90/10 back for a 9. A ceiling, not a grade.",
     "capShort": "Allows up to",
     "stepCorners": "Step 1 of 2 · corners",
     "stepLines": "Step 2 of 2 · lines",
@@ -3193,7 +3193,6 @@
     "helpLines2": "Drag one line at a time. The magnifier shows while you drag so you can place it exactly.",
     "helpLines3": "Equal borders on both sides means perfectly centered. Tap Done when all lines are in place.",
     "helpGotIt": "Got it",
-    "linesGeneral": "Drag each line to its edge — the magnifier shows while you drag.",
     "tipShort": "Centering is measured before grading — it takes half a minute and gives a more accurate grade."
   },
   "LocalStores": {

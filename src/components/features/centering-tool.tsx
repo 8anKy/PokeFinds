@@ -791,6 +791,7 @@ export function CenteringTool(props: {
         ) : (
           <>
             <Readout result={result} side={side} />
+            {(selected || (mode === "ereader" && side === "front")) && (
             <p className="rounded-lg bg-surface-overlay/60 px-3 py-2 text-[12px] leading-relaxed text-ink">
               {selected ? (
                 <>
@@ -808,13 +809,9 @@ export function CenteringTool(props: {
                 </>
               ) : mode === "ereader" && side === "front" ? (
                 t("hintEreader")
-              ) : (
-                <>
-                  <span className="font-semibold text-white">{t("legendOuter")}</span> ·{" "}
-                  <span className="font-semibold text-holo-cyan">{t("legendInner")}</span>. {t("linesGeneral")}
-                </>
-              )}
+              ) : null}
             </p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -879,6 +876,11 @@ function Readout({ result, side }: { result: CenteringResult | null; side: Cente
         <p className="text-sm font-semibold text-ink">
           {result.psaCap != null ? t("psaCap", { grade: result.psaCap }) : "–"}
         </p>
+        {result.psaCap != null && (
+          <p className="text-sm font-semibold text-ink">
+            {result.cgcCap != null ? t("cgcCap", { grade: result.cgcCap }) : t("cgcBelow")}
+          </p>
+        )}
       </div>
     </div>
   );
