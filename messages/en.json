@@ -3175,15 +3175,6 @@
     "corner2": "Bottom right corner",
     "corner3": "Bottom left corner",
     "helpOpen": "Show how the tool works",
-    "lineHelpOuter": "place the white line exactly on the card's {edge} edge.",
-    "lineHelpInner": "place the turquoise line where the yellow border ends at the {edge} edge — where the art/text box begins.",
-    "lineHelpInnerBack": "place the turquoise line where the blue border ends at the {edge} edge.",
-    "edge": {
-      "left": "left",
-      "right": "right",
-      "top": "top",
-      "bottom": "bottom"
-    },
     "helpCornersTitle": "Put the dots on the card's corners",
     "helpCorners1": "Drag the four turquoise dots to the card's four corners.",
     "helpCorners2": "Follow the straight edges — on rounded corners, place the dot where the edges would meet.",

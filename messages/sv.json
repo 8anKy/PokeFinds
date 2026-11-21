@@ -3175,15 +3175,6 @@
     "corner2": "Nedre högra hörnet",
     "corner3": "Nedre vänstra hörnet",
     "helpOpen": "Visa hur mätaren fungerar",
-    "lineHelpOuter": "lägg den vita linjen exakt på kortets {edge} kant.",
-    "lineHelpInner": "lägg den turkosa linjen där den gula ramen slutar vid {edge} kanten — där bilden/textrutan börjar.",
-    "lineHelpInnerBack": "lägg den turkosa linjen där den blå ramen slutar vid {edge} kanten.",
-    "edge": {
-      "left": "vänstra",
-      "right": "högra",
-      "top": "övre",
-      "bottom": "nedre"
-    },
     "helpCornersTitle": "Lägg prickarna på kortets hörn",
     "helpCorners1": "Dra de fyra turkosa prickarna till kortets fyra hörn.",
     "helpCorners2": "Följ de raka kanterna — vid rundade hörn lägger du pricken där kanterna skulle mötas.",

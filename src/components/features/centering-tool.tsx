@@ -111,13 +111,6 @@ function markHelpSeen(step: Step): void {
   }
 }
 
-/** Kanten en linje hör till — meningen "lägg linjen på kortets VÄNSTRA kant". */
-function edgeOf(key: CenteringLineKey): "left" | "right" | "top" | "bottom" {
-  if (key.endsWith("Left")) return "left";
-  if (key.endsWith("Right")) return "right";
-  if (key.endsWith("Top")) return "top";
-  return "bottom";
-}
 interface Img {
   url: string;
   w: number;
@@ -791,26 +784,12 @@ export function CenteringTool(props: {
         ) : (
           <>
             <Readout result={result} side={side} />
-            {(selected || (mode === "ereader" && side === "front")) && (
-            <p className="rounded-lg bg-surface-overlay/60 px-3 py-2 text-[12px] leading-relaxed text-ink">
-              {selected ? (
-                <>
-                  <span className={cn("font-semibold", selected.startsWith("inner") ? "text-holo-cyan" : "text-white")}>
-                    {t(`line.${selected}`)}:
-                  </span>{" "}
-                  {t(
-                    selected.startsWith("inner")
-                      ? side === "front"
-                        ? "lineHelpInner"
-                        : "lineHelpInnerBack"
-                      : "lineHelpOuter",
-                    { edge: t(`edge.${edgeOf(selected)}`) }
-                  )}
-                </>
-              ) : mode === "ereader" && side === "front" ? (
-                t("hintEreader")
-              ) : null}
-            </p>
+            {/* Ingen hjälptext per linje (ägarbeslut 2026-11-21) — bara e-Reader-läget förklaras,
+                eftersom det mäter andra kanter än vanligt. Linjernas hjälp finns bakom "?". */}
+            {mode === "ereader" && side === "front" && (
+              <p className="rounded-lg bg-surface-overlay/60 px-3 py-2 text-[12px] leading-relaxed text-ink">
+                {t("hintEreader")}
+              </p>
             )}
             <div className="flex flex-wrap items-center gap-2">
               <button
