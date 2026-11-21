@@ -3372,13 +3372,16 @@ export async function readSinglesCoverage(pricedThisRun = 0): Promise<CoverageIn
            COUNT(*) FILTER (WHERE EXISTS (
              SELECT 1 FROM "Offer" o JOIN "Retailer" r ON r.id = o."retailerId"
              WHERE o."productId" = p.id AND r.name = 'Cardmarket'))::bigint AS covered
-    FROM "Product" p WHERE p.category = 'SINGLE_CARD' AND p.language = 'EN'`;
+    FROM "Product" p WHERE p.category = 'SINGLE_CARD' AND p.language = 'EN' AND p.game = 'POKEMON'`;
   // language = EN på alla tre: vakten mäter den ENGELSKA feeden (episodlistan).
   // Japanska singlar prissätts ur en annan endpoint med egen loggrad.
+  // ⛔ game = POKEMON på alla tre (2026-11-22): One Piece-singlarna prissätts av op-singles-import,
+  // som bara rör lastSeenAt när priset ÄNDRAS — ~3 000 oförändrade OP-kort såg ut som "tappade"
+  // och gjorde nattkörningen röd 11-19 → 11-21 trots att Pokémon-täckningen var hel.
   const emptySets = await prisma.$queryRaw<{ set: string; singles: bigint }[]>`
     SELECT COALESCE(cs."externalId", cs.name) AS set, COUNT(*)::bigint AS singles
     FROM "Product" p JOIN "CardSet" cs ON cs.id = p."setId"
-    WHERE p.category = 'SINGLE_CARD' AND p.language = 'EN'
+    WHERE p.category = 'SINGLE_CARD' AND p.language = 'EN' AND p.game = 'POKEMON'
     GROUP BY COALESCE(cs."externalId", cs.name)
     HAVING COUNT(*) FILTER (WHERE EXISTS (
              SELECT 1 FROM "Offer" o JOIN "Retailer" r ON r.id = o."retailerId"
@@ -3388,7 +3391,7 @@ export async function readSinglesCoverage(pricedThisRun = 0): Promise<CoverageIn
     `SELECT COUNT(*)::bigint AS n
      FROM "Offer" o
      JOIN "Retailer" r ON r.id = o."retailerId" AND r.name = 'Cardmarket'
-     JOIN "Product" p ON p.id = o."productId" AND p.category = 'SINGLE_CARD' AND p.language = 'EN'
+     JOIN "Product" p ON p.id = o."productId" AND p.category = 'SINGLE_CARD' AND p.language = 'EN' AND p.game = 'POKEMON'
      WHERE o."lastSeenAt" < NOW() - ($1 || ' days')::interval`,
     String(COVERAGE_STALE_DAYS)
   );
