@@ -126,6 +126,8 @@ export interface CenteringResult {
   psaCap: number | null;
   /** Högsta CGC-grad centreringen tillåter. null = omätt ELLER sämre än CGC:s publicerade gränser. */
   cgcCap: number | null;
+  /** Högsta TAG-grad (TCG-gränserna). null = omätt ELLER sämre än TAG:s publicerade gränser. */
+  tagCap: number | null;
 }
 
 /** Framsidans gränser, högsta grad först: [grad, största tillåtna andel]. */
@@ -188,6 +190,33 @@ const CGC_BACK: [number, number][] = [
   [9, 90],
 ];
 
+/**
+ * TAG:s publicerade TCG-gränser (taggrading.com/pages/rubric, läst 2026-11-21): 10 "~55/45 and back image
+ * within … ~65/35 (TCG)", 9 "~60/40 … ~75/25 (TCG)", 8 "~65/35. For TCG, backs … ~95/5". Under 8 publiceras
+ * inga tal ⇒ null. (Beckett publicerar bara Pristine 10 officiellt, SGC inga tal — därför saknas de.)
+ */
+const TAG_FRONT: [number, number][] = [
+  [10, 55],
+  [9, 60],
+  [8, 65],
+];
+const TAG_BACK: [number, number][] = [
+  [10, 65],
+  [9, 75],
+  [8, 95],
+];
+
+function capFrom(table: [number, number][], share: number): number | null {
+  for (const [grade, limit] of table) {
+    if (share <= limit + 0.5) return grade;
+  }
+  return null;
+}
+
+export function tagCapFor(share: number, side: CenteringSide): number | null {
+  return capFrom(side === "front" ? TAG_FRONT : TAG_BACK, share);
+}
+
 /** Högsta CGC-grad en sämsta andel tillåter; null = sämre än det CGC publicerat. */
 export function cgcCapFor(share: number, side: CenteringSide): number | null {
   for (const [grade, limit] of side === "front" ? CGC_FRONT : CGC_BACK) {
@@ -214,6 +243,7 @@ export function measureCentering(
       topRight,
       psaCap: topRight ? psaCapFor(worstShare(topRight), side) : null,
       cgcCap: topRight ? cgcCapFor(worstShare(topRight), side) : null,
+      tagCap: topRight ? tagCapFor(worstShare(topRight), side) : null,
     };
   }
   const leftRight = axisRatio(b.left, b.right);
@@ -228,6 +258,7 @@ export function measureCentering(
     topRight: null,
     psaCap: shares.length === 2 ? psaCapFor(Math.max(...shares), side) : null,
     cgcCap: shares.length === 2 ? cgcCapFor(Math.max(...shares), side) : null,
+    tagCap: shares.length === 2 ? tagCapFor(Math.max(...shares), side) : null,
   };
 }
 
@@ -237,12 +268,14 @@ export function combinedPsaCap(results: (CenteringResult | null | undefined)[]):
   return caps.length ? Math.min(...caps) : null;
 }
 
-/** CGC-taket för hela kortet. En mätt sida sämre än CGC:s tabell ⇒ null (inget publicerat tak). */
-export function combinedCgcCap(results: (CenteringResult | null | undefined)[]): number | null {
+/** Ett bolags tak för hela kortet = strängaste sidan. En mätt sida sämre än bolagets tabell ⇒ null. */
+function combinedCap(results: (CenteringResult | null | undefined)[], key: "cgcCap" | "tagCap"): number | null {
   const measured = results.filter((r): r is CenteringResult => r != null && r.psaCap != null);
-  if (!measured.length || measured.some((r) => r.cgcCap == null)) return null;
-  return Math.min(...measured.map((r) => r.cgcCap as number));
+  if (!measured.length || measured.some((r) => r[key] == null)) return null;
+  return Math.min(...measured.map((r) => r[key] as number));
 }
+export const combinedCgcCap = (results: (CenteringResult | null | undefined)[]) => combinedCap(results, "cgcCap");
+export const combinedTagCap = (results: (CenteringResult | null | undefined)[]) => combinedCap(results, "tagCap");
 
 /**
  * e-Reader-seten i katalogen (mätt 2026-10-01: de enda med punktkodsremsa).

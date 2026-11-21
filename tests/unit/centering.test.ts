@@ -11,6 +11,8 @@ import {
   psaCapFor,
   cgcCapFor,
   combinedCgcCap,
+  tagCapFor,
+  combinedTagCap,
   type CenteringLines,
 } from "@/lib/centering";
 
@@ -128,5 +130,20 @@ describe("CGC-taket (publicerade gränser, cgccards.com 2026-11-21)", () => {
     expect(combinedCgcCap([{ psaCap: 10, cgcCap: 10 } as never, { psaCap: 9, cgcCap: 9 } as never])).toBe(9);
     expect(combinedCgcCap([{ psaCap: 10, cgcCap: 10 } as never, { psaCap: 1, cgcCap: null } as never])).toBeNull();
     expect(combinedCgcCap([null, undefined])).toBeNull();
+  });
+});
+
+describe("TAG-taket (TCG-gränserna, taggrading.com/pages/rubric 2026-11-21)", () => {
+  it("fram 55/60/65, bak 65/75/95, sämre ⇒ null", () => {
+    expect(tagCapFor(55, "front")).toBe(10);
+    expect(tagCapFor(58, "front")).toBe(9);
+    expect(tagCapFor(64, "front")).toBe(8);
+    expect(tagCapFor(70, "front")).toBeNull();
+    expect(tagCapFor(65, "back")).toBe(10);
+    expect(tagCapFor(70, "back")).toBe(9);
+    expect(tagCapFor(90, "back")).toBe(8);
+  });
+  it("hela kortet = strängaste sidan", () => {
+    expect(combinedTagCap([{ psaCap: 10, tagCap: 10 } as never, { psaCap: 9, tagCap: 9 } as never])).toBe(9);
   });
 });

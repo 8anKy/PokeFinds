@@ -860,6 +860,11 @@ function Readout({ result, side }: { result: CenteringResult | null; side: Cente
             {result.cgcCap != null ? t("cgcCap", { grade: result.cgcCap }) : t("cgcBelow")}
           </p>
         )}
+        {result.psaCap != null && (
+          <p className="text-sm font-semibold text-ink">
+            {result.tagCap != null ? t("tagCap", { grade: result.tagCap }) : t("tagBelow")}
+          </p>
+        )}
       </div>
     </div>
   );
