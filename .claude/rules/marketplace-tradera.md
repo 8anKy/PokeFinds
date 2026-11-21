@@ -170,3 +170,17 @@ paths:
   första fyllningen tar några nätter — obedömda sätter inget pris). Sålt-svepet räknar en såld singel bara om
   annonssvepet redan gett den `en` (läser samma cache). Förseglat bildkollas inte. ⛔ Pokémon behöver den inte i
   dag: japanska kort har där annat nummer/set; mät setpar med samma numrering (151) innan den vidgas.
+- **REGLER I STÄLLET FÖR TEXTMODELLEN (2026-11-21, ägarbeslut)**: den tränade modellen skeppades aldrig; reglerna mättes
+  mot handgranskade stickprov (`.spike/tradera-eval/live-sample-2026-11-{13,21}.json`): 11-21 fel 6/6 fångade, äkta 0/238
+  fällda. FÖRSEGLAT (`lib/tradera-sealed-identity.ts`, anropas i `traderaRuleVerdict`): produktens särdrag måste stå i
+  annonsen — Fun Pack, blister, tin-ord + karaktär + serie (mini-tins och tins utan ex/V/GX-kort), EU/US-version, "flera
+  tins", Ultra/Super-Premium, 18 boosters/Enhanced/Pokémon Center/halv/tom box, Build & Battle med annat set, kortnummer
+  i annonsen ⇒ lösa kort. ⛔ "ex box" ÄR en Premium Collection (prövat och borttaget). ⛔ GODKÄNDA domar prövas om varje
+  natt mot titeln som sparades vid domen (`TraderaMatch.listingTitle`, inget GetItem) — förr nådde en ny regel aldrig ett
+  redan godkänt par. SINGLAR (`matching.ts`/`print-variant.ts`): reverse-stavningar (reverese/revers/reverserat/omvänd
+  holo, aldrig "reversal"), stämplat kort på det etikettlösa kortet (UTOM set där kortet självt är stämplat: Prize Pack,
+  Trick or Trade, kalender, Battle Academy, promos, league-nummer "112a"), Oversized kräver jumbo/oversized,
+  V/GX/VMAX/VSTAR direkt efter namnet ⇒ annat kort, nummerlös annons måste nämna setet om den inte bär vårt nummer i NÅGON
+  form ("SWSH175", "SVP073", "056"), WCD-året måste stämma. Städat 2026-11-21 med
+  `revalidate-tradera-singles.ts --rules-2026-11-21 --apply --sold` (torrkörningen visar urval per regel — läs det före
+  apply): 12 721 grafpunkter, 800 skena-rader, 254 offers. Vaktat av `tradera-rules-2026-11-21.test.ts`.
