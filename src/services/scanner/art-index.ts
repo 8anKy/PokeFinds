@@ -197,6 +197,147 @@ export interface ArtMatch {
   score: number;
 }
 
+interface PreparedQuery {
+  color: Int8Array;
+  qInv: number;
+  struct: Int8Array | null;
+  qInvDct: number;
+  qInvGrad: number;
+  k: number;
+}
+
+/** Frågans normer, en gång. `null` = ogiltig längd eller jämn yta (ingen information). */
+function prepareQuery(query: ArtQuery, k: number): PreparedQuery | null {
+  if (query.color.length !== FINGERPRINT_BYTES) return null;
+  const color = query.color;
+  let qNorm = 0;
+  for (let i = 0; i < FINGERPRINT_BYTES; i++) qNorm += color[i] * color[i];
+  if (qNorm === 0) return null;
+  const struct = query.struct && query.struct.length === STRUCT_BYTES ? query.struct : null;
+  let qInvDct = 0;
+  let qInvGrad = 0;
+  if (struct) {
+    let nd = 0;
+    let ng = 0;
+    for (let i = 0; i < STRUCT_DCT_DIMS; i++) nd += struct[i] * struct[i];
+    for (let i = STRUCT_DCT_DIMS; i < STRUCT_BYTES; i++) ng += struct[i] * struct[i];
+    qInvDct = nd > 0 ? 1 / Math.sqrt(nd) : 0;
+    qInvGrad = ng > 0 ? 1 / Math.sqrt(ng) : 0;
+  }
+  return { color, qInv: 1 / Math.sqrt(qNorm), struct, qInvDct, qInvGrad, k };
+}
+
+/**
+ * ALLA frågor i EN genomgång av indexet (2026-11-21). En skanning skickar upp till 3 rutor × 4
+ * inset = 12 avtryck, och varje avtryck var förut en egen genomgång av hela indexet (~43 000 kort ×
+ * 1 223 byte): mätt ~380 ms styck, ~4,5 s för en skanning lokalt — och skannerns "match"-fas var
+ * 1,9 s i median i drift, större än motorn. Här läses varje indexrad EN gång (den ligger kvar i
+ * L1-cachen medan alla frågor räknas mot den), och indexets fält ligger i lokala variabler i stället
+ * för att slås upp på objektet i den innersta loopen.
+ * ⛔ Samma aritmetik i samma ordning som förut ⇒ samma poäng och samma topplistor, bit för bit
+ *    (vaktat i art-index-fused.test.ts). Ändra blandningen HÄR, en gång.
+ */
+function searchPrepared(index: ArtIndex, queries: PreparedQuery[]): ArtMatch[][] {
+  const { ids, data, invNorm, struct: sData, invDct, invGrad } = index;
+  // Importerade konstanter blir egenskapsläsningar i den transpilerade modulen — i loopvillkoret
+  // betyder det en läsning per varv. Lokala kopior.
+  const FB = FINGERPRINT_BYTES;
+  const SB = STRUCT_BYTES;
+  const SD = STRUCT_DCT_DIMS;
+  const BC = BLEND_COLOR;
+  const BD = BLEND_DCT;
+  const BG = BLEND_GRAD;
+  const n = ids.length;
+  const nq = queries.length;
+  const tops: ArtMatch[][] = queries.map(() => []);
+  const worst = new Float64Array(nq).fill(-Infinity);
+  for (let r = 0; r < n; r++) {
+    const base = r * FB;
+    const sBase = r * SB;
+    const rInv = invNorm[r];
+    for (let q = 0; q < nq; q++) {
+      const Q = queries[q];
+      const color = Q.color;
+      let dot = 0;
+      for (let i = 0; i < FB; i++) dot += color[i] * data[base + i];
+      const cosColor = dot * Q.qInv * rInv;
+      let score: number;
+      const struct = Q.struct;
+      if (struct) {
+        let dDct = 0;
+        for (let i = 0; i < SD; i++) dDct += struct[i] * sData[sBase + i];
+        let dGrad = 0;
+        for (let i = SD; i < SB; i++) dGrad += struct[i] * sData[sBase + i];
+        score =
+          BC * cosColor +
+          BD * dDct * Q.qInvDct * invDct[r] +
+          BG * dGrad * Q.qInvGrad * invGrad[r];
+      } else {
+        score = cosColor;
+      }
+      const top = tops[q];
+      const k = Q.k;
+      if (top.length < k) {
+        top.push({ cardId: ids[r], score });
+        if (top.length === k) {
+          top.sort((a, b) => b.score - a.score);
+          worst[q] = top[k - 1].score;
+        }
+        continue;
+      }
+      if (score <= worst[q]) continue;
+      top[k - 1] = { cardId: ids[r], score };
+      for (let j = k - 1; j > 0 && top[j].score > top[j - 1].score; j--) {
+        const t = top[j];
+        top[j] = top[j - 1];
+        top[j - 1] = t;
+      }
+      worst[q] = top[k - 1].score;
+    }
+  }
+  for (let q = 0; q < nq; q++) if (tops[q].length < queries[q].k) tops[q].sort((a, b) => b.score - a.score);
+  return tops;
+}
+
+/** Ren ingång för testet: frågor mot ett givet index (ingen DB). */
+export function searchIndexForTest(
+  index: Pick<ArtIndex, "ids" | "data" | "invNorm" | "struct" | "invDct" | "invGrad">,
+  queries: { query: ArtQuery; k: number }[]
+): ArtMatch[][] {
+  const prepared = queries.map((q) => prepareQuery(q.query, q.k));
+  const valid = prepared.filter((p): p is PreparedQuery => p !== null);
+  const results = valid.length ? searchPrepared(index as ArtIndex, valid) : [];
+  let v = 0;
+  return prepared.map((p) => (p === null ? [] : results[v++]));
+}
+
+/** Flera frågor, var och en med sitt k, i en genomgång. Ogiltiga frågor ger []. */
+async function searchMany(queries: { query: ArtQuery; k: number }[]): Promise<ArtMatch[][]> {
+  if (queries.length === 0) return [];
+  const index = await getArtIndex();
+  if (!index) return queries.map(() => []);
+  const prepared = queries.map((q) => prepareQuery(q.query, q.k));
+  const valid = prepared.filter((p): p is PreparedQuery => p !== null);
+  const results = valid.length ? searchPrepared(index, valid) : [];
+  let v = 0;
+  return prepared.map((p) => (p === null ? [] : results[v++]));
+}
+
+/** Inset-svepets sammanslagning: varje korts BÄSTA likhet över varianterna (se searchByFingerprints). */
+function mergeVariants(perVariant: ArtMatch[][], k: number): ArtMatch[] {
+  const best = new Map<string, number>();
+  for (const res of perVariant) {
+    for (const m of res) {
+      const prev = best.get(m.cardId);
+      if (prev === undefined || m.score > prev) best.set(m.cardId, m.score);
+    }
+  }
+  return [...best.entries()]
+    .map(([cardId, score]) => ({ cardId, score }))
+    .sort((a, b) => b.score - a.score || a.cardId.localeCompare(b.cardId))
+    .slice(0, k);
+}
+
 /**
  * Kortets K närmaste grannar på utseende.
  *
@@ -208,83 +349,7 @@ export async function searchByFingerprint(
   query: ArtQuery,
   k = 15
 ): Promise<ArtMatch[]> {
-  if (query.color.length !== FINGERPRINT_BYTES) return [];
-  const index = await getArtIndex();
-  if (!index) return [];
-
-  const color = query.color;
-  let qNorm = 0;
-  for (let i = 0; i < FINGERPRINT_BYTES; i++) qNorm += color[i] * color[i];
-  if (qNorm === 0) return []; // jämn yta — ingen information att matcha på
-  const qInv = 1 / Math.sqrt(qNorm);
-
-  // Frågans strukturdelar + deras normer (skalinvariant cosinus per del).
-  const struct =
-    query.struct && query.struct.length === STRUCT_BYTES ? query.struct : null;
-  let qInvDct = 0;
-  let qInvGrad = 0;
-  if (struct) {
-    let nd = 0;
-    let ng = 0;
-    for (let i = 0; i < STRUCT_DCT_DIMS; i++) nd += struct[i] * struct[i];
-    for (let i = STRUCT_DCT_DIMS; i < STRUCT_BYTES; i++)
-      ng += struct[i] * struct[i];
-    qInvDct = nd > 0 ? 1 / Math.sqrt(nd) : 0;
-    qInvGrad = ng > 0 ? 1 / Math.sqrt(ng) : 0;
-  }
-
-  const { ids, data, invNorm } = index;
-  // Liten topplista via insertion — k är ~15, så en heap vore överarbetat.
-  const top: ArtMatch[] = [];
-  let worst = -Infinity;
-  for (let r = 0; r < ids.length; r++) {
-    const base = r * FINGERPRINT_BYTES;
-    let dot = 0;
-    for (let i = 0; i < FINGERPRINT_BYTES; i++)
-      dot += color[i] * data[base + i];
-    const cosColor = dot * qInv * invNorm[r];
-    let score: number;
-    if (struct) {
-      // BLANDNINGEN ("triw", mätt 2026-07-30): 0,25·färg + 0,25·dctb + 0,5·grad.
-      // Skärmfoto topp-15 38,5 % → 97,1 %, fysisk 93,2 % → 95,6 %. Kort utan
-      // strukturavtryck får delcosinus 0 (invDct/invGrad = 0) — mindre bevis,
-      // lägre poäng, vilket är ärligt.
-      const sBase = r * STRUCT_BYTES;
-      let dDct = 0;
-      for (let i = 0; i < STRUCT_DCT_DIMS; i++) {
-        dDct += struct[i] * index.struct[sBase + i];
-      }
-      let dGrad = 0;
-      for (let i = STRUCT_DCT_DIMS; i < STRUCT_BYTES; i++) {
-        dGrad += struct[i] * index.struct[sBase + i];
-      }
-      score =
-        BLEND_COLOR * cosColor +
-        BLEND_DCT * dDct * qInvDct * index.invDct[r] +
-        BLEND_GRAD * dGrad * qInvGrad * index.invGrad[r];
-    } else {
-      // Äldre klient utan strukturavtryck → ren färgcosinus, som förut.
-      score = cosColor;
-    }
-    if (top.length < k) {
-      top.push({ cardId: ids[r], score });
-      if (top.length === k) {
-        top.sort((a, b) => b.score - a.score);
-        worst = top[k - 1].score;
-      }
-      continue;
-    }
-    if (score <= worst) continue;
-    top[k - 1] = { cardId: ids[r], score };
-    for (let j = k - 1; j > 0 && top[j].score > top[j - 1].score; j--) {
-      const t = top[j];
-      top[j] = top[j - 1];
-      top[j - 1] = t;
-    }
-    worst = top[k - 1].score;
-  }
-  if (top.length < k) top.sort((a, b) => b.score - a.score);
-  return top;
+  return (await searchMany([{ query, k }]))[0];
 }
 
 /**
@@ -301,21 +366,10 @@ export async function searchByFingerprints(
   k = 15
 ): Promise<ArtMatch[]> {
   if (fingerprints.length === 0) return [];
-  if (fingerprints.length === 1) return searchByFingerprint(fingerprints[0], k);
-
-  const best = new Map<string, number>();
-  for (const fp of fingerprints) {
-    // Hämta djupare än k per variant: rätt kort kan ligga strax utanför k i en
-    // felbeskuren variant men överst i den rätta, och då ska det ändå med.
-    for (const m of await searchByFingerprint(fp, k * 2)) {
-      const prev = best.get(m.cardId);
-      if (prev === undefined || m.score > prev) best.set(m.cardId, m.score);
-    }
-  }
-  return [...best.entries()]
-    .map(([cardId, score]) => ({ cardId, score }))
-    .sort((a, b) => b.score - a.score || a.cardId.localeCompare(b.cardId))
-    .slice(0, k);
+  if (fingerprints.length === 1) return (await searchMany([{ query: fingerprints[0], k }]))[0];
+  // Hämta djupare än k per variant: rätt kort kan ligga strax utanför k i en
+  // felbeskuren variant men överst i den rätta, och då ska det ändå med.
+  return mergeVariants(await searchMany(fingerprints.map((query) => ({ query, k: k * 2 }))), k);
 }
 
 /**
@@ -352,16 +406,26 @@ export async function searchByFramesDetailed(
 ): Promise<{ best: ArtMatch[]; frameTops: ArtMatch[] }> {
   const usable = frames.filter((f) => f.length > 0);
   if (usable.length === 0) return { best: [], frameTops: [] };
-  if (usable.length === 1) {
-    const res = await searchByFingerprints(usable[0], k);
+  // ALLA rutors alla inset-varianter i EN genomgång av indexet (searchPrepared) — samma svar som
+  // searchByFingerprints per ruta, utan en genomgång per avtryck.
+  const flat = usable.flatMap((frame) =>
+    frame.map((query) => ({ query, k: frame.length === 1 ? k : k * 2 }))
+  );
+  const all = await searchMany(flat);
+  let at = 0;
+  const perFrame = usable.map((frame) => {
+    const slice = all.slice(at, (at += frame.length));
+    return frame.length === 1 ? slice[0] : mergeVariants(slice, k);
+  });
+  if (perFrame.length === 1) {
+    const res = perFrame[0];
     return { best: res, frameTops: res.length > 0 ? [res[0]] : [] };
   }
 
   let best: ArtMatch[] = [];
   let bestMargin = -Infinity;
   const frameTops: ArtMatch[] = [];
-  for (const frame of usable) {
-    const res = await searchByFingerprints(frame, k);
+  for (const res of perFrame) {
     if (res.length === 0) continue;
     frameTops.push(res[0]);
     // Ensam träff = odefinierad marginal. Behandla som minst avgörande, men

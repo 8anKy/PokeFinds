@@ -896,6 +896,14 @@ async function scanFetch(url: string, init?: RequestInit): Promise<Response> {
 // GÄSTSKANNING (2026-08-29): i APPEN får en utloggad användare in ändå — som
 // gäst på enhets-id, 10 skanningar livstid. Webben kräver konto som förut:
 // där finns ingen enhetsidentitet att räkna på.
+/**
+ * Live-pollens takt (2026-11-21: 600 → 350 ms, ägaren: "gör autoskanningen snabbare"). Auto-slutaren
+ * kräver fortfarande SAMMA bevis — 3 pollar i rad på samma kort för låset + 3 pollar till med låset
+ * (5 överens), trust-regeln och skärpegrinden — bara tätare insamlat: ~3,0 s → ~1,75 s. Pollen blev
+ * billig nog när indexsökningen slogs ihop till en genomgång (art-index.ts `searchPrepared`).
+ */
+const LIVE_POLL_MS = 350;
+
 export default function SkannaPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
@@ -1079,7 +1087,7 @@ function Scanner() {
   const lastSharpness = useRef<number | null>(null);
   const liveStreak = useRef<{ id: string; n: number }>({ id: "", n: 0 });
   const livePollBusy = useRef(false);
-  /** De senaste live-pollarnas foliesonder (äldst först, max 5 ≈ 3 s). */
+  /** De senaste live-pollarnas foliesonder (äldst först, max 5 ≈ 1,75 s vid LIVE_POLL_MS 350; bara admindiagnostik). */
   const probeHistory = useRef<string[]>([]);
   // AUTO-FÅNGST: låset (100 % uppmätt precision) som hållit i ≥2 extra pollar
   // (~1,2 s stadigt sikte) trycker av åt användaren — pärmflödet blir
@@ -1699,7 +1707,7 @@ function Scanner() {
         .finally(() => {
           livePollBusy.current = false;
         });
-    }, 600);
+    }, LIVE_POLL_MS);
     return () => window.clearInterval(iv);
   }, [cameraState, view, mode, detailsId, settingsOpen, guideMode]);
 
