@@ -68,6 +68,10 @@ ARG RESTOCK_ALERTS_PAUSED
 ARG PRICE_ALERTS_PAUSED
 # Lanseringsspaken för /nyheter + /evenemang. Osatt = dolt (fail-safe åt rätt håll).
 ARG NEWS_FEED_PUBLIC
+# Lanseringsspaken för community v2 (forum). Utan ARG bakades "0" in i NEXT_PUBLIC_-spegeln
+# trots COMMUNITY_V2_PUBLIC=1 i Railway ⇒ /community visade "Snart här" i stället för att skicka
+# vidare till /forum (upptäckt 2026-11-13, lagat 2026-11-21).
+ARG COMMUNITY_V2_PUBLIC
 ENV NODE_ENV=production \
     DATABASE_URL=$DATABASE_URL \
     NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
@@ -86,7 +90,7 @@ ENV NODE_ENV=production \
     GOOGLE_IOS_CLIENT_ID=$GOOGLE_IOS_CLIENT_ID \
     APPLE_CLIENT_ID=$APPLE_CLIENT_ID \
     RESTOCK_ALERTS_PAUSED=$RESTOCK_ALERTS_PAUSED \
-    PRICE_ALERTS_PAUSED=$PRICE_ALERTS_PAUSED
+    PRICE_ALERTS_PAUSED=$PRICE_ALERTS_PAUSED     NEWS_FEED_PUBLIC=$NEWS_FEED_PUBLIC     COMMUNITY_V2_PUBLIC=$COMMUNITY_V2_PUBLIC
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
