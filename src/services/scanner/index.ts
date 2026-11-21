@@ -2692,7 +2692,23 @@ export async function identifyCardArt(opts: {
 
   await ensureArtMeta(matches);
 
-  const margin = matches.length >= 2 ? matches[0].score - matches[1].score : null;
+  // SPRÅKTVILLINGAR ÄR INTE RIVALER HÄR HELLER (2026-11-21). Live-pollen mätte den RÅA marginalen
+  // till tvåan, och sedan JP-katalogen (08-29) är tvåan ofta samma kort på japanska med identisk
+  // konst ⇒ marginal ~0 ⇒ aldrig "säker" ⇒ inget lås, ingen auto-fångst. Mätt mot prod-indexet
+  // med kortens EGNA avtryck (bästa möjliga bild): säker 39/60 → 57/60 för kort med JP-tvilling.
+  // Samma regel som enkelskanningen (`artConfidentFrom`/`artGateMargin`). Och ettan rapporteras som
+  // gruppens FÖREDRAGNA kort (EN) — annars kan den växla EN ↔ JP mellan pollar, och klientens
+  // låsräknare (samma kort N pollar i rad) nollas varje gång.
+  const twins = await languageTwinsOfTop(matches, null);
+  const gateMargin = artGateMargin(matches, twins.isTwinOfTop);
+  if (twins.preferred && twins.preferred !== matches[0].cardId) {
+    const i = matches.findIndex((m) => m.cardId === twins.preferred);
+    if (i > 0) {
+      const [p] = matches.splice(i, 1);
+      matches.unshift({ cardId: p.cardId, score: matches[0].score });
+    }
+  }
+  const margin = gateMargin === null || !Number.isFinite(gateMargin) ? null : gateMargin;
   return {
     candidates: matches.flatMap((m) => {
       const meta = artMetaCache.get(m.cardId);
@@ -2702,7 +2718,7 @@ export async function identifyCardArt(opts: {
     }),
     margin,
     confident:
-      margin !== null && matches[0].score >= ART_TRUST_SCORE && margin >= ART_TRUST_MARGIN,
+      gateMargin !== null && matches[0].score >= ART_TRUST_SCORE && gateMargin >= ART_TRUST_MARGIN,
   };
 }
 

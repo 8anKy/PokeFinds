@@ -228,7 +228,7 @@ function prepareQuery(query: ArtQuery, k: number): PreparedQuery | null {
 }
 
 /**
- * ALLA frågor i EN genomgång av indexet (2026-11-21). En skanning skickar upp till 3 rutor × 4
+ * (Historik 2026-11-21, se searchOne:) ALLA frågor i EN genomgång av indexet prövades. En skanning skickar upp till 3 rutor × 4
  * inset = 12 avtryck, och varje avtryck var förut en egen genomgång av hela indexet (~43 000 kort ×
  * 1 223 byte): mätt ~380 ms styck, ~4,5 s för en skanning lokalt — och skannerns "match"-fas var
  * 1,9 s i median i drift, större än motorn. Här läses varje indexrad EN gång (den ligger kvar i
@@ -238,9 +238,18 @@ function prepareQuery(query: ArtQuery, k: number): PreparedQuery | null {
  *    (vaktat i art-index-fused.test.ts). Ändra blandningen HÄR, en gång.
  */
 function searchPrepared(index: ArtIndex, queries: PreparedQuery[]): ArtMatch[][] {
+  return queries.map((Q) => searchOne(index, Q));
+}
+
+/**
+ * EN fråga, en tät genomgång. ⛔ Håll loopen monomorf och platt: en "alla frågor per indexrad"-
+ * variant (2026-11-21) var 10× snabbare under tsx men LÅNGSAMMARE i produktionsbygget (live-pollen
+ * 355 → ~500 ms i median) — webpack inlinar redan konstanterna, och den nästlade loopen kostade mer
+ * än den sparade. Mät i drift (Railways http-logg för /api/scanner/identify-art), inte bara lokalt.
+ */
+function searchOne(index: ArtIndex, Q: PreparedQuery): ArtMatch[] {
   const { ids, data, invNorm, struct: sData, invDct, invGrad } = index;
-  // Importerade konstanter blir egenskapsläsningar i den transpilerade modulen — i loopvillkoret
-  // betyder det en läsning per varv. Lokala kopior.
+  // Importerade konstanter kan bli egenskapsläsningar i transpilerad kod — lokala kopior.
   const FB = FINGERPRINT_BYTES;
   const SB = STRUCT_BYTES;
   const SD = STRUCT_DCT_DIMS;
@@ -248,55 +257,49 @@ function searchPrepared(index: ArtIndex, queries: PreparedQuery[]): ArtMatch[][]
   const BD = BLEND_DCT;
   const BG = BLEND_GRAD;
   const n = ids.length;
-  const nq = queries.length;
-  const tops: ArtMatch[][] = queries.map(() => []);
-  const worst = new Float64Array(nq).fill(-Infinity);
+  const color = Q.color;
+  const struct = Q.struct;
+  const qInv = Q.qInv;
+  const qInvDct = Q.qInvDct;
+  const qInvGrad = Q.qInvGrad;
+  const k = Q.k;
+  const top: ArtMatch[] = [];
+  let worst = -Infinity;
   for (let r = 0; r < n; r++) {
     const base = r * FB;
-    const sBase = r * SB;
-    const rInv = invNorm[r];
-    for (let q = 0; q < nq; q++) {
-      const Q = queries[q];
-      const color = Q.color;
-      let dot = 0;
-      for (let i = 0; i < FB; i++) dot += color[i] * data[base + i];
-      const cosColor = dot * Q.qInv * rInv;
-      let score: number;
-      const struct = Q.struct;
-      if (struct) {
-        let dDct = 0;
-        for (let i = 0; i < SD; i++) dDct += struct[i] * sData[sBase + i];
-        let dGrad = 0;
-        for (let i = SD; i < SB; i++) dGrad += struct[i] * sData[sBase + i];
-        score =
-          BC * cosColor +
-          BD * dDct * Q.qInvDct * invDct[r] +
-          BG * dGrad * Q.qInvGrad * invGrad[r];
-      } else {
-        score = cosColor;
-      }
-      const top = tops[q];
-      const k = Q.k;
-      if (top.length < k) {
-        top.push({ cardId: ids[r], score });
-        if (top.length === k) {
-          top.sort((a, b) => b.score - a.score);
-          worst[q] = top[k - 1].score;
-        }
-        continue;
-      }
-      if (score <= worst[q]) continue;
-      top[k - 1] = { cardId: ids[r], score };
-      for (let j = k - 1; j > 0 && top[j].score > top[j - 1].score; j--) {
-        const t = top[j];
-        top[j] = top[j - 1];
-        top[j - 1] = t;
-      }
-      worst[q] = top[k - 1].score;
+    let dot = 0;
+    for (let i = 0; i < FB; i++) dot += color[i] * data[base + i];
+    const cosColor = dot * qInv * invNorm[r];
+    let score: number;
+    if (struct) {
+      const sBase = r * SB;
+      let dDct = 0;
+      for (let i = 0; i < SD; i++) dDct += struct[i] * sData[sBase + i];
+      let dGrad = 0;
+      for (let i = SD; i < SB; i++) dGrad += struct[i] * sData[sBase + i];
+      score = BC * cosColor + BD * dDct * qInvDct * invDct[r] + BG * dGrad * qInvGrad * invGrad[r];
+    } else {
+      score = cosColor;
     }
+    if (top.length < k) {
+      top.push({ cardId: ids[r], score });
+      if (top.length === k) {
+        top.sort((a, b) => b.score - a.score);
+        worst = top[k - 1].score;
+      }
+      continue;
+    }
+    if (score <= worst) continue;
+    top[k - 1] = { cardId: ids[r], score };
+    for (let j = k - 1; j > 0 && top[j].score > top[j - 1].score; j--) {
+      const t = top[j];
+      top[j] = top[j - 1];
+      top[j - 1] = t;
+    }
+    worst = top[k - 1].score;
   }
-  for (let q = 0; q < nq; q++) if (tops[q].length < queries[q].k) tops[q].sort((a, b) => b.score - a.score);
-  return tops;
+  if (top.length < k) top.sort((a, b) => b.score - a.score);
+  return top;
 }
 
 /** Ren ingång för testet: frågor mot ett givet index (ingen DB). */
