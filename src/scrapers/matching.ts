@@ -340,7 +340,7 @@ export function noNumberSetMissing(
       (t) =>
         (code.length >= 3 && t === code) ||
         (Number.isFinite(num) && /^\d{1,3}$/.test(t) && parseInt(t, 10) === num) ||
-        (Number.isFinite(num) && /^[a-z]{2,5}\d{1,3}$/.test(t) && parseInt(t.replace(/\D/g, ""), 10) === num && code.startsWith(t.replace(/\d/g, "")))
+        (Number.isFinite(num) && /^[a-z]{2,5}\d{1,3}$/.test(t) && parseInt(t.replace(/\D/g, ""), 10) === num && (code.startsWith(t.replace(/\d/g, "")) || /promo/.test(productNormalizedTitle)))
     )
   ) {
     return false;
@@ -2936,7 +2936,7 @@ export function matchListingToProduct(
     product.variantLabel == null &&
     titleSaysStamped(listingTitle, product.card.name) &&
     !/[a-z]$/i.test(product.card.number.trim()) &&
-    !/stamp|trick or trade|calendar|battle academy|promo|exclusive|league|championship|prerelease|staff|burger king|mcdonald/.test(
+    !/stamp|trick or trade|calendar|battle academy|promo|exclusive|league|championship|prerelease|staff|burger king|mcdonald|prize pack/.test(
       product.normalizedTitle
     )
   ) {

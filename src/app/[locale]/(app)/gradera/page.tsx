@@ -856,11 +856,11 @@ export default function GraderaPage() {
     setCardIdHint(p.cardId);
   }, []);
 
-  // BILDMATCHNING PÅ FRAMSIDAN — det upprätade utsnittet ur centreringsmätaren när
-  // det finns (mätt topp-1 96 %), annars fotot. Inte när kortet redan kom från
-  // skannern. Ett användarval skrivs aldrig över; ett automatiskt förval får
-  // uppdateras när utsnittet ger ett säkrare svar.
-  const idSource = centering.front?.cropDataUrl ?? front;
+  // BILDMATCHNING PÅ FRAMSIDAN — först NÄR framsidan är centreringsmätt, på det upprätade
+  // utsnittet (mätt topp-1 96 %; råfotot missade oftare och visade "vi känner inte igen
+  // kortet" innan användaren ens mätt — ägarbeslut 2026-11-21). Inte när kortet redan kom
+  // från skannern. Ett användarval skrivs aldrig över.
+  const idSource = centering.front?.cropDataUrl ?? null;
   useEffect(() => {
     if (!idSource || cardIdHint) {
       setIdState("idle");
@@ -1263,15 +1263,6 @@ export default function GraderaPage() {
         </div>
 
         {cardHint && <p className="text-xs text-ink-muted">{t("fromScanner", { card: cardHint })}</p>}
-
-        {/* En rad, ingen ruta: varför centreringen är värd en halv minut — bara när
-            det finns ett foto att mäta och något är omätt. */}
-        {(front || back) && (!centering.front || !centering.back) && !(result && !result.historyAt) && (
-          <p className="flex items-start gap-2 text-[13px] leading-snug text-holo-cyan">
-            <IconCentering size={16} className="mt-px shrink-0" />
-            <span>{tc("tipShort")}</span>
-          </p>
-        )}
 
         {(centering.front || centering.back) && centeringCap != null && (
           <p className="text-[13px] leading-snug text-ink-muted">

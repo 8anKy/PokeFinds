@@ -33,16 +33,27 @@ const SOLD = process.argv.includes("--sold");
  * 2026-11-21: 577 offers mot ~150 äkta fel.
  */
 const FULL = process.argv.includes("--rules-2026-11-21");
-const STAMP_SET = /stamp|trick or trade|calendar|battle academy|promo|exclusive|league|championship|prerelease|staff|burger king|mcdonald/;
+const STAMP_SET = /stamp|trick or trade|calendar|battle academy|promo|exclusive|league|championship|prerelease|staff|burger king|mcdonald|prize pack/;
 function newRuleRejects(title: string, p: Single): boolean {
-  if (!p.card) return false;
+  const why = newRuleReason(title, p);
+  if (why) {
+    const list = (ruleHits[why] ??= []);
+    if (list.length < 400) list.push(`${p.card?.name} ${p.card?.number} [${p.normalizedTitle.slice(0, 50)}] ← ${title.slice(0, 90)}`);
+    ruleCount[why] = (ruleCount[why] ?? 0) + 1;
+  }
+  return why != null;
+}
+const ruleHits: Record<string, string[]> = {};
+const ruleCount: Record<string, number> = {};
+function newRuleReason(title: string, p: Single): string | null {
+  if (!p.card) return null;
   const n = normalizeTitle(title);
-  if (p.variantLabel == null && variantInTitle(title, p.card.name) != null) return true;
-  if (p.variantLabel == null && titleSaysStamped(title, p.card.name) && !/[a-z]$/i.test(p.card.number.trim()) && !STAMP_SET.test(p.normalizedTitle)) return true;
-  if (p.variantLabel === "Oversized" && !/oversize|jumbo|large|stort?|xl/i.test(title)) return true;
-  if (nameSuffixContradicts(p.card.name, n)) return true;
-  if (!/\d{1,3}\s?\/\s?\d{2,3}/.test(title) && noNumberSetMissing(p.card, p.normalizedTitle, n)) return true;
-  return /world championship|wcd/.test(p.normalizedTitle) && reprintMarkerMissing(p.normalizedTitle, title);
+  if (p.variantLabel == null && variantInTitle(title, p.card.name) != null) return "reverse";
+  if (p.variantLabel == null && titleSaysStamped(title, p.card.name) && !/[a-z]$/i.test(p.card.number.trim()) && !STAMP_SET.test(p.normalizedTitle)) return "stämpel";
+  if (p.variantLabel === "Oversized" && !/oversize|jumbo|large|stort?|xl/i.test(title)) return "oversized";
+  if (nameSuffixContradicts(p.card.name, n)) return "suffix";
+  if (!/\d{1,3}\s?\/\s?\d{2,3}/.test(title) && noNumberSetMissing(p.card, p.normalizedTitle, n)) return "set saknas";
+  return (/world championship|wcd/.test(p.normalizedTitle) && reprintMarkerMissing(p.normalizedTitle, title)) ? "wcd-år" : null;
 }
 const REASON = FULL
   ? "singel-matchning (tryckning/stämpel/Oversized/set/WCD-år, omprövning 2026-11-21)"
@@ -173,6 +184,13 @@ async function main() {
     console.log(`  ${p.card?.name} ${p.card?.number}  ${((o.price ?? 0) / 100).toFixed(0)} kr  /produkter/${p.slug}\n      ${o.url}`);
   }
 
+  if (FULL) {
+    console.log("\nper regel (alla ytor):", JSON.stringify(ruleCount));
+    for (const [k, v] of Object.entries(ruleHits)) {
+      const pick = v.filter((_, i) => i % Math.max(1, Math.floor(v.length / 12)) === 0).slice(0, 12);
+      console.log(`\n-- ${k}\n  ` + pick.join("\n  "));
+    }
+  }
   if (!APPLY) {
     console.log(`\nTorrkörning — inget skrivet. --apply skriver${SOLD ? "" : " (sålt-punkterna kräver även --sold)"}.`);
     return;

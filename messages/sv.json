@@ -1765,7 +1765,7 @@
     "identifyYourCard": "Ditt kort",
     "identifyChange": "Byt",
     "identifyQuestion": "Vilket kort är det?",
-    "identifyNone": "Vi känner inte igen kortet på bilden. Sök det, eller mät centreringen — det utskurna kortet ger en bättre träff.",
+    "identifyNone": "Vi känner inte igen kortet på bilden. Sök efter det.",
     "identifySearch": "Sök kortet",
     "identifyKeep": "Behåll valet",
     "identifySkipHint": "Eller gradera direkt — AI:n försöker läsa kortet själv.",
@@ -3192,8 +3192,7 @@
     "helpLines1": "VIT linje = kortets yttre kant. TURKOS linje = ramens insida.",
     "helpLines2": "Dra en linje i taget. Förstoringsglaset visas medan du drar så att du kan lägga den exakt.",
     "helpLines3": "Lika breda ramar på båda sidor betyder perfekt centrerat. Tryck Klar när alla linjer sitter.",
-    "helpGotIt": "Jag förstår",
-    "tipShort": "Centreringen mäts före graderingen — det tar en halv minut och ger en exaktare grad."
+    "helpGotIt": "Jag förstår"
   },
   "LocalStores": {
     "guide": {

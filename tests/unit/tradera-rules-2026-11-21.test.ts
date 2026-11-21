@@ -88,6 +88,8 @@ describe("singlar", () => {
     expect(fits("Charizard ex - League Stamp 125/197 - Obsidian Flames", single("Charizard ex · Obsidian Flames 125/197", "Charizard ex", "125"))).toBe(false);
     expect(fits("Mimikyu Holo Rare 097/193 Trick or Trade Stamp", single("Mimikyu · Trick or Trade 2023 097", "Mimikyu", "097"))).toBe(true);
     expect(fits("Metal Frying Pan Uncommon 112a/131 League Stamp", single("Metal Frying Pan · Forbidden Light 112a/131", "Metal Frying Pan", "112a"))).toBe(true);
+    // Prize Pack-korten ÄR stämplade.
+    expect(matchListingToProduct("Yveltal ex 53/88 stämplat Perfect Order Pokémonkort", single("Yveltal ex · Play! Pokémon Prize Pack Series Nine 53/088", "Yveltal ex", "53/088"))).not.toBeNull();
   });
 
   it("Oversized kräver jumbo/oversized i annonsen", () => {
@@ -109,6 +111,7 @@ describe("singlar", () => {
     expect(noNumberSetMissing({ name: "Trubbish", number: "48" }, normalizeTitle("Trubbish · Noble Victories 48/101"), normalizeTitle("Trubbish - Noble Victories"))).toBe(false);
     expect(noNumberSetMissing({ name: "Eevee", number: "SWSH175" }, normalizeTitle("Eevee · SWSH Black Star Promos SWSH175/307"), normalizeTitle("Eevee #SWSH175 - Black Star Promo"))).toBe(false);
     expect(noNumberSetMissing({ name: "Torchic", number: "MEP 056" }, normalizeTitle("Torchic · MEP Black Star Promos MEP 056/93"), normalizeTitle("Torchic 056 [Mega Evolution Black Star Promos]"))).toBe(false);
+    expect(noNumberSetMissing({ name: "Iron Treads ex", number: "73" }, normalizeTitle("Iron Treads ex · Scarlet & Violet Black Star Promos 73"), normalizeTitle("Iron Treads EX - SVP073 - Black Star Promo"))).toBe(false);
     expect(noNumberSetMissing({ name: "Rescue Board", number: "159" }, normalizeTitle("Rescue Board · Temporal Forces 159/162"), normalizeTitle("Rescue Board 159 Reverse TEF"))).toBe(false);
   });
 

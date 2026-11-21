@@ -1765,7 +1765,7 @@
     "identifyYourCard": "Your card",
     "identifyChange": "Change",
     "identifyQuestion": "Which card is it?",
-    "identifyNone": "We don't recognise the card in the photo. Search for it, or measure centering — the cut-out card matches better.",
+    "identifyNone": "We don't recognise the card in the photo. Search for it.",
     "identifySearch": "Search for the card",
     "identifyKeep": "Keep my choice",
     "identifySkipHint": "Or grade right away — the AI will try to read the card itself.",
@@ -3192,8 +3192,7 @@
     "helpLines1": "WHITE line = the card's outer edge. TURQUOISE line = the inside of the border.",
     "helpLines2": "Drag one line at a time. The magnifier shows while you drag so you can place it exactly.",
     "helpLines3": "Equal borders on both sides means perfectly centered. Tap Done when all lines are in place.",
-    "helpGotIt": "Got it",
-    "tipShort": "Centering is measured before grading — it takes half a minute and gives a more accurate grade."
+    "helpGotIt": "Got it"
   },
   "LocalStores": {
     "guide": {
