@@ -78,6 +78,17 @@ const nextConfig = {
   },
   // Bas-säkerhetsheaders på alla svar. Striktare CSP (script/style-nonces) är ett
   // eget jobb — dessa fem är de billiga, brytningssäkra vinsterna.
+  // /community → /forum när community v2 är lanserad (2026-11-21). Sidans egen redirect() bakas in i
+  // ISR-posten med status 307 men UTAN location-header — webbläsare kom fram via JS, crawlers och
+  // länkförhandsvisningar fick en trasig 307. En config-redirect är en riktig 307 före sidan.
+  // Bara när spaken är på — annars hade den loopat där forumet är grindat.
+  async redirects() {
+    if (process.env.COMMUNITY_V2_PUBLIC !== "1") return [];
+    return [
+      { source: "/community", destination: "/forum", permanent: false },
+      { source: "/en/community", destination: "/en/forum", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {
