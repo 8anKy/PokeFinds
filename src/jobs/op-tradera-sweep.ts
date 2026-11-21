@@ -24,7 +24,12 @@ import { mapPool } from "@/lib/concurrency";
 import { normalizeTitle } from "@/lib/utils";
 import { getListingPriceGuard, loadMatchIndex, matchProduct } from "@/scrapers/matching";
 import { MAX_RAIL_LISTINGS, parseItemsFromXml, type TraderaItem } from "@/jobs/tradera-sweep";
-import { looksLikeOnePieceSingle, matchOnePieceTraderaSingle, type OpCardRow } from "@/lib/one-piece-tradera";
+import {
+  looksLikeOnePieceSingle,
+  matchOnePieceTraderaSingle,
+  onePieceSealedRejectReason,
+  type OpCardRow,
+} from "@/lib/one-piece-tradera";
 import { judgeOnePieceListingLanguage } from "@/jobs/op-listing-language";
 import { isConfirmedEnglish, traderaPhotoUrl } from "@/lib/op-listing-language";
 
@@ -93,6 +98,8 @@ export async function matchOnePieceTraderaListing(
   // korttyp/sällsynthet — "Koza - Extra Booster Memorial Collection - Character" är ett kort för 6 kr,
   // inte en booster (torrkörningen 2026-11-13: sealed-stickprovet var nästan bara sådana).
   if (single.reason === "ingen kortkod" && !looksLikeOnePieceSingle(title)) {
+    const reject = onePieceSealedRejectReason(title);
+    if (reject) return { productId: null, reason: `förseglat: ${reject}` };
     // Kategorin ÄR One Piece — säg det åt matcharen när säljaren inte gjorde det.
     const raw = /one\s*piece/i.test(title) ? title : `One Piece ${title}`;
     const m = await matchProduct(normalizeTitle(raw), matchIndex, raw);
@@ -161,6 +168,7 @@ export async function runOnePieceTraderaSweep(
   };
   const byProduct = new Map<string, TraderaItem[]>();
   const samples: string[] = [];
+  const singleHits: string[] = [];
   const bump = (reason: string) => { res.reasons[reason] = (res.reasons[reason] ?? 0) + 1; };
   const hits: { item: TraderaItem; productId: string; kind: "single" | "sealed"; code?: string }[] = [];
   await mapPool([...items.values()], DB_CONCURRENCY, async (item) => {
@@ -196,6 +204,11 @@ export async function runOnePieceTraderaSweep(
     if (!(await guardFor(productId))(item.priceOre)) { res.implausible++; return; }
     if (kind === "single") res.matchedSingles++; else res.matchedSealed++;
     (byProduct.get(productId) ?? byProduct.set(productId, []).get(productId)!).push(item);
+    if (kind === "single") {
+      singleHits.push(
+        `  [${meta.get(productId)?.title}] <- ${item.title} — ${Math.round(item.priceOre / 100)} kr · d=${lang[item.itemId]?.d.toFixed(2)} · ${traderaPhotoUrl(item.imageUrl) ?? "-"}`
+      );
+    }
     if (kind === "sealed" && samples.length < (opts.sample ?? 60)) {
       samples.push(`  [${meta.get(productId)?.title}] <- ${item.title} — ${Math.round(item.priceOre / 100)} kr`);
     }
@@ -207,6 +220,9 @@ export async function runOnePieceTraderaSweep(
   );
   log(`[op-tradera] utan träff: ${Object.entries(res.reasons).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(" · ")}`);
   if (samples.length) log(`[op-tradera] sealed-träffar (stickprov):\n${samples.join("\n")}`);
+  // Slumpat stickprov av singlar som fotot godkänt som engelska — för handkontroll av bilderna.
+  const pick = singleHits.sort(() => Math.random() - 0.5).slice(0, opts.sample ?? 60);
+  if (pick.length) log(`[op-tradera] singel-träffar, slumpat stickprov (foto = språkdomens underlag):\n${pick.join("\n")}`);
   if (!apply) { log("[op-tradera] TORRKÖRNING — inget skrivet."); return res; }
 
   // ── 4. Skrivning ────────────────────────────────────────────────────────────

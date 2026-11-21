@@ -19,6 +19,8 @@
  * ⛔ Hellre ingen träff än fel tryckning: ett fel här skriver ett främmande pris på ett kort.
  */
 
+import { opForm } from "@/lib/one-piece-listing";
+
 export interface OpCardRow {
   productId: string;
   /** "OP08-098", "P-001". */
@@ -84,6 +86,30 @@ export function onePieceNameInTitle(cardName: string, listingTitle: string): boo
   if (words.length === 0) return true;
   const title = fold(listingTitle);
   return words.some((w) => title.includes(w));
+}
+
+/** Antal ≥ 2 före/efter ("2X …", "6st …", "10 stycken …", "… x3"). "1x" är en vara, inte ett parti. */
+const SEALED_QTY_RE = /(?:^|[\s(])(?:[2-9]|\d{2,})\s?(?:x|st|stk|stycken|pcs)\b|\bx\s?(?:[2-9]|\d{2,})\b/i;
+/** "3 Booster Packs" — bara på boosterformen; en box får skriva "(24 packs)". */
+const PACK_COUNT_RE = /\b(?:[2-9]|\d{2,})\s+(?:booster\s*)?(?:packs|paket|boosters)\b/i;
+
+/**
+ * FÖRSEGLAT PÅ TRADERA — annonser butiksmatcharen inte känner igen som fel (torrkörningarna
+ * 2026-11-14 → 11-21, stickprovet på 60 sealed-träffar): lösa DON!!-kort (titeln bär "Premium
+ * Booster" men ingen kortkod), flerpack prissatta som ETT pack, turneringspaket på setets booster,
+ * box + akrylskydd, och "Extra Booster" (SETETS namn) läst som "booster pack" på en hel box.
+ * `null` = annonsen får prövas mot katalogen.
+ */
+export function onePieceSealedRejectReason(listingTitle: string): string | null {
+  const title = listingTitle.replace(/&amp;/g, "&");
+  if (DON_RE.test(title) && !/\bspecial\s*don\s?!!\s*set\b/i.test(title)) return "DON-kort";
+  if (SEALED_QTY_RE.test(title)) return "parti/antal";
+  if (opForm(title) === "booster" && PACK_COUNT_RE.test(title)) return "parti/antal";
+  if (/\b(tournament|turnering\w*)\b/i.test(title)) return "turneringspaket";
+  if (/\b(akryl\w*|acrylic)\b/i.test(title)) return "med akrylskydd";
+  if (/\bextra\s*booster\b/i.test(title) && opForm(title.replace(/\bextra\s*booster\b/gi, " ")) === "other")
+    return "formen saknas (Extra Booster är setets namn)";
+  return null;
 }
 
 const normCode = (s: string | null | undefined) => (s ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase();

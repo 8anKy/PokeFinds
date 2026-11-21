@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchOnePieceTraderaSingle, onePieceCodesInTitle, type OpCardRow } from "@/lib/one-piece-tradera";
+import { matchOnePieceTraderaSingle, onePieceCodesInTitle, onePieceSealedRejectReason, type OpCardRow } from "@/lib/one-piece-tradera";
 
 /** Riktiga annonser ur Traderas One Piece-kategori 2026-11-13 mot en liten katalog. */
 const rows: OpCardRow[] = [
@@ -50,5 +50,29 @@ describe("matchOnePieceTraderaSingle", () => {
     expect(hit("4x Nami OP01-016")).toBe("parti/antal");
     expect(hit("One Piece kort")).toBe("ingen kortkod");
     expect(hit("Brook ST01-011 Pirate Foil")).toBe("koden saknas i katalogen");
+  });
+});
+
+describe("onePieceSealedRejectReason (torrkörningen 2026-11-21)", () => {
+  const r = onePieceSealedRejectReason;
+  it("fäller lösa DON!!-kort, flerpack, turneringspaket, akrylskydd och Extra Booster utan form", () => {
+    expect(r("DON!! Card (Foxy) Premium Booster -The Best- Vol. 2 DON!!")).toBe("DON-kort");
+    expect(r("2X One Piece EB05 Heroines Edition Vol 2 Booster Pack Paket Bandai TCG Kort")).toBe("parti/antal");
+    expect(r("6st One Piece The Azure Sea's Seven booster packs (OP14-EB04)")).toBe("parti/antal");
+    expect(r("10 stycken One Piece Card Game Booster Pack OP-17")).toBe("parti/antal");
+    expect(r("One Piece The Azure Sea's Seven (OP-14) - 3 Booster Packs Sealed")).toBe("parti/antal");
+    expect(r("One Piece Card Game - The Dominance of God 4th Anniversary Tournament Pack")).toBe("turneringspaket");
+    expect(r("The Time of Battle (OP16): Booster Box + Akrylskydd- One Piece TCG")).toBe("med akrylskydd");
+    expect(r("Akryl ingår! One Piece Card Game - Heroines Edition Vol. 2 EB-05 Booster Box")).toBe("med akrylskydd");
+    expect(r("One Piece Card Game EB05 Extra Booster Heroines Edition Vol. 2 ENG - Sealed")).toMatch(/^formen saknas/);
+  });
+  it("släpper vanliga förseglade annonser", () => {
+    expect(r("One Piece Booster Pack OP-10")).toBeNull();
+    expect(r("One Piece OP16 - Time Of Battle Booster Box")).toBeNull();
+    expect(r("One Piece Card Game Illustration Box Vol. 6")).toBeNull();
+    expect(r("One Piece Card Game - Extra Booster Heroines Edition Vol. 2 (EB-05) Booster Box")).toBeNull();
+    expect(r("One Piece Card Game Premium Card Collection Best Selection Vol.1")).toBeNull();
+    expect(r("One Piece OP-13 Booster Box (24 packs)")).toBeNull();
+    expect(r("1x One Piece OP-12 Booster Box")).toBeNull();
   });
 });

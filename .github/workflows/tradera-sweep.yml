@@ -23,7 +23,12 @@ on:
   workflow_run:
     workflows: ["Full insamling (dagligen)"]
     types: [completed]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      only_one_piece:
+        description: "Kör bara One Piece-steget (hoppa över Pokémon-svepet)"
+        type: boolean
+        default: false
 
 # Minsta möjliga rättighet. INGET jobb i det här repot skriver till GitHub — de läser
 # koden och skriver till Neon. Utan blocket får GITHUB_TOKEN repots STANDARD-rättigheter,
@@ -74,7 +79,7 @@ jobs:
         run: npm ci --legacy-peer-deps
       - if: steps.guard.outputs.ready == 'true'
         run: npx prisma generate
-      - if: steps.guard.outputs.ready == 'true'
+      - if: steps.guard.outputs.ready == 'true' && inputs.only_one_piece != true
         run: npx tsx scripts/tradera-full-sweep.ts
 
       # ONE PIECE (2026-11-13): hela Tradera-kategorin 1001268, ~140 sökanrop. TORRKÖRNING tills loggen
