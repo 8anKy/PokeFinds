@@ -25,7 +25,7 @@ paths:
   överlämningsväntan och slutar `DERIVE_CUTOFF_MS` före jobbslut (två jobb får aldrig kopiera samtidigt). Äldre än
   60 min kopieras inte. Kräver "Läsa meddelandehistorik" i båda kanalerna, annars kopieras INGET (varning i loggen).
 - ⛔ Kopian speglar Pro-inlägget VID KOPIERINGEN: en senare redigering (nivåkravet sänks) når bara Pro-inlägget.
-  Sålde varan slut under kvarten postas kopian ändå (ägaren: "skip for now" — ingen "slut"-variant byggd).
+  Sålde varan slut under kvarten postas kopian ändå — ⛔ ingen "slut"-variant (ägarbeslut 2026-11-24: inget larm om att något är slut).
 - **Liggaren** (jobbytet) läser Pro-butikskanalen för butiksvaror (`firstPostChannelId`) — där står inlägget först.
 - **ORTSROLLER** (`"cityRoles":{"Göteborg":"<roll-id>"}`): rollen pingas i PRO-butikskanalen när en butik i orten just
   fått saldo (`newStoreIds`, annars alla butiker med saldo). Orten kommer ur källans egen uppslagning
@@ -36,6 +36,8 @@ paths:
 - **"Skaffa Pro"-knappen** (`"proButton"`: `"stores"` = bara under den fördröjda kopian, `"all"` = även publika
   onlineinlägg; saknas = ingen knapp): länkknapp till `/priser`, aldrig i Pro-kanalerna. Prov som DM:
   `railway run npx tsx scripts/test-discord-pro-upsell.ts --discord-id <id> --apply`.
+- **I drift 2026-11-24**: `"proButton":"stores"` (ägarbeslut: knappen bara under den fördröjda kopian), roller för
+  Stockholm, Göteborg, Malmö, Uppsala, Linköping.
 - **Kanaler 2026-11-23**: publika setkanaler = 30th Celebration + Delta Reign (ägaren tar bort en senare); Ascended
   Heroes och Prismatic Evolutions är Pro-only (samma kanal-id, nu under `pro.sets`).
 
