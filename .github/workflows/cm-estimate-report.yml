@@ -1,0 +1,37 @@
+name: "CM: uppskattat-rapport"
+
+# RAPPORT, skriver ingenting (2026-11-23): varför saknar förseglade produkter ett riktigt
+# Cardmarket-pris? Jämför leverantörens engelska `lowest` + språkgolven med våra vakter och
+# säger per produkt vilken vakt som fäller priset. Körs för hand; leverantörsnyckeln finns bara här.
+# ~135 RapidAPI-anrop av 15 000/dygn. Läser databasen (en väckning när Neon sover).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: cm-estimate-report
+  cancel-in-progress: true
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      CARDMARKET_RAPIDAPI_HOST: ${{ secrets.CARDMARKET_RAPIDAPI_HOST }}
+      CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}
+      EUR_SEK: ${{ secrets.EUR_SEK }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+      - name: Rapport
+        run: npx tsx scripts/cm-sealed-estimate-report.ts | tee report.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cm-estimate-report
+          path: report.log
