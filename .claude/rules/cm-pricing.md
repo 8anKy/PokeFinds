@@ -101,6 +101,18 @@ paths:
 >    egna) — Energy-mönstrets egen produkt hade annars raderats varje natt. ⛔ Variantvakten i matcharen gäller
 >    bara SINGLAR (`card === null` ⇒ hoppa): "Poké Ball Tin"/"Love Ball Tin" är förseglade namn.
 
+> ⛔ **ÄNDRAT 2026-11-23 (ägaren: "many products still say estimate but the API is accurate")**:
+> 10. **SEALED: ETT GOLV UNDER SNITTEN SOM ANDRA SPRÅK BEKRÄFTAR PÅ EN LIKVID MARKNAD PUBLICERAS**
+>    (`sealedLowCorroboratedOnLiquid`: ≥ `SEALED_LIQUID_ITEMS` annonser OCH ett annat språks golv
+>    ≤ 1,5x den engelska). Snitten är försäljningar, och EN feldyr affär förgiftar dem i månader:
+>    Mega Evolution Fun Pack (en affär à 1 100 € ⇒ trend 30 €, From 1,36 €, 407 annonser) stod som
+>    "uppskattat" 784 kr, Lost Origin Fun Pack 2 108 kr mot 1,75 €. Det räddade golvet är sitt eget
+>    facit i dagvakten (det går BORT från den förgiftade trenden). MÄTT samma dag (rapporten
+>    `cm-sealed-estimate-report.ts`, workflow "CM: uppskattat-rapport"): av 689 EN-sealed utan riktigt
+>    pris har 326 INGEN annons alls på Cardmarket, 185 ingen ENGELSK annons, 124 bara ett utrop > 3x
+>    trenden, 34 saknas hos leverantören — bara ~15 var vårt fel (4 fun packs + 7 som flippar + golv).
+>    ⛔ De 669 går inte att "laga" med leverantörens data: där FINNS inget engelskt pris just nu.
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **Singelpris**: `Offer.price` på singlar = Cardmarkets engelska **NM-lägsta ("From")** × live-kurs, hämtat från **CardMarket API TCG (RapidAPI Pro)** — `CARDMARKET_RAPIDAPI_*` i .env, fältet `prices.cardmarket.lowest_near_mint` (DECIMAL EUR; bas-fältet är engelska, `_DE`/`_FR`/`_ES`/`_IT` = språk-överstyrningar). Detta ÄR det engelska From-pris som löste det gamla lowPrice-problemet (pokemontcg.io `lowPrice` = all-språk/all-skick-golv som grovt underskattade — använd ALDRIG). Fyll via `scripts/rapidapi-fill-singles.ts` (set-paginering `/pokemon/episodes/{id}/cards`, matcha på `tcgid`=`tcgExternalId`, ~1000 anrop för hela katalogen). Exakt uppslag = `?tcgid={id}` (1 träff). **GOLVET RAKT AV — HELA REGELN (ägarbeslut 2026-07-24, OMBEKRÄFTAT 2026-07-27)**:

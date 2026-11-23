@@ -1180,6 +1180,30 @@ export function isJunkLowOnLiquidMarket(
   return low < SEALED_STABLE_FLOOR * trend;
 }
 
+/**
+ * ETT GOLV UNDER SNITTEN SOM DE ANDRA SPRÅKEN BEKRÄFTAR ÄR MARKNADEN (2026-11-23).
+ *
+ * `lowIsCredible` fäller en From under 20 % av snitten — men snitten är FÖRSÄLJNINGAR, och en
+ * enda feldyr affär förgiftar dem i månader. Mega Evolution Fun Pack: en affär à 1 100 € i
+ * oktober ⇒ trend 30,42 €, 30d 11,08 €, medan 407 annonser ligger från 1,36 € (DE 3,00, FR 1,00,
+ * ES 2,99, IT 5,00). Vi visade "uppskattat" 784 kr på ett paket med tre kort; Lost Origin Fun Pack
+ * 2 108 kr mot 1,75 €. Leverantören hade rätt hela tiden.
+ *
+ * Kräver BÅDA: en likvid marknad (≥ SEALED_LIQUID_ITEMS annonser — en tom vintagebox med två
+ * skräpannonser på två språk ska inte kunna bekräfta sig själv) och minst ett annat språks golv
+ * inom FROM_LANG_CORROBORATE × den engelska.
+ */
+export function sealedLowCorroboratedOnLiquid(
+  low: number | null | undefined,
+  langLows: readonly number[],
+  items: number | null | undefined,
+): boolean {
+  if (low == null || low <= 0) return false;
+  if ((items ?? 0) < SEALED_LIQUID_ITEMS) return false;
+  const others = langLows.filter((v) => v > 0);
+  return others.length > 0 && Math.min(...others) <= FROM_LANG_CORROBORATE * low;
+}
+
 // ── DAGVAKTEN VAR EN SPÄRRHAKE (rotorsak, mätt 2026-07-14) ───────────────────
 // Utan `refOre` avvisar den ALLA ≥3x-rörelser — även den som RÄTTAR ett redan
 // korrupt pris. Ett skräpvärde som en gång tagit sig in kunde därför aldrig
@@ -2879,6 +2903,8 @@ export async function runCardmarketRefresh(
     const setLabeler = await createSetLabeler(!partialSealedRun);
     let guarded = 0, thinSkipped = 0, usedHist = 0, guideFallback = 0, liquidFloored = 0;
     const liquidFlooredTitles: string[] = []; // exakt vilka produkter likvid-golvet rörde (revision)
+    let floorRescuedCount = 0;
+    const floorRescuedTitles: string[] = []; // golv som de andra språken bekräftade (2026-11-23)
     for (const p of ours) {
       // RapidAPI-katalogen är HELT engelsk (0 japanska set/produkter, verifierat
       // 2026-07-07) — icke-EN-produkter får ALDRIG matchas här (fyra olika japanska
@@ -3081,7 +3107,17 @@ export async function runCardmarketRefresh(
       }
       // Taksidan vägs mot guidens HÖGSTA snitt (sealedPremiumFromOk), inte 1,8x trenden.
       const premiumLow = sealedPremiumFromOk(low, gEntry);
-      const credibleLow = (lowIsCredible(low, avg, cmGuideRefEur(gEntry)) || premiumLow) && !junkLowOnLiquid;
+      // Golvsidan: ett golv som snitten fäller men de andra språken bekräftar på en likvid
+      // marknad är marknaden, inte skräp (sealedLowCorroboratedOnLiquid).
+      const floorRescued =
+        !premiumLow && !lowIsCredible(low, avg, cmGuideRefEur(gEntry)) && sealedLowCorroboratedOnLiquid(low, langLows, items);
+      if (floorRescued) {
+        floorRescuedCount++;
+        if (floorRescuedTitles.length < 30)
+          floorRescuedTitles.push(`${p.title} (From ${low?.toFixed(2)}€, trend ${cmGuideRefEur(gEntry)?.toFixed(2)}€, ${items} annonser)`);
+      }
+      const credibleLow =
+        (lowIsCredible(low, avg, cmGuideRefEur(gEntry)) || premiumLow || floorRescued) && !junkLowOnLiquid;
       let eur = credibleLow ? low : ref;
       if (!credibleLow && low != null) guarded++;
 
@@ -3184,7 +3220,9 @@ export async function runCardmarketRefresh(
       // med trenden som facit hade dagvakten hållit kvar gårdagens uppskattning varje dygn
       // (samma spärrhake). Den är redan dömd mot guidens snitt, så den är sitt eget facit.
       const refEur = cmGuideRefEur(cmGuide.get(best.cardmarket_id));
-      const refOre = stock === "IN_STOCK" && premiumLow ? priceOre : priceOreFromEur(refEur, rates);
+      // Samma sak för ett golv som de andra språken bekräftat (floorRescued): trenden är det
+      // förgiftade värdet, och med den som facit hade gårdagens uppskattning stått kvar för alltid.
+      const refOre = stock === "IN_STOCK" && (premiumLow || floorRescued) ? priceOre : priceOreFromEur(refEur, rates);
       sealedOps.push({ productId: p.id, offerId: cmOffer?.id, imageUrl, priceOre, refOre, url: cardmarketProductUrl(best.cardmarket_id), stock });
     }
     const sealed = await clampDayMoves(sealedOps);
@@ -3229,6 +3267,7 @@ export async function runCardmarketRefresh(
     if (thinSkipped) console.log(`[cm-refresh] Tunn marknad: ${thinSkipped} sealed utan tillförlitligt pris → "–" (≤${THIN_ITEMS} CM-annonser, reservvärdet går ej att lita på).`);
     if (bridgedByName) console.log(`[cm-refresh] Namnbrygga: ${bridgedByName} sealed hittade sin RapidAPI-rad på exakt CM-katalognamn (leverantören bär ett annat id) → engelsk lowest i stället för guidens alla-språk-golv.`);
     if (guideFallback) console.log(`[cm-refresh] EN-guide-fallback: ${guideFallback} sealed vars idProduct saknas i RapidAPI prissatta direkt från CM-guiden (annars frusna).`);
+    if (floorRescuedCount) console.log(`[cm-refresh] Språkbekräftat golv: ${floorRescuedCount} sealed vars engelska From låg under snittens golv men bekräftas av andra språk på en likvid marknad → From publiceras:\n  ${floorRescuedTitles.join("\n  ")}`);
     if (liquidFloored) console.log(`[cm-refresh] Likvid-golv: ${liquidFloored} skräp-From på likvid+stabil marknad → CM-trend istället:\n  ${liquidFlooredTitles.join("\n  ")}`);
     console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${pricedOps.length} historikpunkter.`);
     const sl = setLabeler.stats;
