@@ -215,6 +215,12 @@ export function classifyForm(title: string): string | null {
   // "suprise" med flit: butikens stavfel är vanligare än det rätta ordet i feedar,
   // och en form som inte tål det hade lämnat exakt det här fallet olöst.
   if (/\bsu[r]?prise\s*box\b/.test(t)) return "surprisebox";
+  // "Fun Pack (3 Cards)" / "Sampling Pack" = egen vara (tre kort i ett provpaket). Utan egen form
+  // var den FORMLÖS (null), formvakten släppte igenom allt, och den blev setets magnet för varje
+  // annons utan egen katalogprodukt: 25 av 31 butiksoffers på fun packs var checklane-blistrar,
+  // 3-pack-blistrar och en tin (SF-Bok "Mega Evolution Tin" 499 kr ⇒ "36 % under marknadsvärdet"
+  // i Discord 2026-11-23). Samma regel som Tradera-sidan har sedan 11-21 (tradera-sealed-identity).
+  if (/\bfun\s*packs?\b|\bsampling\s*packs?\b/.test(t)) return "funpack";
   // "Mini Tin Display" = display av MÅNGA tins (dyrt) ≠ en enskild "Mini Tin"
   // (billig). Bara enskild mini tin → "tin"; med "display" faller den vidare
   // till display-regeln nedan så att en singeltin inte matchar ett tin-display.
