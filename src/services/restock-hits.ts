@@ -288,6 +288,10 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
       });
       const action = siblingOfferAction(sibling?.stockStatus, hit.to);
       if (action === "already-live") {
+        // Inget larm (varan står redan köpbar via butikens andra sida), men produkten ÄR känd:
+        // lanen ska ändå få berika sitt inlägg. Utan raden stod inlägget kvar utan produktlänk
+        // och marknadsvärde trots att sidan bands (RahTech Delta Reign ETB 2026-11-22).
+        if (!hit.productSlug) boundKeys.set(hit.key, productId);
         skip("i lager via annan URL");
         continue;
       }
