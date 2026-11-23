@@ -241,15 +241,30 @@ export async function runOnePieceSinglesImport(
         select: { id: true },
       })
       .catch(async () => {
+        // ⛔ Nattkörningen och kvällsrundan kör samma import och överlappar (båda ~01 UTC): den andra
+        // hann skapa kortet ⇒ det är DESS kort, hoppa över. Utan den här kollen fällde krocken hela
+        // importen i båda jobben 2026-11-23 (OP18 fick sina CM-id samma natt).
+        const takenByOtherRun = () => prisma.card.findUnique({ where: { tcgExternalId: ext }, select: { id: true } });
+        if (await takenByOtherRun()) return null;
         // cardmarketId @unique: ett annat kort bär redan id:t (leverantörsfel, 11 st 2026-11-10) ⇒
         // skapa utan. ⛔ Då får kortet INGEN offer: länken och priset tillhör det andra kortet.
         borrowedId = true;
         console.warn(`[op-singles] ${title}: Cardmarket-id ${idProduct} tillhör redan ett annat kort — skapas utan pris`);
-        return prisma.card.create({
-          data: { setId, name, number, rarity: rarity ?? "", imageUrl: image, language: "EN", tcgExternalId: ext, tcggoId: c.id, artist: c.artist?.name ?? null },
-          select: { id: true },
-        });
+        return prisma.card
+          .create({
+            data: { setId, name, number, rarity: rarity ?? "", imageUrl: image, language: "EN", tcgExternalId: ext, tcggoId: c.id, artist: c.artist?.name ?? null },
+            select: { id: true },
+          })
+          .catch(async (e) => {
+            if (await takenByOtherRun()) return null;
+            throw e;
+          });
       });
+    if (!card) {
+      res.cardsCreated--;
+      res.productsCreated--;
+      return;
+    }
 
     let slug = slugify(`one piece ${name} ${number}${isOnePieceAltVersion(version) ? ` ${version}` : ""}`) || `one-piece-card-${c.id}`;
     // Reservera synkront (mapPool kör parallellt), sedan mot databasen.
