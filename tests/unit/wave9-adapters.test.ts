@@ -86,8 +86,8 @@ describe("sfbokStoreStock — centrallagret är inte butikslagret", () => {
   it("med butikslistan får varje butik med saldo sin ort, störst först", () => {
     const names = parseSfBokStores(SF_STORES_RSC);
     expect(sfbokStoreStock({ stockQuantity: 26, warehouseInventories: wh(0, 0, 19, 7, 0) }, names).locations).toEqual([
-      { id: "S020", label: "Malmö", units: 19, capped: false },
-      { id: "S030", label: "Göteborg", units: 7, capped: false },
+      { id: "S020", label: "Malmö", units: 19, capped: false, city: "Malmö" },
+      { id: "S030", label: "Göteborg", units: 7, capped: false, city: "Göteborg" },
     ]);
   });
 

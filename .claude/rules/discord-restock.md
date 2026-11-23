@@ -12,6 +12,33 @@ paths:
 ---
 # Discord restock-lane
 
+## BUTIKSLARMEN: PRO DIREKT, PUBLIKT 15 MIN SENARE + ORTSROLLER (ägarbeslut 2026-11-23)
+- **Bara butiksvaror** (`storeOnly`: SF-Bok, Webhallens butiker). ⛔ Onlinekanalerna och communityts butiksrapporter
+  fördröjs INTE (ägarbeslut). Butiksvaran postas direkt i Pro-butikskanalen (`"pro":{"stores":"<id>"}`), den publika
+  `stores`-kanalen får en KOPIA `FREE_STORE_ALERT_DELAY_MINUTES` (15) senare med fältet "Scoutr Pro — Pro-medlemmar
+  fick larmet 15 min tidigare i <#kanal>". Talet är en konstant (`src/lib/discord-pro-upsell.ts`), texten vaktas i
+  `tests/unit/discord-pro-upsell.test.ts`. ⛔ Utan BÅDA kanalerna är routingen den gamla (`storeDelayActive`).
+- ⛔ **PRO-KANALEN ÄR KÖN, INTE STATE-FILEN** (`planDelayedStoreCopies` / `releaseDelayedStorePosts`, var 30:e s):
+  kopian byggs ur Pro-inlägget som det står i kanalen. En kö i state hade tappat allt som köades efter överlämningens
+  ögonblicksbild. Dubblettskydd = den publika kanalens historik på (länk, embed-tidsstämpel) — ⛔ länk ensam räcker
+  inte (samma vara i två butiker inom en kvart = två Pro-inlägg med samma länk). Timern startar efter
+  överlämningsväntan och slutar `DERIVE_CUTOFF_MS` före jobbslut (två jobb får aldrig kopiera samtidigt). Äldre än
+  60 min kopieras inte. Kräver "Läsa meddelandehistorik" i båda kanalerna, annars kopieras INGET (varning i loggen).
+- ⛔ Kopian speglar Pro-inlägget VID KOPIERINGEN: en senare redigering (nivåkravet sänks) når bara Pro-inlägget.
+  Sålde varan slut under kvarten postas kopian ändå (ägaren: "skip for now" — ingen "slut"-variant byggd).
+- **Liggaren** (jobbytet) läser Pro-butikskanalen för butiksvaror (`firstPostChannelId`) — där står inlägget först.
+- **ORTSROLLER** (`"cityRoles":{"Göteborg":"<roll-id>"}`): rollen pingas i PRO-butikskanalen när en butik i orten just
+  fått saldo (`newStoreIds`, annars alla butiker med saldo). Orten kommer ur källans egen uppslagning
+  (`StoreStockLocation.city`), förorter via den handskrivna `src/lib/store-city-regions.ts` — okänd ort ⇒ ingen ping,
+  aldrig en gissning. ⛔ Den publika kopian pingar ALDRIG. Medlemmarna väljer rollen själva i Discord; vi lagrar ingen
+  ort (därför ingen ändring i integritetspolicyn — DM per hemort hade krävt det). ⛔ Rollerna är inte nämnbara ⇒
+  boten behöver "Nämn @everyone, @here och alla roller" i Pro-butikskanalen, annars syns pingen men ingen notis går.
+- **"Skaffa Pro"-knappen** (`"proButton"`: `"stores"` = bara under den fördröjda kopian, `"all"` = även publika
+  onlineinlägg; saknas = ingen knapp): länkknapp till `/priser`, aldrig i Pro-kanalerna. Prov som DM:
+  `railway run npx tsx scripts/test-discord-pro-upsell.ts --discord-id <id> --apply`.
+- **Kanaler 2026-11-23**: publika setkanaler = 30th Celebration + Delta Reign (ägaren tar bort en senare); Ascended
+  Heroes och Prismatic Evolutions är Pro-only (samma kanal-id, nu under `pro.sets`).
+
 ## HETA SIDOR + SPELEXPERTENS SVEP (2026-11-12, ägaren: "ingen ska vara i närheten")
 - **MaxGaming, 30th UPC 14:00**: vågen syntes aldrig i feeden (bara 11:10, 12:37 och 14:32 samma dag) — hela
   kategorin är 6 sidor ⇒ en hämtning per 60 s, och varan sålde troligen slut mellan två. `src/scrapers/hot-pages.ts`:

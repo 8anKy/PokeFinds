@@ -133,6 +133,11 @@ export interface StoreStockLocation {
   units: number;
   /** true = butiken låg på källans visningstak ⇒ talet är ett golv. */
   capped: boolean;
+  /**
+   * Butikens ORT ur källans egen uppslagning ("Västra Frölunda") — styr Discords
+   * ortsroller (`cityRoleIdsFor`). Saknas ⇒ ingen ping, aldrig en gissning.
+   */
+  city?: string | null;
 }
 
 export interface AdapterResult {

@@ -54,13 +54,17 @@ export function publicRestockChannelIds(
   config: Pick<
     DiscordRestockConfig,
     "setChannels" | "seriesChannels" | "languageChannels" | "defaultChannelId" | "priceChannelId" | "storeChannelId" | "onePieceChannelId"
-  >
+  > &
+    Partial<Pick<DiscordRestockConfig, "pro">>
 ): string[] {
   const ids = new Set<string>();
   for (const m of [config.setChannels, config.seriesChannels, config.languageChannels]) {
     for (const id of Object.values(m)) if (id) ids.add(id);
   }
   for (const id of [config.defaultChannelId, config.priceChannelId, config.storeChannelId, config.onePieceChannelId]) if (id) ids.add(id);
+  // Butiksfördröjningen (2026-11-23): butiksvaror postas FÖRST i Pro-butikskanalen, så det
+  // är DEN historiken som visar vad förra jobbet hann posta (`firstPostChannelId`).
+  if (config.storeChannelId && config.pro?.storeChannelId) ids.add(config.pro.storeChannelId);
   return [...ids];
 }
 

@@ -28,6 +28,13 @@ import type { StoreStock } from "@/scrapers/types";
 import type { BoundHit } from "@/lib/restock-hits";
 import { DISCORD_APP_FIELD } from "@/lib/discord-app-field";
 import { formatRankField } from "@/lib/discord-rank-edit";
+import {
+  FREE_STORE_ALERT_DELAY_MINUTES,
+  FREE_STORE_ALERT_MAX_AGE_MINUTES,
+  proUpsellComponents,
+  withProHeadStart,
+} from "@/lib/discord-pro-upsell";
+import { regionForCity } from "@/lib/store-city-regions";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
 const BRAND_COLOR = 0x2dd4bf;
@@ -106,7 +113,25 @@ export interface DiscordRestockConfig {
     seriesChannels: Record<string, string>;
     languageChannels: Record<string, string>;
     defaultChannelId: string | null;
+    /**
+     * PRO-BUTIKSKANALEN (`"pro":{"stores":"<id>"}`, ägarbeslut 2026-11-23): butiksvaror
+     * postas HÄR först och i den publika butikskanalen `FREE_STORE_ALERT_DELAY_MINUTES`
+     * senare (`planDelayedStoreCopies`). ⛔ Saknas den (eller den publika `stores`) är
+     * allt som förut: ingen fördröjning, butiksvaror direkt i den publika kanalen.
+     */
+    storeChannelId?: string | null;
   } | null;
+  /**
+   * ORT → ROLL-id (`"cityRoles":{"Göteborg":"<id>"}`): rollen pingas i Pro-butikskanalen
+   * när en butik i orten (med förorter, `regionForCity`) just fått saldo. Rollerna väljs
+   * av medlemmarna själva i Discord — vi lagrar ingen ort. Tom = inga pingar.
+   */
+  cityRoles?: Record<string, string>;
+  /**
+   * "Skaffa Pro"-knappen: `"stores"` = bara under den fördröjda butikskopian, `"all"` =
+   * även under publika onlineinlägg. null = ingen knapp (`"proButton"` i konfigurationen).
+   */
+  proButton?: "stores" | "all" | null;
 }
 
 /**
@@ -147,6 +172,8 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     stores?: unknown;
     onepiece?: unknown;
     pro?: unknown;
+    cityRoles?: unknown;
+    proButton?: unknown;
   };
   try {
     parsed = JSON.parse(raw) as typeof parsed;
@@ -185,17 +212,24 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
   if (typeof parsed.pro === "string" && parsed.pro.trim()) {
     pro = { setChannels: {}, seriesChannels: {}, languageChannels: {}, defaultChannelId: parsed.pro.trim() };
   } else if (parsed.pro && typeof parsed.pro === "object") {
-    const o = parsed.pro as { default?: unknown; sets?: unknown; series?: unknown; languages?: unknown };
+    const o = parsed.pro as { default?: unknown; sets?: unknown; series?: unknown; languages?: unknown; stores?: unknown };
     const candidate = {
       setChannels: readMap(o.sets),
       seriesChannels: readMap(o.series),
       languageChannels: readMap(o.languages),
       defaultChannelId: typeof o.default === "string" && o.default.trim() ? o.default.trim() : null,
+      storeChannelId: typeof o.stores === "string" && o.stores.trim() ? o.stores.trim() : null,
     };
-    if (candidate.defaultChannelId || Object.keys(candidate.setChannels).length || Object.keys(candidate.seriesChannels).length) {
+    if (
+      candidate.defaultChannelId ||
+      candidate.storeChannelId ||
+      Object.keys(candidate.setChannels).length ||
+      Object.keys(candidate.seriesChannels).length
+    ) {
       pro = candidate;
     }
   }
+  const proButton = parsed.proButton === "stores" || parsed.proButton === "all" ? parsed.proButton : null;
 
   return {
     botToken,
@@ -207,7 +241,56 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     storeChannelId,
     onePieceChannelId,
     pro,
+    cityRoles: readMap(parsed.cityRoles),
+    proButton,
   };
+}
+
+/**
+ * Är butiksfördröjningen påslagen? Kräver BÅDA kanalerna: Pro-butikskanalen (dit
+ * inlägget går direkt) och den publika (dit kopian går efteråt). Saknas någon är
+ * routingen den gamla — en halv konfiguration får aldrig tysta butikslarmen.
+ */
+export function storeDelayActive(config: Pick<DiscordRestockConfig, "storeChannelId" | "pro">): boolean {
+  return !!config.storeChannelId && !!config.pro?.storeChannelId;
+}
+
+/**
+ * Kanalen ett inlägg postas i FÖRST. Samma som `resolveRestockChannelId` utom för
+ * butiksvaror när fördröjningen är på: då är Pro-butikskanalen första (och i det
+ * ögonblicket enda) kanalen. Överlämningens liggare måste läsa DEN kanalen — det
+ * publika inlägget finns inte förrän en kvart senare.
+ */
+export function firstPostChannelId(
+  post: Parameters<typeof resolveRestockChannelId>[0],
+  config: Parameters<typeof resolveRestockChannelId>[1] & Pick<DiscordRestockConfig, "pro">
+): string | null {
+  if (post.storeOnly === true && storeDelayActive(config)) return config.pro!.storeChannelId!;
+  return resolveRestockChannelId(post, config);
+}
+
+/**
+ * Rollerna som ska pingas för ett butiksinlägg: orterna för butikerna som JUST fick
+ * saldo (`newStoreIds`), eller alla butiker med saldo när inlägget inte pekar ut några.
+ * ⛔ Bara orter källan själv gav (`StoreStockLocation.city`) och bara roller som står i
+ *    konfigurationen — en okänd ort pingar ingen, aldrig en gissning.
+ */
+export function cityRoleIdsFor(
+  post: Pick<RestockPost, "storeOnly" | "storeStock" | "newStoreIds">,
+  config: Pick<DiscordRestockConfig, "cityRoles">
+): string[] {
+  const roles = config.cityRoles ?? {};
+  if (post.storeOnly !== true || !Object.keys(roles).length) return [];
+  const all = post.storeStock?.locations ?? [];
+  const fresh = new Set(post.newStoreIds ?? []);
+  const picked = fresh.size ? all.filter((l) => l.id != null && fresh.has(l.id)) : all;
+  const out: string[] = [];
+  for (const l of picked) {
+    const region = regionForCity(l.city);
+    const roleId = region ? roles[normalizeChannelKey(region)] : undefined;
+    if (roleId && !out.includes(roleId)) out.push(roleId);
+  }
+  return out;
 }
 
 /** Set- och serienamn jämförs skiftlägesokänsligt och utan kantmellanslag. */
@@ -848,8 +931,11 @@ export async function postRestocks(
 ): Promise<{ sent: number; postedKeys: string[]; failed: number; messages: PostedRestockMessage[] }> {
   const messages: PostedRestockMessage[] = [];
   const byChannel = new Map<string, RestockPost[]>();
+  // Butiksfördröjningen: butiksvaror går FÖRST till Pro-butikskanalen (med ortspingar);
+  // den publika kopian postas en kvart senare av `releaseDelayedStorePosts`.
+  const proStoreChannelId = storeDelayActive(config) ? config.pro!.storeChannelId! : null;
   for (const p of posts) {
-    const channelId = resolveRestockChannelId(p, config);
+    const channelId = firstPostChannelId(p, config);
     if (!channelId) {
       console.warn(
         `[discord-restock] Ingen kanal för set "${p.setName ?? "(saknas)"}" / serie ` +
@@ -868,10 +954,19 @@ export async function postRestocks(
   for (const [channelId, list] of byChannel) {
     for (const batch of chunk(list, MAX_EMBEDS_PER_MESSAGE)) {
       const at = Date.now();
+      const inProStore = channelId === proStoreChannelId;
+      // Ortsrollerna pingas BARA i Pro-butikskanalen — den publika kopian pingar aldrig.
+      const roleIds = inProStore ? [...new Set(batch.flatMap((p) => cityRoleIdsFor(p, config)))] : [];
       const res = await discordFetch(`/channels/${channelId}/messages`, {
         method: "POST",
         authorization: `Bot ${config.botToken}`,
-        body: JSON.stringify({ embeds: batch.map((p) => buildRestockEmbed(p, { at })) }),
+        body: JSON.stringify({
+          embeds: batch.map((p) => buildRestockEmbed(p, { at })),
+          ...(roleIds.length
+            ? { content: roleIds.map((id) => `<@&${id}>`).join(" "), allowed_mentions: { parse: [], roles: roleIds } }
+            : {}),
+          ...(!inProStore && config.proButton === "all" ? { components: proUpsellComponents(upsellSite()) } : {}),
+        }),
       });
       if (res.ok) {
         const messageId = await messageIdOf(res);
@@ -929,4 +1024,203 @@ export async function postRestocks(
   }
 
   return { sent, postedKeys, failed, messages };
+}
+
+/** Sajten "Skaffa Pro" länkar till. Läses vid anropet (samma skäl som discordRestockConfig). */
+function upsellSite(): string {
+  return process.env.NEXT_PUBLIC_APP_URL || "https://scoutr.se";
+}
+
+// ── BUTIKSFÖRDRÖJNINGEN: PRO-KANALEN ÄR KÖN (ägarbeslut 2026-11-23) ─────────────
+//
+// Butiksvaror postas direkt i Pro-butikskanalen. Den publika kopian byggs UR DET
+// INLÄGGET en kvart senare — ingen kö i state-filen:
+//  · lanen byter jobb var 20:e minut och ögonblicksbilden tas ~6 min före bytet; en kö
+//    i state hade tappat allt det gamla jobbet köade efter bilden. Kanalen delar båda
+//    jobben redan (samma tanke som liggaren, discord-restock-ledger.ts).
+//  · en krasch eller ett avbrutet jobb tappar ingenting: nästa jobb läser kanalen.
+// Dubblettskyddet är den publika kanalens historik: en kopia bär Pro-inläggets EXAKTA
+// embed-tidsstämpel, så (länk, tidsstämpel) pekar ut vilket Pro-inlägg den kom ur.
+// ⛔ Länk ensam räcker inte: samma vara kan fyllas på i två butiker inom en kvart
+//    (två Pro-inlägg, samma länk) — den andra kopian hade då sett "redan postad" ut.
+// ⛔ Kopian bär Pro-inläggets innehåll som det såg ut vid kopieringen. En redigering
+//    efteråt (nivåkravet sänks) når bara Pro-inlägget.
+
+interface RawDiscordEmbed {
+  title?: unknown;
+  url?: unknown;
+  description?: unknown;
+  color?: unknown;
+  timestamp?: unknown;
+  fields?: { name?: unknown; value?: unknown; inline?: unknown }[];
+  thumbnail?: { url?: unknown };
+  footer?: { text?: unknown };
+}
+interface RawDiscordMessage {
+  id?: unknown;
+  timestamp?: unknown;
+  author?: { bot?: unknown };
+  embeds?: RawDiscordEmbed[];
+}
+
+/** En embed i den form Discord tar emot (svaret bär fler fält, t.ex. `proxy_url`). */
+export interface CopiedEmbed {
+  title?: string;
+  url?: string;
+  description?: string;
+  color?: number;
+  timestamp?: string;
+  fields: { name: string; value: string; inline: boolean }[];
+  thumbnail?: { url: string };
+  footer?: { text: string };
+}
+
+export interface DelayedStoreCopy {
+  /** Pro-inlägget kopian byggs ur. */
+  proMessageId: string;
+  /** När Pro-inlägget postades (ms). */
+  at: number;
+  embeds: CopiedEmbed[];
+}
+
+const STORE_TITLE = /^Finns (bara )?i butik: /;
+
+function copyEmbed(e: RawDiscordEmbed): CopiedEmbed {
+  const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  const thumb = str(e.thumbnail?.url);
+  const foot = str(e.footer?.text);
+  return {
+    ...(str(e.title) ? { title: str(e.title) } : {}),
+    ...(str(e.url) ? { url: str(e.url) } : {}),
+    ...(str(e.description) ? { description: str(e.description) } : {}),
+    ...(typeof e.color === "number" ? { color: e.color } : {}),
+    ...(str(e.timestamp) ? { timestamp: str(e.timestamp) } : {}),
+    fields: (e.fields ?? [])
+      .filter((f) => typeof f?.name === "string" && typeof f?.value === "string")
+      .map((f) => ({ name: f.name as string, value: f.value as string, inline: f.inline === true })),
+    ...(thumb ? { thumbnail: { url: thumb } } : {}),
+    ...(foot ? { footer: { text: foot } } : {}),
+  };
+}
+
+/** (länk, embed-tidsstämpel i ms) — nyckeln som binder en kopia till sitt Pro-inlägg. */
+function copyKey(e: { url?: unknown; timestamp?: unknown }): string | null {
+  const t = typeof e.timestamp === "string" ? Date.parse(e.timestamp) : NaN;
+  return typeof e.url === "string" && e.url && Number.isFinite(t) ? `${e.url}\n${t}` : null;
+}
+
+/**
+ * Ren: vilka Pro-butiksinlägg ska kopieras till den publika kanalen NU?
+ * Ett inlägg kvalar när det är botens, bara bär butiksinlägg, är minst
+ * `FREE_STORE_ALERT_DELAY_MINUTES` och högst `FREE_STORE_ALERT_MAX_AGE_MINUTES` gammalt,
+ * inte står i `done` och inte redan finns i `publicMessages`. Äldst först.
+ */
+export function planDelayedStoreCopies(
+  proMessages: unknown,
+  publicMessages: unknown,
+  nowMs: number,
+  done: ReadonlySet<string> = new Set()
+): DelayedStoreCopy[] {
+  if (!Array.isArray(proMessages)) return [];
+  const copied = new Set<string>();
+  if (Array.isArray(publicMessages)) {
+    for (const m of publicMessages as RawDiscordMessage[]) {
+      for (const e of m?.embeds ?? []) {
+        const k = copyKey(e);
+        if (k) copied.add(k);
+      }
+    }
+  }
+  const minAge = FREE_STORE_ALERT_DELAY_MINUTES * 60_000;
+  const maxAge = FREE_STORE_ALERT_MAX_AGE_MINUTES * 60_000;
+  const out: DelayedStoreCopy[] = [];
+  for (const m of proMessages as RawDiscordMessage[]) {
+    if (!m || typeof m.id !== "string" || done.has(m.id) || m.author?.bot !== true) continue;
+    const at = typeof m.timestamp === "string" ? Date.parse(m.timestamp) : NaN;
+    if (!Number.isFinite(at) || nowMs - at < minAge || nowMs - at > maxAge) continue;
+    const embeds = m.embeds ?? [];
+    if (!embeds.length || !embeds.every((e) => typeof e?.title === "string" && STORE_TITLE.test(e.title))) continue;
+    const keys = embeds.map(copyKey);
+    // Utan nyckel går kopian inte att känna igen efteråt ⇒ hellre ingen kopia än en dubblett per varv.
+    if (keys.some((k) => k == null) || keys.some((k) => copied.has(k!))) continue;
+    out.push({ proMessageId: m.id, at, embeds: embeds.map(copyEmbed) });
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+
+/** Den publika kopians meddelande: Pro-raden i varje embed + (valfritt) knappen. */
+export function buildDelayedStoreMessage(
+  copy: DelayedStoreCopy,
+  config: Pick<DiscordRestockConfig, "pro" | "proButton">,
+  site: string
+) {
+  return {
+    embeds: copy.embeds.map((e) => withProHeadStart(e, config.pro?.storeChannelId ?? null)),
+    // Aldrig en ping i den publika kanalen — ortsrollerna är Pro-kanalens.
+    allowed_mentions: { parse: [] as string[] },
+    ...(config.proButton ? { components: proUpsellComponents(site) } : {}),
+  };
+}
+
+async function readChannelMessages(channelId: string, botToken: string, limit: number): Promise<unknown[] | null> {
+  try {
+    const res = await discordFetch(`/channels/${channelId}/messages?limit=${limit}`, {
+      method: "GET",
+      authorization: `Bot ${botToken}`,
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as unknown;
+    return Array.isArray(body) ? body : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Kopierar mogna Pro-butiksinlägg till den publika butikskanalen. Anropas periodiskt av
+ * lanen. En läsning av Pro-kanalen per anrop; den publika läses bara när något är moget.
+ * `done` (anroparens minne) fylls med kopierade Pro-inlägg. Kastar aldrig.
+ *
+ * `readFailed` = en kanal gick inte att läsa (boten saknar "Läsa meddelandehistorik") —
+ * då kopieras INGET: utan den publika historiken finns inget dubblettskydd.
+ */
+export async function releaseDelayedStorePosts(
+  config: DiscordRestockConfig,
+  done: Set<string>,
+  nowMs: number = Date.now()
+): Promise<{ sent: number; failedIds: string[]; readFailed: boolean }> {
+  if (!storeDelayActive(config)) return { sent: 0, failedIds: [], readFailed: false };
+  const proChannelId = config.pro!.storeChannelId!;
+  const publicChannelId = config.storeChannelId!;
+  const proMessages = await readChannelMessages(proChannelId, config.botToken, 50);
+  if (!proMessages) return { sent: 0, failedIds: [], readFailed: true };
+  if (!planDelayedStoreCopies(proMessages, [], nowMs, done).length) return { sent: 0, failedIds: [], readFailed: false };
+  const publicMessages = await readChannelMessages(publicChannelId, config.botToken, 100);
+  if (!publicMessages) return { sent: 0, failedIds: [], readFailed: true };
+
+  let sent = 0;
+  const failedIds: string[] = [];
+  for (const copy of planDelayedStoreCopies(proMessages, publicMessages, nowMs, done)) {
+    try {
+      const res = await discordFetch(`/channels/${publicChannelId}/messages`, {
+        method: "POST",
+        authorization: `Bot ${config.botToken}`,
+        body: JSON.stringify(buildDelayedStoreMessage(copy, config, upsellSite())),
+      });
+      if (res.ok) {
+        done.add(copy.proMessageId);
+        sent++;
+        continue;
+      }
+      failedIds.push(copy.proMessageId);
+      console.error(
+        `[discord-restock] Kunde inte posta den fördröjda butikskopian i kanal ${publicChannelId}: ` +
+          `${res.status} ${await res.text().catch(() => "")}`
+      );
+    } catch (e) {
+      failedIds.push(copy.proMessageId);
+      console.error("[discord-restock] Den fördröjda butikskopian föll:", e instanceof Error ? e.message : e);
+    }
+  }
+  return { sent, failedIds, readFailed: false };
 }

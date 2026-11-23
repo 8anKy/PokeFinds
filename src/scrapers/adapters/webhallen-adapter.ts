@@ -196,7 +196,9 @@ export function webhallenStoreBreakdown(
     const atCap = cap != null && value >= cap;
     if (atCap) capped = true;
     const store = names?.get(Number(key));
-    if (store) locations.push({ id: key, label: storeLabel(store), units: value, capped: atCap });
+    if (store) {
+      locations.push({ id: key, label: storeLabel(store), units: value, capped: atCap, ...(store.city ? { city: store.city } : {}) });
+    }
   }
   // Störst först: den som ska åka vill se var chansen är bäst, inte id-ordningen.
   locations.sort((a, b) => b.units - a.units || a.label.localeCompare(b.label, "sv"));

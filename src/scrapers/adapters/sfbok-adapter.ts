@@ -181,7 +181,15 @@ export function sfbokStoreStock(
     units += qty;
     withStock++;
     const store = w.warehouseCode ? names?.get(w.warehouseCode) : undefined;
-    if (store) locations.push({ id: store.warehouseCode, label: sfbokStoreLabel(store), units: qty, capped: false });
+    if (store) {
+      locations.push({
+        id: store.warehouseCode,
+        label: sfbokStoreLabel(store),
+        units: qty,
+        capped: false,
+        ...(store.city ? { city: store.city } : {}),
+      });
+    }
   }
   locations.sort((a, b) => b.units - a.units || a.label.localeCompare(b.label, "sv"));
   return { units, stores: withStock, locations, byStore, split: true };

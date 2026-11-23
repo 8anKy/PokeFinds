@@ -63,9 +63,11 @@ import {
   applyBoundToPost,
   discordRestockConfig,
   editRestockMessage,
+  firstPostChannelId,
   postRestocks,
   postTestMessages,
-  resolveRestockChannelId,
+  releaseDelayedStorePosts,
+  storeDelayActive,
   type PostedRestockMessage,
   type RestockPost,
 } from "../src/lib/discord-restock";
@@ -758,6 +760,49 @@ async function main() {
 
   const deadline = loopSeconds ? Date.now() + loopSeconds * 1000 : 0;
 
+  // ---- BUTIKSFÖRDRÖJNINGEN: PRO-INLÄGGEN KOPIERAS TILL DEN PUBLIKA KANALEN ----
+  // Butiksvaror postas direkt i Pro-butikskanalen (postRestocks); här kopieras de som
+  // blivit en kvart gamla till den publika. Pro-kanalen är kön (se discord-restock.ts),
+  // så jobbytet tappar ingenting. ⛔ Startar först EFTER överlämningsväntan och slutar
+  // DERIVE_CUTOFF_MS före jobbets slut — två jobb som kopierar samtidigt hade båda läst
+  // "inte kopierad" och postat var sin.
+  const DELAYED_STORE_EVERY_MS = 30_000;
+  const delayedStoreDone = new Set<string>();
+  const delayedStoreFailed = new Set<string>();
+  let delayedStoreBusy = false;
+  let delayedStoreCopies = 0;
+  let delayedStoreReadWarned = false;
+  const delayedStoreTimer =
+    config && deadline && storeDelayActive(config)
+      ? setInterval(() => {
+          if (delayedStoreBusy || Date.now() >= deadline - DERIVE_CUTOFF_MS) return;
+          delayedStoreBusy = true;
+          void releaseDelayedStorePosts(config, delayedStoreDone)
+            .then((r) => {
+              if (r.sent) {
+                delayedStoreCopies += r.sent;
+                console.log(`[discord-restock]   fördröjd butikskopia till den publika kanalen: ${r.sent}`);
+              }
+              for (const id of r.failedIds) {
+                if (delayedStoreFailed.has(id)) continue;
+                delayedStoreFailed.add(id);
+                totalFailures++;
+              }
+              if (r.readFailed && !delayedStoreReadWarned) {
+                delayedStoreReadWarned = true;
+                console.warn(
+                  "[discord-restock] ⚠️ Kunde inte läsa butikskanalerna — den fördröjda kopian postas inte. " +
+                    'Boten behöver "Läsa meddelandehistorik" i både Pro-butikskanalen och den publika.'
+                );
+              }
+            })
+            .finally(() => {
+              delayedStoreBusy = false;
+            });
+        }, DELAYED_STORE_EVERY_MS)
+      : null;
+  delayedStoreTimer?.unref?.();
+
   // ---- ÖGONBLICKSBILDEN FÖR NÄSTA JOBB ----
   // Skrivs `handoffSeconds` före slutet; workflowet väntar på markören, sparar cachen och
   // startar nästa jobb. Det här jobbet fortsätter som vanligt fram till `deadline`.
@@ -1022,7 +1067,7 @@ async function main() {
     // inlägg eller larm-hit — förra jobbet skickade hiten.
     if (config && ledgerByChannel.size) {
       const targets = new Map<(typeof postable)[number], string | null>();
-      for (const p of postable) targets.set(p, resolveRestockChannelId(p, config));
+      for (const p of postable) targets.set(p, firstPostChannelId(p, config));
       if (Date.now() < ledgerRefreshUntil) {
         const stale = [...new Set([...targets.values()].filter((c): c is string => !!c))].filter(
           (c) => Date.now() - (ledgerByChannel.get(c)?.at ?? 0) > LEDGER_REFRESH_TTL_MS
@@ -1145,7 +1190,7 @@ async function main() {
     }
     const nowMs = Date.now();
     const list = posts.filter((p) => {
-      const ch = resolveRestockChannelId(p, config);
+      const ch = firstPostChannelId(p, config);
       return !(ch && findInLedger(ledgerByChannel.get(ch)?.entries ?? [], ch, p, nowMs, cooldownMs));
     });
     if (!list.length) return;
@@ -1301,6 +1346,7 @@ async function main() {
     : null;
   await Promise.all(selected.map((s, i) => storeLoop(s, i)));
   if (fastCodeTimer) clearInterval(fastCodeTimer);
+  if (delayedStoreTimer) clearInterval(delayedStoreTimer);
 
   clearInterval(stateTimer);
   if (handoffTimer) clearTimeout(handoffTimer);
@@ -1359,6 +1405,7 @@ async function main() {
         : "") +
       (enrichedPosts ? ` Berikade inlägg (nyss bundna produkter): ${enrichedPosts}.` : "") +
       (ledgerSkipped ? ` Redan postade av förra jobbet (överlämningen): ${ledgerSkipped}.` : "") +
+      (delayedStoreCopies ? ` Fördröjda butikskopior (publika kanalen): ${delayedStoreCopies}.` : "") +
       (vanishedConfirmed ? ` Försvunna ur feeden, sidan sa slut: ${vanishedConfirmed}.` : "") +
       (dropWatcher.found || dropWatcher.riddles
         ? ` Dolda släpp: ${dropWatcher.found} sidor hittade, ${dropWatcher.riddles} rebusar postade.`
