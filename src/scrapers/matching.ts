@@ -2303,6 +2303,18 @@ export function applySetAliases(normalized: string): string {
  *   städningen, som annars bara får tillbaka produkten själv på exakt-träffen.
  *   Import-vägen skickar den aldrig: där finns produkten ännu inte.
  */
+/**
+ * One Piece-annonsen → katalogprodukt i ett laddat index, eller null. EN dom för nattens
+ * titelmatchning (`matchProduct`) och larm-hitsens bindning (`ensureListingProduct`): setkod + form,
+ * exakt en kandidat, asiatisk utgåva ⇒ inget (lib/one-piece-listing).
+ */
+export function matchOnePieceInIndex(rawTitle: string, index: MatchIndex, excludeProductId?: string): string | null {
+  const products = index
+    .filter((p) => p.game === "ONE_PIECE" && p.id !== excludeProductId)
+    .map((p) => ({ id: p.id, title: p.title ?? p.normalizedTitle, setId: p.setId ?? null }));
+  return matchOnePieceListing(rawTitle, { sets: OP_SETS.get(index) ?? [], products });
+}
+
 /** Indexet utan One Piece — cachat per index så filtreringen sker en gång per körning. */
 const POKEMON_ONLY = new WeakMap<MatchIndex, MatchIndex>();
 function pokemonOnlyIndex(index: MatchIndex): MatchIndex {
@@ -2331,10 +2343,7 @@ export async function matchProduct(
   // admin-verktyg) finns inga One Piece-set att döma mot ⇒ ingen träff.
   if (isOnePieceListing(raw)) {
     if (!index) return null;
-    const products = index
-      .filter((p) => p.game === "ONE_PIECE" && p.id !== excludeProductId)
-      .map((p) => ({ id: p.id, title: p.title ?? p.normalizedTitle, setId: p.setId ?? null }));
-    const id = matchOnePieceListing(raw, { sets: OP_SETS.get(index) ?? [], products });
+    const id = matchOnePieceInIndex(raw, index, excludeProductId);
     return id ? { productId: id, confidence: 1 } : null;
   }
   if (index && index.some((p) => p.game === "ONE_PIECE")) index = pokemonOnlyIndex(index);

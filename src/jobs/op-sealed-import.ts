@@ -25,6 +25,8 @@ import { getRatesOre, priceOreFromEur } from "@/lib/exchange-rate";
 import { cardmarketOnePieceProductUrl } from "@/lib/marketplace-urls";
 import { normalizeTitle, slugify, utcToday } from "@/lib/utils";
 import { decodeEntities } from "@/lib/rss";
+import { buildCmIdByName, cmCatalogNameKey } from "@/lib/cm-catalog-names";
+import { fetchOrNull, jsonOrNull } from "@/lib/json-or-null";
 import { guessListingCategory } from "@/scrapers/listing-category";
 
 const THROTTLE_MS = 220;
@@ -101,9 +103,50 @@ export interface OpSealedImportResult {
   /** Dagens prispunkter (grafen byggs framåt, som för Pokémon). */
   historyPoints: number;
   skippedNoId: number;
+  /** Rader utan `cardmarket_id` hos leverantören som fick sitt id ur CM:s egen katalog (exakt namn). */
+  idFromCatalog: number;
   skippedFiltered: number;
   createdTitles: string[];
   filteredSamples: string[];
+  /** Namnen på raderna som fortfarande saknar id — utan dem går "N väntar" inte att följa upp. */
+  noIdSamples: string[];
+}
+
+/**
+ * Cardmarkets EGEN One Piece-katalog (spel 18, publik fil) — samma glapp som Pokémon hade med Delta
+ * Reign (lib/cm-catalog-names.ts): leverantören listar produkten månader efter Cardmarket, eller med
+ * `cardmarket_id: null`. Mätt 2026-11-24: startdäcken ST-34/35/36 fanns hos CM sedan 2026-07-14 och
+ * Double Pack Set Vol.13 sedan 11-16, men ingen av dem fanns i vår katalog — butikernas påfyllningar
+ * postades i Discord utan produktlänk.
+ */
+const CM_OP_NONSINGLES_URL = "https://downloads.s3.cardmarket.com/productCatalog/productList/products_nonsingles_18.json";
+
+/** Jämförelsenyckel: CM-filen skriver citattecken dubblerade (`""Captain""`), leverantören HTML-kodar. */
+export function opCatalogNameKey(name: string): string {
+  return cmCatalogNameKey(decodeEntities(name).replace(/"{2,}/g, '"'));
+}
+
+/**
+ * Ren: fyller i `cardmarket_id` på engelska rader som saknar det, ur CM-katalogen på EXAKT namn.
+ * ⛔ Aldrig fuzzy, aldrig ett tvetydigt namn, aldrig ett id en annan rad redan bär.
+ */
+export function backfillOnePieceIds(
+  rows: Pick<OpApiProduct, "name" | "lang" | "cardmarket_id">[],
+  catalog: { idProduct: number; name: string }[]
+): number {
+  const idByName = buildCmIdByName(catalog.map((p) => ({ idProduct: p.idProduct, name: opCatalogNameKey(p.name ?? "") })));
+  const taken = new Set<number>();
+  for (const r of rows) if (r.cardmarket_id != null) taken.add(r.cardmarket_id);
+  let filled = 0;
+  for (const r of rows) {
+    if (r.cardmarket_id != null || (r.lang ?? "en") !== "en") continue;
+    const id = idByName.get(opCatalogNameKey(r.name ?? ""));
+    if (id == null || taken.has(id)) continue;
+    r.cardmarket_id = id;
+    taken.add(id);
+    filled++;
+  }
+  return filled;
 }
 
 async function fetchAll<T>(path: string, host: string, key: string, res: OpSealedImportResult): Promise<T[]> {
@@ -132,8 +175,8 @@ export async function runOnePieceSealedImport(
   const hidden = opts.hidden ?? false;
   const log = opts.log ?? ((s: string) => console.log(s));
   const res: OpSealedImportResult = {
-    apiCalls: 0, episodes: 0, setsCreated: 0, listed: 0, created: 0, priced: 0, historyPoints: 0, skippedNoId: 0, skippedFiltered: 0,
-    createdTitles: [], filteredSamples: [],
+    apiCalls: 0, episodes: 0, setsCreated: 0, listed: 0, created: 0, priced: 0, historyPoints: 0, skippedNoId: 0, idFromCatalog: 0,
+    skippedFiltered: 0, createdTitles: [], filteredSamples: [], noIdSamples: [],
   };
   const HOST = process.env.CARDMARKET_RAPIDAPI_HOST || "cardmarket-api-tcg.p.rapidapi.com";
   const KEY = process.env.CARDMARKET_RAPIDAPI_KEY || "";
@@ -194,6 +237,11 @@ export async function runOnePieceSealedImport(
   // ── 2. Produkter ────────────────────────────────────────────────────────────
   const items = await fetchAll<OpApiProduct>("/one-piece/products", HOST, KEY, res);
   res.listed = items.length;
+  // Saknade id ur CM:s egen katalog (exakt namn). Fail soft: utan filen väntar raderna som förut.
+  const cmFile = await fetchOrNull(CM_OP_NONSINGLES_URL);
+  const cmCatalog = cmFile?.ok ? await jsonOrNull<{ products?: { idProduct: number; name: string }[] }>(cmFile) : null;
+  if (cmCatalog?.products?.length) res.idFromCatalog = backfillOnePieceIds(items, cmCatalog.products);
+  else log("[op-import] Cardmarkets One Piece-katalog gick inte att läsa — rader utan id väntar.");
   const offers = await prisma.offer.findMany({
     where: { retailerId: cm.id, url: { contains: "/OnePiece/" } },
     select: { id: true, url: true, price: true, productId: true, product: { select: { title: true } } },
@@ -219,7 +267,11 @@ export async function runOnePieceSealedImport(
       continue;
     }
     const idProduct = it.cardmarket_id;
-    if (idProduct == null) { res.skippedNoId++; continue; }
+    if (idProduct == null) {
+      res.skippedNoId++;
+      if (res.noIdSamples.length < 25) res.noIdSamples.push(rawName);
+      continue;
+    }
     const eur = onePieceAcceptedEur(it.prices?.cardmarket ?? null);
     const priceOre = eur == null ? null : priceOreFromEur(eur, rates);
     const inStock = (it.prices?.cardmarket?.available_items ?? 0) > 0;
@@ -295,7 +347,10 @@ export async function runOnePieceSealedImport(
   log(
     `[op-import] ${res.episodes} episoder (${res.setsCreated} nya set) · ${res.listed} produkter hos leverantören → ` +
       `${res.created} ${apply ? "skapade" : "SKULLE skapas"}${hidden ? " (dolda)" : ""}, ${res.priced} prissatta, ` +
-      `${res.skippedNoId} utan CM-id (väntar), ${res.skippedFiltered} tillbehör/grossist. ${res.apiCalls} API-anrop.`
+      `${res.idFromCatalog} id ur CM-katalogen, ${res.skippedNoId} utan CM-id (väntar), ${res.skippedFiltered} tillbehör/grossist. ` +
+      `${res.apiCalls} API-anrop.`
   );
+  if (res.createdTitles.length) log(`[op-import] nya: ${res.createdTitles.join(" | ")}`);
+  if (res.noIdSamples.length) log(`[op-import] väntar på id: ${res.noIdSamples.join(" | ")}`);
   return res;
 }

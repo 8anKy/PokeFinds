@@ -76,6 +76,7 @@ import { SpelOchSantAdapter } from "@/scrapers/adapters/spelochsant-adapter";
 import { TcgPicksAdapter } from "@/scrapers/adapters/tcgpicks-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import { isStoreRetailer } from "../lib/offer-source";
+import { isOnePieceListing } from "../lib/one-piece-listing";
 import {
   classifyForm,
   cleanListingTitle,
@@ -94,6 +95,7 @@ import {
   isPlausiblePriceFor,
   loadMatchIndex,
   matchProduct,
+  matchOnePieceInIndex,
   type MatchIndex,
 } from "@/scrapers/matching";
 import { judgeSameProduct } from "@/lib/same-product";
@@ -553,6 +555,27 @@ export async function ensureListingProduct(
     await rememberListingProduct(it, owner.productId);
     return owner.productId;
   }
+  // ---- ONE PIECE (2026-11-24) ----
+  // Pokémon-vakterna nedan fäller One Piece som "annan franchise" — rätt före 2026-11-10, då spelet
+  // inte fanns i katalogen. Sedan dess svarade larm-hitsens bindning "ingen säker match" för VARJE ny
+  // One Piece-sida: Discord-inlägget stod utan produktlänk och marknadsvärde tills nattkedjan
+  // (runScrapeJob → matchProduct) band sidan (ägarens skärmbild: OP-18 Booster Display, som matcharen
+  // träffar exakt). Samma dom här som där: ENBART One Piece-matcharen (setkod + form, exakt en
+  // kandidat, asiatisk utgåva ⇒ inget). ⛔ Aldrig en ny produkt, ingen streckkod, ingen Pokémon-vakt.
+  if (isOnePieceListing(it.title, it.url)) {
+    const opId = index ? matchOnePieceInIndex(it.title, index) : null;
+    if (!opId) {
+      await prisma.storeListing.updateMany({
+        where: { retailerId: it.retailerId, url: it.url },
+        data: { productId: null, productMatchTitle: it.title, unmatchedAt: new Date() },
+      });
+      return null;
+    }
+    await upsertListingOffer(it, opId, stockStatus, null);
+    await rememberListingProduct(it, opId);
+    return opId;
+  }
+
   // ---- EN hämtning av butikens produktsida ger BÅDA nycklarna ----
   // Aldrig i restock-lanens feed-hämtning (den kör var 2:a minut) — bara här, för NYA
   // butiks-URL:er. Se gtin-source.ts för varför.
