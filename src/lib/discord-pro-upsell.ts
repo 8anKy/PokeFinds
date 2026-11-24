@@ -16,6 +16,23 @@
 /** Minuter mellan Pro-kanalens inlägg och den publika kopian. */
 export const FREE_STORE_ALERT_DELAY_MINUTES = 15;
 
+/**
+ * BARA DE HÄR BUTIKERNA FÖRDRÖJS (ägarbeslut 2026-11-24): SF-Bok har fyra butiker med litet saldo
+ * som tar slut inom kvarten, och ingen annan server har dem — där är försprånget värt något.
+ * Webhallen har ~30 butiker (saldot tar sällan slut på en kvart) och en konkurrent postar samma
+ * butikssaldon, så en fördröjning där skickar bara gratismedlemmarna dit. Webhallens butiksvaror
+ * postas därför i Pro-kanalen (med ortspingar) OCH i den publika samtidigt, utan Pro-raden.
+ * `"delayedStores":[…]` i DISCORD_RESTOCK_CHANNELS skriver över listan (tom lista = ingen fördröjs).
+ */
+export const DELAYED_STORE_NAMES: readonly string[] = ["SF-Bok"];
+
+/** Är butiken fördröjd? `list` = konfigurationens lista (redan normaliserad), annars konstanten. */
+export function isDelayedStoreName(storeName: string | null | undefined, list?: readonly string[] | null): boolean {
+  const key = (storeName ?? "").trim().toLowerCase();
+  if (!key) return false;
+  return (list ?? DELAYED_STORE_NAMES).some((n) => n.trim().toLowerCase() === key);
+}
+
 /** Äldre Pro-inlägg än så här kopieras inte — ett butikssaldo från i förmiddags är ingen nyhet. */
 export const FREE_STORE_ALERT_MAX_AGE_MINUTES = 60;
 

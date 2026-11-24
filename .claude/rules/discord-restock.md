@@ -13,6 +13,13 @@ paths:
 # Discord restock-lane
 
 ## BUTIKSLARMEN: PRO DIREKT, PUBLIKT 15 MIN SENARE + ORTSROLLER (ägarbeslut 2026-11-23)
+- ⛔ **BARA SF-BOK FÖRDRÖJS SEDAN 2026-11-24 (ägarbeslut)** — `DELAYED_STORE_NAMES` (`discord-pro-upsell.ts`),
+  `"delayedStores":[…]` i `DISCORD_RESTOCK_CHANNELS` skriver över (tom lista = ingen). Webhallen har ~30 butiker
+  (saldot tar sällan slut på en kvart) och en konkurrent postar samma saldon ⇒ en fördröjning där skickar bara
+  gratismedlemmarna dit. Webhallens butiksvaror postas i Pro-butikskanalen (med ortspingar) OCH den publika
+  SAMTIDIGT, utan Pro-raden och utan knapp (`storeIsDelayed`, `postRestocks`). ⛔ Fördröjda och ej fördröjda delar
+  aldrig meddelande i Pro-kanalen, och kopieraren läser embeddens "Butik"-fält — ett Webhallen-inlägg kopieras
+  aldrig (det står redan publikt). Båda Webhallen-inläggen ligger i `messages` ⇒ nivå-/bindningsredigeringar når båda.
 - **Bara butiksvaror** (`storeOnly`: SF-Bok, Webhallens butiker). ⛔ Onlinekanalerna och communityts butiksrapporter
   fördröjs INTE (ägarbeslut). Butiksvaran postas direkt i Pro-butikskanalen (`"pro":{"stores":"<id>"}`), den publika
   `stores`-kanalen får en KOPIA `FREE_STORE_ALERT_DELAY_MINUTES` (15) senare med fältet "Scoutr Pro — Pro-medlemmar

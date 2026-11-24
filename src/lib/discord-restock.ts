@@ -31,6 +31,7 @@ import { formatRankField } from "@/lib/discord-rank-edit";
 import {
   FREE_STORE_ALERT_DELAY_MINUTES,
   FREE_STORE_ALERT_MAX_AGE_MINUTES,
+  isDelayedStoreName,
   proUpsellComponents,
   withProHeadStart,
 } from "@/lib/discord-pro-upsell";
@@ -132,6 +133,12 @@ export interface DiscordRestockConfig {
    * även under publika onlineinlägg. null = ingen knapp (`"proButton"` i konfigurationen).
    */
   proButton?: "stores" | "all" | null;
+  /**
+   * Butikerna vars butiksvaror FÖRDRÖJS i den publika kanalen (`"delayedStores":["SF-Bok"]`).
+   * Saknas nyckeln gäller `DELAYED_STORE_NAMES` (bara SF-Bok, ägarbeslut 2026-11-24); övriga
+   * butikers butiksvaror postas i Pro-kanalen och den publika samtidigt.
+   */
+  delayedStores?: string[] | null;
 }
 
 /**
@@ -174,6 +181,7 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     pro?: unknown;
     cityRoles?: unknown;
     proButton?: unknown;
+    delayedStores?: unknown;
   };
   try {
     parsed = JSON.parse(raw) as typeof parsed;
@@ -243,7 +251,21 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     pro,
     cityRoles: readMap(parsed.cityRoles),
     proButton,
+    delayedStores: Array.isArray(parsed.delayedStores)
+      ? parsed.delayedStores.filter((v): v is string => typeof v === "string" && !!v.trim()).map((v) => v.trim())
+      : null,
   };
+}
+
+/**
+ * Ska butiksvaran FÖRDRÖJAS i den publika kanalen? Bara när fördröjningen är på OCH butiken står
+ * i listan (SF-Bok). Övriga butiksvaror postas i båda kanalerna direkt.
+ */
+export function storeIsDelayed(
+  post: Pick<RestockPost, "storeOnly" | "storeName">,
+  config: Pick<DiscordRestockConfig, "storeChannelId" | "pro" | "delayedStores">
+): boolean {
+  return post.storeOnly === true && storeDelayActive(config) && isDelayedStoreName(post.storeName, config.delayedStores);
 }
 
 /**
@@ -930,9 +952,11 @@ export async function postRestocks(
   config: DiscordRestockConfig
 ): Promise<{ sent: number; postedKeys: string[]; failed: number; messages: PostedRestockMessage[] }> {
   const messages: PostedRestockMessage[] = [];
-  const byChannel = new Map<string, RestockPost[]>();
-  // Butiksfördröjningen: butiksvaror går FÖRST till Pro-butikskanalen (med ortspingar);
-  // den publika kopian postas en kvart senare av `releaseDelayedStorePosts`.
+  const byChannel = new Map<string, { channelId: string; alsoPublic: boolean; list: RestockPost[] }>();
+  // Butiksfördröjningen: butiksvaror går FÖRST till Pro-butikskanalen (med ortspingar).
+  // FÖRDRÖJDA butiker (SF-Bok, `storeIsDelayed`): den publika kopian postas en kvart senare av
+  // `releaseDelayedStorePosts`. ÖVRIGA (Webhallen): den publika kanalen får inlägget DIREKT.
+  // ⛔ De två sorterna delar aldrig meddelande — kopieraren dömer per meddelande.
   const proStoreChannelId = storeDelayActive(config) ? config.pro!.storeChannelId! : null;
   for (const p of posts) {
     const channelId = firstPostChannelId(p, config);
@@ -943,15 +967,17 @@ export async function postRestocks(
       );
       continue;
     }
-    const list = byChannel.get(channelId);
-    if (list) list.push(p);
-    else byChannel.set(channelId, [p]);
+    const alsoPublic = channelId === proStoreChannelId && !storeIsDelayed(p, config);
+    const groupKey = alsoPublic ? `${channelId}|direkt` : channelId;
+    const group = byChannel.get(groupKey);
+    if (group) group.list.push(p);
+    else byChannel.set(groupKey, { channelId, alsoPublic, list: [p] });
   }
 
   let sent = 0;
   let failed = 0;
   const postedKeys: string[] = [];
-  for (const [channelId, list] of byChannel) {
+  for (const { channelId, alsoPublic, list } of byChannel.values()) {
     for (const batch of chunk(list, MAX_EMBEDS_PER_MESSAGE)) {
       const at = Date.now();
       const inProStore = channelId === proStoreChannelId;
@@ -973,6 +999,30 @@ export async function postRestocks(
         if (messageId) messages.push({ channelId, messageId, posts: batch, cart: false, at });
         sent += batch.length;
         for (const p of batch) postedKeys.push(p.key, ...(p.extraKeys ?? []));
+        // EJ FÖRDRÖJD BUTIK: samma inlägg i den publika butikskanalen NU — ingen ping, ingen
+        // Pro-rad (ingen fick det tidigare). Samma `at` ⇒ en senare redigering (nivåkravet
+        // sänks, sidan binds) når båda inläggen.
+        if (alsoPublic && config.storeChannelId) {
+          const pub = await discordFetch(`/channels/${config.storeChannelId}/messages`, {
+            method: "POST",
+            authorization: `Bot ${config.botToken}`,
+            body: JSON.stringify({
+              embeds: batch.map((p) => buildRestockEmbed(p, { at })),
+              allowed_mentions: { parse: [] as string[] },
+              ...(config.proButton === "all" ? { components: proUpsellComponents(upsellSite()) } : {}),
+            }),
+          });
+          if (pub.ok) {
+            const pubId = await messageIdOf(pub);
+            if (pubId) messages.push({ channelId: config.storeChannelId, messageId: pubId, posts: batch, cart: false, at });
+          } else {
+            failed += batch.length;
+            console.error(
+              `[discord-restock] Kunde inte posta ${batch.length} butikslarm i den publika kanalen ${config.storeChannelId}: ` +
+                `${pub.status} ${await pub.text().catch(() => "")}`
+            );
+          }
+        }
         continue;
       }
       // 403 här betyder nästan alltid att boten saknar "Send Messages" i kanalen,
@@ -1119,9 +1169,18 @@ export function planDelayedStoreCopies(
   proMessages: unknown,
   publicMessages: unknown,
   nowMs: number,
-  done: ReadonlySet<string> = new Set()
+  done: ReadonlySet<string> = new Set(),
+  /** Butikerna som fördröjs (konfigurationens lista; null/utelämnad = `DELAYED_STORE_NAMES`). */
+  delayedStores?: readonly string[] | null
 ): DelayedStoreCopy[] {
   if (!Array.isArray(proMessages)) return [];
+  // Butiken står i embeddens "Butik"-fält (buildRestockEmbed). ⛔ Ett inlägg från en butik som INTE
+  // fördröjs (Webhallen) postades redan i den publika kanalen — en kopia vore en dubblett med en
+  // osann Pro-rad. Okänd butik ⇒ ingen kopia.
+  const storeOf = (e: RawDiscordEmbed): string | null => {
+    const f = (e.fields ?? []).find((x) => x?.name === "Butik");
+    return typeof f?.value === "string" ? f.value : null;
+  };
   const copied = new Set<string>();
   if (Array.isArray(publicMessages)) {
     for (const m of publicMessages as RawDiscordMessage[]) {
@@ -1140,6 +1199,7 @@ export function planDelayedStoreCopies(
     if (!Number.isFinite(at) || nowMs - at < minAge || nowMs - at > maxAge) continue;
     const embeds = m.embeds ?? [];
     if (!embeds.length || !embeds.every((e) => typeof e?.title === "string" && STORE_TITLE.test(e.title))) continue;
+    if (!embeds.every((e) => isDelayedStoreName(storeOf(e), delayedStores))) continue;
     const keys = embeds.map(copyKey);
     // Utan nyckel går kopian inte att känna igen efteråt ⇒ hellre ingen kopia än en dubblett per varv.
     if (keys.some((k) => k == null) || keys.some((k) => copied.has(k!))) continue;
@@ -1194,13 +1254,13 @@ export async function releaseDelayedStorePosts(
   const publicChannelId = config.storeChannelId!;
   const proMessages = await readChannelMessages(proChannelId, config.botToken, 50);
   if (!proMessages) return { sent: 0, failedIds: [], readFailed: true };
-  if (!planDelayedStoreCopies(proMessages, [], nowMs, done).length) return { sent: 0, failedIds: [], readFailed: false };
+  if (!planDelayedStoreCopies(proMessages, [], nowMs, done, config.delayedStores).length) return { sent: 0, failedIds: [], readFailed: false };
   const publicMessages = await readChannelMessages(publicChannelId, config.botToken, 100);
   if (!publicMessages) return { sent: 0, failedIds: [], readFailed: true };
 
   let sent = 0;
   const failedIds: string[] = [];
-  for (const copy of planDelayedStoreCopies(proMessages, publicMessages, nowMs, done)) {
+  for (const copy of planDelayedStoreCopies(proMessages, publicMessages, nowMs, done, config.delayedStores)) {
     try {
       const res = await discordFetch(`/channels/${publicChannelId}/messages`, {
         method: "POST",

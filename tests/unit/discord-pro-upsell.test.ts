@@ -15,12 +15,15 @@ import {
   releaseDelayedStorePosts,
   resolveRestockChannelId,
   storeDelayActive,
+  storeIsDelayed,
   type DiscordRestockConfig,
   type RestockPost,
 } from "@/lib/discord-restock";
 import {
+  DELAYED_STORE_NAMES,
   FREE_STORE_ALERT_DELAY_MINUTES,
   FREE_STORE_ALERT_MAX_AGE_MINUTES,
+  isDelayedStoreName,
   proHeadStartField,
   proUpsellComponents,
   withProHeadStart,
@@ -290,6 +293,46 @@ describe("utskicket (Discord mockad)", () => {
     expect(online.body).not.toHaveProperty("content");
     // proButton "stores" ⇒ ingen knapp på onlineinlägg.
     expect(online.body).not.toHaveProperty("components");
+  });
+
+  it("BARA SF-Bok fördröjs (ägarbeslut 2026-11-24): Webhallens butiksvara går till Pro (med ping) OCH den publika kanalen direkt, utan Pro-rad", async () => {
+    const webhallen: RestockPost = { ...storePost, key: "w", storeName: "Webhallen", storeUrl: "https://www.webhallen.com/se/product/1#butik", newStoreIds: ["S010"] };
+    expect(storeIsDelayed(storePost, config)).toBe(true);
+    expect(storeIsDelayed(webhallen, config)).toBe(false);
+    expect(storeIsDelayed(onlinePost, config)).toBe(false);
+    // Listan i konfigurationen skriver över konstanten; tom lista = ingen fördröjs.
+    expect(storeIsDelayed(webhallen, { ...config, delayedStores: ["webhallen"] })).toBe(true);
+    expect(storeIsDelayed(storePost, { ...config, delayedStores: [] })).toBe(false);
+    expect(isDelayedStoreName("sf-bok")).toBe(true);
+    expect(DELAYED_STORE_NAMES).toEqual(["SF-Bok"]);
+
+    const calls = stubDiscord();
+    const res = await postRestocks([storePost, webhallen], config);
+    expect(res.failed).toBe(0);
+    const posts = calls.filter((c) => c.method === "POST");
+    // ⛔ De två sorterna delar aldrig meddelande i Pro-kanalen (kopieraren dömer per meddelande).
+    const inPro = posts.filter((c) => c.channel === PRO_STORES);
+    expect(inPro).toHaveLength(2);
+    expect(inPro.every((c) => c.body.embeds.length === 1)).toBe(true);
+    const pub = posts.filter((c) => c.channel === PUBLIC_STORES);
+    expect(pub).toHaveLength(1);
+    expect(pub[0].body.embeds[0].fields.find((f: { name: string }) => f.name === "Butik").value).toBe("Webhallen");
+    expect(pub[0].body.embeds[0].fields.some((f: { name: string }) => f.name === "Scoutr Pro")).toBe(false);
+    expect(pub[0].body).not.toHaveProperty("content");
+    expect(pub[0].body.allowed_mentions).toEqual({ parse: [] });
+    expect(pub[0].body).not.toHaveProperty("components");
+    // Båda Webhallen-inläggen går att redigera efteråt (nivåkravet sänks, sidan binds).
+    expect(res.messages.filter((m) => m.posts[0].key === "w").map((m) => m.channelId).sort()).toEqual([PUBLIC_STORES, PRO_STORES].sort());
+  });
+
+  it("kopieraren rör aldrig ett Webhallen-inlägg i Pro-kanalen (det står redan i den publika)", () => {
+    const now = Date.parse("2026-11-24T12:00:00.000Z");
+    const at = now - 20 * 60_000;
+    const msg = (id: string, post: RestockPost) => ({ id, timestamp: new Date(at).toISOString(), author: { bot: true }, embeds: [buildRestockEmbed(post, { at })] });
+    const webhallen: RestockPost = { ...storePost, key: "w", storeName: "Webhallen", storeUrl: "https://www.webhallen.com/se/product/1#butik" };
+    expect(planDelayedStoreCopies([msg("sf", storePost), msg("wh", webhallen)], [], now).map((c) => c.proMessageId)).toEqual(["sf"]);
+    expect(planDelayedStoreCopies([msg("wh", webhallen)], [], now, new Set(), ["Webhallen"]).map((c) => c.proMessageId)).toEqual(["wh"]);
+    expect(planDelayedStoreCopies([msg("sf", storePost)], [], now, new Set(), [])).toEqual([]);
   });
 
   it('proButton "all" ⇒ knappen även under publika onlineinlägg, aldrig i Pro-kanalerna', async () => {
