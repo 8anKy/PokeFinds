@@ -292,7 +292,7 @@ async function importEpisode(ep: Episode, cards: ProviderCard[], dry: boolean, a
 
     // Singelprodukten (samma form som import-tcg-data).
     const title = enProductTitle(name, set.name, number, printedTotal) + (holo ? " · Holo" : "");
-    const existingProduct = hit?.products[0]?.id ?? (await prisma.product.findFirst({ where: { cardId, category: "SINGLE_CARD" }, select: { id: true } }))?.id;
+    const existingProduct = hit?.products[0]?.id ?? (await prisma.product.findFirst({ where: { cardId, category: "SINGLE_CARD", variantLabel: null }, select: { id: true } }))?.id;
     if (existingProduct) {
       await prisma.product.update({ where: { id: existingProduct }, data: { title, normalizedTitle: normalizeTitle(title), imageUrl: imageUrl ?? undefined, setId: set.id } });
     } else {

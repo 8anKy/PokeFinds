@@ -53,8 +53,12 @@ async function main() {
   const tradera = await prisma.retailer.findFirstOrThrow({ where: { name: "Tradera" } });
 
   // ── Fas 1: veta skenan mot DAGENS matchare ────────────────────────────────
+  // ⛔ BARA POKÉMON (2026-11-24). `matchListingToProduct` är Pokémon-matcharen; One Piece-annonser
+  //    döms av en egen modul (lib/one-piece-tradera). Torrkörningen samma dag avvisade ~hundratals
+  //    KORREKTA One Piece-rader ("Jinbe OP14-049 ← One Piece Card Game - Jinbe OP14-049") — en
+  //    skarp körning hade raderat dem.
   const products = await prisma.product.findMany({
-    where: { traderaListings: { some: {} } },
+    where: { game: "POKEMON", traderaListings: { some: {} } },
     select: {
       id: true, slug: true, title: true, category: true, normalizedTitle: true, language: true,
       variantLabel: true,
@@ -62,7 +66,7 @@ async function main() {
       traderaListings: { select: { id: true, itemId: true, title: true, price: true, url: true } },
     },
   });
-  const doomed: { id: string; productId: string; itemId: string; title: string; productTitle: string }[] = [];
+  const doomed: { id: string; productId: string; itemId: string; title: string; productTitle: string; why: string }[] = [];
   let rows = 0;
   for (const p of products) {
     for (const l of p.traderaListings) {
@@ -72,10 +76,15 @@ async function main() {
         normalizedTitle: p.normalizedTitle, card: p.card, language: p.language, variantLabel: p.variantLabel,
       }) != null;
       if (sameLanguage && matches) continue;
-      doomed.push({ id: l.id, productId: p.id, itemId: l.itemId, title: l.title, productTitle: p.title });
+      doomed.push({ id: l.id, productId: p.id, itemId: l.itemId, title: l.title, productTitle: p.title, why: !sameLanguage ? "språk" : "matchning" });
     }
   }
-  console.log(`Fas 1: ${rows} skena-rader granskade, ${doomed.length} avvisas av dagens matchare.`);
+  console.log(`Fas 1: ${rows} skena-rader granskade, ${doomed.length} avvisas av dagens matchare (${doomed.filter((d) => d.why === "språk").length} på språket).`);
+  // Hela listan till en fil för granskning FÖRE en skarp körning (DUMP=<sökväg>).
+  if (process.env.DUMP) {
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(process.env.DUMP, JSON.stringify(doomed.map(({ productTitle, title, why }) => ({ productTitle, title, why }))));
+  }
   for (const d of doomed.slice(0, 12)) console.log(`   ${d.productTitle}  ←  "${d.title}"`);
   if (doomed.length > 12) console.log(`   … och ${doomed.length - 12} till`);
   if (APPLY && doomed.length > 0) {
@@ -108,6 +117,7 @@ async function main() {
   const orphans = APPLY
     ? await prisma.product.findMany({
         where: {
+          game: "POKEMON",
           traderaListings: { some: { lastSeenAt: { gte: cutoff } } },
           offers: { none: { retailerId: tradera.id, price: { not: null } } },
         },
@@ -117,7 +127,7 @@ async function main() {
       // raderingarna påhittade — annars döljs precis de produkter reparationen finns för.
       (
         await prisma.product.findMany({
-          where: { traderaListings: { some: { lastSeenAt: { gte: cutoff } } } },
+          where: { game: "POKEMON", traderaListings: { some: { lastSeenAt: { gte: cutoff } } } },
           select: {
             id: true, slug: true, title: true, category: true,
             offers: { where: { retailerId: tradera.id, price: { not: null } }, select: { id: true } },
@@ -161,7 +171,7 @@ async function main() {
   const obsCutoff = new Date();
   obsCutoff.setDate(obsCutoff.getDate() - OBS_DAYS);
   const observations = await prisma.priceObservation.findMany({
-    where: { source: { name: "Tradera" }, observedAt: { gte: obsCutoff } },
+    where: { source: { name: "Tradera" }, observedAt: { gte: obsCutoff }, product: { game: "POKEMON" } },
     select: { id: true, productId: true, price: true, rawData: true },
   });
   const productById = new Map(products.map((p) => [p.id, p]));
@@ -192,7 +202,15 @@ async function main() {
     console.log(`   ${productById.get(o.productId)!.title.padEnd(46)} ${(o.price / 100).toFixed(2).padStart(9)} kr  ←  "${raw?.title}"`);
   }
   if (doomedObs.length > 8) console.log(`   … och ${doomedObs.length - 8} till`);
-  if (APPLY && doomedObs.length > 0) {
+  // ⛔ HISTORIKEN RADERAS BARA PÅ UTTRYCKLIG BEGÄRAN (VETO_HISTORY=1), sedan 2026-11-24. Domaren här
+  //    (`matchListingToProduct` på råtiteln) är STRÄNGARE än svepet som skrev punkterna: den känner
+  //    inte setaliasen ("Pokémon 30th Elite Trainer Box", "30-årsjubileum …") och avvisade 9 560 av
+  //    106 229 punkter på sju dygn — till stor del KORREKTA 30th Celebration-annonser. Historiken
+  //    byggs bara framåt och går inte att återskapa. Läs exemplen ovan innan flaggan sätts.
+  if (APPLY && doomedObs.length > 0 && process.env.VETO_HISTORY !== "1") {
+    console.log("   (historikpunkterna lämnas — sätt VETO_HISTORY=1 för att radera dem)");
+  }
+  if (APPLY && doomedObs.length > 0 && process.env.VETO_HISTORY === "1") {
     for (let i = 0; i < doomedObs.length; i += 500) {
       await prisma.priceObservation.deleteMany({ where: { id: { in: doomedObs.slice(i, i + 500).map((o) => o.id) } } });
     }

@@ -317,8 +317,12 @@ async function main() {
       const title = `${tcgCard.name} · ${tcgSet.name} ${tcgCard.number}/${tcgSet.printedTotal || tcgSet.total}`;
       // Matcha i första hand på cardId — seedade produkter kan ha annan slug
       // (set-NAMN istället för set-id) och får inte dubbletter.
+      // ⛔ BARA DEN ETIKETTLÖSA PRODUKTEN (2026-11-24). Utan `variantLabel: null` tog findFirst en
+      //    GODTYCKLIG av kortets produkter — för 59 Delta Reign-kort blev det Reverse Holo-produkten,
+      //    som döptes om till det vanliga kortets titel ("Hakamo-o · Delta Reign 74/103") medan det
+      //    vanliga stod kvar som "… 74". Två produkter med förväxlade namn, i katalog, sök och Discord.
       const existing = await prisma.product.findFirst({
-        where: { cardId: card.id, category: "SINGLE_CARD" },
+        where: { cardId: card.id, category: "SINGLE_CARD", variantLabel: null },
         select: { id: true },
       });
       let product;
