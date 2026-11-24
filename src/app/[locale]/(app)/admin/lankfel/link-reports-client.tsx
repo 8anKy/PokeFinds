@@ -3,6 +3,15 @@
 import { useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
+import { cn } from "@/lib/utils";
+
+const STOCK_LABEL: Record<string, string> = {
+  IN_STOCK: "i lager",
+  LIMITED: "få kvar",
+  PREORDER: "förhandsbokning",
+  OUT_OF_STOCK: "slut",
+  UNKNOWN: "okänt",
+};
 
 export interface OfferReportRow {
   id: string;
@@ -19,6 +28,12 @@ export interface OfferReportRow {
   offerGtin: string | null;
   productGtin: string | null;
   gtinMismatch: boolean;
+  /** Butikens egen titel för sidan (huvudboken) — null om vi aldrig sett den i en feed. */
+  storeTitle: string | null;
+  stockStatus: string;
+  lastSeenAt: string | null;
+  /** Vad beviset säger (lib/link-report-hint.ts) — ett förslag, admin avgör. */
+  hint: { text: string; tone: "resolved" | "wrong" | "check" } | null;
 }
 
 export interface ConflictRow {
@@ -229,8 +244,29 @@ export function LinkReportsClient({
                       {r.offerUrl}
                     </a>
                     <div className="mt-1 font-mono text-xs text-ink-muted">{r.offerGtin ?? "ingen kod"}</div>
+                    <div className="mt-2 text-sm">
+                      <span className="text-ink-muted">Butikens titel: </span>
+                      {r.storeTitle ?? <span className="text-ink-faint">okänd</span>}
+                    </div>
+                    <div className="mt-1 text-xs text-ink-muted">
+                      Hos oss: {STOCK_LABEL[r.stockStatus] ?? r.stockStatus}
+                      {r.lastSeenAt ? ` · sedd ${r.lastSeenAt.slice(0, 10)}` : ""}
+                    </div>
                   </div>
                 </div>
+
+                {r.hint && (
+                  <p
+                    className={cn(
+                      "mt-3 rounded-lg border px-3 py-2 text-sm",
+                      r.hint.tone === "wrong" && "border-fall/50 text-fall",
+                      r.hint.tone === "resolved" && "border-holo-cyan/40 text-holo-cyan",
+                      r.hint.tone === "check" && "border-surface-border text-ink-muted"
+                    )}
+                  >
+                    {r.hint.text}
+                  </p>
+                )}
 
                 {r.note && <p className="mt-2 text-sm text-ink-muted">”{r.note}”</p>}
 

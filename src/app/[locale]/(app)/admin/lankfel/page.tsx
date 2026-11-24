@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { formatGtin } from "@/lib/gtin";
 import { getGtinConflicts } from "@/services/gtin-conflicts";
+import { linkReportHint } from "@/lib/link-report-hint";
 import { LinkReportsClient, type OfferReportRow, type ProductReportRow } from "./link-reports-client";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export default async function AdminLinkReportsPage() {
         reporter: { select: { name: true } },
         offer: {
           select: {
-            id: true, url: true, price: true, gtin: true,
+            id: true, url: true, price: true, gtin: true, stockStatus: true, lastSeenAt: true, retailerId: true,
             retailer: { select: { name: true } },
             product: { select: { title: true, slug: true, gtin: true } },
           },
@@ -50,7 +51,21 @@ export default async function AdminLinkReportsPage() {
     }),
   ]);
 
-  const rows: OfferReportRow[] = reports.map((r) => ({
+  // Butikens EGEN titel för varje anmäld sida (huvudboken) — beviset admin jämför mot.
+  const listings = reports.length
+    ? await prisma.storeListing.findMany({
+        where: { OR: reports.map((r) => ({ retailerId: r.offer.retailerId, url: r.offer.url })) },
+        select: { retailerId: true, url: true, title: true },
+      })
+    : [];
+  const storeTitleOf = new Map(listings.map((l) => [`${l.retailerId}
+${l.url}`, l.title]));
+
+  const rows: OfferReportRow[] = reports.map((r) => {
+    const storeTitle = storeTitleOf.get(`${r.offer.retailerId}
+${r.offer.url}`) ?? null;
+    const gtinMismatch = !!r.offer.gtin && !!r.offer.product.gtin && r.offer.gtin !== r.offer.product.gtin;
+    return {
     id: r.id,
     reason: r.reason,
     note: r.note,
@@ -65,8 +80,13 @@ export default async function AdminLinkReportsPage() {
     offerGtin: formatGtin(r.offer.gtin),
     productGtin: formatGtin(r.offer.product.gtin),
     // Bevisad felmatch — butikens sida bär en ANNAN tillverkarkod än produkten.
-    gtinMismatch: !!r.offer.gtin && !!r.offer.product.gtin && r.offer.gtin !== r.offer.product.gtin,
-  }));
+    gtinMismatch,
+    storeTitle,
+    stockStatus: r.offer.stockStatus,
+    lastSeenAt: r.offer.lastSeenAt ? r.offer.lastSeenAt.toISOString() : null,
+    hint: linkReportHint({ reason: r.reason, stockStatus: r.offer.stockStatus, storeTitle, productTitle: r.offer.product.title, gtinMismatch }),
+    };
+  });
 
   const productRows: ProductReportRow[] = productReports.map((r) => ({
     id: r.id,

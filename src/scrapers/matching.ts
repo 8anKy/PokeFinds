@@ -2016,7 +2016,12 @@ function boosterBoxCount(t: string): number | null {
   const m =
     /\b(\d{2})\s*(?:er\b|x\b|-?\s*(?:boosters?|booster\s*packs?|packs?|paket|st|stk|pcs)\b)/i.exec(t) ??
     /\b(?:display|box)\s*(?:of\s*)?(\d{2})\b/i.exec(t);
-  return m ? Number(m[1]) : null;
+  if (m) return Number(m[1]);
+  // "Half Booster Box" / "Half Display / Booster Box" / "halvbox" ÄR 18-lådan — butikerna skriver sällan
+  // ut antalet (2026-11-24, användaranmälan: TCG Stores halvbox à 1 299 kr stod som lägsta pris på
+  // Chaos Rising Booster Box, och Samlarhobbys à 1 895 kr på samma produkt).
+  if (/\b(?:half|halv)[\s-]*(?:booster[\s-]*)?(?:box|display)\b|\bhalv(?:box|display)\b/i.test(t)) return 18;
+  return null;
 }
 export function boosterBoxCountMismatch(a: string, b: string): boolean {
   const ca = boosterBoxCount(a);
