@@ -24,6 +24,26 @@ Mätt offline (`scripts/scanner-proto/hybrid_eval.py`, topp-1):
 Regeln: vektorns topp-5 läggs först i steg A; har motorns etta < `EMB_FALLBACK_INLIERS` (15) och ingen
 regionkontroll bytte ⇒ vektorns etta. Vektorn väljer ALDRIG språk (EN/JP-tvillingar har samma konst).
 
+## Komprimerade block (2026-11-24)
+
+Volymen (5 GB, Railway Hobbys tak) blev full 2026-11-21: varje kort kostade ~82 kB referensdata (600
+punkter × 128 byte + koordinater). Referensdatat ligger nu som ETT zlib-block per kort i
+`refkp/blocks.bin`, med `blocks[cid] = [offset, längd, antal punkter]` i `refkp/meta.json`.
+
+- **Förlustfritt** — uppackningen ger exakt samma byte, så träffsäkerheten kan inte ändras. Mätt: 68 %
+  av rå storlek. ⛔ Den förlustbringande vägen är PRÖVAD OCH FÖRKASTAD: beskrivningarna projicerade
+  till 64 dimensioner (PCA, −47 %) kostade 6 av 255 foton (235 → 229 rätt,
+  `scripts/scanner-proto/storage_eval.py`).
+- **Flytten** (`Engine.migrate_step`, bakgrundstråd i app.py) går bakifrån genom tilläggsfilerna och
+  sedan basfilen: packar, kontrollerar att uppackningen är identisk, skriver blocken, bokför dem och
+  kapar först därefter originalet — volymen har inte plats för en kopia. Tål ett avbrott var som helst
+  (starten kapar blockfilens obokförda svans och originalets redan bokförda rader).
+- Nya kort (`add_cards`) skrivs direkt som block; `offsets[cid] = [-1, n]` betyder "finns bara som block".
+- Bevis: `test_blocks.py` (lokal kopia, omstart mitt i, bytejämförelse av varje kort + samma svar på
+  facit-fotona före och efter).
+- ⛔ En ny `DATA_VERSION` laddar ner basdatat i det GAMLA formatet och skriver över `meta.json` — då
+  försvinner blockindexet och alla tillagda kort. Bygg en ny version i blockformat först.
+
 ## Mätt (2026-09-30, offline)
 
 | Test | Motorn | Dagens skanner (bild + Gemini) |

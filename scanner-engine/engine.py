@@ -21,7 +21,7 @@ Data (byggs av scripts/scanner-proto/build_nn.py + build_refkp.py), i DATA_DIR:
   refkp/desc.npy, refkp/pts.npy, refkp/meta.json     — steg B (memmap, läses per kandidat)
   cards-meta.json                                    — {id: imageUrl} för regionkontrollens bilder
 """
-import json, os, time, urllib.request
+import json, os, time, urllib.request, zlib
 from collections import OrderedDict
 
 import cv2
@@ -106,6 +106,16 @@ class Engine:
         # Rader bortom basfilen ligger i tilläggsfilerna (add_cards) — rad a ≥ n_base läses därifrån.
         self.n_base = meta["n"]
         self.n_add = meta.get("n_add", 0)
+        # KOMPRIMERADE BLOCK (2026-11-24, volymen full): ett kort = ett zlib-block (punkter + beskrivningar)
+        # i blocks.bin. FÖRLUSTFRITT — varje byte är densamma efter uppackning, så träffsäkerheten kan inte
+        # ändras (mätt: 68 % av rå storlek; att i stället halvera beskrivningarna med PCA kostade 6 av 255
+        # foton och förkastades). `blocks[cid] = [byte-offset, längd, antal punkter]` vinner över radvägen.
+        self.blocks = meta.get("blocks", {})
+        self._blk = os.path.join(rk, "blocks.bin")
+        self._blk_fd = None
+        # Rader som fysiskt finns kvar i basfilen (migreringen kapar den bakifrån). n_base är ADRESSEN
+        # där tilläggsfilernas rader börjar och ändras aldrig.
+        self.base_rows = meta.get("base_rows", self.n_base)
         self._add_d = os.path.join(rk, "desc-add.bin")
         self._add_p = os.path.join(rk, "pts-add.bin")
         # OBOKFÖRDA RADER KAPAS (2026-11-24): add_cards skriver raderna FÖRE _persist. Dör _persist
@@ -120,17 +130,33 @@ class Engine:
                     print(f"kapade {extra / 1e6:.1f} MB obokförda rader ur {os.path.basename(path)}", flush=True)
             except OSError as e:
                 print(f"kunde inte kapa {path}: {e}", flush=True)
-        print(f"volym: {self.disk_free_mb()} MB ledigt, indexet {os.path.getsize(os.path.join(nn, 'ivfpq.faiss')) // 2**20} MB", flush=True)
+        # Samma sak för blockfilen (svans utan indexrad = ett block som skrevs men aldrig bokfördes).
+        end = max((b[0] + b[1] for b in self.blocks.values()), default=0)
+        try:
+            if os.path.exists(self._blk) and os.path.getsize(self._blk) > end:
+                os.truncate(self._blk, end)
+        except OSError as e:
+            print(f"kunde inte kapa blocks.bin: {e}", flush=True)
+        self._blk_size = os.path.getsize(self._blk) if os.path.exists(self._blk) else 0
+        print(f"volym: {self.disk_free_mb()} MB ledigt, indexet {os.path.getsize(os.path.join(nn, 'ivfpq.faiss')) // 2**20} MB, "
+              f"{len(self.blocks)} kort i block", flush=True)
         # ⛔ INTE memmap på Linux: Railway räknar kärnans sidcache som minne (cgroup), och en memmap
         # över 2,8 GB hade vuxit med varje skanning tills hela filen låg i "minnet". Raderna läses med
         # pread och sidorna släpps direkt (POSIX_FADV_DONTNEED). Windows (lokal mätning) kör memmap.
         self._pread = hasattr(os, "pread") and hasattr(os, "posix_fadvise")
-        if self._pread:
-            self._fd_d, self._off_d = self._open_npy(os.path.join(rk, "desc.npy"))
-            self._fd_p, self._off_p = self._open_npy(os.path.join(rk, "pts.npy"))
-        else:
-            self.D = np.load(os.path.join(rk, "desc.npy"), mmap_mode="r")
-            self.P = np.load(os.path.join(rk, "pts.npy"), mmap_mode="r")
+        self._base_d, self._base_p = os.path.join(rk, "desc.npy"), os.path.join(rk, "pts.npy")
+        self._fd_d = self._fd_p = None
+        self.D = self.P = None
+        self._off_d = self._npy_data_offset(self._base_d)
+        self._off_p = self._npy_data_offset(self._base_p)
+        # Basfilen: en migreringsomgång som bokfördes men dog före kapningen lämnar rader kvar.
+        for path, off, row in ((self._base_d, self._off_d, 128), (self._base_p, self._off_p, 8)):
+            try:
+                if off is not None and os.path.getsize(path) > off + self.base_rows * row:
+                    os.truncate(path, off + self.base_rows * row)
+            except OSError as e:
+                print(f"kunde inte kapa {path}: {e}", flush=True)
+        self._open_base()
         cm = os.path.join(data_dir, "cards-meta.json")
         self.image_urls = json.load(open(cm)) if os.path.exists(cm) else {}
         # Kortets språk (EN/JP) — SPRÅKTVILLINGAR avgörs alltid på textytan, se identify().
@@ -249,12 +275,37 @@ class Engine:
 
     # ---------- referenser ----------
     @staticmethod
-    def _open_npy(path):
+    def _npy_data_offset(path):
+        """Var datat börjar i en .npy-fil (efter huvudet); None om filen saknas."""
+        if not os.path.exists(path):
+            return None
         with open(path, "rb") as f:
             ver = np.lib.format.read_magic(f)
             (np.lib.format.read_array_header_1_0 if ver == (1, 0) else np.lib.format.read_array_header_2_0)(f)
-            data_off = f.tell()
-        return os.open(path, os.O_RDONLY), data_off
+            return f.tell()
+
+    def _open_base(self):
+        """Öppnar basfilerna för läsning. Radantalet tas ur `base_rows`, inte ur .npy-huvudet —
+        migreringen kapar filerna bakifrån och huvudet säger då för mycket."""
+        if self.base_rows <= 0 or self._off_d is None or self._off_p is None:
+            return
+        if self._pread:
+            self._fd_d = os.open(self._base_d, os.O_RDONLY)
+            self._fd_p = os.open(self._base_p, os.O_RDONLY)
+        else:
+            self.D = np.memmap(self._base_d, dtype=np.uint8, mode="r", offset=self._off_d, shape=(self.base_rows, 128))
+            self.P = np.memmap(self._base_p, dtype=np.float32, mode="r", offset=self._off_p, shape=(self.base_rows, 2))
+
+    def _close_base(self):
+        for fd in (self._fd_d, self._fd_p):
+            if fd is not None:
+                os.close(fd)
+        self._fd_d = self._fd_p = None
+        for arr in (self.D, self.P):
+            mm = getattr(arr, "_mmap", None)
+            if mm is not None:
+                mm.close()
+        self.D = self.P = None
 
     def _read_rows(self, fd, data_off, row_bytes, a, n, dtype, cols):
         start = data_off + a * row_bytes
@@ -262,24 +313,140 @@ class Engine:
         os.posix_fadvise(fd, start, n * row_bytes, os.POSIX_FADV_DONTNEED)
         return np.frombuffer(buf, dtype=dtype).reshape(n, cols)
 
-    def _ref(self, cid):
-        off = self.offsets.get(cid)
-        if not off:
-            return None
-        a, n = off
-        if a >= self.n_base:  # tillagt av add_cards — tilläggsfilerna är små, läs rakt av
+    def _raw_rows(self, a, n):
+        """Ett korts OKOMPRIMERADE rader (punkter float32, beskrivningar uint8) ur bas- eller tilläggsfilen."""
+        if a >= self.n_base:  # tillagt av add_cards före blocken — tilläggsfilerna, läs rakt av
             r = a - self.n_base
             with open(self._add_p, "rb") as fp, open(self._add_d, "rb") as fd:
                 fp.seek(r * 8)
                 pts = np.frombuffer(fp.read(n * 8), dtype=np.float32).reshape(n, 2)
                 fd.seek(r * 128)
                 des = np.frombuffer(fd.read(n * 128), dtype=np.uint8).reshape(n, 128)
-            return pts, des.astype(np.float32) / 255.0
+            return pts, des
         if self._pread:
-            pts = self._read_rows(self._fd_p, self._off_p, 8, a, n, np.float32, 2)
-            des = self._read_rows(self._fd_d, self._off_d, 128, a, n, np.uint8, 128)
+            return (self._read_rows(self._fd_p, self._off_p, 8, a, n, np.float32, 2),
+                    self._read_rows(self._fd_d, self._off_d, 128, a, n, np.uint8, 128))
+        return np.array(self.P[a : a + n]), np.array(self.D[a : a + n])
+
+    @staticmethod
+    def _pack_block(pts, des):
+        """Punkter + beskrivningar → ett zlib-block. Förlustfritt (se `_unpack_block`)."""
+        return zlib.compress(np.ascontiguousarray(pts, dtype="<f4").tobytes() + np.ascontiguousarray(des, dtype=np.uint8).tobytes(), 6)
+
+    @staticmethod
+    def _unpack_block(blob, n):
+        raw = zlib.decompress(blob)
+        if len(raw) != n * 136:
+            raise ValueError(f"block: {len(raw)} byte, väntade {n * 136}")
+        pts = np.frombuffer(raw, dtype="<f4", count=n * 2).reshape(n, 2)
+        des = np.frombuffer(raw, dtype=np.uint8, offset=n * 8).reshape(n, 128)
+        return pts, des
+
+    def _read_block(self, b):
+        off, length, n = b
+        if self._pread:
+            if self._blk_fd is None:
+                self._blk_fd = os.open(self._blk, os.O_RDONLY)
+            blob = os.pread(self._blk_fd, length, off)
+            os.posix_fadvise(self._blk_fd, off, length, os.POSIX_FADV_DONTNEED)
+        else:
+            with open(self._blk, "rb") as f:
+                f.seek(off)
+                blob = f.read(length)
+        return self._unpack_block(blob, n)
+
+    def _ref(self, cid):
+        b = self.blocks.get(cid)
+        if b:
+            pts, des = self._read_block(b)
             return pts, des.astype(np.float32) / 255.0
-        return np.asarray(self.P[a : a + n]), np.asarray(self.D[a : a + n], dtype=np.float32) / 255.0
+        off = self.offsets.get(cid)
+        if not off or off[0] < 0:
+            return None
+        pts, des = self._raw_rows(off[0], off[1])
+        return pts, des.astype(np.float32) / 255.0
+
+    def _persist_meta(self):
+        """Bara refkp/meta.json (atomiskt). Migreringen skriver den per omgång — hela `_persist` skriver
+        om indexet (230 MB), och det utrymmet finns inte förrän migreringen är klar."""
+        path = os.path.join(self.rk_dir, "meta.json")
+        with open(path + ".tmp", "w") as f:
+            json.dump({"offsets": self.offsets, "shapes": self.shapes, "n": self.n_base, "n_add": self.n_add,
+                       "base_rows": self.base_rows, "blocks": self.blocks, "ref_kp": 600}, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(path + ".tmp", path)
+        _drop_cache(path)
+
+    def migrate_pending(self):
+        """Antal kort som fortfarande ligger okomprimerade."""
+        return sum(1 for cid, off in self.offsets.items() if off[0] >= 0 and cid not in self.blocks)
+
+    def migrate_step(self, chunk_bytes=32 * 2**20):
+        """
+        EN omgång av flytten till komprimerade block (2026-11-24). Tar de SISTA okomprimerade korten i
+        filen (först tilläggsfilerna, sedan basfilen), packar dem, KONTROLLERAR att uppackningen ger
+        exakt samma byte, skriver blocken, bokför dem i meta.json och kapar FÖRST DÄREFTER originalet.
+        Bakifrån, för att en kapning ska ge tillbaka utrymmet direkt — volymen har inte plats för en
+        kopia. Tål ett avbrott var som helst: före bokföringen är originalet orört (blockfilens svans
+        kapas vid start), efter den kapar starten originalet till det bokförda radantalet.
+        Motorn svarar som vanligt under tiden — `_ref` läser blocket om det finns, annars raderna.
+        """
+        pending = sorted((off[0], off[1], cid) for cid, off in self.offsets.items() if off[0] >= 0 and cid not in self.blocks)
+        if not pending:
+            return self._migrate_finish()
+        free = self.disk_free_mb()
+        if free is not None and free < chunk_bytes // 2**20 + 16:
+            return {"done": False, "stalled": True, "freeMb": free, "pending": len(pending)}
+        in_add = pending[-1][0] >= self.n_base
+        tail, size, i = [], 0, len(pending) - 1
+        while i >= 0 and size < chunk_bytes and (pending[i][0] >= self.n_base) == in_add:
+            tail.append(pending[i])
+            size += pending[i][1] * 136
+            i -= 1
+        new_blocks, blobs, pos = {}, [], self._blk_size
+        for a, n, cid in tail:
+            pts, des = self._raw_rows(a, n)
+            blob = self._pack_block(pts, des)
+            p2, d2 = self._unpack_block(blob, n)
+            if not (np.array_equal(np.asarray(pts, dtype="<f4"), p2) and np.array_equal(des, d2)):
+                raise RuntimeError(f"block för {cid} stämmer inte med originalet — avbryter migreringen")
+            new_blocks[cid] = [pos, len(blob), n]
+            blobs.append(blob)
+            pos += len(blob)
+        with open(self._blk, "ab") as f:
+            for blob in blobs:
+                f.write(blob)
+            f.flush()
+            os.fsync(f.fileno())
+        _drop_cache(self._blk)  # det nyss skrivna ligger annars kvar i sidcachen (räknas som minne)
+        first = min(a for a, _, _ in tail)  # allt från den här raden och framåt är nu block
+        self.blocks.update(new_blocks)
+        self._blk_size = pos
+        if in_add:
+            self.n_add = first - self.n_base
+        else:
+            self.base_rows = first
+        self._persist_meta()
+        if in_add:
+            os.truncate(self._add_d, self.n_add * 128)
+            os.truncate(self._add_p, self.n_add * 8)
+        else:
+            self._close_base()  # Windows: en mappad fil går inte att kapa
+            os.truncate(self._base_d, self._off_d + self.base_rows * 128)
+            os.truncate(self._base_p, self._off_p + self.base_rows * 8)
+            self._open_base()
+        return {"done": False, "moved": len(tail), "pending": len(pending) - len(tail), "freeMb": self.disk_free_mb()}
+
+    def _migrate_finish(self):
+        """Allt ligger i block: ta bort de tömda tilläggsfilerna (basfilerna är bara huvudet kvar)."""
+        for path in (self._add_d, self._add_p):
+            try:
+                if os.path.exists(path) and os.path.getsize(path) == 0:
+                    os.remove(path)
+            except OSError:
+                pass
+        return {"done": True, "pending": 0, "freeMb": self.disk_free_mb()}
 
     def _ref_gray(self, cid):
         if cid in self._grays:
@@ -510,7 +677,7 @@ class Engine:
                     "error": "disk-full", "freeMb": free, "needMb": need}
         added, failed = [], []
         vecs, owners_add = [], []
-        with open(self._add_d, "ab") as fd, open(self._add_p, "ab") as fp:
+        with open(self._blk, "ab") as fb:
             for c in cards:
                 cid, url = c.get("id"), c.get("imageUrl")
                 if not cid or not url or cid in self.offsets:
@@ -538,11 +705,13 @@ class Engine:
                 owners_add.append(np.full(len(v), card_idx, np.int32))
                 r = (_root_sift(d_rk)[:600] * 255).astype(np.uint8)
                 pts = np.float32([k.pt for k in kp])[:600]
-                fd.write(r.tobytes())
-                fp.write(pts.tobytes())
-                self.offsets[cid] = [self.n_base + self.n_add, len(r)]
+                # Nya kort skrivs direkt som komprimerade block (aldrig mer i tilläggsfilerna).
+                blob = self._pack_block(pts, r)
+                fb.write(blob)
+                self.blocks[cid] = [self._blk_size, len(blob), len(r)]
+                self._blk_size += len(blob)
+                self.offsets[cid] = [-1, len(r)]  # -1 = finns bara som block
                 self.shapes[cid] = [480, int(w * 480 / h)]
-                self.n_add += len(r)
                 self.image_urls[cid] = url
                 if c.get("language"):
                     self.langs[cid] = c["language"]
@@ -555,8 +724,7 @@ class Engine:
             self._persist()
             self.emb_persist()
             # Det nyss skrivna ligger i sidcachen — släpp det (cgroupen räknar den som minne).
-            for f in (self._add_d, self._add_p):
-                _drop_cache(f)
+            _drop_cache(self._blk)
         return {"added": len(added), "failed": failed[:20], "failedCount": len(failed), "cards": len(self.ids)}
 
     def _persist(self):
@@ -570,7 +738,7 @@ class Engine:
         np.save(os.path.join(self.nn_dir, "owners.tmp.npy"), self.owners)
         os.replace(os.path.join(self.nn_dir, "owners.tmp.npy"), os.path.join(self.nn_dir, "owners.npy"))
         dump_json(os.path.join(self.nn_dir, "cards.json"), self.ids)
-        dump_json(os.path.join(self.rk_dir, "meta.json"), {"offsets": self.offsets, "shapes": self.shapes, "n": self.n_base, "n_add": self.n_add, "ref_kp": 600})
+        self._persist_meta()
         dump_json(os.path.join(self.dir, "cards-meta.json"), self.image_urls)
         dump_json(os.path.join(self.dir, "cards-lang.json"), self.langs)
         # Skrivna filer stannar i sidcachen (ivfpq ensam 171 MB) — släpp dem, allt är redan i processen.

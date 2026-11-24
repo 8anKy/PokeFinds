@@ -39,6 +39,33 @@ def _trim():
         _libc.malloc_trim(0)
 
 
+def _migrate_blocks():
+    """Flyttar referensdatat till komprimerade block (engine.migrate_step) — en omgång i taget under
+    låset, så skanningar svarar som vanligt emellan. Avbryts motorn mitt i (den somnar efter ~10 min
+    utan trafik) fortsätter nästa start där den slutade."""
+    try:
+        todo = engine.migrate_pending()
+        if todo:
+            print(f"komprimerar referensdatat: {todo} kort kvar, {engine.disk_free_mb()} MB ledigt", flush=True)
+        rounds = 0
+        while True:
+            with lock:
+                r = engine.migrate_step(16 * 2**20)  # små omgångar: en skanning väntar högst någon sekund
+            rounds += 1
+            if r.get("done"):
+                if todo:
+                    print(f"komprimeringen klar: {r.get('freeMb')} MB ledigt", flush=True)
+                return
+            if r.get("stalled"):
+                print(f"komprimeringen väntar: {r.get('freeMb')} MB ledigt räcker inte ({r.get('pending')} kort kvar)", flush=True)
+                return
+            if rounds % 20 == 0:
+                print(f"komprimerar: {r.get('pending')} kort kvar, {r.get('freeMb')} MB ledigt", flush=True)
+            time.sleep(0.05)
+    except Exception as e:  # motorn ska aldrig dö på städningen — originalet är orört tills blocket är kontrollerat
+        print(f"komprimeringen avbröts: {type(e).__name__}: {e}", flush=True)
+
+
 _backfill_busy = threading.Lock()
 
 
@@ -124,7 +151,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            return self._json(200, {"ok": True, "cards": len(engine.ids), "mem": _mem(), "diskFreeMb": engine.disk_free_mb(),
+            return self._json(200, {"ok": True, "cards": len(engine.ids), "mem": _mem(), "diskFreeMb": engine.disk_free_mb(), "blocks": len(engine.blocks),
                                     "emb": len(engine.emb["ids"]) if engine.emb else None})
         if self.path == "/cards":  # vilka kort motorn känner — webbens påfyllning diffar mot katalogen
             if not self._authed():
@@ -184,6 +211,7 @@ class DualStackServer(ThreadingHTTPServer):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
     threading.Thread(target=_emb_backfill, daemon=True).start()
+    threading.Thread(target=_migrate_blocks, daemon=True).start()
     _trim()
     print(f"scanner-engine på :{port}, {len(engine.ids)} kort, minne {_mem()}", flush=True)
     DualStackServer(("::", port), Handler).serve_forever()
