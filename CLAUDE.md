@@ -569,6 +569,16 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   diskcache (TTL 24 h) → **en ändrad restockWatch-flagga slår igenom först inom ett dygn.**
 
 ## Öppna ärenden / Nästa steg
+- ⛔ **SKANNERMOTORNS VOLYM ÄR FULL SEDAN 2026-11-21 (hittat 11-24)**: 5 GB-taket (Railway Hobby) nått — varje
+  kort kostar ~86 kB (600 nyckelpunkter × 128 B), och `_persist` skriver om hela indexet (230 MB) som tmp + replace.
+  MÄTT 11-24: 231 MB ledigt, 254 krävs ⇒ `engine-sync` svarar **507 `engine-disk-full`** (var ett naket 500 fyra
+  nätter bakom `continue-on-error`) och INGA nya kort blir skannbara. Nödlagning 00d9387c: utrymmeskoll före
+  `add_cards`, obokförda rader kapas vid start, `volym: N MB ledigt` i startloggen + `diskFreeMb` i `/health`.
+  Riktig lagning (väntar på ägarens go): mät 600 → 400 nyckelpunkter eller 128 → 64 dim på facit-seten, ny DATA_VERSION.
+- **PRISJOBBEN TÅL ETT AVKLIPPT SVAR (2026-11-24)**: nattkörningen dog på ett avklippt 200-svar från leverantören
+  och Pokémon stod utan dagens pris. `jsonOrNull`/`fetchOrNull` (`lib/json-or-null.ts`) = misslyckat FÖRSÖK som frågas
+  om (cardmarket-/hot-card-/jp-singles-refresh). ⛔ Reservens spärr (`gate`) läser om STEGET "Priser + historik
+  (RapidAPI)" gick grönt — byt aldrig stegnamnet utan att byta det i spärren (`json-or-null.test.ts` vaktar).
 - **Skannern: on-device-nummerläsning i SKUGGLÄGE sedan 2026-09-01** (`.claude/rules/scanner.md`): iOS via
   egen Apple Vision-plugin (`plugins/foilio-text-recognition`, ren SPM — ML Kit är CocoaPods-only), Android
   via ML Kit. Kräver NYTT Codemagic-bygge (Swift-filen kompileras första gången där) för att ge rader. Läs
