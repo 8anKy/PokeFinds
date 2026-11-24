@@ -81,10 +81,10 @@ export function LinkReportsClient({
 }) {
   const [closed, setClosed] = useState<Map<string, string>>(new Map());
 
-  async function closeReport(id: string, status: "ACTIONED" | "DISMISSED") {
+  async function closeReport(id: string, status: "ACTIONED" | "DISMISSED", kind: "product" | "offer" = "product") {
     setBusy(id);
     try {
-      const res = await fetch(`/api/admin/product-reports/${id}`, {
+      const res = await fetch(`/api/admin/${kind}-reports/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -274,6 +274,23 @@ export function LinkReportsClient({
                   <span className="text-sm tabular-nums">
                     {r.offerPrice != null ? formatPrice(r.offerPrice) : "–"}
                   </span>
+                  {/* Stäng anmälan UTAN att röra länken: redan löst, eller anmälan stämde inte. */}
+                  <button
+                    type="button"
+                    disabled={busy === r.id || closed.has(r.id) || gone.has(r.offerId)}
+                    onClick={() => closeReport(r.id, "ACTIONED", "offer")}
+                    className="rounded-md border border-holo-cyan/40 px-3 py-1 text-xs font-medium text-holo-cyan transition-colors hover:bg-holo-cyan/10 disabled:opacity-50"
+                  >
+                    {closed.get(r.id) === "ACTIONED" ? "Åtgärdad ✓" : "Åtgärdad"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy === r.id || closed.has(r.id) || gone.has(r.offerId)}
+                    onClick={() => closeReport(r.id, "DISMISSED", "offer")}
+                    className="rounded-md border border-surface-border px-3 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-surface-overlay disabled:opacity-50"
+                  >
+                    {closed.get(r.id) === "DISMISSED" ? "Avfärdad" : "Avfärda"}
+                  </button>
                   <button
                     type="button"
                     disabled={busy === r.offerId || gone.has(r.offerId)}
