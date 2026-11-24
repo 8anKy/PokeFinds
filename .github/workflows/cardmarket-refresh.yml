@@ -45,12 +45,19 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           if [ "${{ github.event_name }}" != "schedule" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
-          n=$(gh run list -w cardmarket-refresh.yml --created ">=$(date -u +%F)T00:00:00Z" --limit 20  --json databaseId,event -q "[.[] | select(.databaseId != ${{ github.run_id }})] | length")
+          # ⛔ Bara en körning där PRISSTEGET gick grönt räknas (2026-11-24: nattkörningen dog i
+          # prissteget, reserven såg "en körning har gått" och hoppade över — Pokémon stod utan
+          # dagens pris). En överhoppad reserv är också "success" som körning, därför läses steget.
+          n=0
+          for id in $(gh run list -w cardmarket-refresh.yml --created ">=$(date -u +%F)T00:00:00Z" --limit 20 --json databaseId -q ".[] | select(.databaseId != ${{ github.run_id }}) | .databaseId"); do
+            ok=$(gh run view "$id" --json jobs -q '[.jobs[] | select(.name == "refresh") | .steps[] | select(.name == "Priser + historik (RapidAPI)" and .conclusion == "success")] | length' || echo 0)
+            if [ "$ok" != "0" ]; then n=$((n + 1)); fi
+          done
           if [ "$n" != "0" ]; then
-            echo "En körning har redan gått idag (UTC) ($n st) — reserven hoppar över."
+            echo "Prissteget har redan gått grönt idag (UTC) ($n st) — reserven hoppar över."
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::Ingen nattkörning idag — väckarklockan (discord-restock) har inte startat den. Reserven kör."
+            echo "::warning::Ingen lyckad prisrefresh idag — nattkörningen saknas eller dog i prissteget. Reserven kör."
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -132,7 +139,7 @@ jobs:
           CARDTRADER_TOKEN: ${{ secrets.CARDTRADER_TOKEN }}
         run: npx tsx scripts/link-new-set-to-cardmarket.ts --recent-days 45 --apply
       - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
-        name: Priser + historik (RapidAPI)
+        name: Priser + historik (RapidAPI) # ⛔ gate-jobbet ovan läser stegets NAMN — byt aldrig bara här
         run: npx tsx scripts/cardmarket-refresh-run.ts
 
       # KORT SOM BARA FINNS PÅ CARDMARKET (2026-10-15): stämplade tryckningar, startdäck,

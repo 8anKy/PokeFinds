@@ -13,6 +13,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
+import { fetchOrNull, jsonOrNull } from "../lib/json-or-null";
 import { getRatesOre, priceOreFromEur } from "../lib/exchange-rate";
 import { cmImageProxyUrl, cmRenderExists } from "../lib/cm-image";
 import {
@@ -1776,14 +1777,21 @@ export async function runCardmarketRefresh(
 
   const api = async <T>(url: string): Promise<T | null> => {
     for (let attempt = 0; attempt < 4; attempt++) {
-      const r = await fetch(url, { headers: { "x-rapidapi-host": HOST, "x-rapidapi-key": KEY } });
+      const r = await fetchOrNull(url, { headers: { "x-rapidapi-host": HOST, "x-rapidapi-key": KEY } });
+      if (!r) { await sleep(1000 * (attempt + 1)); continue; }
       const rem = r.headers.get("x-ratelimit-requests-remaining");
       if (rem != null) res.remaining = parseInt(rem, 10);
       if (r.status === 429 || r.status >= 500) { await sleep(1000 * (attempt + 1)); continue; }
       if (!r.ok) { console.error(`[cm-refresh] ${r.status} ${url}`); return null; }
       res.apiCalls++;
-      return (await r.json()) as T;
+      // ⛔ Ett avklippt 200-svar är ett misslyckat FÖRSÖK, inte ett haveri (2026-11-24: ett enda
+      // sådant fällde hela nattkörningen och Pokémon stod utan dagens pris).
+      const body = await jsonOrNull<T>(r);
+      if (body != null) return body;
+      console.warn(`[cm-refresh] avklippt svar (försök ${attempt + 1}/4): ${url}`);
+      await sleep(1000 * (attempt + 1));
     }
+    console.error(`[cm-refresh] gav upp efter 4 försök: ${url}`);
     return null;
   };
 

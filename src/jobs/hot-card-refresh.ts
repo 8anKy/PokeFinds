@@ -12,6 +12,7 @@
  */
 import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
+import { fetchOrNull, jsonOrNull } from "../lib/json-or-null";
 import { getRatesOre, priceOreFromEur } from "../lib/exchange-rate";
 import {
   cardmarketProductUrl,
@@ -125,13 +126,17 @@ export async function runHotCardRefresh(
 
   const api = async <T>(url: string): Promise<T | null> => {
     for (let attempt = 0; attempt < 4; attempt++) {
-      const r = await fetch(url, { headers: { "x-rapidapi-host": HOST, "x-rapidapi-key": KEY } });
+      const r = await fetchOrNull(url, { headers: { "x-rapidapi-host": HOST, "x-rapidapi-key": KEY } });
+      if (!r) { await sleep(1000 * (attempt + 1)); continue; }
       const rem = r.headers.get("x-ratelimit-requests-remaining");
       if (rem != null) res.remaining = parseInt(rem, 10);
       if (r.status === 429 || r.status >= 500) { await sleep(1000 * (attempt + 1)); continue; }
       if (!r.ok) { console.error(`[hot-refresh] ${r.status} ${url}`); return null; }
       res.apiCalls++;
-      return (await r.json()) as T;
+      // Avklippt 200-svar = misslyckat försök, fråga igen (se lib/json-or-null.ts).
+      const body = await jsonOrNull<T>(r);
+      if (body != null) return body;
+      await sleep(1000 * (attempt + 1));
     }
     return null;
   };

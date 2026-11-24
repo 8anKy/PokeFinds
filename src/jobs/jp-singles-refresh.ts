@@ -33,6 +33,7 @@
  */
 import { prisma } from "@/lib/db";
 import { mapPool } from "@/lib/concurrency";
+import { fetchOrNull, jsonOrNull } from "@/lib/json-or-null";
 import { getRatesOre, priceOreFromEur } from "@/lib/exchange-rate";
 import { normalizeTitle, slugify, utcToday } from "@/lib/utils";
 import {
@@ -172,12 +173,18 @@ export async function runJapaneseSinglesRefresh(
 
   async function api<T>(url: string): Promise<T> {
     for (let attempt = 0; attempt < 3; attempt++) {
-      const r = await fetch(url, { headers: { "x-rapidapi-key": KEY, "x-rapidapi-host": HOST } });
+      const r = await fetchOrNull(url, { headers: { "x-rapidapi-key": KEY, "x-rapidapi-host": HOST } });
       res.apiCalls++;
-      const rem = r.headers.get("x-ratelimit-requests-remaining");
-      if (rem != null) res.remaining = parseInt(rem, 10);
-      if (r.status === 429) throw new Error("[cm-jp-singles] RapidAPI-kvoten slut (429).");
-      if (r.ok) return (await r.json()) as T;
+      if (r) {
+        const rem = r.headers.get("x-ratelimit-requests-remaining");
+        if (rem != null) res.remaining = parseInt(rem, 10);
+        if (r.status === 429) throw new Error("[cm-jp-singles] RapidAPI-kvoten slut (429).");
+        if (r.ok) {
+          // Avklippt 200-svar = misslyckat försök, fråga igen (se lib/json-or-null.ts).
+          const body = await jsonOrNull<T>(r);
+          if (body != null) return body;
+        }
+      }
       await sleep(1000 * (attempt + 1));
     }
     // ⛔ Fail loud: en tappad sida = tyst förlorade kort + priser (samma regel som
@@ -420,14 +427,15 @@ export async function runJapaneseSinglesGapFill(
   do {
     let d: { data: JpApiCard[]; paging: { total: number } } | null = null;
     for (let attempt = 0; attempt < 3 && !d; attempt++) {
-      const r = await fetch(`https://${HOST}/pokemon-jp/cards?page=${page}`, { headers: { "x-rapidapi-key": KEY, "x-rapidapi-host": HOST } });
+      const r = await fetchOrNull(`https://${HOST}/pokemon-jp/cards?page=${page}`, { headers: { "x-rapidapi-key": KEY, "x-rapidapi-host": HOST } });
       out.apiCalls++;
-      const rem = r.headers.get("x-ratelimit-requests-remaining");
+      const rem = r?.headers.get("x-ratelimit-requests-remaining");
       if (rem != null) out.remaining = parseInt(rem, 10);
       // Kvoten slut ⇒ sluta och skriv det som hann. Luckfyllnaden är en bonus, inte dygnets pris.
-      if (r.status === 429) { page = total + 1; break; }
-      if (r.ok) d = (await r.json()) as { data: JpApiCard[]; paging: { total: number } };
-      else await sleep(1000 * (attempt + 1));
+      if (r?.status === 429) { page = total + 1; break; }
+      // Avklippt 200-svar = misslyckat försök, fråga igen (se lib/json-or-null.ts).
+      if (r?.ok) d = await jsonOrNull<{ data: JpApiCard[]; paging: { total: number } }>(r);
+      if (!d) await sleep(1000 * (attempt + 1));
     }
     if (!d) break;
     total = d.paging?.total ?? 1;
