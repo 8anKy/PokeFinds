@@ -574,7 +574,12 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   MÄTT 11-24: 231 MB ledigt, 254 krävs ⇒ `engine-sync` svarar **507 `engine-disk-full`** (var ett naket 500 fyra
   nätter bakom `continue-on-error`) och INGA nya kort blir skannbara. Nödlagning 00d9387c: utrymmeskoll före
   `add_cards`, obokförda rader kapas vid start, `volym: N MB ledigt` i startloggen + `diskFreeMb` i `/health`.
-  Riktig lagning (väntar på ägarens go): mät 600 → 400 nyckelpunkter eller 128 → 64 dim på facit-seten, ny DATA_VERSION.
+  ✅ **Riktig lagning 3e3c582e (ägarens go 11-24, villkor: träffsäkerheten får inte röras)**: referensdatat ligger som
+  FÖRLUSTFRIA zlib-block (`refkp/blocks.bin`, ~69 % av rå storlek), flytten sker i bakgrunden vid start
+  (`migrate_step`), nya kort skrivs som block. Bevis `scanner-engine/test_blocks.py`: 36 509 kort byte för byte lika,
+  0 av 120 facit-foton får annat svar, två hårda avbrott mitt i. ⛔ Förlustbringande krympning är PRÖVAD OCH FÖRKASTAD
+  (64 dim = 6 av 255 foton sämre, `scripts/scanner-proto/storage_eval.py`). ⛔ En ny `DATA_VERSION` i gammalt format
+  skriver över blockindexet — se scanner-engine/README.md.
 - **PRISJOBBEN TÅL ETT AVKLIPPT SVAR (2026-11-24)**: nattkörningen dog på ett avklippt 200-svar från leverantören
   och Pokémon stod utan dagens pris. `jsonOrNull`/`fetchOrNull` (`lib/json-or-null.ts`) = misslyckat FÖRSÖK som frågas
   om (cardmarket-/hot-card-/jp-singles-refresh). ⛔ Reservens spärr (`gate`) läser om STEGET "Priser + historik
