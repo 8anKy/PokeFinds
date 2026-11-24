@@ -124,7 +124,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            return self._json(200, {"ok": True, "cards": len(engine.ids), "mem": _mem(),
+            return self._json(200, {"ok": True, "cards": len(engine.ids), "mem": _mem(), "diskFreeMb": engine.disk_free_mb(),
                                     "emb": len(engine.emb["ids"]) if engine.emb else None})
         if self.path == "/cards":  # vilka kort motorn känner — webbens påfyllning diffar mot katalogen
             if not self._authed():
@@ -160,7 +160,8 @@ class Handler(BaseHTTPRequestHandler):
             with lock:
                 res = engine.add_cards(cards[:300])
                 _trim()
-            return self._json(200, res)
+            # 507 = volymen full: webbens rutt skickar det vidare i klartext i stället för ett naket 500.
+            return self._json(507 if res.get("error") == "disk-full" else 200, res)
         with lock:
             res = engine.identify(data)
             _trim()

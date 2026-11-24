@@ -98,6 +98,16 @@ export async function POST(req: NextRequest) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ cards: missing.slice(i, i + BATCH) }),
       });
+      // 507 = motorns volym är full (5 GB-taket nåddes 2026-11-21 och gav ett naket 500 fyra nätter
+      // i rad). Säg det i klartext — det går inte över av sig självt, och nya kort blir oskannbara.
+      if (res.status === 507) {
+        const full = (await res.json().catch(() => ({}))) as { freeMb?: number; needMb?: number };
+        console.error(`[engine-sync] motorns volym är full: ${full.freeMb} MB ledigt, ${full.needMb} MB krävs. ${missing.length - added} kort väntar.`);
+        return NextResponse.json(
+          { error: "Skannermotorns volym är full.", code: "engine-disk-full", ...full, added, waiting: missing.length - added },
+          { status: 507 },
+        );
+      }
       if (!res.ok) throw new Error(`add-cards ${res.status}`);
       const r = (await res.json()) as { added: number; failedCount: number };
       added += r.added;

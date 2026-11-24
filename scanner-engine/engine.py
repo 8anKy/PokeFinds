@@ -108,6 +108,19 @@ class Engine:
         self.n_add = meta.get("n_add", 0)
         self._add_d = os.path.join(rk, "desc-add.bin")
         self._add_p = os.path.join(rk, "pts-add.bin")
+        # OBOKFÖRDA RADER KAPAS (2026-11-24): add_cards skriver raderna FÖRE _persist. Dör _persist
+        # (volymen full sedan 11-21: "No space left on device") ligger raderna kvar sist i filen men
+        # saknas i meta.json. Nästa tillägg hade hamnat EFTER dem medan offseten räknas från n_add —
+        # nya kort hade fått ett annat korts nyckelpunkter — och varje misslyckad natt åt ~8 MB till.
+        for path, row in ((self._add_d, 128), (self._add_p, 8)):
+            try:
+                extra = os.path.getsize(path) - self.n_add * row if os.path.exists(path) else 0
+                if extra > 0:
+                    os.truncate(path, self.n_add * row)
+                    print(f"kapade {extra / 1e6:.1f} MB obokförda rader ur {os.path.basename(path)}", flush=True)
+            except OSError as e:
+                print(f"kunde inte kapa {path}: {e}", flush=True)
+        print(f"volym: {self.disk_free_mb()} MB ledigt, indexet {os.path.getsize(os.path.join(nn, 'ivfpq.faiss')) // 2**20} MB", flush=True)
         # ⛔ INTE memmap på Linux: Railway räknar kärnans sidcache som minne (cgroup), och en memmap
         # över 2,8 GB hade vuxit med varje skanning tills hela filen låg i "minnet". Raderna läses med
         # pread och sidorna släpps direkt (POSIX_FADV_DONTNEED). Windows (lokal mätning) kör memmap.
@@ -471,6 +484,14 @@ class Engine:
             "ms": int((time.time() - t0) * 1000),
         }
 
+    def disk_free_mb(self):
+        """Ledigt på volymen i MB; None där statvfs saknas (Windows, lokal mätning)."""
+        try:
+            st = os.statvfs(self.dir)
+            return st.f_bavail * st.f_frsize // 2**20
+        except (AttributeError, OSError):
+            return None
+
     # ---------- påfyllning ----------
     def add_cards(self, cards):
         """
@@ -479,6 +500,14 @@ class Engine:
         till volymen. IVF-PQ behöver ingen omträning för nya vektorer. Anropas av webbens cron-rutt
         (/api/cron/engine-sync) med de kort motorn saknar. `cards` = [{id, imageUrl, language}].
         """
+        # ⛔ Kolla utrymmet FÖRE arbetet: _persist skriver om hela indexet som tmp + replace, alltså en
+        # hel kopia till. Utan plats dog anropet mitt i (500 fyra nätter i rad, 2026-11-21 → 11-24) och
+        # lämnade obokförda rader efter sig. Hellre ett tydligt "disk-full" som anroparen kan visa.
+        free = self.disk_free_mb()
+        need = os.path.getsize(os.path.join(self.nn_dir, "ivfpq.faiss")) // 2**20 + 24
+        if free is not None and free < need:
+            return {"added": 0, "failed": [], "failedCount": 0, "cards": len(self.ids),
+                    "error": "disk-full", "freeMb": free, "needMb": need}
         added, failed = [], []
         vecs, owners_add = [], []
         with open(self._add_d, "ab") as fd, open(self._add_p, "ab") as fp:
