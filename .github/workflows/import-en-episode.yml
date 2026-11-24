@@ -1,0 +1,52 @@
+name: Engelska kort ur prisleverantören (en episod, manuell)
+
+# Fyller på ETT engelskt set ur prisleverantörens episod (scripts/import-en-set-from-provider.ts).
+# Till för set som VÄXER efter släppet — MEP Black Star Promos fick Kyogre MEP 117 hos leverantören
+# 2026-11 medan TCGdex (veckans add-only-källa) stod kvar på 112 kort.
+#   apply = false ⇒ torrkörning (skriver ingenting, listar vad som hade skapats)
+#   add_only = true ⇒ kort setet redan har rörs aldrig
+# Leverantörsnyckeln finns bara här, därför ett eget jobb. ~10 anrop per episod.
+on:
+  workflow_dispatch:
+    inputs:
+      episode:
+        description: "Leverantörens episod-id (MEP Black Star Promos = 412)"
+        required: true
+      apply:
+        description: "Skriv till databasen (annars torrkörning)"
+        type: boolean
+        default: false
+      add_only:
+        description: "Rör aldrig kort som redan finns"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: import-en-episode
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      CARDMARKET_RAPIDAPI_HOST: ${{ secrets.CARDMARKET_RAPIDAPI_HOST }}
+      CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+      - name: Importera episoden
+        env:
+          EPISODE: ${{ inputs.episode }}
+        run: |
+          case "$EPISODE" in (*[!0-9]*|"") echo "::error::episode måste vara ett tal"; exit 1;; esac
+          npx tsx scripts/import-en-set-from-provider.ts --episode "$EPISODE" ${{ inputs.apply && ' ' || '--dry' }} ${{ inputs.add_only && '--add-only' || ' ' }}

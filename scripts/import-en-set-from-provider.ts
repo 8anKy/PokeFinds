@@ -21,6 +21,8 @@
  *
  * Kör: node scripts/with-prod-db.mjs npx tsx scripts/import-en-set-from-provider.ts --episode 431
  *      (--dry visar bara vad som hade skapats)
+ *      --add-only: rör ALDRIG kort setet redan har — skapar bara dem som saknas. För set som VÄXER
+ *      (MEP Black Star Promos: Kyogre MEP 117 fanns hos leverantören men inte hos oss, 2026-11-24).
  */
 import { prisma } from "@/lib/db";
 import { normalizeTitle, slugify } from "@/lib/utils";
@@ -147,10 +149,10 @@ async function main() {
     throw new Error(`Episod ${epArg} hittades inte`);
   });
   if ((ep.lang ?? "en") !== "en") throw new Error(`Episoden är ${ep.lang}, inte en — JP går via jp-singles-refresh`);
-  await importEpisode(ep, await episodeCards(ep.id), dry);
+  await importEpisode(ep, await episodeCards(ep.id), dry, args.includes("--add-only"));
 }
 
-async function importEpisode(ep: Episode, cards: ProviderCard[], dry: boolean) {
+async function importEpisode(ep: Episode, cards: ProviderCard[], dry: boolean, addOnly = false) {
   console.log(`Episod ${ep.id} "${ep.name}" (${ep.code ?? "?"}), släpp ${ep.released_at ?? "?"}, serie ${ep.series?.name ?? "?"}`);
 
   // Vårt set: befintligt EN-set på exakt namn (stubben skapas av CM-katalogen i förväg),
@@ -218,6 +220,9 @@ async function importEpisode(ep: Episode, cards: ProviderCard[], dry: boolean) {
     let cardId: string;
     if (hit) {
       cardId = hit.id;
+      // ⛔ Torrkörning och --add-only skriver INGENTING på ett kort vi redan har (förut döpte
+      //    produktuppdateringen längre ned om befintliga produkter även under --dry).
+      if (dry || addOnly) { updated++; continue; }
       if (!dry) {
         await prisma.card.update({
           where: { id: cardId },
