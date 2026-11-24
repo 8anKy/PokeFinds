@@ -15,7 +15,10 @@
 // 2026-09-28 — ägarbeslut, se lib/ai-crawlers.ts. Indexerarna begränsas till navsidorna
 // av middleware; träningscrawlarna (GPTBot, ClaudeBot, CCBot …) är kvar nedan.
 export const BLOCKED_BOTS =
-  /Applebot|GPTBot|ClaudeBot|Claude-Web|anthropic-ai|CCBot|Bytespider|AhrefsBot|SemrushBot|DataForSeoBot|MJ12bot|Amazonbot|Amzn-SearchBot|ShapBot|Meta-ExternalAgent|Meta-WebIndexer|GoogleOther|YandexBot|Baiduspider|SeznamBot|DotBot|BLEXBot|Barkrowler|ImagesiftBot|Timpibot|Diffbot|omgili|Reflectionbot|Screaming Frog|python-requests|Scrapy|node-fetch|Go-http-client|libwww-perl/i;
+  /Applebot|GPTBot|ClaudeBot|Claude-Web|anthropic-ai|CCBot|Bytespider|AhrefsBot|SemrushBot|DataForSeoBot|MJ12bot|Amazonbot|Amzn-SearchBot|ShapBot|Meta-ExternalAgent|Meta-WebIndexer|GoogleOther|YandexBot|Baiduspider|SeznamBot|DotBot|BLEXBot|Barkrowler|ImagesiftBot|Timpibot|Diffbot|omgili|Reflectionbot|ElevenlabsCrawler|Screaming Frog|python-requests|Scrapy|node-fetch|Go-http-client|libwww-perl/i;
+// ElevenlabsCrawler (2026-11-24): ElevenLabs kunskapsbas-crawler (någon har pekat en röstagent på
+// sajten) — svepte /en/produkter/* med ~1 sida/s (17 av 25 hämtningar i ett stickprov), ingen
+// rankningsnytta, ren utgående trafik (Railways näst största post, ~100 GB/mån).
 // Reflectionbot (reflection.ai, 2026-10-07): AI-crawler utan sökindex — 1 675 hämtningar
 // på 12 h (största crawlern, 9 % av ALL trafik, mest /en/produkter/*), ingen rankningsnytta.
 // Amzn-SearchBot: Amazons NYARE crawler-UA (2026-08-22). `Amazonbot` stod redan i

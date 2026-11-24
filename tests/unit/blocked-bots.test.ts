@@ -195,3 +195,14 @@ describe("isImpossibleVersionUa: frusna versionsfält som svepet inte fryser", (
     expect(isBlockedBot(ua)).toBe(false);
   });
 });
+
+describe("ElevenlabsCrawler (2026-11-24)", () => {
+  it("blockeras — kunskapsbas-crawlern som svepte produktsidorna", async () => {
+    const { isBlockedBot } = await import("@/lib/blocked-bots");
+    expect(isBlockedBot("Mozilla/5.0 (compatible; ElevenlabsCrawler/1.0; +https://elevenlabs.io/docs/bots)")).toBe(true);
+    // Googlebot får aldrig hamna i listan av misstag.
+    expect(
+      isBlockedBot("Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.8103.78 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")
+    ).toBe(false);
+  });
+});
