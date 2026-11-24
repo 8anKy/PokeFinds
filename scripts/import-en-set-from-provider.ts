@@ -202,12 +202,44 @@ async function importEpisode(ep: Episode, cards: ProviderCard[], dry: boolean, a
   const byExt = new Map(existing.filter((c) => c.tcgExternalId).map((c) => [c.tcgExternalId!, c]));
 
   let created = 0, updated = 0, products = 0, skipped = 0;
+
+  // ── ADD-ONLY: SET SOM VÄXER (promoserier) ─────────────────────────────────────
+  // Nummerformaten skiljer sig mellan källorna ("001" ur pokemontcg.io, "MEP 099" ur TCGdex,
+  // "MEP 117" hos leverantören) — en jämförelse på nummer + namn hade skapat om HELA setet som
+  // dubbletter (torrkörningen 2026-11-24: 165 "nya" kort i ett set på 138). I en promoserie är
+  // SIFFRAN kortets identitet, så: finns siffran redan i setet rörs raden inte. Av flera rader på
+  // samma nya nummer är lägsta cardmarket_id den vanliga tryckningen (stämmer för alla sju par vi
+  // har: Meganium 851043 vanlig / 851044 Staff …); stämplade och Oversized läggs inte till.
+  const digitsOf = (n: string | number | null | undefined) => (String(n ?? "").match(/\d+/)?.[0] ?? "").replace(/^0+(?=\d)/, "");
+  if (addOnly) {
+    const present = new Set(existing.map((c) => digitsOf(c.number)).filter(Boolean));
+    const fresh = new Map<string, ProviderCard[]>();
+    for (const c of cards) {
+      const key = digitsOf(c.card_number);
+      if ((c.lang ?? "en") !== "en" || !key || !(c.name ?? "").trim() || /oversized/i.test(`${c.rarity ?? ""} ${c.version ?? ""}`)) { skipped++; continue; }
+      if (present.has(key)) { updated++; continue; }
+      (fresh.get(key) ?? fresh.set(key, []).get(key)!).push(c);
+    }
+    cards = [];
+    for (const [key, rows] of fresh) {
+      rows.sort((a, b) => (a.cardmarket_id ?? Infinity) - (b.cardmarket_id ?? Infinity));
+      cards.push(rows[0]);
+      for (const extra of rows.slice(1)) {
+        skipped++;
+        console.log(`  (stämplad/annan tryckning läggs inte till: ${extra.name} ${extra.card_number} cm=${extra.cardmarket_id ?? "-"})`);
+      }
+      void key;
+    }
+    console.log(`add-only: ${present.size} nummer finns redan, ${cards.length} nya nummer hos leverantören.`);
+  }
+
   for (const c of cards) {
     if ((c.lang ?? "en") !== "en") { skipped++; continue; }
     const name = (c.name ?? "").trim();
     // Leverantören blandar 147 och "056"; pokemontcg.io skriver utan nollor ("56") —
     // samma form här, så adoptionen på nummer + namn möts senare.
-    const number = String(c.card_number ?? "").trim().replace(/^0+(?=\d)/, "");
+    // I add-only behålls leverantörens form ("MEP 117") — samma som setets senaste kort.
+    const number = addOnly ? String(c.card_number ?? "").trim() : String(c.card_number ?? "").trim().replace(/^0+(?=\d)/, "");
     if (!name || !number) { skipped++; continue; }
     const ext = `${EN_PROVIDER_PREFIX}${c.id}`;
     const rarity = normalizeJpRarity(c.rarity);
