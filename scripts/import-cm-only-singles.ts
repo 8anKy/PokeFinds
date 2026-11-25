@@ -43,6 +43,12 @@
  *   --labelled      en tryckning med etikett i ett set vi har blir en VARIANTPRODUKT på vårt kort när
  *                   exakt ett kort delar namn + siffror och det bär ett ANNAT CM-id. Sällsynthetsord och
  *                   "SVP 190"-etiketter (säger inte vilken version) avstås.
+ *   --fill-jp-numbers  (2026-11-25) JAPANSKT NUMMERHÅL: ett kort föds i ett japanskt set vi har när
+ *                   setet är KORTARE än leverantörens total, numret är helt ledigt hos oss, CM-id:t
+ *                   ligger i setets egen CM-expansion och bara en CT-blueprint bär numret. Etiketten
+ *                   får vara en ren sällsynthet ("Ultra Rare" — CT skriver den på V/VSTAR-korten);
+ *                   håller CT:s namn inte med CM:s (italienska tränarnamn) måste id:t ligga mellan
+ *                   grannarnas id, och namnet tas från Cardmarket. Mätt: 60 kort (VSTAR Universe 58).
  *   CM_ONLY_REPORT=<fil.json>  skriver överhoppade + "<fil>-planned.json" (det som skapas).
  *   Körd 2026-10-23: 783 kort + 50 varianter, alla prissatta.
  */
@@ -69,6 +75,8 @@ import {
   patternExpansion,
   cmOnlyGuidePrice,
   blueprintLanguage,
+  isRarityOnlyLabel,
+  cmIdFitsNumberOrder,
   numberKey,
   setNameContained,
   versionLabel,
@@ -153,6 +161,8 @@ async function importMissing(apply: boolean) {
   // CardTraders blueprints, en expansion i taget (gratis API, ~860 anrop).
   const blueprints: { bp: RawBlueprint; exp: CtExpansion; lang: Lang }[] = [];
   const claims = new Map<number, number>();
+  /** Antal blueprints per (expansion, språk, nummersiffror) — två på samma nummer = två tryckningar. */
+  const bpPerNumber = new Map<string, number>();
   // Kortbilden: CardTraders blueprintbild via /api/ct-image (CM:s singelbilder går inte att
   // nå utan expansionskod — /api/cm-image gav 404 på alla 6 716 kort, 2026-10-15).
   const imageByCm = new Map<number, string>();
@@ -180,7 +190,11 @@ async function importMissing(apply: boolean) {
       // Utan språkfält (Miscellaneous/Unnumbered Promos): bara CardTraders egen versionstext avgör
       // (Ancient Mew 2026-10-23) — inget annat gissas.
       const lang = blueprintLanguage(bp) ?? versionTextLanguage(bp.version);
-      if (lang) blueprints.push({ bp, exp, lang });
+      if (lang) {
+        blueprints.push({ bp, exp, lang });
+        const d = digitsKey(bp.fixed_properties?.collector_number);
+        if (d) bpPerNumber.set(`${exp.id}|${lang}|${d}`, (bpPerNumber.get(`${exp.id}|${lang}|${d}`) ?? 0) + 1);
+      }
     }
     if (++done % 100 === 0) console.log(`  … ${done}/${expansions.length} expansioner`);
     await new Promise((r) => setTimeout(r, 120));
@@ -191,7 +205,8 @@ async function importMissing(apply: boolean) {
   await healImages(apply, imageByCm);
 
   imageByCmGlobal = imageByCm;
-  const sets = await prisma.cardSet.findMany({ select: { id: true, name: true, language: true, externalId: true } });
+  const sets: { id: string; name: string; language: string; externalId: string | null; totalCardsFull?: number; cmExpansionId?: number | null }[] =
+    await prisma.cardSet.findMany({ select: { id: true, name: true, language: true, externalId: true, totalCardsFull: true, cmExpansionId: true } });
   // Set vi själva byggt ur CardTraders/Cardmarkets katalog — ingen pokemontcg.io-numrering att
   // krocka med, så där får saknade kort skapas (--fill-ct-sets).
   const ctSetIds = new Set(sets.filter((x) => x.externalId?.startsWith("ct:")).map((x) => x.id));
@@ -235,7 +250,7 @@ async function importMissing(apply: boolean) {
 
   const stats = {
     candidates: 0, ambiguous: 0, nameMismatch: 0, noNumber: 0, unpriced: 0, linkedExisting: 0,
-    existingSetSkipped: 0, variantCreated: 0, createdInExistingSet: 0, sameCardElsewhere: 0, ballLinked: 0, ballCreated: 0, ballUnmatched: 0, unmodelledVariant: 0, created: 0, setsCreated: 0,
+    existingSetSkipped: 0, jpNumberGap: 0, variantCreated: 0, createdInExistingSet: 0, sameCardElsewhere: 0, ballLinked: 0, ballCreated: 0, ballUnmatched: 0, unmodelledVariant: 0, created: 0, setsCreated: 0,
   };
   // Bollvarianterna vi redan har: (språk|set utan kod|etikett|nummer) → produkt.
   const ballProducts = new Map<string, string | null>();
@@ -259,18 +274,55 @@ async function importMissing(apply: boolean) {
       stats.candidates++;
       if ((claims.get(idProduct) ?? 0) > 1) { stats.ambiguous++; continue; }
       const cm = cmById.get(idProduct)!;
-      if (!cmCardNameAgrees(bp.name, cm.name)) { stats.nameMismatch++; continue; }
+      const nameOk = cmCardNameAgrees(bp.name, cm.name);
       const number = String(bp.fixed_properties?.collector_number ?? "").trim();
       const unnumbered = !number;
+      const priced = guideOffer(guide.get(idProduct), rates);
+      const label = cleanLabel(versionLabel(bp.version));
+
+      // JAPANSKT NUMMERHÅL (--fill-jp-numbers, 2026-11-25) — se filhuvudet. Varje villkor är ett
+      // BEVIS för att blueprinten är setets ordinarie kort på ett nummer vi saknar; faller ett
+      // går raden vidare till de vanliga reglerna (som avstår).
+      if (FILL_JP_NUMBERS && lang === "JP" && !unnumbered && priced && !usedCmIds.has(idProduct) && (!label || isRarityOnlyLabel(label)) && !patternExpansion(exp.name, bp.version) && !UNMODELLED_VARIANT_EXPANSION.test(exp.name)) {
+        const gapSet = sets.find((x) => x.id === winningSet(votes.get(exp.id)));
+        const d = digitsKey(number);
+        const n = Number(d);
+        if (gapSet && gapSet.language === "JP" && d && n > 0) {
+          const cards = await cardsOf(gapSet.id);
+          const full = gapSet.totalCardsFull ?? 0;
+          const short = full > 0 && cards.length < full && n <= full;
+          const numberFree = !cards.some((c) => digitsKey(c.number) === d);
+          if (short && numberFree) {
+            const sameExpansion = gapSet.cmExpansionId != null && cm.idExpansion === gapSet.cmExpansionId;
+            const onlyBlueprint = (bpPerNumber.get(`${exp.id}|${lang}|${d}`) ?? 0) === 1;
+            const linkedByNumber = new Map<number, number>();
+            for (const c of cards) if (c.cardmarketId != null && digitsKey(c.number)) linkedByNumber.set(Number(digitsKey(c.number)), c.cardmarketId);
+            const orderOk = cmIdFitsNumberOrder(n, idProduct, linkedByNumber, !nameOk);
+            if (sameExpansion && onlyBlueprint && orderOk) {
+              // CT:s namn när det håller med Cardmarkets, annars Cardmarkets (utan attackerna i hakparentes).
+              const name = nameOk ? bp.name : cm.name.replace(/\s*\[[^\]]*\]\s*$/, "").trim();
+              stats.jpNumberGap++;
+              planned.push({ kind: "jp-number-gap", set: gapSet.name, name, ctName: bp.name, number, rarity: label || null, idProduct, priceOre: priced.priceOre, proof: nameOk ? "namn+nummer" : "nummer+id-ordning" });
+              byExp.set(`${lang} · ${gapSet.name} (nummerhål)`, (byExp.get(`${lang} · ${gapSet.name} (nummerhål)`) ?? 0) + 1);
+              if (!apply || (await createCard({ bp, exp, lang, idProduct, number, label: "", priceOre: priced.priceOre, stock: priced.stock, setId: gapSet.id, setName: gapSet.name, name }))) {
+                usedCmIds.add(idProduct);
+                cards.push({ id: `new:${idProduct}`, number, name: `${name} (JP)`, cardmarketId: idProduct });
+              }
+              continue;
+            }
+            skipped.push({ exp: exp.name, set: gapSet.name, name: bp.name, cmName: cm.name, number, label, idProduct, why: `jp-gap-${!sameExpansion ? "annan-cm-expansion" : !onlyBlueprint ? "flera-blueprints" : "id-ordning"}` });
+          }
+        }
+      }
+
+      if (!nameOk) { stats.nameMismatch++; continue; }
       if (unnumbered && !FILL_CT) {
         stats.noNumber++;
         skipped.push({ exp: exp.name, name: bp.name, version: bp.version ?? null, idProduct, why: "no-number" });
         continue;
       }
-      const priced = guideOffer(guide.get(idProduct), rates);
       if (priced == null) { stats.unpriced++; continue; }
       const { priceOre, stock } = priced;
-      const label = cleanLabel(versionLabel(bp.version));
 
       // BOLL-/ROCKET-/ENERGY-MÖNSTER → variantprodukten på vårt kort får Cardmarket-priset.
       const ball = patternExpansion(exp.name, bp.version);
@@ -483,6 +535,7 @@ function cleanLabel(label: string): string {
   return label.split(" · ").map((p) => p.replace(/\s*©.*$/, "").trim()).filter(Boolean).join(" · ");
 }
 const FILL_CT = process.argv.includes("--fill-ct-sets");
+const FILL_JP_NUMBERS = process.argv.includes("--fill-jp-numbers");
 const CT_MIRROR_SET = /^(Radiant Collection |Pokémon TCG: Pokémon GO$)/;
 
 /** Etiketter som bara är en sällsynthet eller reverse holo — vårt vanliga kort, ingen egen vara. */
@@ -525,9 +578,10 @@ async function createVariant(a: { cardId: string; setId: string; label: string; 
 }
 
 /** Skapar kort + produkt + Cardmarket-offer (uppskattning ur prisguiden). */
-async function createCard(a: { bp: RawBlueprint; exp: CtExpansion; lang: Lang; idProduct: number; number: string; label: string; priceOre: number; stock: "IN_STOCK" | "OUT_OF_STOCK"; setId: string; setName: string }): Promise<boolean> {
+async function createCard(a: { bp: RawBlueprint; exp: CtExpansion; lang: Lang; idProduct: number; number: string; label: string; priceOre: number; stock: "IN_STOCK" | "OUT_OF_STOCK"; setId: string; setName: string; name?: string }): Promise<boolean> {
   const { bp, exp, lang, idProduct, number, label, priceOre, stock, setId, setName } = a;
-  const display = lang === "JP" ? `${bp.name} (JP)` : bp.name;
+  const baseName = a.name ?? bp.name;
+  const display = lang === "JP" ? `${baseName} (JP)` : baseName;
   const title = `${display} · ${setName}${number ? ` ${number}` : ""}${label ? ` · ${label}` : ""}`;
   const imageUrl = imageByCmGlobal.get(idProduct) ?? null;
   const card = await prisma.card
@@ -543,7 +597,7 @@ async function createCard(a: { bp: RawBlueprint; exp: CtExpansion; lang: Lang; i
       return null;
     });
   if (!card) return false;
-  const baseSlug = slugify(`${bp.name}-${lang === "JP" ? "jp-" : ""}${exp.code ?? exp.name}-${number}${label ? `-${label}` : ""}`);
+  const baseSlug = slugify(`${baseName}-${lang === "JP" ? "jp-" : ""}${exp.code ?? exp.name}-${number}${label ? `-${label}` : ""}`);
   const slug = (await prisma.product.findUnique({ where: { slug: baseSlug }, select: { id: true } })) ? `${baseSlug}-${idProduct}` : baseSlug;
   const product = await prisma.product.create({
     data: { title, normalizedTitle: normalizeTitle(title), slug, category: "SINGLE_CARD", cardId: card.id, setId, imageUrl, language: lang },

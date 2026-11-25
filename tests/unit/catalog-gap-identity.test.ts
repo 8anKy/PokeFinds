@@ -10,6 +10,8 @@ import {
   versionLabel,
   winningSet,
   cmOnlyGuidePrice,
+  isRarityOnlyLabel,
+  cmIdFitsNumberOrder,
 } from "@/lib/catalog-gap-identity";
 import { episodeSetFromVotes } from "@/jobs/cardmarket-refresh";
 import { SCANNER_INCLUDED_CARD } from "@/lib/scanner-exclusion";
@@ -113,11 +115,51 @@ describe("pris för kort som bara finns på Cardmarket", () => {
     // en From nära försäljningarna står kvar
     expect(cmOnlyGuidePrice({ low: 9, trend: 32.72, avg: 68, avg30: 15.02, avg7: 23.08 })).toEqual({ eur: 9, live: true });
   });
+  it("en low långt över allt som säljs är ett utrop ⇒ uppskattning (samma regel som singlarna)", () => {
+    // Rare Candy · League Promos: 2 000 € mot försäljningar ≤ 65,89 €.
+    expect(cmOnlyGuidePrice({ low: 2000, trend: 60, avg: 65.89, avg30: 55, avg7: 60, avg1: 60 })).toEqual({ eur: 60, live: false });
+    // Kiawe (JP): 49,99 € mot 0,20 € — under 2 €-gränsen, där den låga vakten annars släpper allt.
+    expect(cmOnlyGuidePrice({ low: 49.99, trend: 0.2, avg: 0.2, avg30: 0.2, avg7: 0.2, avg1: 0.2 })).toEqual({ eur: 0.2, live: false });
+    // 10x men bara 9 € över ⇒ inget utrop (billigaste annonsen som finns).
+    expect(cmOnlyGuidePrice({ low: 10, trend: 0.5, avg: 0.5, avg30: 0.5 })).toEqual({ eur: 10, live: true });
+    // Dubbla priset är en NM-premie, inget utrop (Kommo-o STAFF 50 € mot 24,99 €).
+    expect(cmOnlyGuidePrice({ low: 50, trend: 24.99, avg: 20, avg30: 24.99, avg7: 24.99 })).toEqual({ eur: 50, live: true });
+    // En ensam annons utan försäljningssnitt går inte att döma — står kvar.
+    expect(cmOnlyGuidePrice({ low: 500, trend: null, avg: null, avg30: null, avg7: null })).toEqual({ eur: 500, live: true });
+  });
   it("utan low ⇒ uppskattning, utan något ⇒ null", () => {
     expect(cmOnlyGuidePrice({ trend: 96.98, avg: 106.98, avg30: 99.69 })).toEqual({ eur: 99.69, live: false });
     expect(cmOnlyGuidePrice({})).toBeNull();
     // Bara ett ensamt avg (inga annonser, inga affärer) ⇒ inget pris (Pikachu XY-P7af, 100 000 €).
     expect(cmOnlyGuidePrice({ low: null, trend: null, avg: 100000, avg30: null, avg7: null })).toBeNull();
     expect(cmOnlyGuidePrice(null)).toBeNull();
+  });
+});
+
+/**
+ * Japanska nummerhål 2026-11-25: 58 ordinarie VSTAR Universe-kort saknades för att CardTrader
+ * skriver sällsyntheten i versionsfältet, och fyra för att CT bär italienska tränarnamn.
+ */
+describe("japanskt nummerhål: sällsynthet är ingen tryckning, och id-ordningen bevisar numret", () => {
+  it("rena sällsynthetsord är det vanliga kortet", () => {
+    for (const l of ["Ultra Rare", "Shiny Rare", "Holo Rare", "Full-Art", "Full Art", "Gold Secret Rare", "Secret Rare", "SAR", "Special Art Rare"])
+      expect(isRarityOnlyLabel(l), l).toBe(true);
+  });
+  it("stämplar, mönster och utgåvor är EGNA tryckningar", () => {
+    for (const l of ["Destined Rivals Stamp", "Prerelease", "Cosmos Holo", "Master Ball Reverse Holo", "Staff", "Pokémon Center", "SVP 190", "Winner", "25th Anniversary", "Japanese", "Holo", "Non-Holo", ""])
+      expect(isRarityOnlyLabel(l), l).toBe(false);
+  });
+  it("id:t måste ligga mellan närmaste länkade grannar — och båda måste finnas", () => {
+    const linked = new Map([[156, 687718], [158, 687720], [161, 687723], [164, 687726]]);
+    expect(cmIdFitsNumberOrder(157, 687719, linked)).toBe(true);
+    // 162 och 163 saknas båda: närmaste grannar är 161 och 164.
+    expect(cmIdFitsNumberOrder(162, 687724, linked)).toBe(true);
+    expect(cmIdFitsNumberOrder(157, 687721, linked)).toBe(false); // över grannen ovanför
+    expect(cmIdFitsNumberOrder(157, 600000, linked)).toBe(false); // under grannen nedanför
+    expect(cmIdFitsNumberOrder(170, 687730, linked)).toBe(false); // ingen granne ovanför ⇒ inget bevis
+    expect(cmIdFitsNumberOrder(1, 687000, linked)).toBe(false); // ingen granne nedanför
+    // Namnen håller med ⇒ en saknad granne är inget motbevis, men en granne på fel sida är det.
+    expect(cmIdFitsNumberOrder(170, 687730, linked, false)).toBe(true);
+    expect(cmIdFitsNumberOrder(170, 687000, linked, false)).toBe(false);
   });
 });

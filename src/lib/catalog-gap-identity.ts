@@ -5,7 +5,7 @@
  *   · scripts/import-cm-only-singles.ts (Additionals, startdäck, WCD, bollmönster)
  * Inga DB-anrop här — testas i tests/unit/catalog-gap-identity.test.ts.
  */
-import { cmNumberKey } from "@/jobs/cardmarket-refresh";
+import { cmNumberKey, fromIsOutlierAsk } from "@/jobs/cardmarket-refresh";
 import {
   VARIANT_DUSK_BALL, VARIANT_FRIEND_BALL, VARIANT_LOVE_BALL, VARIANT_MASTER_BALL, VARIANT_POKE_BALL,
   VARIANT_QUICK_BALL, VARIANT_REVERSE_HOLO, VARIANT_ROCKET,
@@ -122,6 +122,45 @@ export function setNameContained(ourSet: string, ctExpansion: string): boolean {
   return [...ours].every((w) => theirs.has(w));
 }
 
+/**
+ * JAPANSKT NUMMERHÅL (2026-11-25): etiketten är bara en SÄLLSYNTHET ("Ultra Rare", "Full-Art",
+ * "Gold Secret Rare") — då är blueprinten setets vanliga kort på sitt nummer, ingen egen
+ * tryckning. CardTrader sätter sällsyntheten i versionsfältet på V/VSTAR/Radiant-korten, och
+ * regeln "etikett ⇒ eget kort" höll därför 58 ordinarie VSTAR Universe-kort utanför katalogen.
+ * ⛔ Stämplar, "Prerelease", "Cosmos Holo", mönster m.m. är INTE sällsyntheter — de faller.
+ */
+const RARITY_WORD =
+  /^(common|uncommon|rare|holo|non-holo|promo|ultra|secret|shiny|gold|hyper|rainbow|double|triple|illustration|special|art|full[- ]art|character|super|amazing|radiant|ace spec|trainer gallery|k|a|h|r|rr|rrr|sr|ur|hr|ar|sar|csr|chr|s|ss|ssr|tr|pr)$/;
+export function isRarityOnlyLabel(label: string): boolean {
+  const words = label.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 4) return false;
+  // "Holo" / "Non-Holo" ENSAMT är två tryckningar av samma nummer i äldre set — ingen sällsynthet.
+  if (/^(holo|non-holo)$/.test(words.join(" "))) return false;
+  // "full art" / "ace spec" / "trainer gallery" är två ord — pröva paren först.
+  const joined = words.join(" ").replace(/\bfull art\b/g, "full-art").replace(/\bace spec\b/g, "ace_spec").replace(/\btrainer gallery\b/g, "trainer_gallery");
+  return joined.split(" ").every((w) => RARITY_WORD.test(w.replace("_", " ")));
+}
+
+/**
+ * Inom en Cardmarket-expansion ligger id:n i NUMMERORDNING (verifierat 2026-08-30, jp-sets.md).
+ * Ett id passar numret när närmaste LÄNKADE granne nedåt bär ett lägre id och närmaste uppåt ett
+ * högre — och BÅDA grannarna finns. Används som bevis när CardTraders namn inte håller med
+ * Cardmarkets (CT bär italienska tränarnamn: "Petra" = Roxanne): numret + ordningen avgör då,
+ * och namnet tas från Cardmarket.
+ */
+export function cmIdFitsNumberOrder(n: number, idProduct: number, linkedByNumber: Map<number, number>, requireBoth = true): boolean {
+  let below: number | null = null, above: number | null = null;
+  let belowN = -Infinity, aboveN = Infinity;
+  for (const [num, id] of linkedByNumber) {
+    if (num < n && num > belowN) { belowN = num; below = id; }
+    if (num > n && num < aboveN) { aboveN = num; above = id; }
+  }
+  // `requireBoth: false` (namnen håller redan med): en saknad granne är inget motbevis, en granne
+  // på fel sida är det.
+  if (requireBoth && (below == null || above == null)) return false;
+  return (below == null || below < idProduct) && (above == null || idProduct < above);
+}
+
 /** Vilket set vinner rösterna? ≥ 3 röster och ≥ 80 % — annars null (avstå). */
 export function winningSet(votes: Map<string, number> | undefined): string | null {
   if (!votes) return null;
@@ -149,11 +188,18 @@ export function winningSet(votes: Map<string, number> | undefined): string | nul
  * ⛔ `low` är lägsta annons i ALLA SKICK — guiden har inget NM-golv. 25 % släppte igenom ett
  * Poor-exemplar som pris (Ancient Mew 19,95 € mot försäljningar 78–110 €, visad 221 kr; ägaren
  * 2026-10-23: "221 kr är Poor, Near Mint är ~1 182 kr"). 50 % ⇒ uppskattningen 108,98 €.
+ * ⛔ UTROPSVAKTEN GÄLLER ÄVEN HÄR (2026-11-25): vakten ovan fångar bara en FÖR LÅG low. En low
+ * långt ÖVER allt som säljs gick rakt igenom — Rare Candy · League Promos 2 000 € mot försäljningar
+ * ≤ 65,89 € visades som 22 480 kr, Kiawe (JP) 49,99 € mot 0,20 €. Samma regel som singlarna
+ * (ägarbeslut 2026-10-12/16: > 10x högsta försäljningssnittet OCH > 25 € över, minst två snitt,
+ * `fromIsOutlierAsk`) ⇒ uppskattning. Mätt: 23 av 9 411 levande priser, ingen ägd post.
+ * En ENSAM annons utan något försäljningssnitt döms INTE — det finns inget att döma mot.
  */
 export const CM_ONLY_LOW_MIN_SHARE = 0.5;
 export const CM_ONLY_GUARD_FROM_EUR = 2;
 export function cmOnlyGuidePrice(g: {
   low?: number | null; trend?: number | null; avg?: number | null; avg30?: number | null; avg7?: number | null;
+  avg1?: number | null;
 } | null | undefined): { eur: number; live: boolean } | null {
   if (!g) return null;
   const pos = (v: number | null | undefined) => (typeof v === "number" && v > 0 ? v : null);
@@ -162,7 +208,8 @@ export function cmOnlyGuidePrice(g: {
   const low = pos(g.low);
   const sales = [pos(g.trend), pos(g.avg30), pos(g.avg7)].filter((v): v is number => v != null);
   const floor = sales.length ? Math.min(...sales) : null;
-  if (low != null && (floor == null || (pos(g.trend) ?? 0) < CM_ONLY_GUARD_FROM_EUR || low >= CM_ONLY_LOW_MIN_SHARE * floor))
+  const outcry = fromIsOutlierAsk(low, [g.trend, g.avg, g.avg1, g.avg7, g.avg30]);
+  if (low != null && !outcry && (floor == null || (pos(g.trend) ?? 0) < CM_ONLY_GUARD_FROM_EUR || low >= CM_ONLY_LOW_MIN_SHARE * floor))
     return { eur: low, live: true };
   // ⛔ En uppskattning kräver en FÖRSÄLJNINGSSIGNAL (trend/avg30/avg7). Ett ensamt `avg` utan
   // annonser och utan affärer är inget pris: Pikachu XY-P7af (JP, idProduct 554270) hade bara
