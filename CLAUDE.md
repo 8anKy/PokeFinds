@@ -569,6 +569,22 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   diskcache (TTL 24 h) → **en ändrad restockWatch-flagga slår igenom först inom ett dygn.**
 
 ## Öppna ärenden / Nästa steg
+- **KATALOGPASSET 2026-11-24/25 (ägarens mål: träffsäker katalog, butikslänkar och Tradera-länkar)**:
+  (1) ⛔ **Setimporten döper bara om den ETIKETTLÖSA produkten** (`variantLabel: null` i `import-tcg-data.ts` och
+  `import-en-set-from-provider.ts`) — utan det fick 59 Delta Reign Reverse Holo-produkter det vanliga kortets titel
+  (rättat med `scripts/fix-variant-titles.ts`). ⛔ Döm en länk på produktens POST (variantLabel, id), aldrig på titeln.
+  (2) **Promoserier som växer**: `import-en-set-from-provider.ts --episode <id> --add-only` jämför på kortets SIFFRA
+  (källorna skriver "001" / "MEP 099" / "MEP 117"; nummer + namn hade dubblerat hela setet), lägsta cardmarket_id =
+  vanliga tryckningen, stämplade/Oversized läggs inte till. Veckosteg för episod 412 (MEP) + manuellt jobb
+  `import-en-episode.yml` (torrkörning som standard). Kyogre MEP 117 m.fl. (9 kort) tillagda 11-25.
+  ⛔ "Kortet finns inte på engelska" kräver att PROMOSERIEN är kollad, inte bara huvudsetet.
+  (3) **Halvboxar** ("Half Booster Box"/"Half Display") = 18-produkten (`boosterBoxCount`); 15 felkopplade flyttade
+  (`scripts/fix-half-box-links.ts`). (4) **Admin → Länkfel** visar butikens egen titel, vår lagerstatus och en
+  domrad (`lib/link-report-hint.ts`); länkanmälningar har Åtgärdad/Avfärda (stänger bara anmälan).
+  (5) ⛔ `repair-marketplace-offers.ts` är BARA Pokémon och raderar historik först med `VETO_HISTORY=1` — dess
+  domare känner varken One Piece eller setaliasen (torrkörning: ~2 000 korrekta One Piece-rader + 9 560 punkter).
+  **KVAR**: 101 japanska kort i 23 set saknas (leverantörens lista) — lista till ägaren FÖRE skapande; äldre
+  promo-/specialset okollade; stämplade MEP 111–114/117; anmälningstexter kommer in baklänges (orsak ej hittad).
 - ⛔ **SKANNERMOTORNS VOLYM ÄR FULL SEDAN 2026-11-21 (hittat 11-24)**: 5 GB-taket (Railway Hobby) nått — varje
   kort kostar ~86 kB (600 nyckelpunkter × 128 B), och `_persist` skriver om hela indexet (230 MB) som tmp + replace.
   MÄTT 11-24: 231 MB ledigt, 254 krävs ⇒ `engine-sync` svarar **507 `engine-disk-full`** (var ett naket 500 fyra
