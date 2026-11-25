@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/icons";
 import { giveawayConfig, giveawayPhase } from "@/lib/giveaway";
 import { HIDDEN_FEATURES } from "@/lib/hidden-features";
-import { RubberBand } from "@/components/ui/rubber-band";
 import { LogoutButton } from "./logout-button";
 import { GuestMore } from "./guest-more";
 import { FoilPanel, FollowTiles, MenuRow, Section, type MenuLink } from "./more-ui";
@@ -176,8 +175,11 @@ export default async function MerPage() {
   ];
 
   return (
-    // Gummiband vid kanterna — PROV på den här fliken (ägaren 2026-11-25), se ui/rubber-band.tsx.
-    <RubberBand className="mx-auto max-w-md space-y-[26px]">
+    // GUMMIBAND — PROV på den här fliken (ägaren 2026-11-25). `data-native-bounce`
+    // gör <main> till sidans egen scrollyta (regeln i globals.css) så telefonens
+    // INBYGGDA studs sköter rörelsen. `data-drag-surface`: studsvakten i
+    // pwa-register.tsx hade annars blockerat draget nedåt i toppen.
+    <div data-native-bounce data-drag-surface className="mx-auto max-w-md space-y-[26px]">
       {/* Kontokortet ÄR sidans rubrik — "Mer / Hantera ditt konto och dina
           inställningar" sa inget som raderna under inte redan säger, och en
           rubrik som heter samma sak som fliken man just tryckte på är brus. */}
@@ -245,6 +247,6 @@ export default async function MerPage() {
       <FollowTiles title={t("followTitle")} />
 
       <LogoutButton />
-    </RubberBand>
+    </div>
   );
 }

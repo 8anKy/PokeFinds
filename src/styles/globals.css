@@ -625,6 +625,36 @@ html[data-auth] .header-auth-placeholder {
   opacity: 0.26;
 }
 
+/* GUMMIBAND MED TELEFONENS EGEN STUDS — PROV på Mer-fliken (ägaren 2026-11-25).
+ *
+ * Dokumentets studs är avstängd i hela appen (html ovan + killBounce i iOS-
+ * skalet) och går inte att slå på per sida utan nytt appbygge. Men en INRE
+ * scrollyta studsar inbyggt på både iPhone och Android så länge den bär
+ * `contain` (inte `none`). En sida som renderar `data-native-bounce` får därför
+ * skalet låst till skärmens höjd och <main> som sin scrollyta: sidhuvudet och
+ * flikraden står still, innehållet gummibandar med systemets egen fysik.
+ *
+ * ⛔ Ett JS-gummiband är PRÖVAT OCH FÖRKASTAT samma dag ("super laggy"): en
+ * transform per touchmove hänger aldrig med fingret i en WebView.
+ * ⛔ Höjden är SAMMA uttryck som skalets min-height (app-shell.tsx) — ändras
+ * det ena måste det andra följa med, annars scrollar dokumentet också.
+ * Bara under lg: desktop har sidomeny och ingen studs. Utan :has()-stöd
+ * (iOS < 15.4) scrollar sidan i dokumentet som förut. */
+@media (max-width: 1023.98px) {
+  [data-route-swipe-shell]:has([data-native-bounce]) {
+    height: calc(100dvh - var(--bottom-tabs-space) - env(safe-area-inset-top));
+  }
+  [data-route-swipe-shell]:has([data-native-bounce]) main {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+  /* En pixel för mycket: en yta som inte går att scrolla studsar inte heller. */
+  [data-native-bounce] {
+    min-height: calc(100% + 1px);
+  }
+}
+
 @layer utilities {
   /* FAKTAPANELEN på produktsidan (product-facts-panel.tsx) får sin höjd av
      högerspalten, inte av sitt innehåll. Raderna är rangordnade i nivåer och
