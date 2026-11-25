@@ -296,8 +296,11 @@ export async function runJapaneseSinglesRefresh(
   const cmOnlyByKey = new Map<string, ((typeof existingCards)[number] & { name: string }) | null>();
   for (const c of await prisma.card.findMany({
     where: { language: "JP", tcgExternalId: { startsWith: "cm:" } },
-    select: { id: true, tcgExternalId: true, cardmarketId: true, name: true, setId: true, number: true, products: { where: { language: "JP", variantLabel: null }, select: { id: true, slug: true }, take: 1 } },
+    select: { id: true, tcgExternalId: true, cardmarketId: true, name: true, setId: true, number: true, products: { where: { language: "JP", variantLabel: null }, select: { id: true, slug: true, title: true }, take: 1 } },
   })) {
+    // ⛔ En STÄMPLAD tryckning är ett eget Cardmarket-only-kort med samma nummer + namn som det
+    // vanliga ("Namn (JP) · Set 123 · Stamp") — den får aldrig tas över som det ordinarie kortet.
+    if ((c.products[0]?.title ?? "").split(" · ").length > 2) continue;
     const k = jpAdoptKey(c.setId, c.number);
     if (k) cmOnlyByKey.set(k, cmOnlyByKey.has(k) ? null : c);
   }
