@@ -315,6 +315,9 @@ async function importMissing(apply: boolean) {
         }
       }
 
+      // --jp-numbers-only: BARA nummerhålen ovan skrivs (ägaren godkände just den listan) — allt
+      // annat körningen hade gjort lämnas till veckosteget.
+      if (JP_NUMBERS_ONLY) continue;
       if (!nameOk) { stats.nameMismatch++; continue; }
       if (unnumbered && !FILL_CT) {
         stats.noNumber++;
@@ -535,7 +538,8 @@ function cleanLabel(label: string): string {
   return label.split(" · ").map((p) => p.replace(/\s*©.*$/, "").trim()).filter(Boolean).join(" · ");
 }
 const FILL_CT = process.argv.includes("--fill-ct-sets");
-const FILL_JP_NUMBERS = process.argv.includes("--fill-jp-numbers");
+const JP_NUMBERS_ONLY = process.argv.includes("--jp-numbers-only");
+const FILL_JP_NUMBERS = process.argv.includes("--fill-jp-numbers") || JP_NUMBERS_ONLY;
 const CT_MIRROR_SET = /^(Radiant Collection |Pokémon TCG: Pokémon GO$)/;
 
 /** Etiketter som bara är en sällsynthet eller reverse holo — vårt vanliga kort, ingen egen vara. */

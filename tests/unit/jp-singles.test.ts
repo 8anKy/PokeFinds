@@ -14,6 +14,7 @@ import {
   cleanJpEpisodeName,
   jpCardName,
   jpProductTitle,
+  jpAdoptKey,
   normalizeJpRarity,
 } from "@/jobs/jp-singles-refresh";
 
@@ -45,6 +46,21 @@ describe("Cardmarket JP-sök som prisbärande länk", () => {
     expect(sql).toContain("/products/search?");
     expect(sql).toContain("language=7");
     expect(sql).toContain("prices.pokemontcg.io/cardmarket");
+  });
+});
+
+describe("adoption av Cardmarket-only-kort: samma set + samma siffror är samma kort", () => {
+  it("nollor och nämnare spelar ingen roll, setet gör det", () => {
+    expect(jpAdoptKey("s1", "005")).toBe("s1|5");
+    expect(jpAdoptKey("s1", "5")).toBe("s1|5");
+    expect(jpAdoptKey("s1", "005/172")).toBe("s1|5");
+    expect(jpAdoptKey("s1", "100")).toBe("s1|100");
+    expect(jpAdoptKey("s2", "5")).not.toBe(jpAdoptKey("s1", "5"));
+  });
+  it("utan siffror finns ingen nyckel ⇒ ingen adoption", () => {
+    expect(jpAdoptKey("s1", "?")).toBeNull();
+    expect(jpAdoptKey("s1", "")).toBeNull();
+    expect(jpAdoptKey("s1", null)).toBeNull();
   });
 });
 

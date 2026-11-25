@@ -778,11 +778,14 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   domrad (`lib/link-report-hint.ts`); länkanmälningar har Åtgärdad/Avfärda (stänger bara anmälan).
   (5) ⛔ `repair-marketplace-offers.ts` är BARA Pokémon och raderar historik först med `VETO_HISTORY=1` — dess
   domare känner varken One Piece eller setaliasen (torrkörning: ~2 000 korrekta One Piece-rader + 9 560 punkter).
-  **De 101 japanska luckorna (23 set) är utredda 11-25**: 60 är äkta och bevisade (VSTAR Universe 58, Storm
-  Emeralda 89, Blue Sky Stream 88 — `import-cm-only-singles.ts --fill-jp-numbers`, torrkörd, ⛔ INTE körd skarpt:
-  ägaren ska säga ja först; flaggan står inte i veckosteget). 20 FINNS INTE (leverantörens total är ett för hög i
-  11 gamla set m.fl. — Cardmarkets expansion har exakt våra kort), 21 går inte att numrera (energier/promos utan
-  nummerkälla). ⛔ CardTrader skriver sällsyntheten i versionsfältet och bär italienska tränarnamn — se flaggans
+  **De 101 japanska luckorna (23 set) är utredda 11-25**: 60 var äkta och är SKAPADE (ägarens ja; VSTAR Universe
+  58 ⇒ 262/262, Storm Emeralda 89, Blue Sky Stream 88 — `import-cm-only-singles.ts --jp-numbers-only --apply`;
+  flaggan står inte i veckosteget, nästa lista visas ägaren först). 20 har INGEN KÄLLA: leverantörens total är ett
+  högre än både dess egen kortlista och Cardmarkets expansion i 11 gamla set m.fl. — ⛔ det är inte bevis för att
+  kortet saknas i verkligheten (PCG-seten hade hemliga kort på N+1), bara för att ingen av våra källor har det.
+  21 går inte att numrera (energier/promos utan nummerkälla). ⛔ `jp-singles-refresh` TAR ÖVER ett Cardmarket-only-
+  kort (samma set + nummersiffror + namn, `jpAdoptKey`) i stället för att skapa det en gång till den dag
+  leverantören listar det — utan det hade varje `cm:`-kort i ett leverantörsset (174 i VSTAR Universe) dubblerats. ⛔ CardTrader skriver sällsyntheten i versionsfältet och bär italienska tränarnamn — se flaggans
   filhuvud. **Cardmarket-only-priserna har utropsvakten sedan 11-25** (`cmOnlyGuidePrice`: 23 priser var utrop,
   t.ex. 22 480 kr mot försäljningar ~740 kr); ⏭ ägarfråga: 70 ENSAMMA annonser ≥ 25 € utan försäljningssnitt
   visas fortfarande som pris (Galarian Sirfetch'd League Promo 112 400 kr).

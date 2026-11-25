@@ -42,7 +42,7 @@ import {
   isCardmarketJpSearchUrl,
 } from "@/lib/marketplace-urls";
 import { codeFromJpSetName, jpSetDisplayName } from "@/lib/jp-set-name";
-import { fromIsOutlierAsk, upsertTodaySnapshots } from "@/jobs/cardmarket-refresh";
+import { cmCardNameAgrees, fromIsOutlierAsk, upsertTodaySnapshots } from "@/jobs/cardmarket-refresh";
 // ⛔ INGEN `fs`/`path` HÄR: modulen nås från cardmarket-refresh, som instrumentation.ts
 // importerar — och den kompileras även för Edge-runtimen, där Node-moduler inte
 // finns. Bygget föll på exakt det 2026-08-29 (deploy 389d8ca).
@@ -95,6 +95,8 @@ export interface JpSinglesResult {
   cards: number;
   setsCreated: number;
   cardsCreated: number;
+  /** Cardmarket-only-kort som leverantören nu listar och som därför togs över i stället för att dubbleras. */
+  cmOnlyAdopted: number;
   productsCreated: number;
   offersWritten: number;
   historyPoints: number;
@@ -145,6 +147,17 @@ export function jpProductTitle(nameEn: string, setName: string, number: string, 
   return `${jpCardName(nameEn)} · ${plainSet} ${num}`;
 }
 
+/**
+ * ADOPTION AV CARDMARKET-ONLY-KORT (2026-11-25). Kort som leverantören saknade föddes ur Cardmarkets
+ * katalog (`tcgExternalId "cm:<id>"`: 114 + 58 i VSTAR Universe, startdäcken …). Jobbet här kände
+ * bara igen `tcggo-jp:`-kort, så den dag leverantören lägger in samma kort hade det skapats EN GÅNG
+ * TILL. Nyckeln är set + nummersiffror ("005" = "5" = "005/172"); namnet måste dessutom hålla med.
+ */
+export function jpAdoptKey(setId: string, number: string | null | undefined): string | null {
+  const d = String(number ?? "").replace(/\/.*$/, "").replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  return d ? `${setId}|${d}` : null;
+}
+
 async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
 }
@@ -154,7 +167,7 @@ export async function runJapaneseSinglesRefresh(
 ): Promise<JpSinglesResult> {
   const log = opts.log ?? ((s: string) => console.log(s));
   const res: JpSinglesResult = {
-    apiCalls: 0, remaining: Infinity, cards: 0, setsCreated: 0, cardsCreated: 0,
+    apiCalls: 0, remaining: Infinity, cards: 0, setsCreated: 0, cardsCreated: 0, cmOnlyAdopted: 0,
     productsCreated: 0, offersWritten: 0, historyPoints: 0, skippedNoEpisode: 0, skippedNoName: 0,
     cmIdDisagreements: 0,
   };
@@ -279,6 +292,15 @@ export async function runJapaneseSinglesRefresh(
     select: { id: true, tcgExternalId: true, cardmarketId: true, products: { where: { language: "JP", variantLabel: null }, select: { id: true, slug: true }, take: 1 } },
   });
   const cardByExt = new Map(existingCards.map((c) => [c.tcgExternalId!, c]));
+  // Cardmarket-only-korten per (set, nummersiffror) — null = två kort delar nyckeln ⇒ adoptera aldrig.
+  const cmOnlyByKey = new Map<string, ((typeof existingCards)[number] & { name: string }) | null>();
+  for (const c of await prisma.card.findMany({
+    where: { language: "JP", tcgExternalId: { startsWith: "cm:" } },
+    select: { id: true, tcgExternalId: true, cardmarketId: true, name: true, setId: true, number: true, products: { where: { language: "JP", variantLabel: null }, select: { id: true, slug: true }, take: 1 } },
+  })) {
+    const k = jpAdoptKey(c.setId, c.number);
+    if (k) cmOnlyByKey.set(k, cmOnlyByKey.has(k) ? null : c);
+  }
   const priced: { productId: string; priceOre: number }[] = [];
 
   await mapPool(cards, DB_CONCURRENCY, async (c) => {
@@ -292,13 +314,27 @@ export async function runJapaneseSinglesRefresh(
     const cardName = jpCardName(nameEn);
     const rarity = normalizeJpRarity(c.rarity);
 
-    const existing = cardByExt.get(ext);
+    let existing: (typeof existingCards)[number] | undefined = cardByExt.get(ext);
+    if (!existing) {
+      // Samma kort finns redan som Cardmarket-only ⇒ ta över det (id, slug, samlingsposter och
+      // historik följer med) i stället för att skapa en dubblett. Nyckeln tas ur kartan DIREKT
+      // (synkront, före första await) så två rader aldrig adopterar samma kort.
+      const k = jpAdoptKey(setId, number);
+      const twin = k ? cmOnlyByKey.get(k) : undefined;
+      if (k && twin && cmCardNameAgrees(twin.name.replace(/ \(JP\)$/, ""), nameEn)) {
+        cmOnlyByKey.delete(k);
+        existing = twin;
+        res.cmOnlyAdopted++;
+      } else if (twin) {
+        console.warn(`[cm-jp-singles] Möjlig dubblett: leverantörens "${nameEn}" ${number} delar nummer med Cardmarket-only-kortet "${twin.name}" men namnen håller inte med — skapas som nytt kort.`);
+      }
+    }
     let cardId: string;
     if (existing) {
       cardId = existing.id;
       await prisma.card.update({
         where: { id: cardId },
-        data: { name: cardName, setId, number, rarity, imageUrl: c.image ?? undefined, artist: c.artist?.name ?? undefined, language: "JP" },
+        data: { name: cardName, setId, number, rarity, imageUrl: c.image ?? undefined, artist: c.artist?.name ?? undefined, language: "JP", tcgExternalId: ext },
       });
     } else {
       const created = await prisma.card.create({
@@ -372,7 +408,7 @@ export async function runJapaneseSinglesRefresh(
   }
 
   log(
-    `[cm-jp-singles] Klart: ${res.cards} kort, ${res.setsCreated} nya set, ${res.cardsCreated} nya kort, ` +
+    `[cm-jp-singles] Klart: ${res.cards} kort, ${res.setsCreated} nya set, ${res.cardsCreated} nya kort, ${res.cmOnlyAdopted} Cardmarket-only-kort övertagna, ` +
       `${res.productsCreated} nya produkter, ${res.offersWritten} offers, ${res.historyPoints} historikpunkter` +
       (res.skippedNoEpisode || res.skippedNoName ? ` (hoppade över ${res.skippedNoEpisode} utan set, ${res.skippedNoName} utan namn)` : "") +
       (res.cmIdDisagreements ? ` ⚠️ ${res.cmIdDisagreements} kort där leverantörens cardmarket_id avviker från vårt (ignorerat)` : "") +
