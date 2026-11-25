@@ -2432,6 +2432,21 @@ export async function runCardmarketRefresh(
         episodeVoteHits = lateEntries.size;
       }
       console.log(`[cm-refresh] Episodens set ur röster: ${episodeVoteHits} av ${deferredRows.length} omatchade rader fick en produkt.`);
+      // KATALOGLUCKAN, NAMNGIVEN (2026-11-25): raderna som fortfarande saknar produkt är kort
+      // leverantören har men inte vi (Kyogre MEP 117 stod så i veckor utan att synas). En rad per
+      // episod, flest först — underlaget för `import-en-episode.yml` (torrkörning, add-only).
+      const homeless = deferredRows.filter((c) => !lateEntries.has(c));
+      if (homeless.length) {
+        const byEpisode = new Map<string, string[]>();
+        for (const c of homeless) {
+          const k = `${c.episode?.name ?? "okänd episod"} (${c.episode?.id ?? "?"})`;
+          const l = byEpisode.get(k) ?? [];
+          l.push(`${c.name ?? "?"} ${c.card_number ?? ""}${c.version ? ` [${c.version}]` : ""}`.trim());
+          byEpisode.set(k, l);
+        }
+        for (const [k, l] of [...byEpisode].sort((a, b) => b[1].length - a[1].length).slice(0, 25))
+          console.log(`[cm-refresh] Utan produkt · ${k}: ${l.length} — ${l.slice(0, 6).join("; ")}${l.length > 6 ? " …" : ""}`);
+      }
     }
 
     // ── LEVERANTÖRENS KORT-ID → Card.tcggoId (2026-10-15) ─────────────────────
