@@ -583,8 +583,16 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   domrad (`lib/link-report-hint.ts`); länkanmälningar har Åtgärdad/Avfärda (stänger bara anmälan).
   (5) ⛔ `repair-marketplace-offers.ts` är BARA Pokémon och raderar historik först med `VETO_HISTORY=1` — dess
   domare känner varken One Piece eller setaliasen (torrkörning: ~2 000 korrekta One Piece-rader + 9 560 punkter).
-  **KVAR**: 101 japanska kort i 23 set saknas (leverantörens lista) — lista till ägaren FÖRE skapande; äldre
-  promo-/specialset okollade; stämplade MEP 111–114/117; anmälningstexter kommer in baklänges (orsak ej hittad).
+  **De 101 japanska luckorna (23 set) är utredda 11-25**: 60 är äkta och bevisade (VSTAR Universe 58, Storm
+  Emeralda 89, Blue Sky Stream 88 — `import-cm-only-singles.ts --fill-jp-numbers`, torrkörd, ⛔ INTE körd skarpt:
+  ägaren ska säga ja först; flaggan står inte i veckosteget). 20 FINNS INTE (leverantörens total är ett för hög i
+  11 gamla set m.fl. — Cardmarkets expansion har exakt våra kort), 21 går inte att numrera (energier/promos utan
+  nummerkälla). ⛔ CardTrader skriver sällsyntheten i versionsfältet och bär italienska tränarnamn — se flaggans
+  filhuvud. **Cardmarket-only-priserna har utropsvakten sedan 11-25** (`cmOnlyGuidePrice`: 23 priser var utrop,
+  t.ex. 22 480 kr mot försäljningar ~740 kr); ⏭ ägarfråga: 70 ENSAMMA annonser ≥ 25 € utan försäljningssnitt
+  visas fortfarande som pris (Galarian Sirfetch'd League Promo 112 400 kr).
+  **KVAR**: äldre promo-/specialset okollade; stämplade MEP 117 (STAFF 111–114 tas av veckoimporten); JP S-P-promos
+  ligger kvar i "Shield (S1H)" (veckoimporten lägger 31 till där); anmälningstexter baklänges (orsak ej hittad).
 - ⛔ **SKANNERMOTORNS VOLYM ÄR FULL SEDAN 2026-11-21 (hittat 11-24)**: 5 GB-taket (Railway Hobby) nått — varje
   kort kostar ~86 kB (600 nyckelpunkter × 128 B), och `_persist` skriver om hela indexet (230 MB) som tmp + replace.
   MÄTT 11-24: 231 MB ledigt, 254 krävs ⇒ `engine-sync` svarar **507 `engine-disk-full`** (var ett naket 500 fyra
