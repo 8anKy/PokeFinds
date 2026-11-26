@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+import { onOverlayElevationChange, overlayIsElevated } from "@/lib/product-overlay-open";
 import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 import { useEventCallback } from "@/hooks/use-event-callback";
 import { classifyDrag, shouldCloseSheet } from "@/lib/sheet-drag";
@@ -94,6 +95,16 @@ export function BottomSheet({
   // bakom det (prisfältets sifferknappsats täckte hela panelen). Mätningen delas
   // med modalen och chatten — se hooks/use-keyboard-height.ts.
   const kbHeight = useKeyboardHeight(open);
+
+  // ⛔ ARKET FÖLJER PRODUKT-OVERLAYN UPP (2026-11-26). Medan en helskärmsvärd är
+  // anmäld (sökläget, skannern) ligger overlayn på z-[70] — och ett ark på z-50
+  // öppnades då BAKOM den: "Lägg till i samling" och "Bevaka" på en produkt som
+  // öppnats ur sökläget gjorde ingenting synligt (arket hämtade sitt data, låste
+  // sidans scroll och gick aldrig att se eller bekräfta). Löst HÄR i stället för
+  // med `elevated` per anropare — den propen hade redan glömts på tilläggsarket,
+  // bevakningsarket och deras väljare. Portalen ligger sist i <body>, så samma
+  // z-index som overlayn målas ovanpå den.
+  const hostElevated = useSyncExternalStore(onOverlayElevationChange, overlayIsElevated, () => false);
 
   useEffect(() => {
     if (!open) return;
@@ -330,7 +341,7 @@ export function BottomSheet({
       // scrollar i stället för att tryckas utanför skärmen.
       className={cn(
         "fixed inset-x-0 top-0 flex flex-col justify-end bg-black/55 backdrop-blur-[3px]",
-        elevated ? "z-[70]" : "z-50"
+        elevated || hostElevated ? "z-[70]" : "z-50"
       )}
       style={{ bottom: kbHeight }}
       role="dialog"
