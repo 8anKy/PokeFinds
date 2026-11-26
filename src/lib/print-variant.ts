@@ -223,6 +223,19 @@ export function titleSaysStamped(title: string | null | undefined, cardName?: st
   return STAMPED.test(t);
 }
 
+/**
+ * PEELABLE DITTO (2026-11-26): Pokémon GO-kortet med avdragbar Ditto-dekal. Annonsen måste
+ * SÄGA Ditto — annars prissatte det vanliga kortets annons varianten (Spinarak 6/78: 3 kr
+ * från en annons för 0,22 kr-kortet, mot ~225 kr för Ditto-versionen; alla tre varianterna
+ * bar en sådan offer). Kortnamnet strippas: kortet "Ditto" säger inte varianten.
+ */
+export function titleSaysPeelableDitto(title: string | null | undefined, cardName?: string | null): boolean {
+  let t = (title ?? "").toLowerCase();
+  const name = (cardName ?? "").trim().toLowerCase();
+  if (name) t = t.split(name).join(" ");
+  return /\bditto\b/.test(t);
+}
+
 /** Bakåtkompatibelt alias — säger titeln att varan är NÅGON sorts reverse holo? */
 export function titleSaysReverseHolo(
   title: string | null | undefined,
@@ -256,6 +269,11 @@ export function listingFitsVariant(
     return variantLabel === (printLabelInTitle(listingTitle) ?? PRINT_UNLIMITED);
   }
   const inTitle = variantInTitle(listingTitle, cardName);
+  // Symmetriskt, som reverse: Ditto-annonsen prissätter inte heller det vanliga kortet.
+  const ditto = titleSaysPeelableDitto(listingTitle, cardName);
+  if (variantLabel === VARIANT_PEELABLE_DITTO) return ditto && inTitle == null;
+  // Bara när vi VET att kortet inte självt heter Ditto ("Ditto (JP)", "Ditto ex" …).
+  if (ditto && variantLabel == null && cardName && !/ditto/i.test(cardName)) return false;
   if (REVERSE_VARIANT_LABELS.includes(variantLabel as never)) return inTitle === variantLabel;
   // OVERSIZED (jumbo) är en egen vara — en vanlig promoannons är inte den (2026-11-21).
   if (variantLabel === "Oversized") return /oversize|jumbo|\blarge\b|\bstort?\b|\bxl\b/i.test(listingTitle);

@@ -185,4 +185,16 @@ describe("reverse holo som variant (2026-08-03)", () => {
   it("okända etiketter (Staff, Specialversion) beter sig som förut", () => {
     expect(listingFitsVariant("Staff", "Pikachu 5/100", "Pikachu")).toBe(true);
   });
+
+  it("Peelable Ditto kräver att annonsen säger Ditto — åt båda hållen", () => {
+    // Fältfallen 2026-11-26: vanliga kortets annons prissatte Ditto-varianten.
+    expect(listingFitsVariant("Peelable Ditto", "Spinarak 6/78 - Pokémon GO - Pokemonkort", "Spinarak")).toBe(false);
+    expect(listingFitsVariant("Peelable Ditto", "Numel 13/78 - Reverse - Pokémon GO", "Numel")).toBe(false);
+    expect(listingFitsVariant("Peelable Ditto", "Spinarak 6/78 Ditto peel Pokémon GO", "Spinarak")).toBe(true);
+    expect(listingFitsVariant(null, "Spinarak 6/78 Ditto peel Pokémon GO", "Spinarak")).toBe(false);
+    expect(listingFitsVariant(null, "Spinarak 6/78 - Pokémon GO", "Spinarak")).toBe(true);
+    // Kortet Ditto självt är inte varianten.
+    expect(listingFitsVariant(null, "Ditto 53/78 Pokémon GO holo", "Ditto")).toBe(true);
+    expect(listingFitsVariant(null, "Ditto 132/165 japansk", "Ditto (JP)")).toBe(true);
+  });
 });
