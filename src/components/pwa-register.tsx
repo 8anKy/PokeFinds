@@ -83,5 +83,44 @@ export function ServiceWorkerRegister() {
     };
   }, []);
 
+  useEffect(() => {
+    // GUMMIBANDET DOG NÄR APPEN KOM TILLBAKA FRÅN BAKGRUNDEN (2026-11-26).
+    // iOS-skalets `killBounce` (native/ios/AppDelegate.swift) går igenom ALLA
+    // scrollvyer varje gång appen blir aktiv — även WebKits inre scrollvy för
+    // `data-native-bounce`-sidans <main> — och stänger av studsen. WebKit sätter
+    // den inte igen förrän scrollytan byggs om, därav "funkar igen efter ett
+    // flikbyte". Skalet är rättat (rör bara dokumentets scrollvy) men det kräver
+    // ett nytt appbygge; installerade appar lagas härifrån: ytan görs kort
+    // oscrollbar så WebKit kastar scrollvyn och bygger en ny, med studs.
+    //
+    // ⛔ 1 300 ms: skalet kör killBounce direkt OCH en sekund senare — en tidigare
+    // ombyggnad hade dödats av den andra omgången. `focus` behövs utöver
+    // `visibilitychange`: notiscenter/systemdialog gör appen inaktiv → aktiv
+    // utan att sidan någonsin blir dold.
+    let timer: number | undefined;
+    const rebuild = () => {
+      document.querySelectorAll<HTMLElement>("[data-native-bounce]").forEach((page) => {
+        const scroller = page.closest("main");
+        if (!scroller) return;
+        scroller.style.overflowY = "hidden";
+        // En bildruta + marginal: lagerträdet måste hinna skickas med ytan
+        // oscrollbar, annars behåller WebKit den gamla scrollvyn.
+        requestAnimationFrame(() => window.setTimeout(() => scroller.style.removeProperty("overflow-y"), 60));
+      });
+    };
+    const onActive = () => {
+      if (document.visibilityState !== "visible") return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(rebuild, 1300);
+    };
+    document.addEventListener("visibilitychange", onActive);
+    window.addEventListener("focus", onActive);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onActive);
+      window.removeEventListener("focus", onActive);
+    };
+  }, []);
+
   return null;
 }

@@ -52,13 +52,14 @@ export function useAddToCollection() {
             : await fetch(`/api/collection/${itemId}`, { method: "DELETE" });
         if (!res.ok) throw new Error("undo");
         clearSetCompletionCache();
+        router.refresh(); // se tillägget nedan — samma inaktuella Samling-flik
         onUndone?.();
         toast({ title: t("addUndone"), variant: "default" });
       } catch {
         toast({ title: t("addUndoFailed"), variant: "error" });
       }
     },
-    [t, toast]
+    [router, t, toast]
   );
 
   return useCallback(
@@ -84,6 +85,11 @@ export function useAddToCollection() {
         // Set-kompletteringen cachas 60 s i klienten — annars står stapeln kvar på
         // gamla siffror på exakt den sida man tänkte se dem ändras.
         clearSetCompletionCache();
+        // ⛔ Nexts klientcache håller Samling-sidan i 30 s — och varje besök
+        // FÖRLÄNGER tiden, så den som växlar Utforska ↔ Samling såg aldrig sitt
+        // nya kort förrän appen legat i bakgrunden. refresh() tömmer cachen
+        // (och hämtar om den här sidan; Neon är redan vaken av skrivningen).
+        router.refresh();
         flyToCollectionTab(input.imageUrl ?? null, input.flyFrom ?? null, draft.quantity);
         const count = meta?.ownedBefore != null ? meta.ownedBefore + draft.quantity : null;
         toast({

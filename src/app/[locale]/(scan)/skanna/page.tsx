@@ -2479,6 +2479,9 @@ function Scanner() {
       }
     }
     addedRef.current = true;
+    // Töm Nexts klientcache — annars visar Samling-fliken sin 30 s gamla kopia
+    // utan de nya korten (se use-add-to-collection.ts).
+    if (created.length > 0) router.refresh();
     return created;
   }
 

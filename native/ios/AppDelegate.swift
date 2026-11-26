@@ -5,6 +5,7 @@
 import UIKit
 import Capacitor
 import UserNotifications
+import WebKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -123,8 +124,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         // padding-top: env(safe-area-inset-top) → dubbel topp efter första scroll.
         // .never = stäng av auto-inseten, vår CSS sköter notchen. Nollar även bounce.
         // CSS/JS kan INTE röra detta (native scrollView). Walka från windows.
+        // ⛔ BARA DOKUMENTETS SCROLLVY (2026-11-26). Förut gick vi igenom ALLA
+        // UIScrollView — även WebKits inre scrollvyer (overflow-ytor i sidan), som
+        // sidor med `data-native-bounce` MEDVETET låter studsa. Studsen dog då varje
+        // gång appen kom tillbaka från bakgrunden. Stanna vid WKWebView.
         func killBounce(_ v: UIView) {
-            if let sv = v as? UIScrollView { sv.contentInsetAdjustmentBehavior = .never; sv.bounces = false; sv.alwaysBounceVertical = false }
+            if let web = v as? WKWebView {
+                let sv = web.scrollView
+                sv.contentInsetAdjustmentBehavior = .never; sv.bounces = false; sv.alwaysBounceVertical = false
+                return
+            }
             v.subviews.forEach(killBounce)
         }
         application.windows.forEach(killBounce)
