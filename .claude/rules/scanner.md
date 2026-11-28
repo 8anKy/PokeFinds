@@ -46,6 +46,22 @@ paths:
   rättelsefrekvensen per spel efter påslag. Kostnad: +6 718 kort ≈ +13 % av motorns index (~35 MB RAM,
   ~0,55 GB volym) ≈ 5 kr/mån. Första påfyllningen tar 3 nätter (engine-sync `MAX_PER_RUN` 3 000).
 
+- **SKANNERNS NYA UTSEENDE BYGGS STEGVIS BAKOM `SCANNER_V2` (ägarbeslut 2026-11-28, "ok lets build it")**: designen
+  är vald på canvasen (memory `project_app_redesign_flow_2026_11_26`) och byggs i tre steg, synlig BARA för admin
+  tills `FEATURE_SCANNER_V2_PUBLIC=1` (`lib/feature-preview.ts`; flaggan följer med kvotsvaret som `quota.v2`, ingen
+  egen hämtning). **Steg 1 (LIVE för admin)** — `src/components/features/scanner-v2.tsx`: `ScanHitMoments` (den
+  fångade bilden läggs över ramen, tonas ned under en turkos bock med värde + namn, flyger till högen; "Träff" med
+  glans från 100 kr; osäker träff = grå, ingen bock) och `ScanSessionPanel` (högen av de tre senaste, senaste radens
+  text, "N kort · summa · Granska") i stället för `ScanStrip`. Samma i Auto och vid manuellt tryck.
+  ⛔ Ett kort syns i panelen först när det LANDAT (`landedIds`, `scanVisibleInPanel`) — bokföringen ägs av
+  `ScanHitMoments`, som låter allt utan animation (återställd bricka, bulk utan ram, reducerad rörelse) landa direkt.
+  ⛔ Ingen räknarbricka på högen (ägaren). ⛔ Nya panelen bär ÄNNU INTE gratiskontots rad/räknare (`ScanStrip` gör
+  det) — den måste in före ett publikt påslag; admin saknar kvot. Pris i nya delarna = hela kronor från 100 kr
+  (`scanPrice`). **Kvar**: steg 2 Flera kort (prislappar, dyrast kort lyfts, högen, "Hittade N kort"), steg 3 Granska
+  i rutnät + sveprad för osäkra kort ("tryck på kortet", nästa direkt), sedan toppraden/ordlägena.
+  Lokalt prov utan kamera: en tillfällig sida som matar komponenterna med låtsasskanningar (`work/autoscan/v2-shots.mjs`
+  tar bilderna) — checka aldrig in provsidan.
+
 - **AUTO-FÅNGSTENS AVTRYCKARE = "KORTET LIGGER STILLA", INTE "POLLEN ÄR SÄKER" (2026-11-28, ägaren: auto-skanningen
   hittar inte korten, varken i kortmataren eller i handen)**: avtryckaren krävde att live-pollen (`/identify-art`)
   var "säker" tre pollar i rad. MÄTT (600 riktiga fångster uppspelade genom `identifyCardArt`): säker på **13 %** av

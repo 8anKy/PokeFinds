@@ -784,3 +784,18 @@ html[data-auth] .header-auth-placeholder {
   }
   .streak-count-out { display: none; }
 }
+
+/* Skannerns nya träffögonblick (components/features/scanner-v2.tsx): bocken, värdet och glansen. */
+@keyframes scanv2-pop {
+  from { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes scanv2-rise {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes scanv2-sheen {
+  from { transform: translateX(-180%) skewX(-18deg); }
+  to { transform: translateX(460%) skewX(-18deg); }
+}

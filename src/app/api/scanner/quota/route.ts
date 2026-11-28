@@ -40,6 +40,8 @@ export async function GET(req: Request) {
       isPremium: isPro(user),
       guest: false,
       counter: previewAllowedFor("SCAN_COUNTER", user),
+      // Skannerns nya utseende — bara ägaren (admin) tills `FEATURE_SCANNER_V2_PUBLIC=1`.
+      v2: previewAllowedFor("SCANNER_V2", user),
     });
   } catch (e) {
     return apiError(e);

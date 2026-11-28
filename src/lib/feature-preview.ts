@@ -14,7 +14,8 @@
  * skickar in env och användare, testerna slipper process.env.
  */
 /** APP_TOUR = appens guidade tur (lib/app-tour.ts), öppnas för alla med `FEATURE_APP_TOUR_PUBLIC=1`. */
-export type PreviewFeature = "SCAN_COUNTER" | "PUSH_TO_STORE" | "APP_TOUR" | "ONE_PIECE";
+/** SCANNER_V2 = skannerns nya utseende (components/features/scanner-v2.tsx), steg för steg tills ägaren släpper det. */
+export type PreviewFeature = "SCAN_COUNTER" | "PUSH_TO_STORE" | "APP_TOUR" | "ONE_PIECE" | "SCANNER_V2";
 
 const ADMIN_ROLES = new Set(["ADMIN", "SUPERADMIN"]);
 

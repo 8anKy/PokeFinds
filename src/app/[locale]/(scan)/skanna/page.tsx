@@ -37,6 +37,7 @@ import {
   autoCaptureStep,
   newAutoCaptureState,
 } from "@/lib/auto-capture";
+import { ScanHitMoments, ScanSessionPanel } from "@/components/features/scanner-v2";
 import { readNumberStripNative, warmUpLocalNumberReader } from "@/lib/on-device-number";
 import { readLangHint, rememberLangHint } from "@/lib/scan-language-hint";
 import { classifyDrag, shouldCloseSheet } from "@/lib/sheet-drag";
@@ -190,6 +191,8 @@ interface ScanQuota {
    * Servern avgör — klienten visar bara det den får.
    */
   counter?: boolean;
+  /** Skannerns nya utseende (förhandsvisning SCANNER_V2, components/features/scanner-v2.tsx). */
+  v2?: boolean;
 }
 
 /**
@@ -1111,6 +1114,13 @@ function Scanner() {
   // bakom (det gamla kravet, "pollen säker tre gånger i rad", uppfylldes på 13 % av riktiga rutor).
   // Tillståndet överlever att pollen pausas (ark över kameran): det fångade kortet ska minnas.
   const autoState = useRef(newAutoCaptureState());
+  // NYA UTSEENDET (förhandsvisning): högen i panelen + vilka kort som hunnit LANDA på den — ett kort
+  // syns i panelen först när träffögonblicket i ramen är klart (components/features/scanner-v2.tsx).
+  const pileRef = useRef<HTMLSpanElement>(null);
+  const [landedIds, setLandedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const onLanded = useCallback((id: string) => {
+    setLandedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }, []);
   /** Skanningar som väntar på svar — auto-fångsten håller inne när kön blir för lång. */
   const pendingRef = useRef(0);
   // Färska referenser — poll-effekten ska inte binda om sig varje gång
@@ -2785,6 +2795,10 @@ function Scanner() {
           isMock={isMock}
           shutterCooling={shutterCooling}
           quota={quota}
+          v2={quota?.v2 === true}
+          pileRef={pileRef}
+          landedIds={landedIds}
+          onLanded={onLanded}
           mode={mode}
           onSetMode={setMode}
           autoOn={autoOn && mode === "single"}
@@ -3198,6 +3212,11 @@ function CaptureView(props: {
   isMock: boolean;
   shutterCooling: boolean;
   quota: ScanQuota | null;
+  /** Nya utseendet (förhandsvisning): panelen med högen + träffögonblicket i ramen. */
+  v2: boolean;
+  pileRef: RefObject<HTMLSpanElement>;
+  landedIds: ReadonlySet<string>;
+  onLanded: (id: string) => void;
   onUpgrade: () => void;
   /** Bulk-chippets egen prompt — samma ark, egen mätpunkt. */
   onUpgradeBulk: () => void;
@@ -3391,15 +3410,26 @@ function CaptureView(props: {
           </p>
         )}
 
-        {scans.length > 0 && (
-          <ScanStrip
-            scans={scans}
-            total={total}
-            onOpen={props.onOpenDetails}
-            quota={quota}
-            onUpgrade={props.onUpgrade}
-          />
-        )}
+        {/* ⛔ Nya panelen bär ännu inte gratiskontots rad/räknare (ScanStrip gör det) — den måste in
+            innan förhandsvisningen släpps för andra än admin, som saknar kvot. */}
+        {scans.length > 0 &&
+          (props.v2 ? (
+            <ScanSessionPanel
+              scans={scans}
+              landedIds={props.landedIds}
+              pileRef={props.pileRef}
+              onOpen={props.onOpenDetails}
+              onReview={props.onReview}
+            />
+          ) : (
+            <ScanStrip
+              scans={scans}
+              total={total}
+              onOpen={props.onOpenDetails}
+              quota={quota}
+              onUpgrade={props.onUpgrade}
+            />
+          ))}
 
         {/* Raden visas även MED skanningar i enkelläget — då bara Auto-knappen, så autoskannern
             går att slå av mitt i ett pass. Bulk/streckkod byts som förut bara med tom bricka. */}
@@ -3559,6 +3589,9 @@ function CaptureView(props: {
           )}
         </div>
       </div>
+      {props.v2 && (
+        <ScanHitMoments scans={scans} frameRef={frameRef} pileRef={props.pileRef} onLanded={props.onLanded} />
+      )}
     </>
   );
 }
