@@ -27,6 +27,23 @@ export async function resolveScanActor(req: Request): Promise<ScanActor> {
   throw new AuthError(401, "Du måste vara inloggad.");
 }
 
+/**
+ * VEM pollar? Samma identitet som `resolveScanActor`, UTAN databasläsningen.
+ *
+ * Live-pollen (/api/scanner/identify-art) går flera gånger i sekunden och behöver bara en nyckel
+ * att hastighetsbegränsa på — den rör varken kvot eller Pro. `requireEntitledUser` läser planen
+ * färsk ur databasen: mätt i [scan-timing] 11–25 ms i vanliga fall men 0,4–1,5 s när poolen är
+ * upptagen, och det lades på VARJE poll. Sessionen (JWT) räcker här.
+ * ⛔ Bara för pollen. Allt som räknar kvot eller grindar Pro använder `resolveScanActor`.
+ */
+export async function resolveScanActorKey(req: Request): Promise<string> {
+  const session = await auth();
+  if (session?.user?.id) return `u:${session.user.id}`;
+  const deviceId = readDeviceId(req.headers);
+  if (deviceId) return `d:${deviceId}`;
+  throw new AuthError(401, "Du måste vara inloggad.");
+}
+
 /** Nyckel för rate-limit: per konto eller per enhet. */
 export function actorKey(actor: ScanActor): string {
   return actor.kind === "user" ? `u:${actor.user.id}` : `d:${actor.deviceId}`;

@@ -2,7 +2,7 @@
  * POST /api/scanner/identify-art — LIVE bildmatchning medan användaren siktar.
  *
  * Ingen vision-modell, ingen bilduppladdning, ingen ScannerJob-rad: klienten
- * skickar ~1 kB konstavtryck per poll och får topplistan tillbaka på ~40 ms.
+ * skickar ~10 kB avtryck per poll och får topplistan tillbaka på ~20 ms.
  * Det är det som ger "låset" i kameravyn innan slutaren ens trycks — samma
  * känsla som konkurrenternas scanners, utan deras tjänsteabonnemang.
  *
@@ -14,7 +14,7 @@
  */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { actorKey, resolveScanActor } from "@/lib/scan-actor";
+import { resolveScanActorKey } from "@/lib/scan-actor";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { identifyCardArt } from "@/services/scanner";
@@ -28,10 +28,12 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
-    // Gäst (enhets-id) eller inloggad — live-pollen kostar ingen kvot, bara CPU.
-    const actor = await resolveScanActor(req);
-    // ~2 poll/s i kameravyn → 120/min räcker med marginal; taket binder CPU.
-    const { ok } = await rateLimit(`scanner-art:${actorKey(actor)}`, 180, 60 * 1000);
+    // Gäst (enhets-id) eller inloggad — live-pollen kostar ingen kvot, bara CPU. Ingen
+    // databasläsning per poll: nyckeln räcker (se resolveScanActorKey).
+    const key = await resolveScanActorKey(req);
+    // Upp till ~7 poll/s i kameravyn (LIVE_POLL_MS 150 i skanna/page.tsx) = 400/min; taket binder
+    // CPU:n (~20 ms per poll sedan SIMD-kärnan, art-index.ts).
+    const { ok } = await rateLimit(`scanner-art:${key}`, 600, 60 * 1000);
     if (!ok) throw new ServiceError(429, "För många förfrågningar.");
     const { fingerprints, structFingerprints } = schema.parse(await req.json());
     return jsonOk(await identifyCardArt({ fingerprints, structFingerprints }));

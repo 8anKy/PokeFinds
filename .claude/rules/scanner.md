@@ -46,6 +46,23 @@ paths:
   rättelsefrekvensen per spel efter påslag. Kostnad: +6 718 kort ≈ +13 % av motorns index (~35 MB RAM,
   ~0,55 GB volym) ≈ 5 kr/mån. Första påfyllningen tar 3 nätter (engine-sync `MAX_PER_RUN` 3 000).
 
+- **AUTO-FÅNGSTENS FART (2026-11-28, ägaren: snabb nog för en kortmatare, utan att tappa träffsäkerhet)**:
+  MÄTT FÖRE: `/identify-art` p50 ~360 ms (p90 ofta 1,8 s — den köade bakom skanningens sökning på samma tråd),
+  `/identify` total ~3 s varav `match` ~1,9 s; klientens klocka (350 ms) hoppade över varannan tick medan svaret
+  var ute ⇒ verklig takt 700 ms ⇒ ~3 s till auto-fångst. Tre ändringar, ingen rör beviskravet:
+  (1) **SIMD-kärnan** (`art-kernel.wat` → `art-kernel.generated.ts`, `searchKernel` i art-index.ts): samma
+  heltalsskalärprodukter 16 byte i taget, poäng + topplista i samma JS-aritmetik. Mätt mot prod-indexet
+  (43 070 kort, `scripts/art-kernel-verify.ts`): 0 av 80 svar avviker, poll 281 → 18 ms, skanning 1 108 → 72 ms.
+  ⛔ Indexet LIGGER i kärnans minne (vyer) — väx aldrig minnet efter laddning. ⛔ Ändrad .wat ⇒
+  `node scripts/build-art-kernel.mjs` (testet `art-index-kernel.test.ts` fäller annars). `ART_INDEX_KERNEL=0`
+  eller ett fel i kärnan ⇒ JS-loopen (`searchOne`), samma svar. (2) **Pollen går en i taget** och nästa startar
+  när svaret kommit, golv `LIVE_POLL_MS` 150. (3) Pollen läser inte längre planen ur databasen
+  (`resolveScanActorKey`), taket 600/min; `/identify` 120/min (ett 429 läses av klienten som "kvoten slut").
+  Auto-fångsten spärrar kortet först när slutaren faktiskt gick; de extra rutorna kodar ingen JPEG.
+  ⛔ Fortfarande 5 pollar i rad + trust-regeln + skärpegrinden, och kortet avgörs av `/identify`, inte av pollen.
+  ⏭ OMÄTT: takten på en riktig telefon/kortmatare (läs `/identify-art` i http-loggen), två LIKA kort i rad
+  (spärren släpper bara när ett annat kort setts emellan), motorn (~0,7 s/kort, ett kort i taget — nästa spak).
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **SKANNERN IDENTIFIERAR PÅ UTSEENDE, INTE PÅ TEXT (2026-07-29)**: samlarnumret trycks ~2 mm högt. På en fysisk

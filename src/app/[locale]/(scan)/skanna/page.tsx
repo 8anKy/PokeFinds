@@ -901,8 +901,18 @@ async function scanFetch(url: string, init?: RequestInit): Promise<Response> {
  * kräver fortfarande SAMMA bevis — 3 pollar i rad på samma kort för låset + 3 pollar till med låset
  * (5 överens), trust-regeln och skärpegrinden — bara tätare insamlat: ~3,0 s → ~1,75 s. Pollen blev
  * billig nog när indexsökningen slogs ihop till en genomgång (art-index.ts `searchPrepared`).
+ *
+ * 2026-11-28 (ägaren: snabb nog för en kortmatare, utan att tappa träffsäkerhet): 350 → 150 ms som
+ * GOLV — pollen går nu en i taget och nästa startar när svaret kommit (se live-pollens effekt), så
+ * takten är max(150 ms, svarstiden). Mätt före: svaret tog ~450 ms mot klockans 350 ⇒ varannan
+ * tick hoppades över ⇒ verklig takt 700 ms, ~3 s till auto-fångst. Serverns sökning gick samtidigt
+ * från ~360 till ~20 ms (SIMD-kärnan, art-index.ts). ⛔ Beviskravet är detsamma: 5 pollar i rad på
+ * samma kort, trust-regeln och skärpegrinden — och VILKET kort det är avgörs ändå av skanningen
+ * (/identify, fyra nya rutor + motorn), inte av pollen. Höj golvet om kort fångas i rörelse.
  */
-const LIVE_POLL_MS = 350;
+const LIVE_POLL_MS = 150;
+/** Minsta avstånd mellan foliesonderna i historiken (admindiagnostik) — pollens takt före 2026-11-28. */
+const PROBE_GAP_MS = 350;
 
 export default function SkannaPage() {
   const router = useRouter();
@@ -1086,9 +1096,9 @@ function Scanner() {
   /** Senaste live-pollens skärpa — följer med fångsten upp som mätdata. */
   const lastSharpness = useRef<number | null>(null);
   const liveStreak = useRef<{ id: string; n: number }>({ id: "", n: 0 });
-  const livePollBusy = useRef(false);
-  /** De senaste live-pollarnas foliesonder (äldst först, max 5 ≈ 1,75 s vid LIVE_POLL_MS 350; bara admindiagnostik). */
+  /** De senaste foliesonderna (äldst först, max 5 med minst PROBE_GAP_MS emellan ≈ 1,75 s; bara admindiagnostik). */
   const probeHistory = useRef<string[]>([]);
+  const lastProbeAt = useRef(0);
   // AUTO-FÅNGST: låset (100 % uppmätt precision) som hållit i ≥2 extra pollar
   // (~1,2 s stadigt sikte) trycker av åt användaren — pärmflödet blir
   // "håll kort → grönt → klick av sig självt → nästa". EN fångst per kort:
@@ -1097,7 +1107,7 @@ function Scanner() {
   const autoFired = useRef<string | null>(null);
   // Färska referenser — poll-effekten ska inte binda om sig varje gång
   // capture-callbacken eller kvot-staten byter identitet.
-  const captureRef = useRef<(() => void) | null>(null);
+  const captureRef = useRef<(() => boolean) | null>(null);
   const quotaRef = useRef<ScanQuota | null>(null);
   const [flash, setFlash] = useState(false);
   const [shutterCooling, setShutterCooling] = useState(false);
@@ -1583,10 +1593,10 @@ function Scanner() {
     };
   }, [view, cameraState]);
 
-  // LIVE-POLLEN: fingeravtryck ur aktuell videoruta ~var 600:e ms medan
-  // kameravyn är aktiv. Varje poll är ~1 kB upp och ~40 ms server-CPU mot
-  // indexet i minnet — ingen bild, ingen modell, ingen kvot. En poll i taget
-  // (busy-ref) så en seg lina inte staplar förfrågningar.
+  // LIVE-POLLEN: fingeravtryck ur aktuell videoruta i takten LIVE_POLL_MS medan
+  // kameravyn är aktiv. Varje poll är ~10 kB upp och ~20 ms server-CPU mot
+  // indexet i minnet — ingen bild, ingen modell, ingen kvot. En poll i taget,
+  // så en seg lina inte staplar förfrågningar.
   useEffect(() => {
     // Bulk-läget pollar inte: låset/chippen är enkortsbegrepp, och 9 celler
     // × 2 poll/s hade varit CPU utan mottagare. Streckkodsläget pollar sin egen
@@ -1609,22 +1619,37 @@ function Scanner() {
       probeHistory.current = [];
       return;
     }
-    const iv = window.setInterval(() => {
+    // EN POLL I TAGET, NÄSTA DIREKT NÄR SVARET KOMMIT (2026-11-28). Förut gick en klocka var 350:e ms
+    // som HOPPADE ÖVER tickar medan en poll var ute — och svaret tog ~450 ms (mätt: 360 ms server +
+    // nät), så den verkliga takten var 700 ms och de fem pollar auto-fångsten kräver tog ~3 s. Nu
+    // startar nästa poll LIVE_POLL_MS efter att den förra STARTADE, eller direkt när svaret kom om
+    // det tog längre. Beviskravet är orört; bara väntan mellan pollarna är borta.
+    let cancelled = false;
+    let timer: number | undefined;
+    const tick = () => {
+      if (cancelled) return;
+      const startedAt = performance.now();
+      const next = () => {
+        if (cancelled) return;
+        timer = window.setTimeout(tick, Math.max(0, LIVE_POLL_MS - (performance.now() - startedAt)));
+      };
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      if (!video || !canvas || livePollBusy.current || document.hidden) return;
+      if (!video || !canvas || document.hidden) return next();
       const shot = captureFrame(video, canvas, frameRef.current, true);
-      if (!shot || shot.fingerprints.length === 0) return;
+      if (!shot || shot.fingerprints.length === 0) return next();
       // TEMPORAL FOLIESIGNAL: pollarna ligger 600 ms isär, alltså ~2 s
       // handhållen rörelse innan slutaren går — spekulära reflexer flyttar sig
       // över den tiden, tryckfärg gör det inte. Sonderna räknades redan här
       // och kastades; nu behålls de fem senaste och följer med fångsten upp.
-      if (shot.probe) {
+      // Sonderna hålls PROBE_GAP_MS isär oavsett polltakten: signalen är rörelse över ~2 s, och
+      // fem sonder ur samma halvsekund hade mätt nästan samma ruta.
+      if (shot.probe && startedAt - lastProbeAt.current >= PROBE_GAP_MS) {
+        lastProbeAt.current = startedAt;
         const h = probeHistory.current;
         h.push(shot.probe);
         if (h.length > 5) h.shift();
       }
-      livePollBusy.current = true;
       scanFetch("/api/scanner/identify-art", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1635,6 +1660,9 @@ function Scanner() {
       })
         .then((r) => (r.ok ? r.json() : null))
         .then((d: { candidates?: Array<{ cardId: string; name: string; number: string }>; confident?: boolean } | null) => {
+          // Ett svar som kom efter att pollen stängts av (ett ark öppnades, läget byttes) får
+          // varken tända chippet eller trycka av.
+          if (cancelled) return;
           const top = d?.candidates?.[0];
           if (!top) {
             liveStreak.current = { id: "", n: 0 };
@@ -1698,17 +1726,23 @@ function Scanner() {
             autoFired.current !== top.cardId &&
             (quotaRef.current == null || quotaRef.current.remaining > 0)
           ) {
-            autoFired.current = top.cardId;
-            hapticImpact();
-            captureRef.current?.();
+            // ⛔ Spärra kortet först när slutaren FAKTISKT gick. Den vägrar under sin egen
+            // nedkylning (450 ms efter förra fångsten); sattes spärren ändå blev kortet aldrig
+            // fångat — vid snabb matning (kortmatare) är det exakt läget. Nästa poll försöker igen.
+            if (captureRef.current?.()) {
+              autoFired.current = top.cardId;
+              hapticImpact();
+            }
           }
         })
         .catch(() => undefined)
-        .finally(() => {
-          livePollBusy.current = false;
-        });
-    }, LIVE_POLL_MS);
-    return () => window.clearInterval(iv);
+        .finally(next);
+    };
+    tick();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, [cameraState, view, mode, detailsId, settingsOpen, guideMode]);
 
 
@@ -2054,12 +2088,13 @@ function Scanner() {
     };
   }, [mode, cameraState, view, addBarcodeScan]);
 
-  const capture = useCallback(() => {
+  /** @returns true när en fångst faktiskt togs (auto-fångsten spärrar kortet bara då). */
+  const capture = useCallback((): boolean => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
+    if (!video || !canvas || cameraState !== "live" || shutterCooling) return false;
     const shot = captureFrame(video, canvas, frameRef.current);
-    if (!shot) return;
+    if (!shot) return false;
     setFlash(true);
     window.setTimeout(() => setFlash(false), 180);
     setShutterCooling(true);
@@ -2107,7 +2142,9 @@ function Scanner() {
       // requestAnimationFrame: nästa videoruta, inte en kopia av samma. Två
       // avtryck av EXAKT samma pixlar tillför ingenting.
       requestAnimationFrame(() => {
-        const extra = captureFrame(video, canvas, frameRef.current);
+        // Bara avtrycken (fpOnly): de extra rutornas JPEG kodades förut och kastades — tre
+        // onödiga kodningar à 30–60 ms på huvudtråden innan skanningen ens skickades.
+        const extra = captureFrame(video, canvas, frameRef.current, true);
         // Ruta-listorna hålls parallella: färg- och strukturrutor med samma index.
         if (extra?.fingerprints.length) {
           frames.push(extra.fingerprints);
@@ -2118,6 +2155,7 @@ function Scanner() {
       });
     };
     grabNext();
+    return true;
   }, [cameraState, shutterCooling, addScan]);
 
   /**

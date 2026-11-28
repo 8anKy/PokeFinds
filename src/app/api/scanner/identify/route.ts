@@ -140,7 +140,10 @@ export async function POST(req: Request) {
     // in-memory utan Redis → per-instans/svag på serverless. Hård budget-spärr =
     // Anthropic-kontots spend limit (sätt i konsolen) + ev. Upstash/Redis för äkta
     // distribuerad gräns. Se docs/LAUNCH-CHECKLIST.md Section 0.
-    const { ok } = await rateLimit(`scanner-identify:${actorKey(actor)}`, 60, 60 * 1000);
+    // 60 → 120/min (2026-11-28): auto-fångsten med en kortmatare går upp mot ett kort i sekunden,
+    // och klienten läser ett 429 som "kvoten slut" (betalväggen). Motorn kostar inget per skanning;
+    // månadskvoten nedan är det som binder bruket.
+    const { ok } = await rateLimit(`scanner-identify:${actorKey(actor)}`, 120, 60 * 1000);
     if (!ok) {
       throw new ServiceError(429, "För många skanningar på kort tid. Vänta en stund.");
     }

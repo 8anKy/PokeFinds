@@ -35,6 +35,7 @@ import {
   cosineSimilarity,
   toUnitVector,
 } from "@/lib/art-fingerprint";
+import { ART_KERNEL_WASM_BASE64 } from "./art-kernel.generated";
 
 /** Hur länge ett laddat index återanvänds. Katalogen växer ~1×/vecka. */
 const TTL_MS = Number(
@@ -53,6 +54,101 @@ interface ArtIndex {
   invDct: Float32Array;
   invGrad: Float32Array;
   loadedAt: number;
+  /** SIMD-kärnan som äger `data`/`struct` (de är vyer i dess minne), eller null = JS-loopen. */
+  kernel: ArtKernel | null;
+}
+
+/**
+ * SIMD-KÄRNAN (2026-11-28, ägaren: "autoskanningen ska gå fortare, utan att tappa träffsäkerhet").
+ * Mätt i drift kostade sökningen ~360 ms per live-poll (7 avtryck) och ~1,9 s per skanning
+ * (4 rutor × 7), på webbserverns enda tråd — pollarna och skanningen köade bakom varandra. Kärnan
+ * (art-kernel.wat) räknar samma heltalsskalärprodukter 16 byte i taget: mätt lokalt mot 43 000 kort
+ * 274 → 20 ms (7 avtryck) och 921 → 68 ms (28), med IDENTISKA topplistor och poäng.
+ *
+ * ⛔ Kärnan räknar bara heltal; normalisering, blandning och topplista är samma JS-aritmetik i
+ *    samma ordning som `searchOne` ⇒ bit för bit samma svar (art-index-kernel.test.ts).
+ * ⛔ Indexet LIGGER i kärnans minne (inga kopior — minne är Railway-notan). Minnet växer aldrig
+ *    efter att vyerna skapats: `grow` kopplar loss alla vyer.
+ * Går kärnan inte att starta (ingen SIMD, `ART_INDEX_KERNEL=0`) används JS-loopen som förut.
+ */
+interface ArtKernel {
+  dots: (
+    data: number,
+    struct: number,
+    row: number,
+    count: number,
+    q: number,
+    nq: number,
+    out: number,
+    fb: number,
+    sd: number,
+    sg: number
+  ) => void;
+  /** Frågeblocket: KERNEL_MAX_QUERIES × (färg + struktur). */
+  queries: Int8Array;
+  /** Skalärprodukterna: per (fråga, rad) tre i32 — färg, DCT, gradient. */
+  out: Int32Array;
+  queriesOff: number;
+  outOff: number;
+  dataOff: number;
+  structOff: number;
+}
+
+/** Frågor per genomgång. En skanning skickar högst 4 rutor × 8 avtryck. */
+const KERNEL_MAX_QUERIES = 32;
+/** Rader per kärnanrop — utdatat (32 × 256 × 12 byte) ska rymmas i cachen. */
+const KERNEL_CHUNK = 256;
+const QUERY_BYTES = FINGERPRINT_BYTES + STRUCT_BYTES;
+
+let kernelModule: WebAssembly.Module | null | undefined;
+let kernelWarned = false;
+
+/** Indexets två stora fält — i kärnans minne när den finns, annars vanliga arrayer. */
+function allocStore(cap: number): { data: Int8Array; struct: Int8Array; kernel: ArtKernel | null } {
+  if (process.env.ART_INDEX_KERNEL !== "0" && kernelModule !== null) {
+    try {
+      kernelModule ??= new WebAssembly.Module(Buffer.from(ART_KERNEL_WASM_BASE64, "base64"));
+      const exports = new WebAssembly.Instance(kernelModule).exports as unknown as {
+        mem: WebAssembly.Memory;
+        dots: ArtKernel["dots"];
+      };
+      const align = (n: number) => (n + 15) & ~15;
+      const queriesOff = 0;
+      const outOff = align(KERNEL_MAX_QUERIES * QUERY_BYTES);
+      const dataOff = align(outOff + KERNEL_MAX_QUERIES * KERNEL_CHUNK * 12);
+      const structOff = align(dataOff + cap * FINGERPRINT_BYTES);
+      const total = structOff + cap * STRUCT_BYTES;
+      const pages = Math.ceil(total / 65536);
+      // Modulen startar på en sida. ⛔ Väx FÖRE vyerna — efteråt aldrig.
+      if (pages > 1) exports.mem.grow(pages - 1);
+      const buf = exports.mem.buffer;
+      return {
+        data: new Int8Array(buf, dataOff, cap * FINGERPRINT_BYTES),
+        struct: new Int8Array(buf, structOff, cap * STRUCT_BYTES),
+        kernel: {
+          dots: exports.dots,
+          queries: new Int8Array(buf, queriesOff, KERNEL_MAX_QUERIES * QUERY_BYTES),
+          out: new Int32Array(buf, outOff, KERNEL_MAX_QUERIES * KERNEL_CHUNK * 3),
+          queriesOff,
+          outOff,
+          dataOff,
+          structOff,
+        },
+      };
+    } catch (err) {
+      // Ett kompileringsfel gäller hela processen; ett minnesfel (för stort index) prövas om vid nästa laddning.
+      if (!(err instanceof RangeError)) kernelModule = null;
+      if (!kernelWarned) {
+        kernelWarned = true;
+        console.warn("[art-index] SIMD-kärnan gick inte att starta — JS-loopen används:", (err as Error).message);
+      }
+    }
+  }
+  return {
+    data: new Int8Array(cap * FINGERPRINT_BYTES),
+    struct: new Int8Array(cap * STRUCT_BYTES),
+    kernel: null,
+  };
 }
 
 /** Fråga: färgavtryck + ev. strukturavtryck (äldre klienter skickar bara färg). */
@@ -82,19 +178,20 @@ async function load(): Promise<ArtIndex | null> {
 
   // Kapacitet med marginal: kort kan tillkomma mellan räkningen och sidorna.
   let cap = total + 256;
-  let data = new Int8Array(cap * FINGERPRINT_BYTES);
+  let store = allocStore(cap);
+  let data = store.data;
   let invNorm = new Float32Array(cap);
-  let struct = new Int8Array(cap * STRUCT_BYTES);
+  let struct = store.struct;
   let invDct = new Float32Array(cap);
   let invGrad = new Float32Array(cap);
   const grow = () => {
     cap = Math.ceil(cap * 1.25);
-    const d = new Int8Array(cap * FINGERPRINT_BYTES);
-    d.set(data);
-    data = d;
-    const s = new Int8Array(cap * STRUCT_BYTES);
-    s.set(struct);
-    struct = s;
+    const next = allocStore(cap);
+    next.data.set(data);
+    next.struct.set(struct);
+    store = next;
+    data = next.data;
+    struct = next.struct;
     const widen = (old: Float32Array) => {
       const a = new Float32Array(cap);
       a.set(old);
@@ -170,6 +267,7 @@ async function load(): Promise<ArtIndex | null> {
     invDct,
     invGrad,
     loadedAt: Date.now(),
+    kernel: store.kernel,
   };
 }
 
@@ -238,7 +336,101 @@ function prepareQuery(query: ArtQuery, k: number): PreparedQuery | null {
  *    (vaktat i art-index-fused.test.ts). Ändra blandningen HÄR, en gång.
  */
 function searchPrepared(index: ArtIndex, queries: PreparedQuery[]): ArtMatch[][] {
-  return queries.map((Q) => searchOne(index, Q));
+  const kernel = index.kernel;
+  if (!kernel) return queries.map((Q) => searchOne(index, Q));
+  try {
+    const results: ArtMatch[][] = [];
+    for (let at = 0; at < queries.length; at += KERNEL_MAX_QUERIES) {
+      for (const res of searchKernel(index, kernel, queries.slice(at, at + KERNEL_MAX_QUERIES))) results.push(res);
+    }
+    return results;
+  } catch (err) {
+    // En skanning får aldrig falla på kärnan: `data`/`struct` är läsbara vyer oavsett, så JS-loopen
+    // ger samma svar. Kärnan stängs av för det här indexet och felet syns i loggen.
+    index.kernel = null;
+    console.error("[art-index] SIMD-kärnan kastade — JS-loopen tar över:", (err as Error).message);
+    return queries.map((Q) => searchOne(index, Q));
+  }
+}
+
+/**
+ * Upp till KERNEL_MAX_QUERIES frågor i EN genomgång av indexet: kärnan räknar de tre skalär-
+ * produkterna per (fråga, rad) för ett block rader, och poängen + topplistan räknas här.
+ * ⛔ Samma uttryck, samma ordning och samma topplistelogik som `searchOne` — ändra dem TILLSAMMANS.
+ *    Raderna gås i stigande ordning per fråga, så även lika poäng hamnar som i `searchOne`.
+ * Synkron hela vägen: frågeblocket och utdatat delas av alla sökningar mot samma index.
+ */
+function searchKernel(index: ArtIndex, kernel: ArtKernel, queries: PreparedQuery[]): ArtMatch[][] {
+  const { ids, invNorm, invDct, invGrad } = index;
+  const BC = BLEND_COLOR;
+  const BD = BLEND_DCT;
+  const BG = BLEND_GRAD;
+  const n = ids.length;
+  const nq = queries.length;
+  const out = kernel.out;
+  for (let qi = 0; qi < nq; qi++) {
+    const Q = queries[qi];
+    kernel.queries.set(Q.color, qi * QUERY_BYTES);
+    // Fråga utan struktur: nollor i blocket (det återanvänds), och poängen tar färggrenen nedan.
+    if (Q.struct) kernel.queries.set(Q.struct, qi * QUERY_BYTES + FINGERPRINT_BYTES);
+    else kernel.queries.fill(0, qi * QUERY_BYTES + FINGERPRINT_BYTES, (qi + 1) * QUERY_BYTES);
+  }
+  const tops: ArtMatch[][] = queries.map(() => []);
+  const worsts = queries.map(() => -Infinity);
+  for (let row = 0; row < n; row += KERNEL_CHUNK) {
+    const count = Math.min(KERNEL_CHUNK, n - row);
+    kernel.dots(
+      kernel.dataOff,
+      kernel.structOff,
+      row,
+      count,
+      kernel.queriesOff,
+      nq,
+      kernel.outOff,
+      FINGERPRINT_BYTES,
+      STRUCT_DCT_DIMS,
+      STRUCT_BYTES - STRUCT_DCT_DIMS
+    );
+    for (let qi = 0; qi < nq; qi++) {
+      const Q = queries[qi];
+      const hasStruct = Q.struct !== null;
+      const qInv = Q.qInv;
+      const qInvDct = Q.qInvDct;
+      const qInvGrad = Q.qInvGrad;
+      const k = Q.k;
+      const top = tops[qi];
+      let worst = worsts[qi];
+      let o = qi * count * 3;
+      for (let j = 0; j < count; j++, o += 3) {
+        const r = row + j;
+        const cosColor = out[o] * qInv * invNorm[r];
+        const score = hasStruct
+          ? BC * cosColor + BD * out[o + 1] * qInvDct * invDct[r] + BG * out[o + 2] * qInvGrad * invGrad[r]
+          : cosColor;
+        if (top.length < k) {
+          top.push({ cardId: ids[r], score });
+          if (top.length === k) {
+            top.sort((a, b) => b.score - a.score);
+            worst = top[k - 1].score;
+          }
+          continue;
+        }
+        if (score <= worst) continue;
+        top[k - 1] = { cardId: ids[r], score };
+        for (let x = k - 1; x > 0 && top[x].score > top[x - 1].score; x--) {
+          const t = top[x];
+          top[x] = top[x - 1];
+          top[x - 1] = t;
+        }
+        worst = top[k - 1].score;
+      }
+      worsts[qi] = worst;
+    }
+  }
+  for (let qi = 0; qi < nq; qi++) {
+    if (tops[qi].length < queries[qi].k) tops[qi].sort((a, b) => b.score - a.score);
+  }
+  return tops;
 }
 
 /**
@@ -302,14 +494,42 @@ function searchOne(index: ArtIndex, Q: PreparedQuery): ArtMatch[] {
   return top;
 }
 
-/** Ren ingång för testet: frågor mot ett givet index (ingen DB). */
-export function searchIndexForTest(
-  index: Pick<ArtIndex, "ids" | "data" | "invNorm" | "struct" | "invDct" | "invGrad">,
+type TestIndex = Pick<ArtIndex, "ids" | "data" | "invNorm" | "struct" | "invDct" | "invGrad">;
+
+/** Det LADDADE indexet genom sin egen väg (kärnan när den finns) — för scripts/art-kernel-verify.ts. */
+export function searchLoadedIndex(
+  index: NonNullable<Awaited<ReturnType<typeof getArtIndex>>>,
   queries: { query: ArtQuery; k: number }[]
 ): ArtMatch[][] {
   const prepared = queries.map((q) => prepareQuery(q.query, q.k));
   const valid = prepared.filter((p): p is PreparedQuery => p !== null);
-  const results = valid.length ? searchPrepared(index as ArtIndex, valid) : [];
+  const results = valid.length ? searchPrepared(index, valid) : [];
+  let v = 0;
+  return prepared.map((p) => (p === null ? [] : results[v++]));
+}
+
+/**
+ * Ren ingång för testet: frågor mot ett givet index (ingen DB). `engine: "kernel"` lägger indexet
+ * i SIMD-kärnans minne (kastar om kärnan inte går att starta — testet ska då falla, inte tyst
+ * jämföra JS mot JS); `"js"` (standard) kör JS-loopen.
+ */
+export function searchIndexForTest(
+  index: TestIndex,
+  queries: { query: ArtQuery; k: number }[],
+  engine: "js" | "kernel" = "js"
+): ArtMatch[][] {
+  const prepared = queries.map((q) => prepareQuery(q.query, q.k));
+  const valid = prepared.filter((p): p is PreparedQuery => p !== null);
+  let target: ArtIndex = { ...index, loadedAt: 0, kernel: null };
+  if (engine === "kernel") {
+    const n = index.ids.length;
+    const store = allocStore(n);
+    if (!store.kernel) throw new Error("SIMD-kärnan gick inte att starta");
+    store.data.set(index.data.subarray(0, n * FINGERPRINT_BYTES));
+    store.struct.set(index.struct.subarray(0, n * STRUCT_BYTES));
+    target = { ...target, data: store.data, struct: store.struct, kernel: store.kernel };
+  }
+  const results = valid.length ? searchPrepared(target, valid) : [];
   let v = 0;
   return prepared.map((p) => (p === null ? [] : results[v++]));
 }
