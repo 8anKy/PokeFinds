@@ -423,7 +423,9 @@ export async function POST(req: Request) {
     mark("streak");
     console.log(
       `[scan-timing] total=${Date.now() - t0} ${phases.join(" ")} kb=${Math.round((image.length + (detail?.length ?? 0)) / 1024)} ` +
-        `eng=${engine ? (engine.error ?? "ok") : "off"} who=${user ? "user" : "guest"}`
+        // engms/engA = motorns EGEN tid (hela / t.o.m. steg A); `engine=` ovan minus engms = nät + kö.
+        `eng=${engine ? (engine.error ?? "ok") : "off"} engms=${engine?.ms ?? "-"} engA=${engine?.msA ?? "-"} ` +
+        `who=${user ? "user" : "guest"}`
     );
     return withStreak(jsonOk({
       ...clientResult,
