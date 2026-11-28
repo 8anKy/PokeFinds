@@ -68,6 +68,19 @@ paths:
   ⏭ MÄT: `[scan-timing] … trig=auto(<stillhet>)|man hit=` i deploy-loggen + `recall.auto` på raden — andel auto,
   miss-andel auto mot manuellt, och fördelningen av stillhetsvärdet (rutorna i mätningen låg 16 ms isär, avtryckaren
   jämför med 120 ms: en ostadig hand kan ligga lägre ⇒ sänk då `AUTO_STILL_MIN`, aldrig under ~0,89 = p99 för ett byte).
+  **+ SAMMA DAG, EFTER ÄGARENS TEST ("funkar väldigt bra, men tar ibland bilden för tidigt — bara en bit av kortet
+  syns — och vill ha en Auto-knapp som bulk-lägets")**: (a) **AUTOSKANNERN ÄR ETT VAL, AV SOM STANDARD** — knappen
+  "Autoskanner" (`ModeChip`, blixt) i lägesraden, minns per enhet (`foilio:scan-auto:v1`), syns även med skanningar i
+  brickan (så den går att slå av mitt i ett pass; bulk/streckkod byts som förut bara med tom bricka). ⛔ Slå aldrig på
+  den för alla igen utan mätning: under de 75 min den var på för alla fick en vanlig användare 13 auto-fångster på
+  46 s varav 9 utan kort. (b) **HELA KORTET I RAMEN** (`frameCoverage`/`cardFillsFrame`): medelskillnaden mellan
+  grannceller i avtrycket, över hela rutnätet (`AUTO_ROUGH_MIN` 16) och i den tommaste kantremsan (`AUTO_EDGE_MIN` 10).
+  Fotona (`.spike/auto-1128/`, kortmataren = vit låda, kortet skjuts in nedifrån): kort halvvägs in, en hand framför
+  linsen, tom låda — alla tre faller, testets tio hela kort går; av 6 866 fångster där motorn var säker faller 1,2 %
+  (tas med knappen). Riktiga rutor som fixtur: `tests/unit/fixtures/auto-capture-frames.json`.
+  ⚠️ Regeln är satt på TRE halva kort — den andra användarens nio "inget kort"-fångster (handhållet, inga foton:
+  ingen admin, inget samtycke) hade passerat den. Skannerfoton hämtas med `railway run npx tsx
+  work/autoscan/pull-auto-photos.ts` (globala `railway` 5.75 i PowerShell är inloggad och länkad).
 
 - **AUTO-FÅNGSTENS FART (2026-11-28, ägaren: snabb nog för en kortmatare, utan att tappa träffsäkerhet)**:
   MÄTT FÖRE: `/identify-art` p50 ~360 ms (p90 ofta 1,8 s — den köade bakom skanningens sökning på samma tråd),

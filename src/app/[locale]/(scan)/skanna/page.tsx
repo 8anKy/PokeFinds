@@ -100,6 +100,7 @@ import {
 import {
   IconAlertTriangle,
   IconArrowRight,
+  IconBolt,
   IconCamera,
   IconCards,
   IconChart,
@@ -915,6 +916,8 @@ async function scanFetch(url: string, init?: RequestInit): Promise<Response> {
  * Sedan 2026-11-28 hänger auto-fångsten inte längre på nätpollen alls: mätt i drift gick pollen
  * var ~210:e ms med 48 ms serversvar, men dess "säker" uppfylldes på 13 % av riktiga rutor.
  */
+/** Autoskannerns av/på per enhet ("1"/"0"). Internt id behåller foilio-prefixet (se CLAUDE.md). */
+const AUTO_SCAN_KEY = "foilio:scan-auto:v1";
 /** Minsta avstånd mellan foliesonderna i historiken (admindiagnostik) — pollens takt före 2026-11-28. */
 const PROBE_GAP_MS = 350;
 
@@ -1116,6 +1119,18 @@ function Scanner() {
   const quotaRef = useRef<ScanQuota | null>(null);
   const [flash, setFlash] = useState(false);
   const [shutterCooling, setShutterCooling] = useState(false);
+  // AUTOSKANNERN ÄR ETT VAL (ägarbeslut 2026-11-28: en knapp som bulk-lägets). Av som standard —
+  // slutaren går inte av sig själv förrän användaren bett om det — och valet minns på enheten.
+  // Läses i en effekt så SSR och första klientrenderingen är lika.
+  const [autoOn, setAutoOn] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(AUTO_SCAN_KEY) === "1") setAutoOn(true);
+    } catch {
+      /* privat läge utan lagring — läget gäller då bara sessionen */
+    }
+  }, []);
+  const autoOnRef = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [guideMode, setGuideMode] = useState<ScanGuideMode | null>(null);
   // Bubblan vid informationsknappen — ligger kvar tills knappen tryckts en
@@ -1683,13 +1698,16 @@ function Scanner() {
       // AUTO-FÅNGST. Kvot-slut auto-trycker inte (bara betalväggen om och om igen); manuellt tryck
       // funkar som vanligt. ⛔ Grindarna gäller BARA automatiken — en kamera som vägrar ett
       // manuellt tryck är trasig, inte försiktig.
-      const auto = autoCaptureStep(autoState.current, {
-        fp: shot.fp0,
-        blurry,
-        pending: pendingRef.current,
-        now: startedAt,
-      });
-      if (auto.fire && (quotaRef.current == null || quotaRef.current.remaining > 0)) {
+      // Bara när AUTOSKANNERN är påslagen (knappen i kameravyn). Av = ingen avtryckare alls.
+      const auto = autoOnRef.current
+        ? autoCaptureStep(autoState.current, {
+            fp: shot.fp0,
+            blurry,
+            pending: pendingRef.current,
+            now: startedAt,
+          })
+        : null;
+      if (auto?.fire && (quotaRef.current == null || quotaRef.current.remaining > 0)) {
         // Slutaren kan vägra (nedkylning 450 ms efter förra fångsten) — då försöker nästa tick igen.
         // `capture` bokför själv scenen som fångad (autoCaptureFired).
         if (captureRef.current?.(auto.stillMin)) hapticImpact();
@@ -2357,6 +2375,18 @@ function Scanner() {
   });
   quotaRef.current = quota;
   pendingRef.current = scans.reduce((n, sc) => n + (sc.status === "identifying" ? 1 : 0), 0);
+  autoOnRef.current = autoOn && mode === "single";
+  /** Auto-knappen: slår av/på i enkelläget; från bulk/streckkod byter den läge OCH slår på. */
+  const toggleAuto = useEventCallback(() => {
+    const next = mode === "single" ? !autoOn : true;
+    if (mode !== "single") setMode("single");
+    setAutoOn(next);
+    try {
+      window.localStorage.setItem(AUTO_SCAN_KEY, next ? "1" : "0");
+    } catch {
+      /* se ovan */
+    }
+  });
 
   function handleFile(file: File): boolean {
     if (!file.type.startsWith("image/")) {
@@ -2757,6 +2787,8 @@ function Scanner() {
           quota={quota}
           mode={mode}
           onSetMode={setMode}
+          autoOn={autoOn && mode === "single"}
+          onToggleAuto={toggleAuto}
           // Låset sätts först när kvoten LADDATS: `quota === null` betyder
           // "vet inte än", och att gissa låst där hade blinkat ett Pro-lås för
           // en betalande kund varje gång skannern öppnas. Gissar vi fel åt
@@ -3139,6 +3171,9 @@ function CaptureView(props: {
   /** Aktivt läge: enkelram, frilagd bulk-detektering eller streckkodsläsning. */
   mode: ScanMode;
   onSetMode: (m: ScanMode) => void;
+  /** Autoskannern: slutaren går av sig själv när ett kort ligger stilla i ramen (lib/auto-capture.ts). */
+  autoOn: boolean;
+  onToggleAuto: () => void;
   /** Bulk är Pro. Låst = knappen visas ändå, men leder till prissidan. */
   bulkLocked: boolean;
   /** Streckkodsläget döljs helt där plattformen inte kan läsa koder (iOS). */
@@ -3366,15 +3401,21 @@ function CaptureView(props: {
           />
         )}
 
-        {scans.length === 0 && cameraState === "live" && (
+        {/* Raden visas även MED skanningar i enkelläget — då bara Auto-knappen, så autoskannern
+            går att slå av mitt i ett pass. Bulk/streckkod byts som förut bara med tom bricka. */}
+        {cameraState === "live" && (scans.length === 0 || props.mode === "single") && (
           <div className="flex flex-col items-center gap-3">
-            <p className="text-center text-sm text-ink-muted">
-              {props.mode === "bulk"
-                ? t("bulkHint")
-                : props.mode === "barcode"
-                  ? t("barcodeHint")
-                  : t("holdCard")}
-            </p>
+            {scans.length === 0 && (
+              <p className="text-center text-sm text-ink-muted">
+                {props.mode === "bulk"
+                  ? t("bulkHint")
+                  : props.mode === "barcode"
+                    ? t("barcodeHint")
+                    : props.autoOn
+                      ? t("autoHint")
+                      : t("holdCard")}
+              </p>
+            )}
             {/* LÄGESVÄXLARNA. Bulk ersatte "Manuell inmatning" (ägarbeslut
                 2026-08-01) — sökningen finns ändå i produktkatalogen.
                 BULK ÄR PRO (2026-08-02): knappen visas för ALLA med flit och
@@ -3386,18 +3427,28 @@ function CaptureView(props: {
                 att låsa upp, medan streckkod är omöjlig på enheten. */}
             <div className="flex flex-wrap items-center justify-center gap-2">
               <ModeChip
-                active={props.mode === "bulk"}
-                locked={props.bulkLocked}
-                icon={<IconCards size={16} />}
-                label={t("bulkMode")}
+                active={props.autoOn}
+                locked={false}
+                icon={<IconBolt size={16} />}
+                label={t("autoMode")}
                 proLabel={t("pro")}
-                onClick={
-                  props.bulkLocked
-                    ? props.onUpgradeBulk
-                    : () => props.onSetMode(props.mode === "bulk" ? "single" : "bulk")
-                }
+                onClick={props.onToggleAuto}
               />
-              {props.barcodeAvailable && (
+              {scans.length === 0 && (
+                <ModeChip
+                  active={props.mode === "bulk"}
+                  locked={props.bulkLocked}
+                  icon={<IconCards size={16} />}
+                  label={t("bulkMode")}
+                  proLabel={t("pro")}
+                  onClick={
+                    props.bulkLocked
+                      ? props.onUpgradeBulk
+                      : () => props.onSetMode(props.mode === "bulk" ? "single" : "bulk")
+                  }
+                />
+              )}
+              {scans.length === 0 && props.barcodeAvailable && (
                 <ModeChip
                   active={props.mode === "barcode"}
                   locked={false}

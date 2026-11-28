@@ -1687,6 +1687,8 @@
     "showProduct": "Visa produkt & prishistorik",
     "removeScan": "Ta bort skanning",
     "close": "Stäng",
+    "autoMode": "Autoskanner",
+    "autoHint": "Håll kortet stilla inom ramen — det skannas av sig självt",
     "bulkMode": "Bulk-läge · flera kort",
     "bulkHint": "Håll kameran rakt ovanför korten, sprid ut dem med lite mellanrum och tryck av",
     "barcodeMode": "Skanna streckkod",

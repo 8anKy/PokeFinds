@@ -1687,6 +1687,8 @@
     "showProduct": "View product & price history",
     "removeScan": "Remove scan",
     "close": "Close",
+    "autoMode": "Auto scanner",
+    "autoHint": "Hold the card still within the frame — it scans by itself",
     "bulkMode": "Bulk mode · multiple cards",
     "bulkHint": "Hold the camera straight above the cards, spread them out with a little space and shoot",
     "barcodeMode": "Scan barcode",

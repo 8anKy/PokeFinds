@@ -27,10 +27,19 @@
  * ⛔ Två LIKA kort i rad (energier i en kortmatare) skiljs bara av rörelsen mellan dem — därför
  * laddar avtryckaren om på en ENDA avvikande ruta, och därför får takten (`AUTO_TICK_MS`) inte
  * sänkas så långt att ett byte ryms mellan två rutor.
- * ⛔ Ingen närvarogrind: varken pollens poäng eller hörndetektorn skiljer "kort" från "inget kort"
- * (mätt: poäng ≥ 0,55 för 96 % av korten och 76 % av "inget kort"-fångsterna; hörn hittade på 66 %
- * respektive 37 %). En stadig, skarp ruta utan kort ger alltså en skanning som svarar "ingen träff";
+ * ⛔ Varken pollens poäng eller hörndetektorn skiljer "kort" från "inget kort" (mätt: poäng ≥ 0,55
+ * för 96 % av korten och 76 % av "inget kort"-fångsterna; hörn hittade på 66 % respektive 37 %).
+ * En stadig, skarp ruta utan kort ger alltså en skanning som svarar "ingen träff";
  * `autoCaptureResult` bromsar då nästa försök, så en vy utan kort inte matar skanningar.
+ *
+ * 4. HELA KORTET I RAMEN (samma dag, ägarens kortmatartest: "den tar ibland bilden för tidigt, bara
+ *    en bit av kortet syns, och sedan en bild till"). 3 av 13 auto-fångster var ett kort på väg in
+ *    som låg stilla nog (stillhet 0,98–1,00) — stillheten ensam ser inte att halva ramen är tom.
+ *    `frameCoverage` gör det: ett kort har tryck ÖVERALLT (kant, bild, text), så grannceller i
+ *    avtrycket skiljer sig åt i hela rutnätet; en tom yta eller en ensam kortkant gör det inte.
+ *    MÄTT (ScannerJob, 45 dygn): de tre halva korten hade (rough / edgeMin) 20,6 / 5,3 · 7,1 / 1,5 ·
+ *    13,4 / 12,6; testets tio hela kort lägst 20,7 / 16,1; och av 6 866 fångster där motorn var
+ *    säker på kortet faller 1,2 % på regeln (de tas med knappen, som förut).
  */
 
 /** Rutorna ska vara minst så här lika för att räknas som stilla. */
@@ -39,6 +48,12 @@ export const AUTO_STILL_MIN = 0.92;
 export const AUTO_STILL_FRAMES = 3;
 /** Under den här likheten mot senast fångade ruta är det en ny scen ⇒ avtryckaren laddas om. */
 export const AUTO_REARM_MAX = 0.8;
+/**
+ * "Hela kortet i ramen": lägsta medelskillnaden mellan grannceller över hela avtrycket
+ * (`rough`) och i den tommaste av de fyra kantremsorna (`edgeMin`). Se punkt 4 i filhuvudet.
+ */
+export const AUTO_ROUGH_MIN = 16;
+export const AUTO_EDGE_MIN = 10;
 /** Avtryckarens takt. Lokal — nätpollen (chippet) går i sin egen takt bredvid. */
 export const AUTO_TICK_MS = 120;
 /**
@@ -91,6 +106,53 @@ export function frameCorrelation(a: Int8Array, b: Int8Array): number {
   return aa > 0 && bb > 0 ? ab / Math.sqrt(aa * bb) : 0;
 }
 
+const GRID_W = 8;
+const GRID_H = 11;
+const CELLS = GRID_W * GRID_H;
+
+/**
+ * Hur mycket TRYCK rutan bär, och var. Per cell: medelskillnaden mot grannen till höger och nedåt
+ * (speglad vid kanten) över de tre kanalerna. `rough` = medel över alla celler, `edgeMin` = den
+ * tommaste av kantremsorna (övre/nedre 3 rader, vänstra/högra 2 kolumner).
+ * ⛔ Rutnätet är avtryckets (lib/art-fingerprint.ts, 8×11×RGB) — fel längd ger null, aldrig ett tal.
+ */
+export function frameCoverage(fp: Int8Array): { rough: number; edgeMin: number } | null {
+  if (fp.length !== CELLS * 3) return null;
+  const a = new Float64Array(CELLS);
+  for (let y = 0; y < GRID_H; y++) {
+    for (let x = 0; x < GRID_W; x++) {
+      const nx = x + 1 < GRID_W ? x + 1 : x - 1;
+      const ny = y + 1 < GRID_H ? y + 1 : y - 1;
+      let s = 0;
+      for (let c = 0; c < 3; c++) {
+        const v = fp[c * CELLS + y * GRID_W + x];
+        s += Math.abs(v - fp[c * CELLS + y * GRID_W + nx]) + Math.abs(v - fp[c * CELLS + ny * GRID_W + x]);
+      }
+      a[y * GRID_W + x] = s / 6;
+    }
+  }
+  const band = (x0: number, x1: number, y0: number, y1: number) => {
+    let s = 0;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) s += a[y * GRID_W + x];
+    return s / ((x1 - x0) * (y1 - y0));
+  };
+  return {
+    rough: band(0, GRID_W, 0, GRID_H),
+    edgeMin: Math.min(
+      band(0, GRID_W, 0, 3),
+      band(0, GRID_W, GRID_H - 3, GRID_H),
+      band(0, 2, 0, GRID_H),
+      band(GRID_W - 2, GRID_W, 0, GRID_H)
+    ),
+  };
+}
+
+/** Fyller ett kort hela ramen? Se `frameCoverage` och punkt 4 i filhuvudet. */
+export function cardFillsFrame(fp: Int8Array): boolean {
+  const c = frameCoverage(fp);
+  return c !== null && c.rough >= AUTO_ROUGH_MIN && c.edgeMin >= AUTO_EDGE_MIN;
+}
+
 export interface AutoCaptureFrame {
   /** Rutans konstavtryck (hela ramen, utan inset). Null = gick inte att räkna. */
   fp: Int8Array | null;
@@ -134,6 +196,7 @@ export function autoCaptureStep(
     state.fired === null &&
     state.still >= AUTO_STILL_FRAMES &&
     !frame.blurry &&
+    cardFillsFrame(fp) &&
     frame.pending < AUTO_MAX_PENDING &&
     frame.now >= state.pausedUntil;
   return { fire, stillMin: state.stillMin };

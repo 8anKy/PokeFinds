@@ -11,6 +11,8 @@ import {
   AUTO_STILL_FRAMES,
   AUTO_STILL_MIN,
   autoCaptureFired,
+  cardFillsFrame,
+  frameCoverage,
   autoCapturePaused,
   autoCaptureResult,
   autoCaptureStep,
@@ -178,6 +180,49 @@ describe("autoCaptureResult — bromsen när vyn saknar kort", () => {
     const a = card(1);
     expect(feedUntilFire(s, a, 6, { now: 100 })).toBe(0);
     expect(autoCaptureStep(s, frame(a, { now: AUTO_MISS_BACKOFF_MS[2] + 1 })).fire).toBe(true);
+  });
+});
+
+/** Riktiga avtryck (ScannerJob 2026-11-28, ägarens kortmatartest), base64 → int8. */
+const b64 = (v: string) => {
+  const u = Buffer.from(v, "base64");
+  return new Int8Array(u.buffer, u.byteOffset, u.length);
+};
+const REAL = JSON.parse(readFileSync("tests/unit/fixtures/auto-capture-frames.json", "utf8")) as {
+  partial: string[];
+  card: string[];
+};
+
+describe("hela kortet i ramen (frameCoverage)", () => {
+  it("riktiga rutor: de tre halva korten hålls inne, de tio hela korten går", () => {
+    expect(REAL.partial).toHaveLength(3);
+    expect(REAL.card).toHaveLength(10);
+    for (const p of REAL.partial) expect(cardFillsFrame(b64(p))).toBe(false);
+    for (const c of REAL.card) expect(cardFillsFrame(b64(c))).toBe(true);
+  });
+
+  it("en ruta vars övre halva är tom (kortet på väg in) hålls inne trots att den är stilla", () => {
+    const half = card(5);
+    for (let c = 0; c < 3; c++) for (let i = 0; i < 8 * 5; i++) half[c * 88 + i] = -60; // fem tomma rader
+    expect(cardFillsFrame(half)).toBe(false);
+    const s = newAutoCaptureState();
+    for (let i = 0; i < 8; i++) expect(autoCaptureStep(s, frame(half)).fire).toBe(false);
+    // …och när hela kortet väl ligger där går slutaren.
+    expect(feedUntilFire(s, card(5))).toBeGreaterThan(0);
+  });
+
+  it("en jämn yta bär inget tryck; fel längd ger null", () => {
+    expect(cardFillsFrame(new Int8Array(264))).toBe(false);
+    expect(frameCoverage(new Int8Array(100))).toBeNull();
+    expect(cardFillsFrame(new Int8Array(100))).toBe(false);
+  });
+});
+
+describe("autoskannern är ett val", () => {
+  const page = readFileSync("src/app/[locale]/(scan)/skanna/page.tsx", "utf8");
+  it("av som standard, och avtryckaren körs bara när den är påslagen", () => {
+    expect(page).toContain("const [autoOn, setAutoOn] = useState(false);");
+    expect(page).toMatch(/autoOnRef\.current\s*\?\s*autoCaptureStep\(/);
   });
 });
 

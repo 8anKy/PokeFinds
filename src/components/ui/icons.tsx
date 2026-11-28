@@ -303,6 +303,13 @@ export const IconWrench = (p: IconProps) => (
   </svg>
 );
 
+/** Blixt — skannerns auto-läge (slutaren går av sig själv). */
+export const IconBolt = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M13 3 5 13.5h6L10 21l9-11h-6.5L13 3Z" />
+  </svg>
+);
+
 export const IconSparkle = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z" />
