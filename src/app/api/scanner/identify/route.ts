@@ -90,6 +90,10 @@ const schema = z.object({
   // Taket är generöst — måttet är obundet uppåt och en absurd siffra ska
   // avvisas, inte klampas tyst till något som ser rimligt ut.
   sharp: z.number().min(0).max(1000).optional(),
+  // AUTO-FÅNGST (2026-11-28): satt när slutaren gick av sig själv — lägsta ruta-mot-ruta-likheten
+  // den gick på (lib/auto-capture.ts). Ren mätdata: bokförs som `recall.auto` så stillhetströskeln
+  // kan sättas på en fördelning och auto-fångster jämföras med manuella. Påverkar inget i svaret.
+  auto: z.number().min(-1).max(1).optional(),
   // LOKAL NUMMERLÄSNING, SKUGGLÄGE (2026-09-01): appen läser samlarnumret
   // on-device (ML Kit) ur SAMMA remsa som `detail` och skickar tolkningen
   // (src/lib/on-device-number.ts). Bokförs (result.local) bredvid Geminis läsning
@@ -157,6 +161,7 @@ export async function POST(req: Request) {
       structFrames,
       foil,
       sharp,
+      auto,
       localNumber,
       langHint,
       precise,
@@ -346,6 +351,7 @@ export async function POST(req: Request) {
         gm: result.artGateMargin,
         agree: result.artAgree,
         ...(langHint ? { lh: langHint } : {}),
+        ...(auto != null ? { auto } : {}),
       },
       // FÄLTAVTRYCKET — för ALLA användare, se recordScanUsage. Första rutans
       // hela variantsvep; struktur följer positionsvis (kan saknas från en äldre
@@ -425,7 +431,7 @@ export async function POST(req: Request) {
       `[scan-timing] total=${Date.now() - t0} ${phases.join(" ")} kb=${Math.round((image.length + (detail?.length ?? 0)) / 1024)} ` +
         // engms/engA = motorns EGEN tid (hela / t.o.m. steg A); `engine=` ovan minus engms = nät + kö.
         `eng=${engine ? (engine.error ?? "ok") : "off"} engms=${engine?.ms ?? "-"} engA=${engine?.msA ?? "-"} ` +
-        `who=${user ? "user" : "guest"}`
+        `who=${user ? "user" : "guest"} trig=${auto != null ? `auto(${auto})` : "man"} hit=${matched ? 1 : 0}`
     );
     return withStreak(jsonOk({
       ...clientResult,

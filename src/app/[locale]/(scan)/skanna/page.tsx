@@ -29,6 +29,14 @@ import {
 } from "@/lib/art-fingerprint";
 import { foilProbeFromRgb, type FoilSample } from "@/lib/foil-probe";
 import { frameSharpness, SHARP_AUTO_MIN } from "@/lib/frame-sharpness";
+import {
+  AUTO_TICK_MS,
+  autoCaptureFired,
+  autoCapturePaused,
+  autoCaptureResult,
+  autoCaptureStep,
+  newAutoCaptureState,
+} from "@/lib/auto-capture";
 import { readNumberStripNative, warmUpLocalNumberReader } from "@/lib/on-device-number";
 import { readLangHint, rememberLangHint } from "@/lib/scan-language-hint";
 import { classifyDrag, shouldCloseSheet } from "@/lib/sheet-drag";
@@ -449,6 +457,8 @@ function captureFrame(
   /** Normaliserad medelgradient på kortytan — fångstkvalitet, se
    *  src/lib/frame-sharpness.ts. Null när den inte gick att räkna. */
   sharpness: number | null;
+  /** Hela ramens konstavtryck (inset 0), oavkodat — auto-fångstens stillhetsmått (lib/auto-capture.ts). */
+  fp0: Int8Array | null;
   stripDataUrl?: string;
   crop: string;
 } | null {
@@ -543,8 +553,10 @@ function captureFrame(
   // FÅNGSTKVALITET ur exakt samma pixlar — en linjär genomgång till, ingen ny
   // `getImageData`. Se src/lib/frame-sharpness.ts för varför den mäts alls.
   const sharpness = frameSharpness(fpPixels, fpW, fpH, 4);
+  let fp0: Int8Array | null = null;
   for (const inset of FINGERPRINT_INSETS) {
     const fp = fingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
+    if (inset === 0) fp0 = fp;
     const sfp = structFingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
     if (!fp || !sfp) continue;
     fingerprints.push(toB64(fp));
@@ -601,7 +613,7 @@ function captureFrame(
   }
 
   if (fpOnly) {
-    return { dataUrl: "", fingerprints, structFingerprints, probe, sharpness, crop: "" };
+    return { dataUrl: "", fingerprints, structFingerprints, probe, sharpness, fp0, crop: "" };
   }
 
   // Bilden till modellen: MED marginal, så ett snett kort inte tappar numret.
@@ -641,6 +653,7 @@ function captureFrame(
     structFingerprints,
     probe,
     sharpness,
+    fp0,
     stripDataUrl,
     // Utsnitt i KÄLLpixlar → skickad storlek. Står källan under den skickade
     // storleken skalar vi UPP, dvs modellen får interpolerade pixlar och ingen
@@ -897,20 +910,11 @@ async function scanFetch(url: string, init?: RequestInit): Promise<Response> {
 // gäst på enhets-id, 10 skanningar livstid. Webben kräver konto som förut:
 // där finns ingen enhetsidentitet att räkna på.
 /**
- * Live-pollens takt (2026-11-21: 600 → 350 ms, ägaren: "gör autoskanningen snabbare"). Auto-slutaren
- * kräver fortfarande SAMMA bevis — 3 pollar i rad på samma kort för låset + 3 pollar till med låset
- * (5 överens), trust-regeln och skärpegrinden — bara tätare insamlat: ~3,0 s → ~1,75 s. Pollen blev
- * billig nog när indexsökningen slogs ihop till en genomgång (art-index.ts `searchPrepared`).
- *
- * 2026-11-28 (ägaren: snabb nog för en kortmatare, utan att tappa träffsäkerhet): 350 → 150 ms som
- * GOLV — pollen går nu en i taget och nästa startar när svaret kommit (se live-pollens effekt), så
- * takten är max(150 ms, svarstiden). Mätt före: svaret tog ~450 ms mot klockans 350 ⇒ varannan
- * tick hoppades över ⇒ verklig takt 700 ms, ~3 s till auto-fångst. Serverns sökning gick samtidigt
- * från ~360 till ~20 ms (SIMD-kärnan, art-index.ts). ⛔ Beviskravet är detsamma: 5 pollar i rad på
- * samma kort, trust-regeln och skärpegrinden — och VILKET kort det är avgörs ändå av skanningen
- * (/identify, fyra nya rutor + motorn), inte av pollen. Höj golvet om kort fångas i rörelse.
+ * KAMERAVYNS KLOCKA: se live-pollens effekt + lib/auto-capture.ts (`AUTO_TICK_MS`). Historik:
+ * 600 → 350 ms (11-21) → en poll i taget med golv 150 ms + SIMD-kärnan (11-28, servern 360 → ~20 ms).
+ * Sedan 2026-11-28 hänger auto-fångsten inte längre på nätpollen alls: mätt i drift gick pollen
+ * var ~210:e ms med 48 ms serversvar, men dess "säker" uppfylldes på 13 % av riktiga rutor.
  */
-const LIVE_POLL_MS = 150;
 /** Minsta avstånd mellan foliesonderna i historiken (admindiagnostik) — pollens takt före 2026-11-28. */
 const PROBE_GAP_MS = 350;
 
@@ -1099,15 +1103,16 @@ function Scanner() {
   /** De senaste foliesonderna (äldst först, max 5 med minst PROBE_GAP_MS emellan ≈ 1,75 s; bara admindiagnostik). */
   const probeHistory = useRef<string[]>([]);
   const lastProbeAt = useRef(0);
-  // AUTO-FÅNGST: låset (100 % uppmätt precision) som hållit i ≥2 extra pollar
-  // (~1,2 s stadigt sikte) trycker av åt användaren — pärmflödet blir
-  // "håll kort → grönt → klick av sig självt → nästa". EN fångst per kort:
-  // autoFired spärrar tills ett ANNAT kort ses i ramen. Manuell slutare orörd.
-  const lockedPolls = useRef(0);
-  const autoFired = useRef<string | null>(null);
+  // AUTO-FÅNGST (2026-11-28): slutaren går av sig själv när ett kort ligger STILLA och skarpt i
+  // ramen och scenen är en annan än den som senast fångades — se lib/auto-capture.ts för mätningen
+  // bakom (det gamla kravet, "pollen säker tre gånger i rad", uppfylldes på 13 % av riktiga rutor).
+  // Tillståndet överlever att pollen pausas (ark över kameran): det fångade kortet ska minnas.
+  const autoState = useRef(newAutoCaptureState());
+  /** Skanningar som väntar på svar — auto-fångsten håller inne när kön blir för lång. */
+  const pendingRef = useRef(0);
   // Färska referenser — poll-effekten ska inte binda om sig varje gång
   // capture-callbacken eller kvot-staten byter identitet.
-  const captureRef = useRef<(() => boolean) | null>(null);
+  const captureRef = useRef<((autoStill?: number) => boolean) | null>(null);
   const quotaRef = useRef<ScanQuota | null>(null);
   const [flash, setFlash] = useState(false);
   const [shutterCooling, setShutterCooling] = useState(false);
@@ -1238,7 +1243,9 @@ function Scanner() {
       structFrames?: string[][],
       foil?: FoilSample,
       /** Fångstkvalitet, se src/lib/frame-sharpness.ts. Ren mätdata. */
-      sharp?: number | null
+      sharp?: number | null,
+      /** Auto-fångst: lägsta ruta-mot-ruta-likheten slutaren gick på (lib/auto-capture.ts). Mätdata. */
+      autoStill?: number
     ): Promise<IdentifyResponse | { error: string; httpStatus?: number }> => {
       try {
         // LOKAL NUMMERLÄSNING, SKUGGLÄGE (2026-09-01): i APPEN läser ML Kit
@@ -1271,6 +1278,9 @@ function Scanner() {
             // det felet gjorde att vi trodde 79 % av skanningarna var gratis när
             // produktionen låg på 30,5 %.
             ...(sharp != null ? { sharp } : {}),
+            // AUTO-FÅNGST — bokförs (recall.auto) så stillhetströskeln kan sättas på en fördelning
+            // och auto- och manuella fångster kan jämföras. Påverkar ingenting i svaret.
+            ...(autoStill != null ? { auto: Math.round(autoStill * 1000) / 1000 } : {}),
             ...(localNumber ? { localNumber } : {}),
             // Språket användaren senast valde — avgör EN/JP-tvillingen (samma konst).
             ...(langHint ? { langHint } : {}),
@@ -1299,7 +1309,8 @@ function Scanner() {
       fingerprintFrames?: string[][],
       structFrames?: string[][],
       foil?: FoilSample,
-      sharp?: number | null
+      sharp?: number | null,
+      autoStill?: number
     ) => {
       const data = await runIdentify(
         dataUrl,
@@ -1307,8 +1318,18 @@ function Scanner() {
         fingerprintFrames,
         structFrames,
         foil,
-        sharp
+        sharp,
+        autoStill
       );
+      // Auto-fångstens broms: auto-fångster i rad utan träff = troligen en vy utan kort. En träff
+      // (auto eller manuell) nollar den. Fel (nät, 429) räknas inte åt något håll.
+      if (!("error" in data)) {
+        autoCaptureResult(autoState.current, {
+          auto: autoStill != null,
+          hit: scanOutcome(data) !== "nomatch",
+          now: performance.now(),
+        });
+      }
       if (!("error" in data) && typeof data.remaining === "number") {
         const r = data.remaining;
         setQuota((q) => (q ? { ...q, remaining: r } : q));
@@ -1593,7 +1614,7 @@ function Scanner() {
     };
   }, [view, cameraState]);
 
-  // LIVE-POLLEN: fingeravtryck ur aktuell videoruta i takten LIVE_POLL_MS medan
+  // LIVE-POLLEN: fingeravtryck ur aktuell videoruta i takten AUTO_TICK_MS medan
   // kameravyn är aktiv. Varje poll är ~10 kB upp och ~20 ms server-CPU mot
   // indexet i minnet — ingen bild, ingen modell, ingen kvot. En poll i taget,
   // så en seg lina inte staplar förfrågningar.
@@ -1617,39 +1638,65 @@ function Scanner() {
       setLiveHint(null);
       liveStreak.current = { id: "", n: 0 };
       probeHistory.current = [];
+      autoCapturePaused(autoState.current);
       return;
     }
-    // EN POLL I TAGET, NÄSTA DIREKT NÄR SVARET KOMMIT (2026-11-28). Förut gick en klocka var 350:e ms
-    // som HOPPADE ÖVER tickar medan en poll var ute — och svaret tog ~450 ms (mätt: 360 ms server +
-    // nät), så den verkliga takten var 700 ms och de fem pollar auto-fångsten kräver tog ~3 s. Nu
-    // startar nästa poll LIVE_POLL_MS efter att den förra STARTADE, eller direkt när svaret kom om
-    // det tog längre. Beviskravet är orört; bara väntan mellan pollarna är borta.
+    // TVÅ TAKTER I SAMMA KLOCKA (2026-11-28):
+    //  · AVTRYCKAREN är lokal: varje tick (AUTO_TICK_MS) läser en ruta och frågar lib/auto-capture.ts
+    //    om kortet ligger stilla, skarpt och är ett annat än det senast fångade. Inget nätanrop.
+    //  · NÄTPOLLEN (/identify-art) ger bara CHIPPET med kortets namn. En i taget: en tick som
+    //    kommer medan ett svar är ute skickar inget, så en seg lina inte staplar förfrågningar.
+    // Förut hängde avtryckaren PÅ nätpollen ("säker" tre pollar i rad) — mätt på 600 riktiga
+    // fångster var pollen säker på 13 % av rutorna, så auto-fångsten gick nästan aldrig.
     let cancelled = false;
     let timer: number | undefined;
+    let pollOut = false;
     const tick = () => {
       if (cancelled) return;
       const startedAt = performance.now();
       const next = () => {
         if (cancelled) return;
-        timer = window.setTimeout(tick, Math.max(0, LIVE_POLL_MS - (performance.now() - startedAt)));
+        timer = window.setTimeout(tick, Math.max(0, AUTO_TICK_MS - (performance.now() - startedAt)));
       };
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (!video || !canvas || document.hidden) return next();
       const shot = captureFrame(video, canvas, frameRef.current, true);
-      if (!shot || shot.fingerprints.length === 0) return next();
-      // TEMPORAL FOLIESIGNAL: pollarna ligger 600 ms isär, alltså ~2 s
-      // handhållen rörelse innan slutaren går — spekulära reflexer flyttar sig
-      // över den tiden, tryckfärg gör det inte. Sonderna räknades redan här
-      // och kastades; nu behålls de fem senaste och följer med fångsten upp.
-      // Sonderna hålls PROBE_GAP_MS isär oavsett polltakten: signalen är rörelse över ~2 s, och
-      // fem sonder ur samma halvsekund hade mätt nästan samma ruta.
+      if (!shot || shot.fingerprints.length === 0) {
+        autoCapturePaused(autoState.current);
+        return next();
+      }
+      // TEMPORAL FOLIESIGNAL: sonderna hålls PROBE_GAP_MS isär oavsett takten — signalen är
+      // rörelse över ~2 s, och fem sonder ur samma halvsekund hade mätt nästan samma ruta.
       if (shot.probe && startedAt - lastProbeAt.current >= PROBE_GAP_MS) {
         lastProbeAt.current = startedAt;
         const h = probeHistory.current;
         h.push(shot.probe);
         if (h.length > 5) h.shift();
       }
+      // ⛔ FÅNGSTKVALITETEN ÄR EN EGEN GRIND. Null = måttet gick inte att räkna (för liten yta,
+      // helt svart ruta) och behandlas som "vet inte", inte som "suddig". Se lib/frame-sharpness.ts.
+      const sharp = shot.sharpness;
+      lastSharpness.current = sharp;
+      const blurry = sharp != null && sharp < SHARP_AUTO_MIN;
+
+      // AUTO-FÅNGST. Kvot-slut auto-trycker inte (bara betalväggen om och om igen); manuellt tryck
+      // funkar som vanligt. ⛔ Grindarna gäller BARA automatiken — en kamera som vägrar ett
+      // manuellt tryck är trasig, inte försiktig.
+      const auto = autoCaptureStep(autoState.current, {
+        fp: shot.fp0,
+        blurry,
+        pending: pendingRef.current,
+        now: startedAt,
+      });
+      if (auto.fire && (quotaRef.current == null || quotaRef.current.remaining > 0)) {
+        // Slutaren kan vägra (nedkylning 450 ms efter förra fångsten) — då försöker nästa tick igen.
+        // `capture` bokför själv scenen som fångad (autoCaptureFired).
+        if (captureRef.current?.(auto.stillMin)) hapticImpact();
+      }
+
+      if (pollOut) return next();
+      pollOut = true;
       scanFetch("/api/scanner/identify-art", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1661,38 +1708,18 @@ function Scanner() {
         .then((r) => (r.ok ? r.json() : null))
         .then((d: { candidates?: Array<{ cardId: string; name: string; number: string }>; confident?: boolean } | null) => {
           // Ett svar som kom efter att pollen stängts av (ett ark öppnades, läget byttes) får
-          // varken tända chippet eller trycka av.
+          // inte tända chippet.
           if (cancelled) return;
           const top = d?.candidates?.[0];
           if (!top) {
             liveStreak.current = { id: "", n: 0 };
-            lockedPolls.current = 0;
-            autoFired.current = null;
             setLiveHint(null);
             return;
           }
           const s = liveStreak.current;
-          // Nytt kort i ramen → auto-fångsten laddas om.
-          if (s.id !== top.cardId) autoFired.current = null;
           liveStreak.current =
             s.id === top.cardId ? { id: s.id, n: s.n + 1 } : { id: top.cardId, n: 1 };
-          // ⛔ FÅNGSTKVALITETEN ÄR EN EGEN GRIND, OBEROENDE AV MATCHNINGEN.
-          // Låset kräver att BILDMATCHNINGEN är stabil och säker — men en
-          // rörelsesuddig ruta kan mycket väl ge tre stabila träffar på FEL
-          // kort, och då fyrar auto-slutaren på en fångst ingen människa hade
-          // tryckt av på. Mätt 2026-08-29 är takten den enda felkällan i datan
-          // med en mekanism: < 1,5 s mellan skanningar ger 34,1 % missar mot
-          // 15,3 % vid > 60 s, och gradienten håller inom BÅDA de tunga
-          // användarna. Se src/lib/frame-sharpness.ts.
-          const sharp = shot.sharpness;
-          lastSharpness.current = sharp;
-          // Null = måttet gick inte att räkna (för liten yta, helt svart ruta).
-          // ⛔ Behandla det som "vet inte", inte som "suddig": att blockera på ett
-          // uteblivet mått hade gjort auto-fångsten oberäknelig på enheter där
-          // ytan råkar bli liten.
-          const blurry = sharp != null && sharp < SHARP_AUTO_MIN;
           const locked = liveStreak.current.n >= 3 && d?.confident === true;
-          lockedPolls.current = locked && !blurry ? lockedPolls.current + 1 : 0;
           // ⛔ CHIPPET NAMNGER ALDRIG ETT KORT VI INTE ÄR SÄKRA PÅ.
           // /identify-art returnerar ALLTID en topp-5 — sökningen har inget
           // "hittade inget", bara "närmast". En ruta HELT UTAN kort får därför
@@ -1700,43 +1727,18 @@ function Scanner() {
           // "Litleo (JP) #66" → "Woobat #71" → "Shuckle #136" i tur och ordning,
           // och efter avtryckningen stod "Shuckle #136" kvar RAKT OVANFÖR
           // resultatet "Ingen träff" — två motsägande besked samtidigt.
-          // `confident` ÄR trust-regeln (poäng + marginal, 100 % uppmätt
-          // precision i identifyCardArt) och är den enda signal vi har på att
-          // det ens ligger ett känt kort i ramen. Under den: inget chip alls.
-          // ⛔ Visa inte "söker…" i stället — hjälptexten under ramen säger
-          // redan vad handen ska göra, och ett chip som blinkar förbi vid varje
+          // `confident` ÄR trust-regeln (poäng + marginal i identifyCardArt). Under den: inget
+          // chip alls. ⛔ Visa inte "söker…" i stället — ett chip som blinkar förbi vid varje
           // poll är brus. Tystnad är det ärliga läget.
-          // ⛔ Grinden gäller BARA chippet. `liveStreak`, `locked` och
-          // auto-fångsten räknas vidare precis som förut — auto-fångsten kräver
-          // ändå `confident`, så ingen fångstlogik ändras av det här.
           setLiveHint(
             d?.confident === true ? { name: top.name, number: top.number, locked, blurry } : null
           );
-          // AUTO-FÅNGST: låset har hållit ≥2 pollar efter att det tändes, och
-          // det här kortet har inte redan auto-fångats. Kvot-slut auto-trycker
-          // inte (bara toast-spam annars); manuellt tryck funkar som vanligt.
-          // ⛔ `!blurry` grindar BARA den här automatiken. Ett manuellt tryck går
-          // alltid igenom — en kamera som vägrar fotografera är trasig, inte
-          // försiktig, och tröskeln är ännu okalibrerad (talet bokförs nu för
-          // att kunna sättas på en fördelning i stället för på en gissning).
-          if (
-            locked &&
-            !blurry &&
-            lockedPolls.current >= 3 &&
-            autoFired.current !== top.cardId &&
-            (quotaRef.current == null || quotaRef.current.remaining > 0)
-          ) {
-            // ⛔ Spärra kortet först när slutaren FAKTISKT gick. Den vägrar under sin egen
-            // nedkylning (450 ms efter förra fångsten); sattes spärren ändå blev kortet aldrig
-            // fångat — vid snabb matning (kortmatare) är det exakt läget. Nästa poll försöker igen.
-            if (captureRef.current?.()) {
-              autoFired.current = top.cardId;
-              hapticImpact();
-            }
-          }
         })
         .catch(() => undefined)
-        .finally(next);
+        .finally(() => {
+          pollOut = false;
+        });
+      next();
     };
     tick();
     return () => {
@@ -1922,7 +1924,8 @@ function Scanner() {
       fingerprintFrames?: string[][],
       structFrames?: string[][],
       foil?: FoilSample,
-      sharp?: number | null
+      sharp?: number | null,
+      autoStill?: number
     ) => {
       const id = nextId();
       setScans((prev) => [
@@ -1940,7 +1943,7 @@ function Scanner() {
           language: defaultLanguage,
         },
       ]);
-      void identifyInto(id, dataUrl, strip, fingerprintFrames, structFrames, foil, sharp);
+      void identifyInto(id, dataUrl, strip, fingerprintFrames, structFrames, foil, sharp, autoStill);
     },
     [defaultCondition, defaultLanguage, identifyInto]
   );
@@ -2088,13 +2091,19 @@ function Scanner() {
     };
   }, [mode, cameraState, view, addBarcodeScan]);
 
-  /** @returns true när en fångst faktiskt togs (auto-fångsten spärrar kortet bara då). */
-  const capture = useCallback((): boolean => {
+  /**
+   * @param autoStill Satt när AUTO-fångsten tryckte av (lägsta stillhetsvärdet den gick på).
+   * @returns true när en fångst faktiskt togs.
+   */
+  const capture = useCallback((autoStill?: number): boolean => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return false;
     const shot = captureFrame(video, canvas, frameRef.current);
     if (!shot) return false;
+    // Scenen är fångad — auto-fångsten tar den inte en gång till. Gäller även ett MANUELLT tryck:
+    // annars hade auto-slutaren gått på samma kort en halv sekund senare.
+    autoCaptureFired(autoState.current, shot.fp0);
     setFlash(true);
     window.setTimeout(() => setFlash(false), 180);
     setShutterCooling(true);
@@ -2130,7 +2139,8 @@ function Scanner() {
           // Historiken tas som den är: den beskriver de sista sekunderna av
           // samma scen, vilket ÄR den temporala signalen.
           shot.probe ? { probe: shot.probe, history: [...probeHistory.current] } : undefined,
-          sharps.length ? Math.max(...sharps) : null
+          sharps.length ? Math.max(...sharps) : null,
+          autoStill
         );
         // Nollställ efter användning: nästa korts första skanning får INTE bära
         // sonder från det förra kortets scen — då mäter den temporala signalen
@@ -2338,9 +2348,15 @@ function Scanner() {
       }
     })();
   }, [cameraState, shutterCooling, defaultCondition, defaultLanguage, identifyInto, isAdmin, t, toast]);
-  // Auto-fångsten läser via refs (se lockedPolls/autoFired) — färska varje render.
+  // Auto-fångsten läser via refs (autoState/pendingRef) — färska varje render.
   captureRef.current = capture;
+  // ⛔ Slutarknappen anropar utan argument: `onClick={capture}` hade skickat klickhändelsen som
+  // `autoStill` och märkt varje manuellt tryck som en auto-fångst.
+  const manualCapture = useEventCallback(() => {
+    capture();
+  });
   quotaRef.current = quota;
+  pendingRef.current = scans.reduce((n, sc) => n + (sc.status === "identifying" ? 1 : 0), 0);
 
   function handleFile(file: File): boolean {
     if (!file.type.startsWith("image/")) {
@@ -2765,7 +2781,7 @@ function Scanner() {
           // "slut" hade sålt Pro till en betalande kund varje gång skannern öppnas.
           outOfQuota={quota != null && !quota.isPremium && quota.remaining <= 0}
           onUpgradePrompt={() => setLimitOpen(true)}
-          onCapture={bulkMode ? captureBulk : capture}
+          onCapture={bulkMode ? captureBulk : manualCapture}
           onGallery={() => fileInputRef.current?.click()}
           onSettings={() => setSettingsOpen(true)}
           onReview={() => setView("review")}

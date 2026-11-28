@@ -46,6 +46,29 @@ paths:
   rättelsefrekvensen per spel efter påslag. Kostnad: +6 718 kort ≈ +13 % av motorns index (~35 MB RAM,
   ~0,55 GB volym) ≈ 5 kr/mån. Första påfyllningen tar 3 nätter (engine-sync `MAX_PER_RUN` 3 000).
 
+- **AUTO-FÅNGSTENS AVTRYCKARE = "KORTET LIGGER STILLA", INTE "POLLEN ÄR SÄKER" (2026-11-28, ägaren: auto-skanningen
+  hittar inte korten, varken i kortmataren eller i handen)**: avtryckaren krävde att live-pollen (`/identify-art`)
+  var "säker" tre pollar i rad. MÄTT (600 riktiga fångster uppspelade genom `identifyCardArt`): säker på **13 %** av
+  rutorna, pollens etta = slutsvaret i 51 % — och farten var inte felet (drift samma dag: 48 ms server, en poll per
+  ~210 ms). Nu avgör `src/lib/auto-capture.ts` (ren, testad) LOKALT, utan nätanrop: (1) stilla = rutornas
+  konstavtryck korrelerar ≥ `AUTO_STILL_MIN` 0,92 tre rutor i rad (`AUTO_TICK_MS` 120), (2) skarp
+  (`SHARP_AUTO_MIN`), (3) ny scen = korrelation < `AUTO_REARM_MAX` 0,80 mot senast fångade ruta, en enda ruta räcker.
+  Trösklarna är satta på ScannerJob-data: rutor ur samma fångst p05 0,942 / median 0,994; två olika kort i rad
+  median 0,416 / p95 0,797 / p99 0,885. Nätpollen finns kvar BARA för chippet (kortets namn).
+  ⛔ Träffsäkerheten är densamma som ett manuellt tryck: kortet avgörs av `/identify` (motorn), aldrig av pollen.
+  ⛔ Ingen närvarogrind finns att få: pollens poäng och hörndetektorn skiljer inte "kort" från "inget kort" (mätt:
+  poäng ≥ 0,55 för 96 % / 76 %, hörn 66 % / 37 %). En stadig vy utan kort ger en "ingen träff"-rad; bromsen
+  (`AUTO_MISS_BACKOFF_MS`: andra auto-missen i rad 1,5 s, sedan 3 s, 6 s; en träff nollar) håller det nere.
+  ⛔ Högst `AUTO_MAX_PENDING` (2) skanningar får vänta på svar — motorn tar ett kort i taget och den snabba vägen ger
+  upp efter 4 s (då svarar konstavtrycket ensamt, sämre). ⛔ Ett manuellt tryck bokför också scenen som fångad
+  (`autoCaptureFired` i `capture`), och slutarknappen anropar `manualCapture` — `onClick={capture}` hade skickat
+  klickhändelsen som auto-markör. ⚠️ KÄND AVVÄGNING: samma kort kan fångas två gånger om kameran flyttas märkbart och
+  blir stilla igen över det (två LIKA kort i rad i en kortmatare måste gå igenom, och avtrycken kan inte skilja
+  "samma kort, ny vinkel" från "annat kort" — mätt: max över varianterna 0,897 median för samma, p90 0,860 för olika).
+  ⏭ MÄT: `[scan-timing] … trig=auto(<stillhet>)|man hit=` i deploy-loggen + `recall.auto` på raden — andel auto,
+  miss-andel auto mot manuellt, och fördelningen av stillhetsvärdet (rutorna i mätningen låg 16 ms isär, avtryckaren
+  jämför med 120 ms: en ostadig hand kan ligga lägre ⇒ sänk då `AUTO_STILL_MIN`, aldrig under ~0,89 = p99 för ett byte).
+
 - **AUTO-FÅNGSTENS FART (2026-11-28, ägaren: snabb nog för en kortmatare, utan att tappa träffsäkerhet)**:
   MÄTT FÖRE: `/identify-art` p50 ~360 ms (p90 ofta 1,8 s — den köade bakom skanningens sökning på samma tråd),
   `/identify` total ~3 s varav `match` ~1,9 s; klientens klocka (350 ms) hoppade över varannan tick medan svaret
@@ -58,10 +81,9 @@ paths:
   eller ett fel i kärnan ⇒ JS-loopen (`searchOne`), samma svar. (2) **Pollen går en i taget** och nästa startar
   när svaret kommit, golv `LIVE_POLL_MS` 150. (3) Pollen läser inte längre planen ur databasen
   (`resolveScanActorKey`), taket 600/min; `/identify` 120/min (ett 429 läses av klienten som "kvoten slut").
-  Auto-fångsten spärrar kortet först när slutaren faktiskt gick; de extra rutorna kodar ingen JPEG.
-  ⛔ Fortfarande 5 pollar i rad + trust-regeln + skärpegrinden, och kortet avgörs av `/identify`, inte av pollen.
-  ⏭ OMÄTT: takten på en riktig telefon/kortmatare (läs `/identify-art` i http-loggen), två LIKA kort i rad
-  (spärren släpper bara när ett annat kort setts emellan), motorn (~0,7 s/kort, ett kort i taget — nästa spak).
+  De extra rutorna kodar ingen JPEG. ⛔ Beviskravet "5 pollar i rad + trust-regeln" är ERSATT samma dag av
+  stillhetsavtryckaren ovan (pollen var säker på 13 % av rutorna). MÄTT i drift efter ägarens test: pollens
+  server-p50 48 ms, takt ~210 ms. ⏭ Motorn (~0,7 s/kort, ett kort i taget) är nästa spak för TAKTEN i en kortmatare.
 
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 

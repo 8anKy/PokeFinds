@@ -366,6 +366,8 @@ export async function recordScanUsage(
     lh?: string;
     /** "Inget kort i bilden" — listan hölls tom med flit. */
     nc?: boolean;
+    /** AUTO-FÅNGST: lägsta ruta-mot-ruta-likheten slutaren gick på (lib/auto-capture.ts). Saknas = manuellt tryck. */
+    auto?: number;
   } | null,
   /**
    * FÄLTAVTRYCKET (2026-08-30) — skrivs för ALLA användare. Ägarbeslut: målet
@@ -462,6 +464,7 @@ export async function recordScanUsage(
                 ...(recall.lh ? { lh: recall.lh } : {}),
                 // "Inget kort i bilden" — skickades in av rutten sedan 09-23 men skrevs aldrig (10-14).
                 ...(recall.nc ? { nc: true } : {}),
+                ...(recall.auto != null ? { auto: recall.auto } : {}),
               },
               ...(fp && fp.color.length > 0
                 ? { fp: { v: 1, color: fp.color.slice(0, 7), struct: fp.struct.slice(0, 7) } }

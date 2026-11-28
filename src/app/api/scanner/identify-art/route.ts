@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     // Gäst (enhets-id) eller inloggad — live-pollen kostar ingen kvot, bara CPU. Ingen
     // databasläsning per poll: nyckeln räcker (se resolveScanActorKey).
     const key = await resolveScanActorKey(req);
-    // Upp till ~7 poll/s i kameravyn (LIVE_POLL_MS 150 i skanna/page.tsx) = 400/min; taket binder
+    // Upp till ~8 poll/s i kameravyn (AUTO_TICK_MS 120, en poll i taget) = 500/min; taket binder
     // CPU:n (~20 ms per poll sedan SIMD-kärnan, art-index.ts).
     const { ok } = await rateLimit(`scanner-art:${key}`, 600, 60 * 1000);
     if (!ok) throw new ServiceError(429, "För många förfrågningar.");
