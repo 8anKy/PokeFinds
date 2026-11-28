@@ -37,7 +37,7 @@ import {
   autoCaptureStep,
   newAutoCaptureState,
 } from "@/lib/auto-capture";
-import { ScanHitMoments, ScanSessionPanel } from "@/components/features/scanner-v2";
+import { ScanHitMoments, ScanModeWords, ScanSessionPanel, ScanStatusLine } from "@/components/features/scanner-v2";
 import { readNumberStripNative, warmUpLocalNumberReader } from "@/lib/on-device-number";
 import { readLangHint, rememberLangHint } from "@/lib/scan-language-hint";
 import { classifyDrag, shouldCloseSheet } from "@/lib/sheet-drag";
@@ -2398,6 +2398,22 @@ function Scanner() {
     }
   });
 
+  /** Ordlägena i nya layouten: Auto och Ett kort är samma kameraläge med autoskannern på/av. */
+  const pickMode = useEventCallback((key: string) => {
+    if (key === "auto" || key === "single") {
+      const next = key === "auto";
+      setMode("single");
+      setAutoOn(next);
+      try {
+        window.localStorage.setItem(AUTO_SCAN_KEY, next ? "1" : "0");
+      } catch {
+        /* privat läge utan lagring */
+      }
+    } else if (key === "bulk" || key === "barcode") {
+      setMode(key);
+    }
+  });
+
   function handleFile(file: File): boolean {
     if (!file.type.startsWith("image/")) {
       toast({ title: t("wrongFileType"), description: t("chooseImageFile"), variant: "error" });
@@ -2712,7 +2728,21 @@ function Scanner() {
         </p>
       </div>
       {view === "capture" && mode !== "barcode" ? (
-        <div className="relative">
+        <div className="relative flex items-center gap-2">
+          {quota?.v2 === true && camera.torchSupported && (
+            <button
+              type="button"
+              onClick={() => void camera.toggleTorch()}
+              aria-pressed={camera.torchOn}
+              aria-label={camera.torchOn ? t("torchTurnOff") : t("torchTurnOn")}
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-full backdrop-blur transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan",
+                camera.torchOn ? "bg-holo-cyan text-black" : "bg-white/10 text-ink hover:bg-white/15"
+              )}
+            >
+              <IconFlashlight size={20} />
+            </button>
+          )}
           <button
             type="button"
             onClick={openGuide}
@@ -2796,6 +2826,7 @@ function Scanner() {
           shutterCooling={shutterCooling}
           quota={quota}
           v2={quota?.v2 === true}
+          onPickMode={pickMode}
           pileRef={pileRef}
           landedIds={landedIds}
           onLanded={onLanded}
@@ -3214,6 +3245,8 @@ function CaptureView(props: {
   quota: ScanQuota | null;
   /** Nya utseendet (förhandsvisning): panelen med högen + träffögonblicket i ramen. */
   v2: boolean;
+  /** Ordlägena i nya layouten ("auto" | "single" | "bulk" | "barcode"). */
+  onPickMode: (key: string) => void;
   pileRef: RefObject<HTMLSpanElement>;
   landedIds: ReadonlySet<string>;
   onLanded: (id: string) => void;
@@ -3317,14 +3350,28 @@ function CaptureView(props: {
           // `pointer-events-none` och ritar bara hörnmarkörer + chippet, så den
           // stjäl inga tryck från zoom-kontrollerna. Capture-flashen ligger kvar
           // överst: samma z-30 men SENARE i DOM:en.
-          className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
+          // NYA LAYOUTEN: bottendelen är högre (status + panel + lägen + slutare), så ramen får ytan
+          // MELLAN toppraden och bottendelen och tar sin höjd därifrån (bredden följer av 5:7).
+          // ⛔ Ramen MÄTS av captureFrame (getBoundingClientRect) — måtten här är fria att ändra.
+          className={cn(
+            "pointer-events-none absolute z-30 flex items-center justify-center",
+            props.v2
+              ? "inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+20.5rem)] top-[calc(env(safe-area-inset-top)+4.5rem)]"
+              : "inset-0"
+          )}
         >
-          <div ref={frameRef} className="relative mb-[14vh] aspect-[5/7] w-[68%] max-w-[20rem]">
+          <div
+            ref={frameRef}
+            className={cn(
+              "relative aspect-[5/7]",
+              props.v2 ? "h-[min(100%,95.2vw,28rem)]" : "mb-[14vh] w-[68%] max-w-[20rem]"
+            )}
+          >
             <CornerFrame />
             {/* LIVE-LÅSET: grönt chip = bildmatchningen är säker INNAN slutaren
                 trycks (trust-regeln + tre rutor i rad). Neutralt = bästa
                 gissning. Ren data (namn + nummer) — ingen ny copy behövs. */}
-            {props.liveHint && (
+            {props.liveHint && !props.v2 && (
               <div
                 className={cn(
                   "absolute -bottom-9 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold backdrop-blur transition-colors",
@@ -3388,7 +3435,90 @@ function CaptureView(props: {
         />
       )}
 
+      {/* NYA LAYOUTEN (förhandsvisning SCANNER_V2): statusrad, sessionspanelen (alltid synlig), lägena som
+          ord och en avtryckarrad med galleri · slutare · inställningar. Ficklampan sitter i toppraden. */}
+      {props.v2 && (
+        <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-2.5 px-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {quota && !quota.isPremium && (scans.length === 0 || quota.remaining <= LOW_QUOTA) && (
+            <QuotaBadge quota={quota} onUpgrade={props.onUpgrade} />
+          )}
+          {isMock && (
+            <p className="mx-auto rounded-full bg-black/70 px-3 py-1 text-center text-[11px] font-medium text-holo-gold ring-1 ring-holo-gold/30 backdrop-blur">
+              {t("demoMode")}
+            </p>
+          )}
+          {cameraState === "live" && (
+            <ScanStatusLine
+              on={props.mode === "single" && props.liveHint != null && !props.liveHint.blurry}
+              text={
+                props.mode === "bulk"
+                  ? t("v2StatusBulk")
+                  : props.mode === "barcode"
+                    ? t("barcodeHint")
+                    : props.liveHint?.blurry
+                      ? t("holdStill")
+                      : props.liveHint
+                        ? `${props.liveHint.name} #${props.liveHint.number}`
+                        : props.autoOn
+                          ? t("v2StatusAuto")
+                          : t("v2StatusSingle")
+              }
+            />
+          )}
+          <ScanSessionPanel
+            scans={scans}
+            landedIds={props.landedIds}
+            pileRef={props.pileRef}
+            onOpen={props.onOpenDetails}
+            onReview={props.onReview}
+          />
+          <ScanModeWords
+            proLabel={t("pro")}
+            modes={[
+              { key: "auto", label: t("v2ModeAuto"), active: props.mode === "single" && props.autoOn },
+              { key: "single", label: t("v2ModeSingle"), active: props.mode === "single" && !props.autoOn },
+              { key: "bulk", label: t("v2ModeBulk"), active: props.mode === "bulk", locked: props.bulkLocked },
+              ...(props.barcodeAvailable
+                ? [{ key: "barcode", label: t("v2ModeBarcode"), active: props.mode === "barcode" }]
+                : []),
+            ]}
+            onPick={(key) => (key === "bulk" && props.bulkLocked ? props.onUpgradeBulk() : props.onPickMode(key))}
+          />
+          <div className="flex items-center justify-between px-8">
+            <button
+              type="button"
+              onClick={props.onGallery}
+              aria-label={t("chooseFromDevice")}
+              className="flex h-[52px] w-[52px] items-center justify-center rounded-full border border-white/15 bg-black/50 text-ink backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+            >
+              <IconUpload size={22} />
+            </button>
+            <button
+              type="button"
+              onClick={props.outOfQuota ? props.onUpgradePrompt : props.onCapture}
+              disabled={cameraState !== "live"}
+              aria-label={props.outOfQuota ? t("limitBadge") : t("takePhoto")}
+              className={cn(
+                "flex h-[76px] w-[76px] items-center justify-center rounded-full border-4 border-white transition-transform disabled:opacity-40",
+                shutterCooling ? "scale-90" : "active:scale-90"
+              )}
+            >
+              <span className={cn("h-[58px] w-[58px] rounded-full", props.outOfQuota ? "bg-holo-cyan" : "bg-white")} />
+            </button>
+            <button
+              type="button"
+              onClick={props.onSettings}
+              aria-label={t("scannerSettings")}
+              className="flex h-[52px] w-[52px] items-center justify-center rounded-full border border-white/15 bg-black/50 text-ink backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+            >
+              <IconSettings size={22} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Botten: kvot-badge, hint, strip, kontroller */}
+      {!props.v2 && (
       <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         {/* Kvot-badgen göms när remsan visas — annars trycks den upp i kortramen
             (remsan visar ändå antalet skanningar). Syns före första skanningen. */}
@@ -3412,24 +3542,15 @@ function CaptureView(props: {
 
         {/* ⛔ Nya panelen bär ännu inte gratiskontots rad/räknare (ScanStrip gör det) — den måste in
             innan förhandsvisningen släpps för andra än admin, som saknar kvot. */}
-        {scans.length > 0 &&
-          (props.v2 ? (
-            <ScanSessionPanel
-              scans={scans}
-              landedIds={props.landedIds}
-              pileRef={props.pileRef}
-              onOpen={props.onOpenDetails}
-              onReview={props.onReview}
-            />
-          ) : (
-            <ScanStrip
-              scans={scans}
-              total={total}
-              onOpen={props.onOpenDetails}
-              quota={quota}
-              onUpgrade={props.onUpgrade}
-            />
-          ))}
+        {scans.length > 0 && (
+          <ScanStrip
+            scans={scans}
+            total={total}
+            onOpen={props.onOpenDetails}
+            quota={quota}
+            onUpgrade={props.onUpgrade}
+          />
+        )}
 
         {/* Raden visas även MED skanningar i enkelläget — då bara Auto-knappen, så autoskannern
             går att slå av mitt i ett pass. Bulk/streckkod byts som förut bara med tom bricka. */}
@@ -3589,6 +3710,7 @@ function CaptureView(props: {
           )}
         </div>
       </div>
+      )}
       {props.v2 && (
         <ScanHitMoments scans={scans} frameRef={frameRef} pileRef={props.pileRef} onLanded={props.onLanded} />
       )}

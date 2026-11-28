@@ -250,7 +250,9 @@ export function ScanSessionPanel(props: {
   let name = "";
   let meta: ReactNode = null;
   let price: ReactNode = null;
-  if (waiting || !last) {
+  if (scans.length === 0) {
+    name = t("v2Empty");
+  } else if (waiting || !last) {
     name = t("identifying");
   } else if (last.status === "matched" && last.match) {
     const hit = last.match.estimatedValue != null && last.match.estimatedValue >= SCAN_HIT_ORE;
@@ -281,7 +283,7 @@ export function ScanSessionPanel(props: {
         onClick={() => (last && !waiting ? props.onOpen(last.id) : undefined)}
         className="flex h-[68px] w-full items-center gap-3 px-3.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
       >
-        <span ref={props.pileRef} className="relative block h-14 w-[60px] shrink-0">
+        <span ref={props.pileRef} className={cn("relative block h-14 shrink-0", pile.length === 0 && scans.length === 0 ? "w-0" : "w-[60px]")}>
           {pile.map((s, i) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -294,7 +296,7 @@ export function ScanSessionPanel(props: {
           ))}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate text-base font-semibold text-ink">{name}</span>
+          <span className={cn("truncate font-semibold", scans.length === 0 ? "text-[15px] font-normal text-ink-muted" : "text-base text-ink")}>{name}</span>
           {meta && <span className="truncate text-[13px] text-ink-muted">{meta}</span>}
         </span>
         {price && <span className="shrink-0 text-base font-bold tabular-nums">{price}</span>}
@@ -302,7 +304,7 @@ export function ScanSessionPanel(props: {
       <div className="flex h-[50px] items-center justify-between border-t border-white/10 pl-4 pr-2.5">
         <span className="flex min-w-0 items-center gap-2 text-[15px] font-semibold tabular-nums text-ink">
           <span className="truncate">
-            {t("v2Cards", { count })} · {scanPrice(total)}
+            {count === 0 ? t("v2SessionEmpty") : `${t("v2Cards", { count })} · ${scanPrice(total)}`}
           </span>
           {props.countChip}
         </span>
@@ -321,6 +323,48 @@ export function ScanSessionPanel(props: {
           </svg>
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Statusraden under kortramen: en punkt och en kort text som säger vad kameran väntar på. */
+export function ScanStatusLine(props: { text: string; on?: boolean; pulse?: boolean }) {
+  return (
+    <p className="flex items-center justify-center gap-2 px-4 text-center text-[13px] font-semibold text-ink-muted">
+      <span
+        aria-hidden="true"
+        className={cn("h-2 w-2 shrink-0 rounded-full", props.on ? "bg-holo-cyan" : "bg-white/40", props.pulse && "animate-pulse")}
+      />
+      <span className="min-w-0">{props.text}</span>
+    </p>
+  );
+}
+
+/** Lägena som ord med en tunn turkos linje under det valda (samma form som flikarna i resten av appen). */
+export function ScanModeWords(props: {
+  modes: Array<{ key: string; label: string; active: boolean; locked?: boolean }>;
+  proLabel: string;
+  onPick: (key: string) => void;
+}) {
+  return (
+    <div role="group" className="flex items-center justify-center gap-5">
+      {props.modes.map((m) => (
+        <button
+          key={m.key}
+          type="button"
+          aria-pressed={m.active}
+          onClick={() => props.onPick(m.key)}
+          className={cn(
+            "flex h-11 items-center gap-1.5 text-[15px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan",
+            m.active ? "text-ink" : "text-ink-muted"
+          )}
+        >
+          <span className={cn("border-b-2 pb-1", m.active ? "border-holo-cyan" : "border-transparent")}>{m.label}</span>
+          {m.locked && (
+            <span className="rounded bg-holo-cyan/20 px-1.5 py-px text-[10px] font-bold tracking-wide text-holo-cyan">{props.proLabel}</span>
+          )}
+        </button>
+      ))}
     </div>
   );
 }

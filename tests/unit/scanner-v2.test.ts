@@ -42,7 +42,9 @@ describe("förhandsvisningen SCANNER_V2", () => {
   it("skannersidan ritar nya panelen BARA bakom flaggan, och kvoten bär den", () => {
     const page = readFileSync("src/app/[locale]/(scan)/skanna/page.tsx", "utf8");
     expect(page).toContain("v2={quota?.v2 === true}");
-    expect(page).toMatch(/props\.v2 \? \(\s*<ScanSessionPanel/);
+    // Nya layouten ritas i ETT block bakom flaggan, den gamla bottenstapeln i sitt eget bakom motsatsen.
+    expect(page).toMatch(/\{props\.v2 && \(\s*<div[^>]*>[\s\S]*?<ScanSessionPanel/);
+    expect(page).toContain("{!props.v2 && (");
     expect(readFileSync("src/app/api/scanner/quota/route.ts", "utf8")).toContain('v2: previewAllowedFor("SCANNER_V2", user)');
   });
 });

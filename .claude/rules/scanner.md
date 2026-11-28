@@ -59,6 +59,14 @@ paths:
   det) — den måste in före ett publikt påslag; admin saknar kvot. Pris i nya delarna = hela kronor från 100 kr
   (`scanPrice`). **Kvar**: steg 2 Flera kort (prislappar, dyrast kort lyfts, högen, "Hittade N kort"), steg 3 Granska
   i rutnät + sveprad för osäkra kort ("tryck på kortet", nästa direkt), sedan toppraden/ordlägena.
+  **Steg 1b (samma dag, ägaren: "I still don't see the new design" — han öppnade skannern utan att skanna, och före
+  första skanningen syntes inget nytt)**: HELA kameravyn ritas i nya layouten bakom flaggan — statusrad
+  (`ScanStatusLine`; live-chippet under ramen flyttar dit), panelen alltid synlig ("Inga skanningar ännu"), lägena som
+  ord (`ScanModeWords`: Auto · Ett kort · Flera kort; Auto/Ett kort = samma kameraläge med autoskannern på/av,
+  `pickMode`), avtryckarrad galleri · slutare · inställningar; ficklampan i toppraden; lägen går att byta även med
+  skanningar i brickan. Ramen får ytan MELLAN toppraden och bottendelen (höjden styr, bredden följer av 5:7) —
+  captureFrame mäter den, så måtten är fria. Den gamla bottenstapeln ritas oförändrad bakom `!props.v2`.
+  ⛔ Läxa: ett steg ska SYNAS direkt när ytan öppnas — annars ser ägaren "ingenting".
   Lokalt prov utan kamera: en tillfällig sida som matar komponenterna med låtsasskanningar (`work/autoscan/v2-shots.mjs`
   tar bilderna) — checka aldrig in provsidan.
 
